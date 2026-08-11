@@ -79,6 +79,11 @@ interface MessageThreadProps {
     conversationId: string,
     assignedAgentId: string | null,
   ) => void;
+  /** Mirrors onAssignChange for the AI auto-reply pause flag — see
+   *  AiThreadBanner's onChange patch and inbox/page.tsx's
+   *  handleAiAutoReplyChange for why this is a separate callback
+   *  rather than folded into onAssignChange's patch shape. */
+  onAiAutoReplyChange: (conversationId: string, disabled: boolean) => void;
   /**
    * On mobile, the thread is shown full-screen with the conversation list
    * hidden. This callback lets the page deselect the active conversation
@@ -164,6 +169,7 @@ export function MessageThread({
   onUpdateMessage,
   onStatusChange,
   onAssignChange,
+  onAiAutoReplyChange,
   onBack,
   resyncToken = 0,
   onRefresh,
@@ -1172,6 +1178,7 @@ export function MessageThread({
         assignedAgentId={assignedAgentId}
         currentUserId={user?.id}
         onChange={(patch) => {
+          onAiAutoReplyChange(conversation.id, patch.ai_autoreply_disabled);
           if ("assigned_agent_id" in patch) {
             onAssignChange(conversation.id, patch.assigned_agent_id ?? null);
           }

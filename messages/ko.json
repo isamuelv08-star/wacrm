@@ -15,7 +15,7 @@
     "createAccount": "계정 만들기"
   },
   "Sidebar": {
-    "title": "WhatsApp용 CRM 템플릿",
+    "title": "ScalingCRM",
     "dashboard": "대시보드",
     "inbox": "인박스",
     "notifications": "알림",
@@ -279,7 +279,12 @@
       "deals": "딜",
       "noTags": "태그 없음",
       "noDeals": "딜 없음",
-      "addNotePlaceholder": "메모 추가..."
+      "addNotePlaceholder": "메모 추가...",
+      "emailPlaceholder": "이메일 추가",
+      "companyPlaceholder": "회사 추가",
+      "saveFieldError": "저장하지 못했습니다 — 다시 시도하세요.",
+      "aiAssistant": "AI 어시스턴트",
+      "aiOwnedByAgent": "팀원이 이 대화를 넘겨받았습니다."
     },
     "aiBanner": {
       "pausedTitle": "이 대화에서 AI 어시스턴트가 일시 중지됨",

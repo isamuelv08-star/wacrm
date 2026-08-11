@@ -554,6 +554,28 @@ function InboxPageInner() {
     [activeConversation]
   );
 
+  // Mirrors handleAssignChange for the OTHER half of AiThreadBanner's
+  // onChange patch. Both the chat-footer banner and the contact-sidebar
+  // AI switch call this, so `activeConversation.ai_autoreply_disabled`
+  // (the single source of truth both toggles seed their local state
+  // from) always reflects whichever one the agent just clicked —
+  // no separate, driftable state between the two UIs.
+  const handleAiAutoReplyChange = useCallback(
+    (conversationId: string, disabled: boolean) => {
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId ? { ...c, ai_autoreply_disabled: disabled } : c
+        )
+      );
+      if (activeConversation?.id === conversationId) {
+        setActiveConversation((prev) =>
+          prev ? { ...prev, ai_autoreply_disabled: disabled } : prev
+        );
+      }
+    },
+    [activeConversation]
+  );
+
   // On mobile (<lg) we show a SINGLE pane — either the list or the
   // thread — rather than cramming both side-by-side. Selecting a
   // conversation slides the thread in; the thread's back button pops
@@ -618,6 +640,7 @@ function InboxPageInner() {
             onUpdateMessage={handleUpdateMessage}
             onStatusChange={handleStatusChange}
             onAssignChange={handleAssignChange}
+            onAiAutoReplyChange={handleAiAutoReplyChange}
             onBack={handleCloseConversation}
             resyncToken={resyncToken}
             onRefresh={handleManualRefresh}
@@ -632,7 +655,13 @@ function InboxPageInner() {
             toggle — which is itself desktop-only — never affects it. */}
         {contactPanelOpen && (
           <div className="hidden lg:block">
-            <ContactSidebar contact={activeContact} />
+            <ContactSidebar
+              contact={activeContact}
+              conversationId={activeConversation?.id ?? null}
+              aiAutoreplyDisabled={activeConversation?.ai_autoreply_disabled ?? false}
+              assignedAgentId={activeConversation?.assigned_agent_id ?? null}
+              onAiAutoReplyChange={handleAiAutoReplyChange}
+            />
           </div>
         )}
       </div>

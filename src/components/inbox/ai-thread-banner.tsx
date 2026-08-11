@@ -6,41 +6,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/hooks/use-auth";
-
-// ------------------------------------------------------------
-// Account AI status is the same for every conversation, so cache it per
-// account and reuse it across thread switches instead of hitting
-// /api/ai/config every time the agent opens a chat.
-//
-// Keyed by accountId (a multi-account user switching workspaces must not
-// see the previous account's status), and only *successful* fetches are
-// cached — a transient failure returns a default without poisoning the
-// cache, so it retries on the next thread open rather than hiding the
-// banner for the whole session.
-// ------------------------------------------------------------
-interface AiAccountStatus {
-  autoReplyOn: boolean;
-}
-const statusCache = new Map<string, AiAccountStatus>();
-
-async function fetchAiAccountStatus(accountId: string): Promise<AiAccountStatus> {
-  const cached = statusCache.get(accountId);
-  if (cached) return cached;
-  try {
-    const res = await fetch("/api/ai/config", { cache: "no-store" });
-    if (!res.ok) return { autoReplyOn: false }; // don't cache a transient failure
-    const j = await res.json();
-    const status = {
-      // AI auto-reply is "live" only when configured, the master switch
-      // is on, and the inbound bot is enabled.
-      autoReplyOn: !!(j?.configured && j?.is_active && j?.auto_reply_enabled),
-    };
-    statusCache.set(accountId, status);
-    return status;
-  } catch {
-    return { autoReplyOn: false }; // don't cache
-  }
-}
+import { fetchAiAccountStatus, toggleAiAutoReply } from "@/lib/ai/autoreply-toggle";
 
 interface AiThreadBannerProps {
   conversationId: string;
@@ -101,15 +67,9 @@ export function AiThreadBanner({
     async (paused: boolean) => {
       setBusy(true);
       try {
-        const res = await fetch(`/api/ai/autoreply/${conversationId}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          // "Take over" also assigns the thread to the acting agent.
-          body: JSON.stringify({ paused, assign_to_me: paused }),
-        });
-        if (!res.ok) {
-          const j = await res.json().catch(() => ({}));
-          toast.error(j?.error ?? t("updateError"));
+        const result = await toggleAiAutoReply(conversationId, paused);
+        if (!result.ok) {
+          toast.error(result.error ?? t("updateError"));
           return;
         }
         setPaused(paused);

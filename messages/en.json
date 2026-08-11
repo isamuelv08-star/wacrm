@@ -15,7 +15,7 @@
     "createAccount": "Create account"
   },
   "Sidebar": {
-    "title": "CRM Template for WhatsApp",
+    "title": "ScalingCRM",
     "dashboard": "Dashboard",
     "inbox": "Inbox",
     "notifications": "Notifications",
@@ -279,7 +279,12 @@
       "deals": "Deals",
       "noTags": "No tags",
       "noDeals": "No deals",
-      "addNotePlaceholder": "Add a note..."
+      "addNotePlaceholder": "Add a note...",
+      "emailPlaceholder": "Add email",
+      "companyPlaceholder": "Add company",
+      "saveFieldError": "Couldn't save — try again.",
+      "aiAssistant": "AI Assistant",
+      "aiOwnedByAgent": "A teammate has taken over this chat."
     },
     "aiBanner": {
       "pausedTitle": "AI assistant is paused here",

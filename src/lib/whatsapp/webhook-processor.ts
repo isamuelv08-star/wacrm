@@ -447,6 +447,105 @@ async function flagBroadcastReplyIfAny(accountId: string, contactId: string) {
 }
 
 /**
+ * Every inbound lead should land somewhere in the pipeline. If this
+ * contact has no OPEN deal yet — brand new, or their last deal closed
+ * won/lost a while back — drop a fresh card into the account's first
+ * pipeline (oldest by `created_at`, matching the ordering the
+ * Pipelines page itself uses to pick its default) at that pipeline's
+ * first stage (lowest `position` — never a hardcoded name, since
+ * stages are user-renamable).
+ *
+ * Best-effort, mirrors `flagBroadcastReplyIfAny`: an account that has
+ * never opened the Pipelines page yet has no pipeline row at all (the
+ * default is seeded client-side, not here), so this silently no-ops
+ * rather than blocking the inbound message or auto-seeding a pipeline
+ * of its own.
+ */
+async function ensureLeadDeal(
+  accountId: string,
+  configOwnerUserId: string,
+  contact: { id: string; name?: string; phone: string },
+  conversationId: string,
+) {
+  try {
+    const { data: openDeal, error: openDealErr } = await supabaseAdmin()
+      .from('deals')
+      .select('id')
+      .eq('contact_id', contact.id)
+      .eq('account_id', accountId)
+      .eq('status', 'open')
+      .limit(1)
+      .maybeSingle()
+    if (openDealErr) {
+      console.error('[webhook] ensureLeadDeal: open-deal lookup failed:', openDealErr.message)
+      return
+    }
+    if (openDeal) return // already has a live card — don't touch it
+
+    const { data: pipeline, error: pipelineErr } = await supabaseAdmin()
+      .from('pipelines')
+      .select('id')
+      .eq('account_id', accountId)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    if (pipelineErr) {
+      console.error('[webhook] ensureLeadDeal: pipeline lookup failed:', pipelineErr.message)
+      return
+    }
+    if (!pipeline) {
+      console.warn('[webhook] ensureLeadDeal: account has no pipeline yet — skipping')
+      return
+    }
+
+    const { data: stage, error: stageErr } = await supabaseAdmin()
+      .from('pipeline_stages')
+      .select('id')
+      .eq('pipeline_id', pipeline.id)
+      .order('position', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    if (stageErr) {
+      console.error('[webhook] ensureLeadDeal: stage lookup failed:', stageErr.message)
+      return
+    }
+    if (!stage) {
+      console.warn('[webhook] ensureLeadDeal: pipeline has no stages yet — skipping')
+      return
+    }
+
+    // Match the account's configured default currency, same rule the
+    // automation engine's create_deal step follows (issue #218) —
+    // keeps every auto-created deal consistent with the
+    // one-currency-per-account convention rather than the static
+    // deals.currency DB default.
+    const { data: acct } = await supabaseAdmin()
+      .from('accounts')
+      .select('default_currency')
+      .eq('id', accountId)
+      .maybeSingle()
+
+    const { error: insertErr } = await supabaseAdmin().from('deals').insert({
+      account_id: accountId,
+      user_id: configOwnerUserId,
+      pipeline_id: pipeline.id,
+      stage_id: stage.id,
+      contact_id: contact.id,
+      conversation_id: conversationId,
+      title: contact.name || contact.phone,
+      value: 0,
+      currency: acct?.default_currency ?? 'USD',
+      status: 'open',
+    })
+    if (insertErr) {
+      console.error('[webhook] ensureLeadDeal: insert failed:', insertErr.message)
+    }
+  } catch (err) {
+    console.error('ensureLeadDeal failed:', err)
+  }
+}
+
+/**
  * Resolve a Meta-side message_id into the matching internal UUID, scoped
  * to one conversation. Returns null when we never received the parent
  * (e.g. a swipe-reply to a message older than this CRM install).
@@ -572,6 +671,12 @@ async function processMessage(
       contact_id: contactRecord.id,
     })
   }
+
+  // Every inbound lead should land in the pipeline — best-effort,
+  // runs regardless of message type (including reactions) since any
+  // inbound contact touch counts as a lead. No-ops if the contact
+  // already has an open deal. See ensureLeadDeal's doc comment.
+  await ensureLeadDeal(accountId, configOwnerUserId, contactRecord, conversation.id)
 
   // Reactions short-circuit here — they aren't messages. We never insert
   // into `messages`, never bump unread_count, never update last_message_text.

@@ -3,31 +3,55 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { cn } from "@/lib/utils";
-import type { Contact, Deal, ContactNote, Tag } from "@/types";
+import { toast } from "sonner";
+import type { Contact, Deal, ContactNote, Tag, PipelineStage } from "@/types";
 import {
   Phone,
   Mail,
   Copy,
   Check,
-  User,
   Tag as TagIcon,
   DollarSign,
   StickyNote,
   Plus,
+  Building2,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { DealForm } from "@/components/pipelines/deal-form";
 import { format } from "date-fns";
 import { useTranslations } from "next-intl";
+import { fetchAiAccountStatus, toggleAiAutoReply } from "@/lib/ai/autoreply-toggle";
 
 interface ContactSidebarProps {
   contact: Contact | null;
+  /** Active conversation — drives the AI switch below. Absent (no thread
+   *  selected yet) simply hides that section. */
+  conversationId?: string | null;
+  /** `conversations.ai_autoreply_disabled` for the active conversation. */
+  aiAutoreplyDisabled?: boolean;
+  /** Current assignee — mirrors AiThreadBanner's suppression rule (bot
+   *  active but a human already owns the thread → nothing to toggle). */
+  assignedAgentId?: string | null;
+  /** Called after a successful toggle so the parent (and the chat-footer
+   *  AiThreadBanner, fed by the same lifted state) stay in sync — see
+   *  inbox/page.tsx's handleAiAutoReplyChange. */
+  onAiAutoReplyChange?: (conversationId: string, disabled: boolean) => void;
 }
 
-export function ContactSidebar({ contact }: ContactSidebarProps) {
+export function ContactSidebar({
+  contact,
+  conversationId,
+  aiAutoreplyDisabled = false,
+  assignedAgentId,
+  onAiAutoReplyChange,
+}: ContactSidebarProps) {
   const tSidebar = useTranslations("Inbox.sidebar");
   const tThread = useTranslations("Inbox.messageThread");
+  const tAiBanner = useTranslations("Inbox.aiBanner");
 
   const { accountId } = useAuth();
   const [copied, setCopied] = useState(false);
@@ -36,6 +60,100 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
   const [tags, setTags] = useState<(Tag & { contact_tag_id: string })[]>([]);
   const [newNote, setNewNote] = useState("");
   const [addingNote, setAddingNote] = useState(false);
+
+  // Inline-editable contact fields. Local drafts re-seed whenever the
+  // selected contact changes; saved on blur (only when actually dirty)
+  // via a direct `contacts` update — same pattern contact-form.tsx uses,
+  // RLS already scopes the write to the caller's account.
+  const [emailDraft, setEmailDraft] = useState("");
+  const [companyDraft, setCompanyDraft] = useState("");
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setEmailDraft(contact?.email ?? "");
+    setCompanyDraft(contact?.company ?? "");
+  }, [contact?.id, contact?.email, contact?.company]);
+
+  const saveContactField = useCallback(
+    async (field: "email" | "company", value: string, previous: string | undefined) => {
+      if (!contact) return;
+      const trimmed = value.trim();
+      if (trimmed === (previous ?? "")) return; // not dirty — skip the write
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("contacts")
+        .update({ [field]: trimmed || null, updated_at: new Date().toISOString() })
+        .eq("id", contact.id);
+      if (error) {
+        console.error(`Failed to update contact ${field}:`, error.message);
+        toast.error(tSidebar("saveFieldError"));
+      }
+    },
+    [contact, tSidebar],
+  );
+
+  // Deal editing — clicking a deal opens the same DealForm used on the
+  // Pipelines board, so value/stage/title/currency/notes are all
+  // editable from one proven component instead of a second bespoke
+  // "Valor" field that would duplicate deals.value.
+  const [dealFormOpen, setDealFormOpen] = useState(false);
+  const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
+  const [editingDealStages, setEditingDealStages] = useState<PipelineStage[]>([]);
+
+  const handleDealClick = useCallback(async (deal: Deal) => {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("pipeline_stages")
+      .select("*")
+      .eq("pipeline_id", deal.pipeline_id)
+      .order("position");
+    setEditingDealStages(data ?? []);
+    setEditingDeal(deal);
+    setDealFormOpen(true);
+  }, []);
+
+  // AI auto-reply switch — mirrors AiThreadBanner exactly (same shared
+  // helpers, same endpoint, same optimistic-then-realtime pattern) so
+  // toggling from here or from the chat footer converge on the same
+  // `conversations.ai_autoreply_disabled` value. See
+  // src/lib/ai/autoreply-toggle.ts.
+  const [aiConfigured, setAiConfigured] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiPaused, setAiPaused] = useState(aiAutoreplyDisabled);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setAiPaused(aiAutoreplyDisabled);
+  }, [conversationId, aiAutoreplyDisabled]);
+
+  useEffect(() => {
+    if (!accountId) return;
+    let alive = true;
+    fetchAiAccountStatus(accountId).then((s) => alive && setAiConfigured(s.autoReplyOn));
+    return () => {
+      alive = false;
+    };
+  }, [accountId]);
+
+  const handleAiToggle = useCallback(
+    async (paused: boolean) => {
+      if (!conversationId) return;
+      setAiBusy(true);
+      try {
+        const result = await toggleAiAutoReply(conversationId, paused);
+        if (!result.ok) {
+          toast.error(result.error ?? tAiBanner("updateError"));
+          return;
+        }
+        setAiPaused(paused);
+        onAiAutoReplyChange?.(conversationId, paused);
+        toast.success(paused ? tAiBanner("tookOver") : tAiBanner("resumed"));
+      } catch {
+        toast.error(tAiBanner("networkError"));
+      } finally {
+        setAiBusy(false);
+      }
+    },
+    [conversationId, onAiAutoReplyChange, tAiBanner],
+  );
 
   const fetchContactData = useCallback(async () => {
     if (!contact) return;
@@ -99,14 +217,14 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     const {
       data: { session },
     } = await supabase.auth.getSession();
-    const user = session?.user;
+    const sessionUser = session?.user;
 
     const { data, error } = await supabase
       .from("contact_notes")
       .insert({
         contact_id: contact.id,
         account_id: accountId,
-        user_id: user?.id,
+        user_id: sessionUser?.id,
         note_text: newNote.trim(),
       })
       .select()
@@ -150,12 +268,9 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
             <h3 className="mt-3 text-sm font-semibold text-foreground">
               {displayName}
             </h3>
-            {contact.company && (
-              <p className="text-xs text-muted-foreground">{contact.company}</p>
-            )}
           </div>
 
-          {/* Phone */}
+          {/* Phone / Email / Company */}
           <div className="mt-4 space-y-2">
             <button
               onClick={handleCopyPhone}
@@ -170,16 +285,69 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
               )}
             </button>
 
-            {contact.email && (
-              <div className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground">
-                <Mail className="h-4 w-4 text-muted-foreground" />
-                <span className="truncate">{contact.email}</span>
-              </div>
-            )}
+            <div className="flex items-center gap-2 rounded-lg px-3 py-1.5">
+              <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <Input
+                key={`email-${contact.id}`}
+                type="email"
+                defaultValue={emailDraft}
+                placeholder={tSidebar("emailPlaceholder")}
+                onBlur={(e) => {
+                  const value = e.target.value;
+                  setEmailDraft(value);
+                  saveContactField("email", value, contact.email);
+                }}
+                className="h-7 flex-1 border-transparent bg-transparent px-1.5 text-sm text-foreground placeholder:text-muted-foreground hover:border-border focus:border-primary/50 focus:bg-muted"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 rounded-lg px-3 py-1.5">
+              <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <Input
+                key={`company-${contact.id}`}
+                type="text"
+                defaultValue={companyDraft}
+                placeholder={tSidebar("companyPlaceholder")}
+                onBlur={(e) => {
+                  const value = e.target.value;
+                  setCompanyDraft(value);
+                  saveContactField("company", value, contact.company);
+                }}
+                className="h-7 flex-1 border-transparent bg-transparent px-1.5 text-sm text-foreground placeholder:text-muted-foreground hover:border-border focus:border-primary/50 focus:bg-muted"
+              />
+            </div>
           </div>
 
           {/* Divider */}
           <div className="my-4 border-t border-border" />
+
+          {/* AI Assistant */}
+          {conversationId && aiConfigured && (
+            <>
+              <div className="flex items-center justify-between gap-2 px-1">
+                <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <Sparkles className="h-3 w-3" />
+                  {tSidebar("aiAssistant")}
+                </div>
+                <Switch
+                  checked={!aiPaused}
+                  onCheckedChange={(checked) => handleAiToggle(!checked)}
+                  disabled={aiBusy}
+                  aria-label={tSidebar("aiAssistant")}
+                />
+              </div>
+              <p className="mt-1 px-1 text-xs text-muted-foreground">
+                {aiPaused
+                  ? assignedAgentId
+                    ? tSidebar("aiOwnedByAgent")
+                    : tAiBanner("pausedTitle")
+                  : tAiBanner("activeText")}
+              </p>
+
+              {/* Divider */}
+              <div className="my-4 border-t border-border" />
+            </>
+          )}
 
           {/* Tags */}
           <div>
@@ -221,9 +389,11 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
                 <p className="px-1 text-xs text-muted-foreground">{tSidebar("noDeals")}</p>
               ) : (
                 deals.map((deal) => (
-                  <div
+                  <button
                     key={deal.id}
-                    className="rounded-lg bg-muted px-3 py-2"
+                    type="button"
+                    onClick={() => handleDealClick(deal)}
+                    className="w-full rounded-lg bg-muted px-3 py-2 text-left transition-colors hover:bg-muted/70"
                   >
                     <p className="text-sm font-medium text-foreground">
                       {deal.title}
@@ -245,7 +415,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
                         </span>
                       )}
                     </div>
-                  </div>
+                  </button>
                 ))
               )}
             </div>
@@ -298,6 +468,16 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
           </div>
         </div>
       </ScrollArea>
+
+      <DealForm
+        open={dealFormOpen}
+        onOpenChange={setDealFormOpen}
+        deal={editingDeal}
+        pipelineId={editingDeal?.pipeline_id ?? ""}
+        stages={editingDealStages}
+        defaultStageId={editingDeal?.stage_id}
+        onSaved={fetchContactData}
+      />
     </div>
   );
 }
