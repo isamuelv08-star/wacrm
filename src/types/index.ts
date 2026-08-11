@@ -285,6 +285,12 @@ export interface WhatsAppConfig {
   subscribed_apps_at?: string;
   /** Last error from /register; cleared on success. */
   last_registration_error?: string;
+  /**
+   * Per-connection override for the base URL the 6 outbound-send
+   * helpers use (e.g. a Coexistence provider like Dualhook). NULL
+   * means "send straight to Meta" — see migration 037.
+   */
+  send_api_base?: string | null;
 }
 
 // Raw Meta status enum. We persist this verbatim from Meta (sync + webhook)

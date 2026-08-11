@@ -223,6 +223,8 @@ export interface SendTextMessageArgs {
   /** Meta's message_id of the message being replied to. Adds a `context` field
    *  so WhatsApp renders the new message as a reply with a quote preview. */
   contextMessageId?: string
+  /** Per-connection override (e.g. a Coexistence provider). Defaults to Meta. */
+  apiBase?: string
 }
 
 /**
@@ -232,8 +234,8 @@ export interface SendTextMessageArgs {
 export async function sendTextMessage(
   args: SendTextMessageArgs
 ): Promise<MetaSendResult> {
-  const { phoneNumberId, accessToken, to, text, contextMessageId } = args
-  const url = `${META_API_BASE}/${phoneNumberId}/messages`
+  const { phoneNumberId, accessToken, to, text, contextMessageId, apiBase } = args
+  const url = `${apiBase || META_API_BASE}/${phoneNumberId}/messages`
   const body: Record<string, unknown> = {
     messaging_product: 'whatsapp',
     recipient_type: 'individual',
@@ -273,6 +275,8 @@ export interface SendMediaMessageArgs {
   /** Document-only. Shown in the recipient's chat as the file name. Ignored for image/video/audio. */
   filename?: string
   contextMessageId?: string
+  /** Per-connection override (e.g. a Coexistence provider). Defaults to Meta. */
+  apiBase?: string
 }
 
 /**
@@ -290,9 +294,9 @@ export interface SendMediaMessageArgs {
 export async function sendMediaMessage(
   args: SendMediaMessageArgs,
 ): Promise<MetaSendResult> {
-  const { phoneNumberId, accessToken, to, kind, link, caption, filename, contextMessageId } = args
+  const { phoneNumberId, accessToken, to, kind, link, caption, filename, contextMessageId, apiBase } = args
   if (!link) throw new Error('sendMediaMessage requires a link.')
-  const url = `${META_API_BASE}/${phoneNumberId}/messages`
+  const url = `${apiBase || META_API_BASE}/${phoneNumberId}/messages`
 
   // Audio accepts neither caption nor filename per Meta's spec — adding
   // either yields a 400. image/video/document accept a caption; only
@@ -360,6 +364,8 @@ export interface SendTemplateMessageArgs {
   messageParams?: SendTimeParams
   /** Meta's message_id of the message being replied to. */
   contextMessageId?: string
+  /** Per-connection override (e.g. a Coexistence provider). Defaults to Meta. */
+  apiBase?: string
 }
 
 /**
@@ -386,8 +392,9 @@ export async function sendTemplateMessage(
     template,
     messageParams,
     contextMessageId,
+    apiBase,
   } = args
-  const url = `${META_API_BASE}/${phoneNumberId}/messages`
+  const url = `${apiBase || META_API_BASE}/${phoneNumberId}/messages`
 
   const templatePayload: Record<string, unknown> = {
     name: templateName,
@@ -671,6 +678,8 @@ export interface SendReactionMessageArgs {
   targetMessageId: string
   /** Single emoji, or empty string to remove an existing reaction. */
   emoji: string
+  /** Per-connection override (e.g. a Coexistence provider). Defaults to Meta. */
+  apiBase?: string
 }
 
 /**
@@ -680,8 +689,8 @@ export interface SendReactionMessageArgs {
 export async function sendReactionMessage(
   args: SendReactionMessageArgs
 ): Promise<MetaSendResult> {
-  const { phoneNumberId, accessToken, to, targetMessageId, emoji } = args
-  const url = `${META_API_BASE}/${phoneNumberId}/messages`
+  const { phoneNumberId, accessToken, to, targetMessageId, emoji, apiBase } = args
+  const url = `${apiBase || META_API_BASE}/${phoneNumberId}/messages`
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -753,6 +762,8 @@ export interface SendInteractiveButtonsArgs {
   buttons: InteractiveButton[]
   /** Meta's message_id of the message being replied to (quote preview). */
   contextMessageId?: string
+  /** Per-connection override (e.g. a Coexistence provider). Defaults to Meta. */
+  apiBase?: string
 }
 
 /**
@@ -768,7 +779,7 @@ export async function sendInteractiveButtons(
 ): Promise<MetaSendResult> {
   const {
     phoneNumberId, accessToken, to,
-    bodyText, headerText, footerText, buttons, contextMessageId,
+    bodyText, headerText, footerText, buttons, contextMessageId, apiBase,
   } = args
   validateInteractiveBody(bodyText)
   validateInteractiveHeaderFooter(headerText, footerText)
@@ -817,7 +828,7 @@ export async function sendInteractiveButtons(
   }
   if (contextMessageId) body.context = { message_id: contextMessageId }
 
-  const url = `${META_API_BASE}/${phoneNumberId}/messages`
+  const url = `${apiBase || META_API_BASE}/${phoneNumberId}/messages`
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -863,6 +874,8 @@ export interface SendInteractiveListArgs {
    */
   sections: InteractiveListSection[]
   contextMessageId?: string
+  /** Per-connection override (e.g. a Coexistence provider). Defaults to Meta. */
+  apiBase?: string
 }
 
 /**
@@ -876,7 +889,7 @@ export async function sendInteractiveList(
 ): Promise<MetaSendResult> {
   const {
     phoneNumberId, accessToken, to,
-    bodyText, buttonLabel, headerText, footerText, sections, contextMessageId,
+    bodyText, buttonLabel, headerText, footerText, sections, contextMessageId, apiBase,
   } = args
   validateInteractiveBody(bodyText)
   validateInteractiveHeaderFooter(headerText, footerText)
@@ -949,7 +962,7 @@ export async function sendInteractiveList(
   }
   if (contextMessageId) body.context = { message_id: contextMessageId }
 
-  const url = `${META_API_BASE}/${phoneNumberId}/messages`
+  const url = `${apiBase || META_API_BASE}/${phoneNumberId}/messages`
   const response = await fetch(url, {
     method: 'POST',
     headers: {

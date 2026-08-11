@@ -68,6 +68,8 @@ export interface BroadcastPlan {
   templateLanguage: string;
   phoneNumberId: string;
   accessToken: string;
+  /** Per-connection override (e.g. a Coexistence provider). Defaults to Meta. */
+  apiBase?: string | null;
   templateRow: MessageTemplate | null;
   planned: PlannedRecipient[];
   /** Phones rejected up front (invalid E.164) — counted as failed. */
@@ -240,6 +242,7 @@ export async function createBroadcast(
     templateLanguage,
     phoneNumberId: config.phone_number_id,
     accessToken,
+    apiBase: config.send_api_base,
     templateRow,
     planned,
     rejected,
@@ -280,6 +283,7 @@ export async function deliverBroadcast(
           language: plan.templateLanguage,
           template: plan.templateRow ?? undefined,
           params: recipient.params,
+          apiBase: plan.apiBase ?? undefined,
         });
         sentMessageId = result.messageId;
         lastError = null;

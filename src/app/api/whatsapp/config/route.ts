@@ -185,13 +185,27 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { phone_number_id, waba_id, access_token, verify_token, pin } = body
+    const { phone_number_id, waba_id, access_token, verify_token, pin, send_api_base } = body
 
     if (!access_token || !phone_number_id) {
       return NextResponse.json(
         { error: 'access_token and phone_number_id are required' },
         { status: 400 }
       )
+    }
+
+    // Optional per-connection override for outbound sends (e.g. a
+    // Coexistence provider like Dualhook). Only the 6 send helpers in
+    // meta-api.ts read this — registration, template submission, and
+    // media still always go straight to Meta, which is why we don't
+    // validate it against Meta here the way we do phone_number_id.
+    if (send_api_base !== undefined && send_api_base !== null && send_api_base !== '') {
+      if (typeof send_api_base !== 'string' || !/^https:\/\/.+/.test(send_api_base)) {
+        return NextResponse.json(
+          { error: 'send_api_base must be an https:// URL' },
+          { status: 400 }
+        )
+      }
     }
 
     if (pin !== undefined && pin !== null && pin !== '') {
@@ -358,6 +372,7 @@ export async function POST(request: Request) {
       waba_id: waba_id || null,
       access_token: encryptedAccessToken,
       verify_token: encryptedVerifyToken,
+      send_api_base: send_api_base || null,
       status: registrationError ? 'disconnected' : 'connected',
       connected_at: registrationError ? null : new Date().toISOString(),
       registered_at: registrationError ? null : registeredAt,

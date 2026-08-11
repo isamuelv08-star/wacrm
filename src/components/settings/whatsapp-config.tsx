@@ -69,6 +69,7 @@ export function WhatsAppConfig() {
   const [verifyToken, setVerifyToken] = useState('');
   const [pin, setPin] = useState('');
   const [tokenEdited, setTokenEdited] = useState(false);
+  const [sendApiBase, setSendApiBase] = useState('');
 
   // True once /register has succeeded on Meta's side (timestamp set
   // in the row). When false, the saved config is metadata-only and
@@ -121,6 +122,7 @@ export function WhatsAppConfig() {
         setVerifyToken('');
         setPin('');
         setTokenEdited(false);
+        setSendApiBase(data.send_api_base || '');
       } else {
         setConfig(null);
         setPhoneNumberId('');
@@ -129,6 +131,7 @@ export function WhatsAppConfig() {
         setVerifyToken('');
         setPin('');
         setTokenEdited(false);
+        setSendApiBase('');
       }
       // Clear any stale probe result when reloading the row.
       setRegistrationProbe(null);
@@ -207,6 +210,10 @@ export function WhatsAppConfig() {
         // requires it on first save or when changing numbers; for a
         // simple token rotation, leaving it blank skips re-register.
         pin: pin.trim() || null,
+        // Optional — per-connection override for outbound sends only
+        // (e.g. a Coexistence provider like Dualhook). Blank means
+        // "send straight to Meta".
+        send_api_base: sendApiBase.trim() || null,
       };
 
       if (tokenEdited && accessToken !== MASKED_TOKEN && accessToken.trim()) {
@@ -355,6 +362,7 @@ export function WhatsAppConfig() {
       setAccessToken('');
       setVerifyToken('');
       setTokenEdited(false);
+      setSendApiBase('');
       setConnectionStatus('disconnected');
       setResetReason(null);
       setStatusMessage('');
@@ -648,6 +656,22 @@ export function WhatsAppConfig() {
               />
               <p className="text-xs text-muted-foreground leading-relaxed">
                 <span dangerouslySetInnerHTML={{ __html: t('pinHint') }} />
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-muted-foreground">
+                {t('sendApiBase')}
+                <span className="ml-1 text-muted-foreground">{t('optional')}</span>
+              </Label>
+              <Input
+                placeholder={t('sendApiBasePlaceholder')}
+                value={sendApiBase}
+                onChange={(e) => setSendApiBase(e.target.value)}
+                className="bg-muted border-border text-foreground placeholder:text-muted-foreground font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {t('sendApiBaseHint')}
               </p>
             </div>
           </CardContent>

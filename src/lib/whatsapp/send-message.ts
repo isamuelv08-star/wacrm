@@ -341,6 +341,7 @@ export async function sendMessageToConversation(
         messageParams: templateMessageParams ?? undefined,
         params: templateParams || [],
         contextMessageId,
+        apiBase: config.send_api_base ?? undefined,
       });
       return result.messageId;
     }
@@ -354,6 +355,7 @@ export async function sendMessageToConversation(
         caption: contentText || undefined,
         filename: filename || undefined,
         contextMessageId,
+        apiBase: config.send_api_base ?? undefined,
       });
       return result.messageId;
     }
@@ -369,6 +371,7 @@ export async function sendMessageToConversation(
           footerText: p.footer || undefined,
           buttons: p.buttons,
           contextMessageId,
+          apiBase: config.send_api_base ?? undefined,
         });
         return result.messageId;
       }
@@ -382,6 +385,7 @@ export async function sendMessageToConversation(
         footerText: p.footer || undefined,
         sections: p.sections,
         contextMessageId,
+        apiBase: config.send_api_base ?? undefined,
       });
       return result.messageId;
     }
@@ -391,6 +395,7 @@ export async function sendMessageToConversation(
       to: phone,
       text: contentText!,
       contextMessageId,
+      apiBase: config.send_api_base ?? undefined,
     });
     return result.messageId;
   };

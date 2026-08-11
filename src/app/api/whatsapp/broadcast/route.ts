@@ -195,6 +195,7 @@ export async function POST(request: Request) {
             template: templateRow ?? undefined,
             messageParams: recipient.messageParams,
             params: recipient.params ?? [],
+            apiBase: config.send_api_base ?? undefined,
           })
           sentMessageId = result.messageId
           lastError = null

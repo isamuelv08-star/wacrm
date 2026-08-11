@@ -91,7 +91,7 @@ export async function POST(request: Request) {
     // WhatsApp config + access token. Account-scoped post-multi-user.
     const { data: config, error: configError } = await supabase
       .from('whatsapp_config')
-      .select('phone_number_id, access_token')
+      .select('phone_number_id, access_token, send_api_base')
       .eq('account_id', accountId)
       .single();
 
@@ -112,6 +112,7 @@ export async function POST(request: Request) {
         to: sanitizedPhone,
         targetMessageId: targetMessage.message_id,
         emoji,
+        apiBase: config.send_api_base ?? undefined,
       });
     } catch (err) {
       const message =

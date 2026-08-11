@@ -99,6 +99,7 @@ export async function engineSendText(
       accessToken,
       to: phone,
       text: args.text,
+      apiBase: config.send_api_base ?? undefined,
     })
     return r.messageId
   }
@@ -212,6 +213,7 @@ export async function engineSendMedia(
       link: args.link,
       caption: args.caption,
       filename: args.filename,
+      apiBase: config.send_api_base ?? undefined,
     })
     return r.messageId
   }
@@ -365,6 +367,7 @@ async function sendInteractiveViaMeta(
         buttons: input.buttons,
         headerText: input.headerText,
         footerText: input.footerText,
+        apiBase: config.send_api_base ?? undefined,
       })
       return r.messageId
     }
@@ -377,6 +380,7 @@ async function sendInteractiveViaMeta(
       sections: input.sections,
       headerText: input.headerText,
       footerText: input.footerText,
+      apiBase: config.send_api_base ?? undefined,
     })
     return r.messageId
   }
