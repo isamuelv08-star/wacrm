@@ -8,6 +8,7 @@ function config(overrides: Partial<AiConfig> = {}): AiConfig {
     model: 'gpt-test',
     apiKey: 'sk-test',
     systemPrompt: null,
+    qualificationCriteria: null,
     isActive: true,
     autoReplyEnabled: false,
     autoReplyMaxPerConversation: 3,
@@ -43,6 +44,7 @@ describe('parseGeneration', () => {
     expect(parseGeneration('Hello there')).toEqual({
       text: 'Hello there',
       handoff: false,
+      score: null,
       usage: null,
     })
   })
@@ -51,11 +53,13 @@ describe('parseGeneration', () => {
     expect(parseGeneration('[[HANDOFF]]')).toEqual({
       text: '',
       handoff: true,
+      score: null,
       usage: null,
     })
     expect(parseGeneration('Let me get a human [[HANDOFF]]')).toEqual({
       text: 'Let me get a human',
       handoff: true,
+      score: null,
       usage: null,
     })
   })
@@ -65,8 +69,45 @@ describe('parseGeneration', () => {
     expect(parseGeneration('Hi', usage)).toEqual({
       text: 'Hi',
       handoff: false,
+      score: null,
       usage,
     })
+  })
+
+  it('detects + strips the score sentinel, case-insensitively', () => {
+    expect(parseGeneration('Sounds great! [[SCORE:HOT]]')).toEqual({
+      text: 'Sounds great!',
+      handoff: false,
+      score: 'hot',
+      usage: null,
+    })
+    expect(parseGeneration('Ok, noted. [[score:warm]]')).toEqual({
+      text: 'Ok, noted.',
+      handoff: false,
+      score: 'warm',
+      usage: null,
+    })
+  })
+
+  it('never leaks the score tag into the customer-facing text', () => {
+    const result = parseGeneration('Thanks for reaching out! [[SCORE:COLD]]')
+    expect(result.text).not.toContain('SCORE')
+    expect(result.text).not.toContain('[[')
+  })
+
+  it('handles both sentinels together, in either order', () => {
+    expect(
+      parseGeneration('Let me get someone. [[HANDOFF]] [[SCORE:WARM]]'),
+    ).toEqual({
+      text: 'Let me get someone.',
+      handoff: true,
+      score: 'warm',
+      usage: null,
+    })
+  })
+
+  it('returns null score when the tag is absent', () => {
+    expect(parseGeneration('Just a normal reply.').score).toBeNull()
   })
 })
 
@@ -89,6 +130,7 @@ describe('generateReply — OpenAI', () => {
     expect(res).toEqual({
       text: 'Sure — happy to help!',
       handoff: false,
+      score: null,
       usage: { promptTokens: 42, completionTokens: 8, totalTokens: 50 },
     })
     const [url, opts] = fetchMock.mock.calls[0]
@@ -148,6 +190,7 @@ describe('generateReply — Anthropic', () => {
     expect(res).toEqual({
       text: 'Hi there!',
       handoff: false,
+      score: null,
       usage: { promptTokens: 30, completionTokens: 6, totalTokens: 36 },
     })
     const [url, opts] = fetchMock.mock.calls[0]

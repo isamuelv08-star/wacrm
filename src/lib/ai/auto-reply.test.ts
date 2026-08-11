@@ -8,6 +8,7 @@ const h = vi.hoisted(() => ({
   retrieveKnowledge: vi.fn(),
   generateReply: vi.fn(),
   engineSendText: vi.fn(),
+  applyLeadScore: vi.fn(),
   state: {
     conv: null as Record<string, unknown> | null,
     autoResponders: [] as { id: string }[],
@@ -22,6 +23,7 @@ vi.mock('./context', () => ({ buildConversationContext: h.buildConversationConte
 vi.mock('./knowledge', () => ({ retrieveKnowledge: h.retrieveKnowledge }))
 vi.mock('./generate', () => ({ generateReply: h.generateReply }))
 vi.mock('@/lib/flows/meta-send', () => ({ engineSendText: h.engineSendText }))
+vi.mock('./lead-scoring', () => ({ applyLeadScore: h.applyLeadScore }))
 vi.mock('./admin-client', () => ({
   supabaseAdmin: () => ({
     from: (table: string) => {
@@ -72,6 +74,7 @@ function aiConfig(overrides: Partial<AiConfig> = {}): AiConfig {
     model: 'gpt-test',
     apiKey: 'sk-test',
     systemPrompt: null,
+    qualificationCriteria: null,
     isActive: true,
     autoReplyEnabled: true,
     autoReplyMaxPerConversation: 3,
@@ -94,8 +97,9 @@ beforeEach(() => {
   h.loadAiConfig.mockResolvedValue(aiConfig())
   h.buildConversationContext.mockResolvedValue([{ role: 'user', content: 'hi' }])
   h.retrieveKnowledge.mockResolvedValue([])
-  h.generateReply.mockResolvedValue({ text: 'Hello!', handoff: false })
+  h.generateReply.mockResolvedValue({ text: 'Hello!', handoff: false, score: null })
   h.engineSendText.mockResolvedValue({ whatsapp_message_id: 'm1' })
+  h.applyLeadScore.mockReset()
 })
 
 describe('dispatchInboundToAiReply — eligibility gates', () => {
@@ -208,5 +212,60 @@ describe('dispatchInboundToAiReply — handoff', () => {
       ai_autoreply_disabled: true,
       assigned_agent_id: 'agent-7',
     })
+  })
+})
+
+describe('dispatchInboundToAiReply — lead scoring', () => {
+  it('passes qualification_criteria into the system prompt', async () => {
+    h.loadAiConfig.mockResolvedValue(
+      aiConfig({ qualificationCriteria: 'HOT if budget + urgency this week.' }),
+    )
+    await dispatchInboundToAiReply(ARGS)
+    const systemPrompt = h.generateReply.mock.calls[0][0].systemPrompt as string
+    expect(systemPrompt).toContain('HOT if budget + urgency this week.')
+    expect(systemPrompt).toContain('[[SCORE:HOT]]')
+  })
+
+  it('omits the scoring instruction when no criteria are configured', async () => {
+    h.loadAiConfig.mockResolvedValue(aiConfig({ qualificationCriteria: null }))
+    await dispatchInboundToAiReply(ARGS)
+    const systemPrompt = h.generateReply.mock.calls[0][0].systemPrompt as string
+    expect(systemPrompt).not.toContain('[[SCORE:')
+  })
+
+  it('applies the score when the model emits one, alongside the reply', async () => {
+    h.generateReply.mockResolvedValue({
+      text: 'Sounds great!',
+      handoff: false,
+      score: 'hot',
+    })
+    await dispatchInboundToAiReply(ARGS)
+    expect(h.applyLeadScore).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        accountId: 'acct-1',
+        contactId: 'contact-1',
+        configOwnerUserId: 'user-1',
+        score: 'hot',
+      }),
+    )
+    // Still sends the customer-facing reply — scoring never blocks it.
+    expect(h.engineSendText).toHaveBeenCalled()
+  })
+
+  it('applies the score even when the same turn hands off', async () => {
+    h.generateReply.mockResolvedValue({ text: '', handoff: true, score: 'warm' })
+    await dispatchInboundToAiReply(ARGS)
+    expect(h.applyLeadScore).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ score: 'warm' }),
+    )
+    expect(h.engineSendText).not.toHaveBeenCalled()
+  })
+
+  it('does not call applyLeadScore when no score is emitted', async () => {
+    h.generateReply.mockResolvedValue({ text: 'Hi', handoff: false, score: null })
+    await dispatchInboundToAiReply(ARGS)
+    expect(h.applyLeadScore).not.toHaveBeenCalled()
   })
 })

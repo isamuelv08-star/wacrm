@@ -110,6 +110,13 @@ export interface Contact {
   avatar_url?: string;
   created_at: string;
   updated_at: string;
+  /**
+   * The AI auto-reply bot's current read on this lead, set from the
+   * account's own qualification_criteria (migration 038). NULL/absent
+   * means never scored — a business that hasn't configured criteria,
+   * or a contact the bot hasn't assessed yet.
+   */
+  lead_score?: 'hot' | 'warm' | 'cold' | null;
   /** Hydrated by queries that embed `contact_tags(tags(*))` (e.g. the
    *  Inbox conversation list, for tag filtering). Absent otherwise. */
   tags?: Tag[];
@@ -355,6 +362,14 @@ export interface PipelineStage {
   position: number;
   color: string;
   created_at: string;
+  /**
+   * Admin-designated "this is where HOT leads land" marker (migration
+   * 038) — at most one true per pipeline (enforced by a partial unique
+   * index). Stages are fully renamable/reorderable, so the AI lead-
+   * scoring flow relies on this explicit flag rather than guessing
+   * from a name or position.
+   */
+  is_qualified_stage?: boolean;
 }
 
 export type DealStatus = 'open' | 'won' | 'lost';

@@ -8,6 +8,9 @@
 
 export type AiProvider = 'openai' | 'anthropic'
 
+/** Mirrors the `contacts.lead_score` CHECK constraint (migration 038). */
+export type LeadScore = 'hot' | 'warm' | 'cold'
+
 /**
  * Account AI setup, decrypted and ready to use. Produced by
  * `loadAiConfig` — `apiKey` is the plaintext BYO provider key
@@ -18,6 +21,13 @@ export interface AiConfig {
   model: string
   apiKey: string
   systemPrompt: string | null
+  /**
+   * Account-specific free-text rules for what makes a lead HOT/WARM/
+   * COLD (migration 038). When set, auto-reply teaches the model the
+   * `[[SCORE:...]]` output protocol; when null, scoring is off for
+   * this account entirely — no prompt or output change.
+   */
+  qualificationCriteria: string | null
   isActive: boolean
   autoReplyEnabled: boolean
   autoReplyMaxPerConversation: number
@@ -60,6 +70,12 @@ export interface GenerateResult {
   text: string
   /** True when the model asked to hand off to a human (auto-reply mode). */
   handoff: boolean
+  /**
+   * The lead score the model emitted this turn via `[[SCORE:...]]`, or
+   * null when it didn't emit one (no qualification_criteria configured,
+   * or the model had nothing new to assess). Never present in `text`.
+   */
+  score: LeadScore | null
   /** Provider token usage for this call, or null when unavailable. */
   usage: AiUsage | null
 }

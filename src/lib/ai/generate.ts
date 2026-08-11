@@ -4,8 +4,9 @@ import {
   type AiUsage,
   type ChatMessage,
   type GenerateResult,
+  type LeadScore,
 } from './types'
-import { HANDOFF_SENTINEL, aiRequestTimeoutMs } from './defaults'
+import { HANDOFF_SENTINEL, SCORE_SENTINEL_PATTERN, aiRequestTimeoutMs } from './defaults'
 import { generateOpenAi } from './providers/openai'
 import { generateAnthropic } from './providers/anthropic'
 
@@ -52,17 +53,26 @@ export async function generateReply(args: GenerateArgs): Promise<GenerateResult>
 }
 
 /**
- * Split the raw model output into `{ text, handoff, usage }`. The
- * sentinel can appear alone or trailing a partial reply; either way we
- * treat the turn as a handoff and strip the marker from any remaining
- * text. `usage` is passed straight through (null when the provider
- * didn't report it).
+ * Split the raw model output into `{ text, handoff, score, usage }`.
+ * Both sentinels are stripped unconditionally — regardless of whether
+ * qualification_criteria is configured for this account — so a model
+ * that hallucinates the tag anyway can never leak it to the customer.
+ * `usage` is passed straight through (null when the provider didn't
+ * report it).
  */
 export function parseGeneration(
   raw: string,
   usage: AiUsage | null = null,
 ): GenerateResult {
   const handoff = raw.includes(HANDOFF_SENTINEL)
-  const text = raw.split(HANDOFF_SENTINEL).join('').trim()
-  return { text, handoff, usage }
+  const scoreMatch = raw.match(SCORE_SENTINEL_PATTERN)
+  const score = scoreMatch
+    ? (scoreMatch[1].toLowerCase() as LeadScore)
+    : null
+  const text = raw
+    .split(HANDOFF_SENTINEL)
+    .join('')
+    .replace(SCORE_SENTINEL_PATTERN, '')
+    .trim()
+  return { text, handoff, score, usage }
 }

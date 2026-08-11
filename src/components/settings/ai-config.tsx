@@ -69,6 +69,7 @@ export function AiConfig() {
   const [embeddingsKeyEdited, setEmbeddingsKeyEdited] = useState(false);
   const [hasStoredEmbeddingsKey, setHasStoredEmbeddingsKey] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState('');
+  const [qualificationCriteria, setQualificationCriteria] = useState('');
   const [isActive, setIsActive] = useState(false);
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(false);
   const [maxPerConversation, setMaxPerConversation] = useState(3);
@@ -96,6 +97,7 @@ export function AiConfig() {
         setProvider(data.provider);
         setModel(data.model);
         setSystemPrompt(data.system_prompt ?? '');
+        setQualificationCriteria(data.qualification_criteria ?? '');
         setIsActive(data.is_active);
         setAutoReplyEnabled(data.auto_reply_enabled);
         setMaxPerConversation(data.auto_reply_max_per_conversation ?? 3);
@@ -147,6 +149,7 @@ export function AiConfig() {
     api_key: keyPayload(),
     embeddings_api_key: embeddingsKeyPayload(),
     system_prompt: systemPrompt.trim() || null,
+    qualification_criteria: qualificationCriteria.trim() || null,
     is_active: isActive,
     auto_reply_enabled: autoReplyEnabled,
     auto_reply_max_per_conversation: maxPerConversation,
@@ -399,6 +402,23 @@ export function AiConfig() {
                 rows={5}
                 disabled={disabled}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ai-qualification-criteria">
+                {t('qualificationCriteria')}
+              </Label>
+              <Textarea
+                id="ai-qualification-criteria"
+                value={qualificationCriteria}
+                onChange={(e) => setQualificationCriteria(e.target.value)}
+                placeholder={t('qualificationCriteriaPlaceholder')}
+                rows={5}
+                disabled={disabled}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t('qualificationCriteriaHint')}
+              </p>
             </div>
 
             <div className="flex items-center justify-between gap-4 rounded-md border border-border p-3">

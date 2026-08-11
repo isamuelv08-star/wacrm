@@ -30,7 +30,7 @@ export async function GET() {
       // `api_key` is selected only to derive `has_key` — it is stripped
       // out below and never returned to the client.
       .select(
-        'provider, model, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, api_key, embeddings_api_key',
+        'provider, model, system_prompt, qualification_criteria, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, api_key, embeddings_api_key',
       )
       .eq('account_id', accountId)
       .maybeSingle()
@@ -87,6 +87,10 @@ export async function POST(request: Request) {
     const systemPrompt =
       typeof body.system_prompt === 'string' && body.system_prompt.trim()
         ? body.system_prompt.trim()
+        : null
+    const qualificationCriteria =
+      typeof body.qualification_criteria === 'string' && body.qualification_criteria.trim()
+        ? body.qualification_criteria.trim()
         : null
     const isActive = body.is_active === true
     const autoReplyEnabled = body.auto_reply_enabled === true
@@ -162,6 +166,7 @@ export async function POST(request: Request) {
           model,
           apiKey: apiKeyPlain,
           systemPrompt,
+          qualificationCriteria,
           isActive,
           autoReplyEnabled,
           autoReplyMaxPerConversation: maxPer,
@@ -202,6 +207,7 @@ export async function POST(request: Request) {
       provider,
       model,
       system_prompt: systemPrompt,
+      qualification_criteria: qualificationCriteria,
       is_active: isActive,
       auto_reply_enabled: autoReplyEnabled,
       auto_reply_max_per_conversation: maxPer,

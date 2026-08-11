@@ -33,6 +33,7 @@ import {
   Plus,
   GripVertical,
   AlertTriangle,
+  Star,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
@@ -116,6 +117,7 @@ export function PipelineSettings({
       name: s.name,
       color: s.color,
       position: i,
+      is_qualified_stage: s.is_qualified_stage ?? false,
     }));
 
     const [renameRes, stagesRes] = await Promise.all([
@@ -250,6 +252,9 @@ export function PipelineSettings({
 
               <div className="grid gap-2">
                 <Label className="text-muted-foreground">{t("stages")}</Label>
+                <p className="text-xs text-muted-foreground">
+                  {t("qualifiedStageHint")}
+                </p>
                 <DndContext
                   sensors={sensors}
                   collisionDetection={closestCenter}
@@ -275,6 +280,15 @@ export function PipelineSettings({
                             setLocalStages(updated);
                           }}
                           onRemove={() => handleRemoveStage(stage.id)}
+                          onToggleQualified={() => {
+                            setLocalStages(
+                              localStages.map((s) => ({
+                                ...s,
+                                is_qualified_stage:
+                                  s.id === stage.id ? !s.is_qualified_stage : false,
+                              })),
+                            );
+                          }}
                           colors={STAGE_COLORS}
                           t={t}
                         />
@@ -369,6 +383,7 @@ function SortableStageRow({
   onNameChange,
   onColorChange,
   onRemove,
+  onToggleQualified,
   colors,
   t,
 }: {
@@ -376,6 +391,7 @@ function SortableStageRow({
   onNameChange: (v: string) => void;
   onColorChange: (v: string) => void;
   onRemove: () => void;
+  onToggleQualified: () => void;
   colors: string[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   t: any;
@@ -410,6 +426,23 @@ function SortableStageRow({
         onChange={(e) => onNameChange(e.target.value)}
         className="h-7 flex-1 border-transparent bg-transparent text-sm text-foreground focus:border-border"
       />
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        onClick={onToggleQualified}
+        aria-pressed={!!stage.is_qualified_stage}
+        title={t("markAsQualifiedStage")}
+        className={
+          stage.is_qualified_stage
+            ? "text-amber-400 hover:text-amber-300"
+            : "text-muted-foreground hover:text-amber-400"
+        }
+      >
+        <Star
+          className="h-3 w-3"
+          fill={stage.is_qualified_stage ? "currentColor" : "none"}
+        />
+      </Button>
       <Button
         variant="ghost"
         size="icon-xs"

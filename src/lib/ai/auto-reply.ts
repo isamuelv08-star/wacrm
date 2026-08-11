@@ -5,6 +5,7 @@ import { retrieveKnowledge } from './knowledge'
 import { generateReply } from './generate'
 import { buildSystemPrompt } from './defaults'
 import { buildHandoffSummary } from './handoff'
+import { applyLeadScore } from './lead-scoring'
 import { logAiUsage } from './usage'
 import { latestUserMessage } from './query'
 import { engineSendText } from '@/lib/flows/meta-send'
@@ -110,9 +111,10 @@ export async function dispatchInboundToAiReply(
       userPrompt: config.systemPrompt,
       mode: 'auto_reply',
       knowledge,
+      qualificationCriteria: config.qualificationCriteria,
     })
 
-    const { text, handoff, usage } = await generateReply({
+    const { text, handoff, score, usage } = await generateReply({
       config,
       systemPrompt,
       messages,
@@ -131,6 +133,14 @@ export async function dispatchInboundToAiReply(
       model: config.model,
       usage,
     })
+
+    // Independent of handoff/reply outcome below — the model can score
+    // a lead HOT in the same turn it hands off ("customer wants a
+    // human AND clearly has budget + urgency"). applyLeadScore owns
+    // its own try/catch and never throws.
+    if (score) {
+      await applyLeadScore(db, { accountId, contactId, configOwnerUserId, score })
+    }
 
     if (handoff || !text) {
       // The model can't (or shouldn't) answer — stop auto-replying on

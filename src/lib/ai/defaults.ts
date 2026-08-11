@@ -22,6 +22,15 @@ export const AI_PROVIDER_DEFAULT_MODEL: Record<AiProvider, string> = {
  */
 export const HANDOFF_SENTINEL = '[[HANDOFF]]'
 
+/**
+ * Sentinel the model emits to report its current read on the lead,
+ * per the account's own `qualification_criteria` (migration 038).
+ * Same contract as HANDOFF_SENTINEL: appended to the raw reply,
+ * parsed + stripped by `parseGeneration` before the text ever reaches
+ * the customer. Only taught when the account has configured criteria.
+ */
+export const SCORE_SENTINEL_PATTERN = /\[\[SCORE:(HOT|WARM|COLD)\]\]/i
+
 /** Cap on generated reply length — keeps WhatsApp replies short and
  *  bounds token spend on the caller's own key. */
 export const MAX_OUTPUT_TOKENS = 1024
@@ -54,8 +63,16 @@ export function buildSystemPrompt(args: {
   mode: 'draft' | 'auto_reply'
   /** Knowledge-base excerpts retrieved for the current question. */
   knowledge?: string[]
+  /**
+   * Account-specific free-text rules for what makes a lead HOT/WARM/
+   * COLD (migration 038). Only meaningful in auto_reply mode — a
+   * human reviews every draft before it sends, so there's no
+   * autonomous moment to hang a score decision on there. When unset,
+   * no scoring instruction is added at all.
+   */
+  qualificationCriteria?: string | null
 }): string {
-  const { userPrompt, mode, knowledge } = args
+  const { userPrompt, mode, knowledge, qualificationCriteria } = args
   const parts: string[] = [
     'You are a customer-messaging assistant for a business that uses a WhatsApp CRM. ' +
       'You are shown the recent WhatsApp conversation between the business (assistant) and a customer (user). ' +
@@ -74,6 +91,16 @@ export function buildSystemPrompt(args: {
 
   if (userPrompt && userPrompt.trim()) {
     parts.push(`Business context and instructions:\n${userPrompt.trim()}`)
+  }
+
+  if (mode === 'auto_reply' && qualificationCriteria && qualificationCriteria.trim()) {
+    parts.push(
+      'Lead qualification — this business has its own rules for scoring how qualified a lead is, separate from the reply you write:\n' +
+        `${qualificationCriteria.trim()}\n\n` +
+        'After writing your reply to the customer, if — and only if — this conversation gives you enough new information to confidently (re)assess this lead against the rules above, append one tag on its own at the very end of your output, after all customer-facing text: [[SCORE:HOT]], [[SCORE:WARM]], or [[SCORE:COLD]]. ' +
+        'If you have nothing new to assess this turn, do not append anything. ' +
+        `This tag is stripped before delivery — the customer never sees it, so never mention it, explain it, or write it anywhere except as that exact trailing tag. It is separate from ${HANDOFF_SENTINEL}; you may emit both in the same turn if both apply.`,
+    )
   }
 
   if (knowledge && knowledge.length > 0) {
