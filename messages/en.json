@@ -1461,6 +1461,8 @@
       "notConnectedDesc": "Configure your Meta API credentials below to connect your WhatsApp Business account.",
       "registered": "Registered — Meta will deliver events to wacrm",
       "notRegistered": "Not registered — Meta will not deliver events",
+      "coexistenceManaged": "Managed by your Coexistence provider",
+      "coexistenceManagedHint": "This connection uses a Coexistence provider (e.g. Dualhook) instead of a direct Meta app. The provider registers itself with Meta and routes inbound events to wacrm on its own — wacrm's own /register step doesn't apply and isn't attempted for this connection.",
       "verifyWithMeta": "Verify with Meta",
       "subscribedSince": "Subscribed since {date}. Click Verify with Meta if events stop arriving.",
       "unknownDate": "unknown",

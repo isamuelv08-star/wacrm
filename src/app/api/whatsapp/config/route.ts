@@ -87,7 +87,7 @@ export async function GET() {
 
     const { data: config, error: configError } = await supabase
       .from('whatsapp_config')
-      .select('phone_number_id, access_token, status')
+      .select('phone_number_id, access_token, status, send_api_base')
       .eq('account_id', accountId)
       .maybeSingle()
 
@@ -127,6 +127,15 @@ export async function GET() {
         },
         { status: 200 }
       )
+    }
+
+    // Coexistence connections (send_api_base set) can't be verified
+    // against Meta directly — same reasoning as the POST handler: the
+    // provider's token only works against its own base URL, and it
+    // doesn't expose an equivalent verification endpoint. Trust the
+    // saved row rather than calling Meta with a token it will reject.
+    if (config.send_api_base) {
+      return NextResponse.json({ connected: true })
     }
 
     // Validate credentials against Meta
@@ -249,20 +258,31 @@ export async function POST(request: Request) {
       )
     }
 
-    // Verify credentials with Meta BEFORE saving
-    let phoneInfo
-    try {
-      phoneInfo = await verifyPhoneNumber({
-        phoneNumberId: phone_number_id,
-        accessToken: access_token,
-      })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown Meta API error'
-      console.error('Meta API verification failed during save:', message)
-      return NextResponse.json(
-        { error: `Meta API error: ${message}` },
-        { status: 400 }
-      )
+    // Verify credentials with Meta BEFORE saving — skipped for
+    // Coexistence connections (send_api_base set). A Coexistence
+    // provider's token (e.g. Dualhook's dh_live_...) is only valid
+    // against the provider's own base URL, never against
+    // graph.facebook.com directly, and the provider doesn't expose an
+    // equivalent verification endpoint of its own — meta-api.ts's
+    // apiBase override only applies to the 6 outbound-send helpers.
+    // Calling verifyPhoneNumber here would always fail with a
+    // confusing "Invalid OAuth access token" and block every save.
+    const usesCoexistenceProvider = Boolean(send_api_base)
+    let phoneInfo: Awaited<ReturnType<typeof verifyPhoneNumber>> | undefined
+    if (!usesCoexistenceProvider) {
+      try {
+        phoneInfo = await verifyPhoneNumber({
+          phoneNumberId: phone_number_id,
+          accessToken: access_token,
+        })
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown Meta API error'
+        console.error('Meta API verification failed during save:', message)
+        return NextResponse.json(
+          { error: `Meta API error: ${message}` },
+          { status: 400 }
+        )
+      }
     }
 
     // Encrypt sensitive tokens before storing
@@ -310,7 +330,17 @@ export async function POST(request: Request) {
     // is not a failure, just an incomplete-but-valid save.
     let registrationSkipped = false
 
-    const needsRegistration = !sameNumber || (typeof pin === 'string' && pin.length > 0)
+    // /register and /subscribed_apps are Meta Cloud API concepts — a
+    // Coexistence provider like Dualhook already owns webhook routing
+    // on its side (see webhook-processor.ts's comment on the
+    // Dualhook route) and neither exposes an equivalent endpoint nor
+    // accepts a Meta call authenticated with its own token. Attempting
+    // either here would always fail with the same OAuth error as
+    // verifyPhoneNumber above, and — worse — flip `status` to
+    // 'disconnected' on an otherwise-valid save (see baseRow below).
+    const needsRegistration =
+      !usesCoexistenceProvider &&
+      (!sameNumber || (typeof pin === 'string' && pin.length > 0))
     if (needsRegistration) {
       if (!pin) {
         // No PIN provided. Meta TEST numbers (Developer Console) are
@@ -348,7 +378,7 @@ export async function POST(request: Request) {
     // Skipped only when there's no waba_id (legacy rows from before
     // we required it).
     let subscribedAppsAt: string | null = null
-    if (waba_id) {
+    if (waba_id && !usesCoexistenceProvider) {
       try {
         await subscribeWabaToApp({
           wabaId: waba_id,

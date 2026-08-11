@@ -77,6 +77,14 @@ export function WhatsAppConfig() {
   // multi-number bug that prompted this work.
   const isRegistered = Boolean(config?.registered_at);
   const lastRegistrationError = config?.last_registration_error ?? null;
+  // Coexistence connections (Dualhook, etc.) never get a registered_at —
+  // POST /api/whatsapp/config skips /register + /subscribed_apps for
+  // these entirely, because the provider owns inbound routing on its own
+  // side and doesn't expose a Meta-compatible equivalent. Treat them as
+  // "registered" in this banner instead of showing the Meta-specific
+  // "Not registered" / PIN copy, which doesn't apply and would send the
+  // user chasing a step Dualhook already handles.
+  const isCoexistence = Boolean(config?.send_api_base);
 
   const [verifyingRegistration, setVerifyingRegistration] = useState(false);
   type RegistrationProbe = {
@@ -467,45 +475,55 @@ export function WhatsAppConfig() {
         {config && (
           <Alert
             className={
-              isRegistered
+              isRegistered || isCoexistence
                 ? 'bg-emerald-950/30 border-emerald-700/50'
                 : 'bg-amber-950/30 border-amber-700/50'
             }
           >
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-2">
-                {isRegistered ? (
+                {isRegistered || isCoexistence ? (
                   <CheckCircle2 className="size-4 text-emerald-400" />
                 ) : (
                   <AlertTriangle className="size-4 text-amber-400" />
                 )}
                 <AlertTitle
                   className={
-                    'mb-0 ' + (isRegistered ? 'text-emerald-200' : 'text-amber-200')
+                    'mb-0 ' + (isRegistered || isCoexistence ? 'text-emerald-200' : 'text-amber-200')
                   }
                 >
-                  {isRegistered
-                    ? t('registered')
-                    : t('notRegistered')}
+                  {isCoexistence
+                    ? t('coexistenceManaged')
+                    : isRegistered
+                      ? t('registered')
+                      : t('notRegistered')}
                 </AlertTitle>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleVerifyRegistration}
-                disabled={verifyingRegistration}
-                className="border-border bg-transparent text-foreground hover:bg-muted h-7"
-              >
-                {verifyingRegistration ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : (
-                  <Zap className="size-3.5" />
-                )}
-                {t('verifyWithMeta')}
-              </Button>
+              {/* "Verify with Meta" probes graph.facebook.com directly
+                  (see /api/whatsapp/config/verify-registration) — always
+                  fails for a Coexistence token, so hide it rather than
+                  offer a button that can only produce a false red X. */}
+              {!isCoexistence && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleVerifyRegistration}
+                  disabled={verifyingRegistration}
+                  className="border-border bg-transparent text-foreground hover:bg-muted h-7"
+                >
+                  {verifyingRegistration ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Zap className="size-3.5" />
+                  )}
+                  {t('verifyWithMeta')}
+                </Button>
+              )}
             </div>
             <AlertDescription className="text-muted-foreground mt-2 text-xs leading-relaxed">
-              {isRegistered ? (
+              {isCoexistence ? (
+                <>{t('coexistenceManagedHint')}</>
+              ) : isRegistered ? (
                 <span
                   dangerouslySetInnerHTML={{
                     __html: t('subscribedSince', {
@@ -528,7 +546,7 @@ export function WhatsAppConfig() {
               )}
             </AlertDescription>
 
-            {registrationProbe && (
+            {!isCoexistence && registrationProbe && (
               <div className="mt-3 rounded border border-border bg-card/60 px-3 py-2 space-y-1.5 text-[11px]">
                 <p className="font-medium text-foreground">
                   {t('diagnosticLastRun')}
