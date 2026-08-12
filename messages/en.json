@@ -282,6 +282,7 @@
       "addNotePlaceholder": "Add a note...",
       "emailPlaceholder": "Add email",
       "companyPlaceholder": "Add company",
+      "leadSourcePlaceholder": "Lead source",
       "saveFieldError": "Couldn't save — try again.",
       "aiAssistant": "AI Assistant",
       "aiOwnedByAgent": "A teammate has taken over this chat."
@@ -495,7 +496,13 @@
       "toastCreated": "Created \"{name}\".",
       "toastRenameFailed": "Could not rename field.",
       "toastDeleteFailed": "Could not delete field.",
-      "toastDeleted": "Deleted \"{name}\"."
+      "toastDeleted": "Deleted \"{name}\".",
+      "typeText": "Text",
+      "typeSelect": "Select",
+      "optionPlaceholder": "Add an option…",
+      "addOption": "Add",
+      "toastSelectNeedsOption": "Add at least one option for a select field.",
+      "toastOptionsFailed": "Could not save the options."
     }
   },
   "Pipelines": {
@@ -606,10 +613,18 @@
       "avgDealSizeTooltip": "Pipeline Value divided by Total Deals — the average value of a single non-lost deal.",
       "weightedValue": "Weighted Value",
       "weightedValueTooltip": "Expected revenue: each open deal's value × its stage probability. First stage ≈ 10%, stages progress up to 90%, Won = 100%. Lost deals are excluded.",
-      "wonThisMonth": "Won This Month",
-      "wonThisMonthTooltip": "Deals marked as Won since the first day of the current month.",
-      "lostThisMonth": "Lost This Month",
-      "lostThisMonthTooltip": "Deals marked as Lost since the first day of the current month.",
+      "periodLabel": "Period",
+      "periodWeek": "This week",
+      "periodMonth": "This month",
+      "leadsEntered": "Leads Entered",
+      "leadsEnteredTooltip": "Deals created in this pipeline during the selected period.",
+      "reachedQualified": "Reached Qualified",
+      "reachedQualifiedTooltip": "Distinct deals that moved into the stage marked \"qualified\" (Settings → Pipeline) during the selected period — counted once even if a deal moved in and out more than once.",
+      "noQualifiedStage": "No stage marked as qualified yet — set one in this pipeline's settings to see this metric.",
+      "won": "Won",
+      "wonTooltip": "Deals marked as Won during the selected period.",
+      "lost": "Lost",
+      "lostTooltip": "Deals marked as Lost during the selected period.",
       "howCalculated": "How {label} is calculated"
     }
   },

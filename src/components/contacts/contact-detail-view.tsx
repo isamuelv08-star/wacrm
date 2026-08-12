@@ -19,6 +19,13 @@ import {
   SheetDescription,
 } from '@/components/ui/sheet';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -658,17 +665,37 @@ export function ContactDetailView({
                         <Label className="text-muted-foreground text-xs capitalize">
                           {field.field_name}
                         </Label>
-                        <Input
-                          value={customValues[field.id] ?? ''}
-                          onChange={(e) =>
-                            setCustomValues((prev) => ({
-                              ...prev,
-                              [field.id]: e.target.value,
-                            }))
-                          }
-                          placeholder={t('enterCustomField', { name: field.field_name })}
-                          className="bg-muted border-border text-foreground h-8 text-sm placeholder:text-muted-foreground"
-                        />
+                        {field.field_type === 'select' ? (
+                          <Select
+                            value={customValues[field.id] || undefined}
+                            onValueChange={(v) =>
+                              setCustomValues((prev) => ({ ...prev, [field.id]: v ?? '' }))
+                            }
+                          >
+                            <SelectTrigger className="bg-muted border-border text-foreground h-8 text-sm">
+                              <SelectValue placeholder={t('enterCustomField', { name: field.field_name })} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(field.field_options?.options ?? []).map((opt) => (
+                                <SelectItem key={opt} value={opt}>
+                                  {opt}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input
+                            value={customValues[field.id] ?? ''}
+                            onChange={(e) =>
+                              setCustomValues((prev) => ({
+                                ...prev,
+                                [field.id]: e.target.value,
+                              }))
+                            }
+                            placeholder={t('enterCustomField', { name: field.field_name })}
+                            className="bg-muted border-border text-foreground h-8 text-sm placeholder:text-muted-foreground"
+                          />
+                        )}
                       </div>
                     ))}
                     <Button

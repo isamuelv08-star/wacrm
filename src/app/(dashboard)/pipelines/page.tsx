@@ -412,7 +412,7 @@ export default function PipelinesPage() {
         </div>
       ) : (
         <>
-          <PipelineAnalytics stages={stages} deals={deals} />
+          <PipelineAnalytics pipelineId={selectedPipelineId} stages={stages} deals={deals} />
           <PipelineBoard
             stages={stages}
             deals={deals}

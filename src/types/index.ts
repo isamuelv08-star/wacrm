@@ -136,14 +136,22 @@ export interface ContactTag {
   tag_id: string;
 }
 
+export type CustomFieldType = 'text' | 'select';
+
+/** Shape of `custom_fields.field_options` when `field_type === 'select'`.
+ *  Unused (undefined) for 'text' fields. */
+export interface CustomFieldSelectOptions {
+  options: string[];
+}
+
 export interface CustomField {
   id: string;
   user_id: string;
   /** Tenancy key — NOT NULL since migration 017. */
   account_id: string;
   field_name: string;
-  field_type: string;
-  field_options?: Record<string, unknown>;
+  field_type: CustomFieldType;
+  field_options?: CustomFieldSelectOptions;
   created_at: string;
 }
 
@@ -397,6 +405,24 @@ export interface Deal {
   contact?: Contact;
   stage?: PipelineStage;
   assignee?: Profile;
+}
+
+/**
+ * One row per stage placement (migration 039) — populated by a
+ * Postgres trigger on every `deals` insert/stage_id change, never
+ * written from the app. `from_stage_id` is null for the deal's
+ * initial placement. Powers "how many deals reached stage X during
+ * period Y" reporting that `deals.stage_id` alone (current-state only)
+ * can't answer.
+ */
+export interface DealStageHistory {
+  id: string;
+  deal_id: string;
+  account_id: string;
+  pipeline_id: string;
+  from_stage_id: string | null;
+  to_stage_id: string;
+  changed_at: string;
 }
 
 export type BroadcastStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';

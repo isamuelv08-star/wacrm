@@ -4,6 +4,7 @@ import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
 import { getMediaUrl } from '@/lib/whatsapp/meta-api'
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
 import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe'
+import { captureLeadSourceFromReferral, type MetaReferral } from '@/lib/contacts/lead-source'
 import { reopenClosedConversation } from '@/lib/conversations/reopen'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
@@ -66,6 +67,13 @@ export interface WhatsAppMessage {
   }
   /** Present when the customer swipe-replies to one of our messages. */
   context?: { id: string }
+  /**
+   * Present on the customer's FIRST message when they tapped a
+   * Click-to-WhatsApp ad (or post/story with a WhatsApp CTA) to start
+   * the conversation. Drives automatic "Lead Source" capture — see
+   * captureLeadSourceFromReferral.
+   */
+  referral?: MetaReferral
 }
 
 export interface WhatsAppWebhookEntry {
@@ -677,6 +685,18 @@ async function processMessage(
   // inbound contact touch counts as a lead. No-ops if the contact
   // already has an open deal. See ensureLeadDeal's doc comment.
   await ensureLeadDeal(accountId, configOwnerUserId, contactRecord, conversation.id)
+
+  // Auto-tag "Lead Source" when Meta hands us Click-to-WhatsApp
+  // referral data. Best-effort, never overwrites a value already set
+  // (manually or by an earlier message) — see the doc comment on
+  // captureLeadSourceFromReferral.
+  await captureLeadSourceFromReferral(
+    supabaseAdmin(),
+    accountId,
+    configOwnerUserId,
+    contactRecord.id,
+    message.referral,
+  )
 
   // Reactions short-circuit here — they aren't messages. We never insert
   // into `messages`, never bump unread_count, never update last_message_text.

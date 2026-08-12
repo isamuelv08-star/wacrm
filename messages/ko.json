@@ -282,6 +282,7 @@
       "addNotePlaceholder": "메모 추가...",
       "emailPlaceholder": "이메일 추가",
       "companyPlaceholder": "회사 추가",
+      "leadSourcePlaceholder": "리드 출처",
       "saveFieldError": "저장하지 못했습니다 — 다시 시도하세요.",
       "aiAssistant": "AI 어시스턴트",
       "aiOwnedByAgent": "팀원이 이 대화를 넘겨받았습니다."
@@ -495,7 +496,13 @@
       "toastCreated": "\"{name}\"을(를) 만들었습니다.",
       "toastRenameFailed": "필드 이름을 변경할 수 없습니다.",
       "toastDeleteFailed": "필드를 삭제할 수 없습니다.",
-      "toastDeleted": "\"{name}\"을(를) 삭제했습니다."
+      "toastDeleted": "\"{name}\"을(를) 삭제했습니다.",
+      "typeText": "텍스트",
+      "typeSelect": "선택 목록",
+      "optionPlaceholder": "옵션 추가…",
+      "addOption": "추가",
+      "toastSelectNeedsOption": "선택 목록 필드는 옵션이 최소 1개 필요합니다.",
+      "toastOptionsFailed": "옵션을 저장하지 못했습니다."
     }
   },
   "Pipelines": {
@@ -606,10 +613,18 @@
       "avgDealSizeTooltip": "파이프라인 금액을 전체 딜 수로 나눈 값 — 실패하지 않은 개별 딜의 평균 금액입니다.",
       "weightedValue": "가중 금액",
       "weightedValueTooltip": "예상 매출: 진행 중인 각 딜의 금액 × 단계별 성사 확률. 첫 단계는 약 10%, 이후 단계는 최대 90%까지 상승하며, 성사 시 100%입니다. 실패한 딜은 제외됩니다.",
-      "wonThisMonth": "이번 달 성사",
-      "wonThisMonthTooltip": "이번 달 1일 이후 성사로 표시된 딜입니다.",
-      "lostThisMonth": "이번 달 실패",
-      "lostThisMonthTooltip": "이번 달 1일 이후 실패로 표시된 딜입니다.",
+      "periodLabel": "기간",
+      "periodWeek": "이번 주",
+      "periodMonth": "이번 달",
+      "leadsEntered": "유입된 리드",
+      "leadsEnteredTooltip": "선택한 기간 동안 이 파이프라인에 생성된 딜입니다.",
+      "reachedQualified": "심사 완료 도달",
+      "reachedQualifiedTooltip": "선택한 기간 동안 \"심사 완료\"로 지정된 단계(Settings → Pipeline)에 진입한 고유 딜 수입니다 — 여러 번 드나들어도 한 번만 계산됩니다.",
+      "noQualifiedStage": "아직 \"심사 완료\" 단계가 지정되지 않았습니다 — 이 파이프라인 설정에서 지정하면 이 지표가 표시됩니다.",
+      "won": "성사",
+      "wonTooltip": "선택한 기간 동안 성사로 표시된 딜입니다.",
+      "lost": "실패",
+      "lostTooltip": "선택한 기간 동안 실패로 표시된 딜입니다.",
       "howCalculated": "{label} 계산 방법"
     }
   },

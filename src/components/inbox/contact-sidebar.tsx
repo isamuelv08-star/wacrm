@@ -16,15 +16,24 @@ import {
   Plus,
   Building2,
   Sparkles,
+  Compass,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DealForm } from "@/components/pipelines/deal-form";
 import { format } from "date-fns";
 import { useTranslations } from "next-intl";
 import { fetchAiAccountStatus, toggleAiAutoReply } from "@/lib/ai/autoreply-toggle";
+import { LEAD_SOURCE_FIELD_NAME } from "@/lib/contacts/lead-source";
 
 interface ContactSidebarProps {
   contact: Contact | null;
@@ -89,6 +98,32 @@ export function ContactSidebar({
       }
     },
     [contact, tSidebar],
+  );
+
+  // "Lead Source" — same custom_fields system as any other custom
+  // field, surfaced here (like Email/Company) because it's the one
+  // account-config-independent field product wants visible without
+  // digging into the Custom Fields tab. Hidden entirely when the
+  // account has no "Lead Source" field yet (see fetchContactData).
+  const [leadSourceFieldId, setLeadSourceFieldId] = useState<string | null>(null);
+  const [leadSourceOptions, setLeadSourceOptions] = useState<string[]>([]);
+  const [leadSourceValue, setLeadSourceValue] = useState("");
+
+  const saveLeadSource = useCallback(
+    async (value: string) => {
+      if (!contact || !leadSourceFieldId) return;
+      setLeadSourceValue(value);
+      const supabase = createClient();
+      const { error } = await supabase.from("contact_custom_values").upsert(
+        { contact_id: contact.id, custom_field_id: leadSourceFieldId, value },
+        { onConflict: "contact_id,custom_field_id" },
+      );
+      if (error) {
+        console.error("Failed to update lead source:", error.message);
+        toast.error(tSidebar("saveFieldError"));
+      }
+    },
+    [contact, leadSourceFieldId, tSidebar],
   );
 
   // Deal editing — clicking a deal opens the same DealForm used on the
@@ -160,8 +195,9 @@ export function ContactSidebar({
 
     const supabase = createClient();
 
-    // Fetch deals, notes, and tags in parallel
-    const [dealsRes, notesRes, tagsRes] = await Promise.all([
+    // Fetch deals, notes, tags, and the "Lead Source" field definition
+    // in parallel.
+    const [dealsRes, notesRes, tagsRes, leadSourceFieldRes] = await Promise.all([
       supabase
         .from("deals")
         .select("*, stage:pipeline_stages(*)")
@@ -176,6 +212,11 @@ export function ContactSidebar({
         .from("contact_tags")
         .select("id, tag_id, tags(*)")
         .eq("contact_id", contact.id),
+      supabase
+        .from("custom_fields")
+        .select("id, field_options")
+        .eq("field_name", LEAD_SOURCE_FIELD_NAME)
+        .maybeSingle(),
     ]);
 
     if (dealsRes.data) setDeals(dealsRes.data);
@@ -188,6 +229,27 @@ export function ContactSidebar({
           contact_tag_id: ct.id as string,
         }));
       setTags(mapped);
+    }
+
+    // "Lead Source" is opt-in — the field only exists once a referral-
+    // sourced contact came in, or an admin created it manually. Hide
+    // the control entirely when it doesn't exist yet, same posture as
+    // any other custom field.
+    const leadSourceField = leadSourceFieldRes.data;
+    if (leadSourceField) {
+      setLeadSourceFieldId(leadSourceField.id);
+      setLeadSourceOptions(leadSourceField.field_options?.options ?? []);
+      const { data: valueRow } = await supabase
+        .from("contact_custom_values")
+        .select("value")
+        .eq("contact_id", contact.id)
+        .eq("custom_field_id", leadSourceField.id)
+        .maybeSingle();
+      setLeadSourceValue(valueRow?.value ?? "");
+    } else {
+      setLeadSourceFieldId(null);
+      setLeadSourceOptions([]);
+      setLeadSourceValue("");
     }
   }, [contact]);
 
@@ -316,6 +378,27 @@ export function ContactSidebar({
                 className="h-7 flex-1 border-transparent bg-transparent px-1.5 text-sm text-foreground placeholder:text-muted-foreground hover:border-border focus:border-primary/50 focus:bg-muted"
               />
             </div>
+
+            {leadSourceFieldId && (
+              <div className="flex items-center gap-2 rounded-lg px-3 py-1.5">
+                <Compass className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <Select
+                  value={leadSourceValue || undefined}
+                  onValueChange={(v) => saveLeadSource(v ?? "")}
+                >
+                  <SelectTrigger className="h-7 flex-1 border-transparent bg-transparent text-sm text-foreground hover:border-border">
+                    <SelectValue placeholder={tSidebar("leadSourcePlaceholder")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {leadSourceOptions.map((opt) => (
+                      <SelectItem key={opt} value={opt}>
+                        {opt}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
 
           {/* Divider */}
