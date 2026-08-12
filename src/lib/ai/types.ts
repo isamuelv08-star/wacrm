@@ -39,6 +39,14 @@ export interface AiConfig {
    *  knowledge base is embedded and semantic retrieval turns on; when
    *  null, retrieval falls back to lexical full-text search. */
   embeddingsApiKey: string | null
+  /**
+   * Optional OpenRouter key (migration 041) used to transcribe inbound
+   * voice notes when `provider` isn't 'openai' — Anthropic has no native
+   * transcription API, so this is the fallback path for those accounts.
+   * OpenAI accounts transcribe directly with `apiKey` and never need
+   * this. See src/lib/ai/transcribe.ts.
+   */
+  transcriptionApiKey: string | null
 }
 
 /** A single conversation turn in the shape both providers accept. */

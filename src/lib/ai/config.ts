@@ -13,10 +13,11 @@ interface AiConfigRow {
   auto_reply_max_per_conversation: number
   handoff_agent_id: string | null
   embeddings_api_key: string | null
+  transcription_api_key: string | null
 }
 
 const CONFIG_COLUMNS =
-  'provider, model, api_key, system_prompt, qualification_criteria, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, embeddings_api_key'
+  'provider, model, api_key, system_prompt, qualification_criteria, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, embeddings_api_key, transcription_api_key'
 
 /**
  * Load and decrypt the account's AI config for *use* (draft or
@@ -70,6 +71,21 @@ export async function loadAiConfig(
     }
   }
 
+  // Same swallow-on-decrypt-failure posture as the embeddings key above:
+  // a rotated/mismatched ENCRYPTION_KEY should degrade transcription to
+  // "unavailable" for Anthropic accounts, not take down draft/auto-reply.
+  let transcriptionApiKey: string | null = null
+  if (row.transcription_api_key) {
+    try {
+      transcriptionApiKey = decrypt(row.transcription_api_key)
+    } catch {
+      console.error(
+        `[ai config] transcription key for account ${accountId} could not be decrypted — check ENCRYPTION_KEY; voice-note transcription is disabled until it is re-entered.`,
+      )
+      transcriptionApiKey = null
+    }
+  }
+
   return {
     provider: row.provider,
     model: row.model,
@@ -81,6 +97,7 @@ export async function loadAiConfig(
     autoReplyMaxPerConversation: row.auto_reply_max_per_conversation,
     handoffAgentId: row.handoff_agent_id,
     embeddingsApiKey,
+    transcriptionApiKey,
   }
 }
 

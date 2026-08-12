@@ -30,7 +30,7 @@ export async function GET() {
       // `api_key` is selected only to derive `has_key` — it is stripped
       // out below and never returned to the client.
       .select(
-        'provider, model, system_prompt, qualification_criteria, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, api_key, embeddings_api_key',
+        'provider, model, system_prompt, qualification_criteria, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, api_key, embeddings_api_key, transcription_api_key',
       )
       .eq('account_id', accountId)
       .maybeSingle()
@@ -44,13 +44,14 @@ export async function GET() {
     }
 
     if (!data) return NextResponse.json({ configured: false })
-    // The keys are selected only to derive the has_* flags; neither is
-    // returned to the client.
-    const { api_key, embeddings_api_key, ...safe } = data
+    // The keys are selected only to derive the has_* flags; none of them
+    // is returned to the client.
+    const { api_key, embeddings_api_key, transcription_api_key, ...safe } = data
     return NextResponse.json({
       configured: true,
       has_key: !!api_key,
       has_embeddings_key: !!embeddings_api_key,
+      has_transcription_key: !!transcription_api_key,
       ...safe,
     })
   } catch (err) {
@@ -129,6 +130,17 @@ export async function POST(request: Request) {
         : ''
     const clearEmbeddingsKey = body.embeddings_api_key === null
 
+    // Transcription key (optional, OpenRouter — migration 041): same
+    // set/clear/leave-unchanged contract as the embeddings key above.
+    // Only meaningful for non-OpenAI accounts (see transcribe.ts's
+    // hybrid rule), but stored regardless of the chosen provider so a
+    // later provider switch doesn't lose it.
+    const rawTranscriptionKey =
+      typeof body.transcription_api_key === 'string'
+        ? body.transcription_api_key.trim()
+        : ''
+    const clearTranscriptionKey = body.transcription_api_key === null
+
     // Reuse the stored key when the form didn't send a fresh one.
     const { data: existing } = await supabase
       .from('ai_configs')
@@ -172,6 +184,7 @@ export async function POST(request: Request) {
           autoReplyMaxPerConversation: maxPer,
           handoffAgentId: null,
           embeddingsApiKey: null,
+          transcriptionApiKey: null,
         })
       } catch (err) {
         if (err instanceof AiError) {
@@ -219,6 +232,18 @@ export async function POST(request: Request) {
       shared.embeddings_api_key = encrypt(rawEmbeddingsKey)
     } else if (clearEmbeddingsKey) {
       shared.embeddings_api_key = null
+    }
+    // No live validation call for the transcription key (unlike the chat
+    // and embeddings keys above) — OpenRouter's transcription endpoint
+    // has no cheap "ping" equivalent worth asserting against here. An
+    // invalid key simply surfaces later as a skipped/failed transcription
+    // (logged server-side), never blocking a customer-facing send —
+    // consistent with transcribeAndStoreAudioMessage's best-effort
+    // contract.
+    if (rawTranscriptionKey) {
+      shared.transcription_api_key = encrypt(rawTranscriptionKey)
+    } else if (clearTranscriptionKey) {
+      shared.transcription_api_key = null
     }
 
     if (existing) {

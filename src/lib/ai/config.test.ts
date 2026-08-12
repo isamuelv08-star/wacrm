@@ -27,6 +27,7 @@ const ROW = {
   auto_reply_enabled: false,
   auto_reply_max_per_conversation: 3,
   embeddings_api_key: null,
+  transcription_api_key: null,
 }
 
 describe('loadAiConfig requireActive', () => {
@@ -47,5 +48,21 @@ describe('loadAiConfig requireActive', () => {
     expect(
       await loadAiConfig(dbReturning(null), 'acct', { requireActive: false }),
     ).toBeNull()
+  })
+
+  it('decrypts a stored transcription_api_key', async () => {
+    const config = await loadAiConfig(
+      dbReturning({ ...ROW, transcription_api_key: 'enc-transcription' }),
+      'acct',
+      { requireActive: false },
+    )
+    expect(config!.transcriptionApiKey).toBe('plain:enc-transcription')
+  })
+
+  it('leaves transcriptionApiKey null when unset', async () => {
+    const config = await loadAiConfig(dbReturning(ROW), 'acct', {
+      requireActive: false,
+    })
+    expect(config!.transcriptionApiKey).toBeNull()
   })
 })

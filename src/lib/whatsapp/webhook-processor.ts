@@ -9,6 +9,7 @@ import { reopenClosedConversation } from '@/lib/conversations/reopen'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
+import { transcribeAndStoreAudioMessage } from '@/lib/ai/transcribe'
 import { dispatchWebhookEvent } from '@/lib/webhooks/deliver'
 import {
   handleTemplateWebhookChange,
@@ -706,9 +707,15 @@ async function processMessage(
     return
   }
 
-  // Parse message content based on type
-  const { contentText, mediaUrl, mediaType, interactiveReplyId } =
-    await parseMessageContent(message, accessToken)
+  // Parse message content based on type.
+  const parsedContent = await parseMessageContent(message, accessToken)
+  const { mediaUrl, mediaType, interactiveReplyId } = parsedContent
+  // `let`, not `const` — reassigned below for audio once
+  // transcribeAndStoreAudioMessage resolves, so that the SAME inbound
+  // turn's `last_message_text` preview and AI auto-reply dispatch
+  // (gated on non-empty text, further down) both see the transcript
+  // instead of treating a voice note as empty.
+  let contentText = parsedContent.contentText
 
   // Resolve swipe-reply context if present. A missing parent is fine —
   // we just store NULL and the UI renders the message without a quote.
@@ -761,25 +768,49 @@ async function processMessage(
     .eq('sender_type', 'customer')
   const isFirstInboundMessage = (priorCustomerMsgCount ?? 0) === 0
 
-  const { error: msgError } = await supabaseAdmin().from('messages').insert({
-    conversation_id: conversation.id,
-    sender_type: 'customer',
-    content_type: contentType,
-    content_text: contentText,
-    media_url: mediaUrl,
-    message_id: message.id,
-    status: 'delivered',
-    created_at: new Date(parseInt(message.timestamp) * 1000).toISOString(),
-    reply_to_message_id: replyToInternalId,
-    // Only populated for content_type='interactive'. Migration 010 added
-    // the column; null for every other content_type so existing inserts
-    // behave identically.
-    interactive_reply_id: interactiveReplyId,
-  })
+  const { data: insertedMessage, error: msgError } = await supabaseAdmin()
+    .from('messages')
+    .insert({
+      conversation_id: conversation.id,
+      sender_type: 'customer',
+      content_type: contentType,
+      content_text: contentText,
+      media_url: mediaUrl,
+      message_id: message.id,
+      status: 'delivered',
+      created_at: new Date(parseInt(message.timestamp) * 1000).toISOString(),
+      reply_to_message_id: replyToInternalId,
+      // Only populated for content_type='interactive'. Migration 010 added
+      // the column; null for every other content_type so existing inserts
+      // behave identically.
+      interactive_reply_id: interactiveReplyId,
+    })
+    .select('id')
+    .single()
 
-  if (msgError) {
+  if (msgError || !insertedMessage) {
     console.error('Error inserting message:', msgError)
     return
+  }
+
+  // Best-effort voice-note transcription (migration 041). The row above
+  // is inserted with content_text=null for audio, exactly like before —
+  // the inbox shows the audio bubble immediately via Realtime — and this
+  // fills the transcript in afterward with a follow-up UPDATE, plus
+  // reassigns the local `contentText` so the conversation preview and
+  // the AI auto-reply dispatch below both see it in the same turn.
+  // transcribeAndStoreAudioMessage owns its own try/catch and never
+  // throws; it silently no-ops when the account has no usable key.
+  if (contentType === 'audio' && mediaUrl && message.audio?.id) {
+    const transcript = await transcribeAndStoreAudioMessage({
+      db: supabaseAdmin(),
+      accountId,
+      messageId: insertedMessage.id,
+      mediaId: message.audio.id,
+      mimeType: message.audio.mime_type,
+      accessToken,
+    })
+    if (transcript) contentText = transcript
   }
 
   // Update conversation

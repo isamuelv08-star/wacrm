@@ -3,12 +3,13 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { buildConversationContext } from './context'
 
 /** Minimal fake matching the query chain in buildConversationContext:
- *  from().select().eq().eq().order().limit() → { data, error }. */
+ *  from().select().eq().in().order().limit() → { data, error }. */
 function fakeDb(rows: unknown[]): SupabaseClient {
   const chain = {
     from: () => chain,
     select: () => chain,
     eq: () => chain,
+    in: () => chain,
     order: () => chain,
     limit: () => Promise.resolve({ data: rows, error: null }),
   }
@@ -49,5 +50,15 @@ describe('buildConversationContext', () => {
       'conv-1',
     )
     expect(out).toEqual([{ role: 'user', content: 'real' }])
+  })
+
+  it('includes a transcribed voice note like any other customer message', async () => {
+    const out = await buildConversationContext(
+      fakeDb([
+        { sender_type: 'customer', content_text: 'transcribed voice note' },
+      ]),
+      'conv-1',
+    )
+    expect(out).toEqual([{ role: 'user', content: 'transcribed voice note' }])
   })
 })

@@ -68,6 +68,12 @@ export function AiConfig() {
   const [embeddingsKey, setEmbeddingsKey] = useState('');
   const [embeddingsKeyEdited, setEmbeddingsKeyEdited] = useState(false);
   const [hasStoredEmbeddingsKey, setHasStoredEmbeddingsKey] = useState(false);
+  // Voice-note transcription key (OpenRouter, migration 041) — only
+  // relevant when provider is 'anthropic' (OpenAI accounts transcribe
+  // directly with their own key, see transcribe.ts's hybrid rule).
+  const [transcriptionKey, setTranscriptionKey] = useState('');
+  const [transcriptionKeyEdited, setTranscriptionKeyEdited] = useState(false);
+  const [hasStoredTranscriptionKey, setHasStoredTranscriptionKey] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState('');
   const [qualificationCriteria, setQualificationCriteria] = useState('');
   const [isActive, setIsActive] = useState(false);
@@ -116,6 +122,9 @@ export function AiConfig() {
         setHasStoredEmbeddingsKey(Boolean(data.has_embeddings_key));
         setEmbeddingsKey(data.has_embeddings_key ? MASKED_KEY : '');
         setEmbeddingsKeyEdited(false);
+        setHasStoredTranscriptionKey(Boolean(data.has_transcription_key));
+        setTranscriptionKey(data.has_transcription_key ? MASKED_KEY : '');
+        setTranscriptionKeyEdited(false);
       }
     } catch {
       toast.error(t('loadFailed'));
@@ -166,11 +175,16 @@ export function AiConfig() {
   const embeddingsKeyPayload = () =>
     embeddingsKeyEdited ? embeddingsKey.trim() || null : undefined;
 
+  // undefined = leave unchanged; '' typed = null (clear); text = set.
+  const transcriptionKeyPayload = () =>
+    transcriptionKeyEdited ? transcriptionKey.trim() || null : undefined;
+
   const buildBody = () => ({
     provider,
     model: model.trim(),
     api_key: keyPayload(),
     embeddings_api_key: embeddingsKeyPayload(),
+    transcription_api_key: transcriptionKeyPayload(),
     system_prompt: systemPrompt.trim() || null,
     qualification_criteria: qualificationCriteria.trim() || null,
     is_active: isActive,
@@ -424,6 +438,38 @@ export function AiConfig() {
                 })}
               </p>
             </div>
+
+            {provider === 'anthropic' && (
+              <div className="space-y-2">
+                <Label htmlFor="ai-transcription-key">
+                  {t('transcriptionKey')}{' '}
+                  <span className="font-normal text-muted-foreground">
+                    {t('optionalTranscription')}
+                  </span>
+                </Label>
+                <Input
+                  id="ai-transcription-key"
+                  type="password"
+                  value={transcriptionKey}
+                  onChange={(e) => {
+                    setTranscriptionKey(e.target.value);
+                    setTranscriptionKeyEdited(true);
+                  }}
+                  onFocus={() => {
+                    if (!transcriptionKeyEdited && hasStoredTranscriptionKey) {
+                      setTranscriptionKey('');
+                      setTranscriptionKeyEdited(true);
+                    }
+                  }}
+                  placeholder="sk-or-... (OpenRouter)"
+                  disabled={disabled}
+                  autoComplete="off"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t('transcriptionHint')}
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
