@@ -87,8 +87,8 @@ export interface AccountContext {
   accountId: string;
   /** Caller's role within their account. */
   role: AccountRole;
-  /** Lightweight account meta — id + name. */
-  account: { id: string; name: string };
+  /** Lightweight account meta — id, name, and the HOT-lead alert threshold. */
+  account: { id: string; name: string; hot_lead_alert_minutes: number };
 }
 
 /**
@@ -149,7 +149,7 @@ export async function getCurrentAccount(): Promise<AccountContext> {
   // RLS, so it stays robust against cache staleness and older schemas.
   const { data: account, error: accountErr } = await supabase
     .from("accounts")
-    .select("id, name")
+    .select("id, name, hot_lead_alert_minutes")
     .eq("id", data.account_id)
     .maybeSingle();
 
@@ -168,7 +168,11 @@ export async function getCurrentAccount(): Promise<AccountContext> {
     userId: user.id,
     accountId: data.account_id,
     role: data.account_role,
-    account: { id: account.id, name: account.name },
+    account: {
+      id: account.id,
+      name: account.name,
+      hot_lead_alert_minutes: account.hot_lead_alert_minutes,
+    },
   };
 }
 

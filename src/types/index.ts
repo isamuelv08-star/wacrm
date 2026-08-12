@@ -57,6 +57,12 @@ export interface Account {
   name: string;
   /** auth.users.id of the immutable owner. */
   owner_user_id: string;
+  /**
+   * Minutes a HOT-scored lead's last (customer) message can go
+   * unanswered by a human before /api/cron/hot-lead-alerts raises a
+   * notification (migration 040). 0 disables the feature.
+   */
+  hot_lead_alert_minutes?: number;
   created_at: string;
   updated_at: string;
 }
@@ -196,13 +202,19 @@ export interface Conversation {
   ai_autoreply_disabled?: boolean;
   ai_reply_count?: number;
   ai_handoff_summary?: string | null;
+  /**
+   * Dedupe marker for HOT-lead alerts (migration 040) — the
+   * `created_at` of the last customer message we already notified on.
+   * Not meant to be read/written from the client.
+   */
+  hot_lead_last_alerted_message_at?: string | null;
 }
 
 // ============================================================
-// Notifications (migration 027)
+// Notifications (migration 027, widened in 040)
 // ============================================================
 
-export type NotificationType = 'conversation_assigned';
+export type NotificationType = 'conversation_assigned' | 'hot_lead_unanswered';
 
 export interface Notification {
   id: string;

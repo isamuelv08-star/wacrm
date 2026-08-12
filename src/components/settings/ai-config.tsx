@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Sparkles, CheckCircle2, Trash2, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Sparkles, CheckCircle2, Trash2, Eye, EyeOff, Flame } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { canEditSettings } from '@/lib/auth/roles';
 import { Button } from '@/components/ui/button';
@@ -77,6 +77,14 @@ export function AiConfig() {
   const [handoffAgentId, setHandoffAgentId] = useState('');
   const [members, setMembers] = useState<AccountMember[]>([]);
 
+  // HOT-lead response-time alert threshold — lives on `accounts`
+  // (migration 040), not the ai_config table, so it's fetched/saved
+  // through /api/account rather than /api/ai/config. Tracked against
+  // its last-loaded value so an unrelated AI-config save doesn't fire
+  // an extra PATCH when this field wasn't touched.
+  const [hotLeadAlertMinutes, setHotLeadAlertMinutes] = useState(15);
+  const loadedHotLeadAlertMinutesRef = useRef(15);
+
   // Guard keyed on the account (not a bare boolean) so an in-place
   // account switch — ownership transfer, multi-account membership —
   // refetches instead of showing the previous account's config. Mirrors
@@ -116,15 +124,30 @@ export function AiConfig() {
     }
   }, []);
 
+  const fetchHotLeadAlertMinutes = useCallback(async () => {
+    try {
+      const res = await fetch('/api/account');
+      const data = await res.json();
+      if (res.ok && typeof data?.account?.hot_lead_alert_minutes === 'number') {
+        setHotLeadAlertMinutes(data.account.hot_lead_alert_minutes);
+        loadedHotLeadAlertMinutesRef.current = data.account.hot_lead_alert_minutes;
+      }
+    } catch {
+      // Best-effort — the field just falls back to its default and the
+      // next successful load corrects it.
+    }
+  }, []);
+
   useEffect(() => {
     if (!accountId || loadedAccountIdRef.current === accountId) return;
     loadedAccountIdRef.current = accountId;
     void fetchConfig();
+    void fetchHotLeadAlertMinutes();
     // Members populate the handoff-target picker. Best-effort — on an
     // older deployment without the endpoint the picker just shows the
     // queue option.
     void fetchAccountMembers().then(setMembers);
-  }, [accountId, fetchConfig]);
+  }, [accountId, fetchConfig, fetchHotLeadAlertMinutes]);
 
   // Swap the model default when the provider changes, unless the user
   // typed a custom model.
@@ -189,17 +212,37 @@ export function AiConfig() {
     }
     setSaving(true);
     try {
-      const res = await fetch('/api/ai/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildBody()),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        toast.success(t('saveSuccess'));
+      const [configResult, hotLeadResult] = await Promise.all([
+        fetch('/api/ai/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(buildBody()),
+        }).then(async (res) => ({ res, data: await res.json() })),
+        hotLeadAlertMinutes !== loadedHotLeadAlertMinutesRef.current
+          ? fetch('/api/account', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ hot_lead_alert_minutes: hotLeadAlertMinutes }),
+            }).then(async (res) => ({ res, data: await res.json() }))
+          : null,
+      ]);
+
+      if (configResult.res.ok) {
         await fetchConfig();
       } else {
-        toast.error(data.error ?? t('saveFailed'));
+        toast.error(configResult.data.error ?? t('saveFailed'));
+      }
+
+      if (hotLeadResult) {
+        if (hotLeadResult.res.ok) {
+          loadedHotLeadAlertMinutesRef.current = hotLeadAlertMinutes;
+        } else {
+          toast.error(hotLeadResult.data.error ?? t('hotLeadAlertsSaveFailed'));
+        }
+      }
+
+      if (configResult.res.ok && (!hotLeadResult || hotLeadResult.res.ok)) {
+        toast.success(t('saveSuccess'));
       }
     } catch {
       toast.error(t('saveFailed'));
@@ -502,6 +545,41 @@ export function AiConfig() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Flame className="h-4 w-4 text-primary" /> {t('hotLeadAlertsTitle')}
+            </CardTitle>
+            <CardDescription>{t('hotLeadAlertsDesc')}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <Label htmlFor="hot-lead-alert-minutes">
+                  {t('hotLeadAlertMinutesLabel')}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {t('hotLeadAlertMinutesHint')}
+                </p>
+              </div>
+              <Input
+                id="hot-lead-alert-minutes"
+                type="number"
+                min={0}
+                max={10080}
+                value={hotLeadAlertMinutes}
+                onChange={(e) =>
+                  setHotLeadAlertMinutes(
+                    Math.min(10080, Math.max(0, Number(e.target.value) || 0)),
+                  )
+                }
+                disabled={disabled}
+                className="w-20"
+              />
             </div>
           </CardContent>
         </Card>

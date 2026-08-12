@@ -83,7 +83,10 @@ describe("getCurrentAccount", () => {
           data: { account_id: "acct-1", account_role: "owner" },
           error: null,
         },
-        accounts: { data: { id: "acct-1", name: "Acme" }, error: null },
+        accounts: {
+          data: { id: "acct-1", name: "Acme", hot_lead_alert_minutes: 15 },
+          error: null,
+        },
       },
     });
     createClient.mockReturnValue(client);
@@ -94,7 +97,7 @@ describe("getCurrentAccount", () => {
       userId: "user-1",
       accountId: "acct-1",
       role: "owner",
-      account: { id: "acct-1", name: "Acme" },
+      account: { id: "acct-1", name: "Acme", hot_lead_alert_minutes: 15 },
     });
 
     // Two queries: profiles by user_id, then accounts by id. Neither

@@ -64,3 +64,10 @@ docker run -d --env-file .env.local -e PORT=3000 -p 3000:3000 wacrm
   deployment, sending the shared secret in the `x-cron-secret` header
   (`AUTOMATION_CRON_SECRET`, see `.env.local.example`). Both return
   503 until that variable is set.
+- Same story for HOT-lead response-time alerts (migration 040):
+  point the scheduler at `GET /api/cron/hot-lead-alerts` too, same
+  `x-cron-secret` header and `AUTOMATION_CRON_SECRET`. Every 5 minutes
+  is the recommended interval — tight enough that a per-account
+  threshold of a few minutes is still meaningful, without hammering
+  the DB. Set an account's `hot_lead_alert_minutes` to `0` to opt it
+  out of the scan entirely.
