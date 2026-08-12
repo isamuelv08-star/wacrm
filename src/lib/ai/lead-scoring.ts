@@ -8,14 +8,8 @@ import type { LeadScore } from './types'
 // Two independent effects, both best-effort — a failure here must
 // never take down the customer-facing reply that already sent:
 //   1. Always persist the score onto `contacts.lead_score`.
-//   2. Only for HOT: advance the contact's deal to whichever stage
-//      the account has designated "the qualified stage" for that
-//      deal's pipeline (pipeline_stages.is_qualified_stage, migration
-//      038). If the contact has no open deal, one is created directly
-//      in the qualified stage — mirrors webhook-processor.ts's
-//      ensureLeadDeal, except targeting the qualified stage instead
-//      of the first one, since a HOT lead should never sit unqualified
-//      just because it's the first time we're tracking it.
+//   2. Only for HOT: advance the contact's deal to the qualified
+//      stage via `ensureDealInQualifiedStage` below.
 //
 // Silently no-ops (with a log) wherever the account hasn't finished
 // configuring this: no pipeline yet, or a pipeline with no stage
@@ -44,6 +38,38 @@ export async function applyLeadScore(
 
     if (score !== 'hot') return // only HOT advances the deal — see applyLeadScore's doc comment
 
+    await ensureDealInQualifiedStage(db, { accountId, contactId, configOwnerUserId })
+  } catch (err) {
+    console.error('[ai lead-scoring] applyLeadScore failed:', err)
+  }
+}
+
+// ============================================================
+// Advance the contact's open deal to whichever stage the account has
+// designated "the qualified stage" for that deal's pipeline
+// (pipeline_stages.is_qualified_stage, migration 038). If the contact
+// has no open deal, one is created directly in the qualified stage —
+// mirrors webhook-processor.ts's ensureLeadDeal, except targeting the
+// qualified stage instead of the first one, since a lead reaching
+// this point (HOT score, or an AI handoff — migration 042 / Fase A)
+// should never sit unqualified just because it's the first time we're
+// tracking it.
+//
+// Best-effort and idempotent (a no-op if the deal is already there) —
+// safe to call once per HOT score AND once per handoff on the same
+// turn without double-creating or double-moving anything.
+// ============================================================
+export async function ensureDealInQualifiedStage(
+  db: SupabaseClient,
+  args: {
+    accountId: string
+    contactId: string
+    configOwnerUserId: string
+  },
+): Promise<void> {
+  const { accountId, contactId, configOwnerUserId } = args
+
+  try {
     const { data: openDeal, error: dealErr } = await db
       .from('deals')
       .select('id, pipeline_id, stage_id')
@@ -135,7 +161,7 @@ export async function applyLeadScore(
       console.error('[ai lead-scoring] failed to create deal in qualified stage:', insertErr.message)
     }
   } catch (err) {
-    console.error('[ai lead-scoring] applyLeadScore failed:', err)
+    console.error('[ai lead-scoring] ensureDealInQualifiedStage failed:', err)
   }
 }
 

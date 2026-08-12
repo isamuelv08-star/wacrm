@@ -9,6 +9,7 @@ import { reopenClosedConversation } from '@/lib/conversations/reopen'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
+import { pickRoundRobinAgent } from '@/lib/assignment/round-robin'
 import { transcribeAndStoreAudioMessage } from '@/lib/ai/transcribe'
 import { dispatchWebhookEvent } from '@/lib/webhooks/deliver'
 import {
@@ -1216,6 +1217,12 @@ async function findOrCreateConversation(
     return { conversation: existingRows[0], created: false }
   }
 
+  // Brand-new lead — round-robin it to an eligible agent up front so
+  // the insert and the assignment notification (on_conversation_assigned,
+  // 027/042) land in one statement. Returns null (left unassigned) when
+  // the account has no eligible agents, same as before this feature.
+  const assignedAgentId = await pickRoundRobinAgent(supabaseAdmin(), accountId)
+
   // Create new conversation. Same tenancy + audit split as
   // findOrCreateContact above.
   const { data: newConv, error: createError } = await supabaseAdmin()
@@ -1224,6 +1231,7 @@ async function findOrCreateConversation(
       account_id: accountId,
       user_id: configOwnerUserId,
       contact_id: contactId,
+      assigned_agent_id: assignedAgentId,
     })
     .select()
     .single()

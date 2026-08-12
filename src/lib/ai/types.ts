@@ -84,6 +84,14 @@ export interface GenerateResult {
    * or the model had nothing new to assess). Never present in `text`.
    */
   score: LeadScore | null
+  /**
+   * The internal handoff note the model emitted via
+   * `[[HANDOFF_SUMMARY:...]]` when it handed off, or null when it
+   * didn't hand off, or handed off without complying with the format
+   * (callers fall back to a deterministic summary in that case). Never
+   * present in `text`, never shown to the customer.
+   */
+  handoffSummary: string | null
   /** Provider token usage for this call, or null when unavailable. */
   usage: AiUsage | null
 }

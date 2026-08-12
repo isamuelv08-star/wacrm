@@ -5,11 +5,12 @@ import { retrieveKnowledge } from './knowledge'
 import { generateReply } from './generate'
 import { buildSystemPrompt } from './defaults'
 import { buildHandoffSummary } from './handoff'
-import { applyLeadScore } from './lead-scoring'
+import { applyLeadScore, ensureDealInQualifiedStage } from './lead-scoring'
 import { logAiUsage } from './usage'
 import { latestUserMessage } from './query'
 import { engineSendText } from '@/lib/flows/meta-send'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
+import { pickRoundRobinAgent } from '@/lib/assignment/round-robin'
 
 interface DispatchArgs {
   /** Tenancy key — drives config, contact, and whatsapp_config lookups. */
@@ -114,7 +115,7 @@ export async function dispatchInboundToAiReply(
       qualificationCriteria: config.qualificationCriteria,
     })
 
-    const { text, handoff, score, usage } = await generateReply({
+    const { text, handoff, score, handoffSummary, usage } = await generateReply({
       config,
       systemPrompt,
       messages,
@@ -147,23 +148,46 @@ export async function dispatchInboundToAiReply(
       // this thread and hand it to a human. We (a) pause the bot here
       // (sticky until re-enabled), (b) route the conversation to the
       // configured handoff agent — null leaves it in the shared queue —
-      // and (c) leave a short internal note so whoever picks it up has
+      // and (c) leave an internal note so whoever picks it up has
       // context. Assigning fires the `on_conversation_assigned` trigger,
-      // which notifies the agent.
-      const summary = buildHandoffSummary({
-        messages,
-        replyCount: conv.ai_reply_count ?? 0,
-      })
+      // which notifies the agent (and, per migration 042, mirrors a
+      // short excerpt of this note into the notification body).
+      //
+      // Prefer the model's own [[HANDOFF_SUMMARY:...]] note — it can
+      // speak to what the customer actually needs, not just quote their
+      // last message — and fall back to the deterministic note when the
+      // model handed off without one (e.g. the `!text` bail-out path,
+      // which never asked for a summary, or a model that didn't comply).
+      const summary =
+        handoffSummary ??
+        buildHandoffSummary({
+          messages,
+          replyCount: conv.ai_reply_count ?? 0,
+        })
       const update: Record<string, unknown> = {
         ai_autoreply_disabled: true,
         ai_handoff_summary: summary,
       }
-      // Only set the assignee when a target is configured AND the thread
-      // isn't already owned — never stomp an existing human assignment.
-      if (config.handoffAgentId && !conv.assigned_agent_id) {
-        update.assigned_agent_id = config.handoffAgentId
+      // Only set the assignee when the thread isn't already owned —
+      // never stomp an existing human assignment. A fixed
+      // handoff_agent_id (account setting) wins when configured;
+      // otherwise fall back to the same round-robin pool/cursor new
+      // leads use, so a handoff is never left in the shared queue
+      // just because the account didn't pin a specific agent.
+      if (!conv.assigned_agent_id) {
+        const targetAgentId =
+          config.handoffAgentId ?? (await pickRoundRobinAgent(db, accountId))
+        if (targetAgentId) update.assigned_agent_id = targetAgentId
       }
       await db.from('conversations').update(update).eq('id', conversationId)
+
+      // A human being needed now is itself a qualification signal —
+      // move the deal to the account's qualified pipeline stage
+      // regardless of whether the model also scored this lead HOT this
+      // turn (the score branch above already calls this for HOT; the
+      // call is idempotent, so doing it again here is harmless).
+      await ensureDealInQualifiedStage(db, { accountId, contactId, configOwnerUserId })
+
       return
     }
 

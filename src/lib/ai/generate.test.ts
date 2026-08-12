@@ -46,6 +46,7 @@ describe('parseGeneration', () => {
       text: 'Hello there',
       handoff: false,
       score: null,
+      handoffSummary: null,
       usage: null,
     })
   })
@@ -55,12 +56,14 @@ describe('parseGeneration', () => {
       text: '',
       handoff: true,
       score: null,
+      handoffSummary: null,
       usage: null,
     })
     expect(parseGeneration('Let me get a human [[HANDOFF]]')).toEqual({
       text: 'Let me get a human',
       handoff: true,
       score: null,
+      handoffSummary: null,
       usage: null,
     })
   })
@@ -71,6 +74,7 @@ describe('parseGeneration', () => {
       text: 'Hi',
       handoff: false,
       score: null,
+      handoffSummary: null,
       usage,
     })
   })
@@ -80,12 +84,14 @@ describe('parseGeneration', () => {
       text: 'Sounds great!',
       handoff: false,
       score: 'hot',
+      handoffSummary: null,
       usage: null,
     })
     expect(parseGeneration('Ok, noted. [[score:warm]]')).toEqual({
       text: 'Ok, noted.',
       handoff: false,
       score: 'warm',
+      handoffSummary: null,
       usage: null,
     })
   })
@@ -103,12 +109,36 @@ describe('parseGeneration', () => {
       text: 'Let me get someone.',
       handoff: true,
       score: 'warm',
+      handoffSummary: null,
       usage: null,
     })
   })
 
   it('returns null score when the tag is absent', () => {
     expect(parseGeneration('Just a normal reply.').score).toBeNull()
+  })
+
+  it('detects + strips the handoff-summary sentinel, only when handoff is present', () => {
+    const withHandoff = parseGeneration(
+      '[[HANDOFF]][[HANDOFF_SUMMARY: Customer wants a refund for order #99.]]',
+    )
+    expect(withHandoff.handoff).toBe(true)
+    expect(withHandoff.handoffSummary).toBe('Customer wants a refund for order #99.')
+    expect(withHandoff.text).toBe('')
+
+    // No [[HANDOFF]] in the output → the summary tag (if a model
+    // hallucinated one anyway) is not trusted as a handoff summary.
+    const withoutHandoff = parseGeneration(
+      'All good! [[HANDOFF_SUMMARY: should not apply]]',
+    )
+    expect(withoutHandoff.handoff).toBe(false)
+    expect(withoutHandoff.handoffSummary).toBeNull()
+  })
+
+  it('never leaks the handoff-summary tag into the customer-facing text', () => {
+    const result = parseGeneration('[[HANDOFF]][[HANDOFF_SUMMARY: internal note]]')
+    expect(result.text).not.toContain('HANDOFF_SUMMARY')
+    expect(result.text).not.toContain('internal note')
   })
 })
 
@@ -132,6 +162,7 @@ describe('generateReply — OpenAI', () => {
       text: 'Sure — happy to help!',
       handoff: false,
       score: null,
+      handoffSummary: null,
       usage: { promptTokens: 42, completionTokens: 8, totalTokens: 50 },
     })
     const [url, opts] = fetchMock.mock.calls[0]
@@ -192,6 +223,7 @@ describe('generateReply — Anthropic', () => {
       text: 'Hi there!',
       handoff: false,
       score: null,
+      handoffSummary: null,
       usage: { promptTokens: 30, completionTokens: 6, totalTokens: 36 },
     })
     const [url, opts] = fetchMock.mock.calls[0]

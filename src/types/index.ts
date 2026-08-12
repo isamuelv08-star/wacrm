@@ -81,6 +81,12 @@ export interface AccountMember {
   avatar_url: string | null;
   role: AccountRole;
   joined_at: string;
+  /** profiles.round_robin_opt_in — explicit override, or null to
+   *  inherit the role default (agent = eligible). */
+  round_robin_opt_in: boolean | null;
+  /** Computed: COALESCE(round_robin_opt_in, role === 'agent') — whether
+   *  this member is currently in the round-robin pool. */
+  receives_round_robin_leads: boolean;
 }
 
 /**

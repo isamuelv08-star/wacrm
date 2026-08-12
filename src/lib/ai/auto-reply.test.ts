@@ -9,10 +9,12 @@ const h = vi.hoisted(() => ({
   generateReply: vi.fn(),
   engineSendText: vi.fn(),
   applyLeadScore: vi.fn(),
+  ensureDealInQualifiedStage: vi.fn(),
   state: {
     conv: null as Record<string, unknown> | null,
     autoResponders: [] as { id: string }[],
     claim: true as boolean,
+    roundRobinAgentId: null as string | null,
     updatePayload: null as Record<string, unknown> | null,
     rpcCalls: [] as { name: string; args: unknown }[],
   },
@@ -23,7 +25,10 @@ vi.mock('./context', () => ({ buildConversationContext: h.buildConversationConte
 vi.mock('./knowledge', () => ({ retrieveKnowledge: h.retrieveKnowledge }))
 vi.mock('./generate', () => ({ generateReply: h.generateReply }))
 vi.mock('@/lib/flows/meta-send', () => ({ engineSendText: h.engineSendText }))
-vi.mock('./lead-scoring', () => ({ applyLeadScore: h.applyLeadScore }))
+vi.mock('./lead-scoring', () => ({
+  applyLeadScore: h.applyLeadScore,
+  ensureDealInQualifiedStage: h.ensureDealInQualifiedStage,
+}))
 vi.mock('./admin-client', () => ({
   supabaseAdmin: () => ({
     from: (table: string) => {
@@ -54,6 +59,9 @@ vi.mock('./admin-client', () => ({
     },
     rpc: (name: string, args: unknown) => {
       h.state.rpcCalls.push({ name, args })
+      if (name === 'next_round_robin_agent') {
+        return Promise.resolve({ data: h.state.roundRobinAgentId, error: null })
+      }
       return Promise.resolve({ data: h.state.claim, error: null })
     },
   }),
@@ -93,6 +101,7 @@ beforeEach(() => {
   }
   h.state.autoResponders = []
   h.state.claim = true
+  h.state.roundRobinAgentId = null
   h.state.updatePayload = null
   h.state.rpcCalls = []
   h.loadAiConfig.mockResolvedValue(aiConfig())
@@ -101,6 +110,7 @@ beforeEach(() => {
   h.generateReply.mockResolvedValue({ text: 'Hello!', handoff: false, score: null })
   h.engineSendText.mockResolvedValue({ whatsapp_message_id: 'm1' })
   h.applyLeadScore.mockReset()
+  h.ensureDealInQualifiedStage.mockReset()
 })
 
 describe('dispatchInboundToAiReply — eligibility gates', () => {
@@ -196,16 +206,16 @@ describe('dispatchInboundToAiReply — handoff', () => {
     h.generateReply.mockResolvedValue({ text: '', handoff: true })
     await dispatchInboundToAiReply(ARGS)
     expect(h.engineSendText).not.toHaveBeenCalled()
-    expect(h.state.rpcCalls).toHaveLength(0)
     expect(h.state.updatePayload).toMatchObject({ ai_autoreply_disabled: true })
     expect(h.state.updatePayload?.ai_handoff_summary).toContain(
       'AI agent handed off',
     )
-    // No handoff target configured → conversation left unassigned.
+    // No fixed handoff agent configured and no eligible round-robin
+    // agent (mock defaults to null) → conversation left unassigned.
     expect(h.state.updatePayload).not.toHaveProperty('assigned_agent_id')
   })
 
-  it('routes to the configured handoff agent on handoff', async () => {
+  it('routes to the configured handoff agent on handoff, without consulting round-robin', async () => {
     h.loadAiConfig.mockResolvedValue(aiConfig({ handoffAgentId: 'agent-7' }))
     h.generateReply.mockResolvedValue({ text: '', handoff: true })
     await dispatchInboundToAiReply(ARGS)
@@ -213,6 +223,61 @@ describe('dispatchInboundToAiReply — handoff', () => {
       ai_autoreply_disabled: true,
       assigned_agent_id: 'agent-7',
     })
+    expect(h.state.rpcCalls).not.toContainEqual(
+      expect.objectContaining({ name: 'next_round_robin_agent' }),
+    )
+  })
+
+  it('prefers the model-generated handoff summary over the deterministic note', async () => {
+    h.generateReply.mockResolvedValue({
+      text: '',
+      handoff: true,
+      handoffSummary: 'Customer needs a refund for order #4521, already paid.',
+    })
+    await dispatchInboundToAiReply(ARGS)
+    expect(h.state.updatePayload?.ai_handoff_summary).toBe(
+      'Customer needs a refund for order #4521, already paid.',
+    )
+  })
+
+  it('falls back to the deterministic note when the model handed off without one', async () => {
+    h.generateReply.mockResolvedValue({ text: '', handoff: true, handoffSummary: null })
+    await dispatchInboundToAiReply(ARGS)
+    expect(h.state.updatePayload?.ai_handoff_summary).toContain('AI agent handed off')
+  })
+
+  it('falls back to round-robin on handoff when no fixed handoff agent is configured', async () => {
+    h.state.roundRobinAgentId = 'agent-42'
+    h.generateReply.mockResolvedValue({ text: '', handoff: true })
+    await dispatchInboundToAiReply(ARGS)
+    expect(h.state.rpcCalls).toContainEqual({
+      name: 'next_round_robin_agent',
+      args: { p_account_id: 'acct-1' },
+    })
+    expect(h.state.updatePayload).toMatchObject({
+      ai_autoreply_disabled: true,
+      assigned_agent_id: 'agent-42',
+    })
+  })
+
+  it('moves the deal to the qualified stage on an explicit handoff', async () => {
+    h.generateReply.mockResolvedValue({ text: '', handoff: true })
+    await dispatchInboundToAiReply(ARGS)
+    expect(h.ensureDealInQualifiedStage).toHaveBeenCalledWith(
+      expect.anything(),
+      { accountId: 'acct-1', contactId: 'contact-1', configOwnerUserId: 'user-1' },
+    )
+  })
+
+  it('moves the deal to the qualified stage on a silent bail-out (empty text, no handoff tag)', async () => {
+    h.generateReply.mockResolvedValue({ text: '', handoff: false })
+    await dispatchInboundToAiReply(ARGS)
+    expect(h.ensureDealInQualifiedStage).toHaveBeenCalled()
+  })
+
+  it('does not touch the deal on a normal successful reply', async () => {
+    await dispatchInboundToAiReply(ARGS)
+    expect(h.ensureDealInQualifiedStage).not.toHaveBeenCalled()
   })
 })
 

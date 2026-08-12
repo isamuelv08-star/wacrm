@@ -6,7 +6,12 @@ import {
   type GenerateResult,
   type LeadScore,
 } from './types'
-import { HANDOFF_SENTINEL, SCORE_SENTINEL_PATTERN, aiRequestTimeoutMs } from './defaults'
+import {
+  HANDOFF_SENTINEL,
+  HANDOFF_SUMMARY_PATTERN,
+  SCORE_SENTINEL_PATTERN,
+  aiRequestTimeoutMs,
+} from './defaults'
 import { generateOpenAi } from './providers/openai'
 import { generateAnthropic } from './providers/anthropic'
 
@@ -69,10 +74,14 @@ export function parseGeneration(
   const score = scoreMatch
     ? (scoreMatch[1].toLowerCase() as LeadScore)
     : null
+  const summaryMatch = raw.match(HANDOFF_SUMMARY_PATTERN)
+  const handoffSummary =
+    handoff && summaryMatch ? summaryMatch[1].trim() || null : null
   const text = raw
     .split(HANDOFF_SENTINEL)
     .join('')
     .replace(SCORE_SENTINEL_PATTERN, '')
+    .replace(HANDOFF_SUMMARY_PATTERN, '')
     .trim()
-  return { text, handoff, score, usage }
+  return { text, handoff, score, handoffSummary, usage }
 }

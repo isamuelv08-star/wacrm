@@ -25,6 +25,7 @@ interface ProfileRow {
   avatar_url: string | null;
   account_role: string;
   created_at: string;
+  round_robin_opt_in: boolean | null;
 }
 
 export async function GET() {
@@ -35,7 +36,9 @@ export async function GET() {
     // the caller's, so this query is naturally account-scoped.
     const { data, error } = await ctx.supabase
       .from("profiles")
-      .select("user_id, full_name, email, avatar_url, account_role, created_at")
+      .select(
+        "user_id, full_name, email, avatar_url, account_role, created_at, round_robin_opt_in",
+      )
       .eq("account_id", ctx.accountId)
       .order("created_at", { ascending: true });
 
@@ -62,6 +65,9 @@ export async function GET() {
           avatar_url: row.avatar_url,
           role: row.account_role,
           joined_at: row.created_at,
+          round_robin_opt_in: row.round_robin_opt_in,
+          receives_round_robin_leads:
+            row.round_robin_opt_in ?? row.account_role === "agent",
         },
       ];
     });

@@ -9,10 +9,16 @@ const h = vi.hoisted(() => ({
     automations: [] as Record<string, unknown>[],
     steps: [] as Record<string, unknown>[],
     fromCalls: [] as string[],
-    updateCalls: [] as { table: string; filters: [string, string, unknown][] }[],
+    updateCalls: [] as {
+      table: string;
+      filters: [string, string, unknown][];
+      payload?: unknown;
+    }[],
     upsertCalls: [] as { table: string; payload: unknown }[],
     logInserts: [] as Record<string, unknown>[],
     logUpdates: [] as Record<string, unknown>[],
+    rpcCalls: [] as { name: string; args: unknown }[],
+    roundRobinAgentId: null as string | null,
   },
 }));
 
@@ -28,11 +34,17 @@ vi.mock("./admin-client", () => {
     const { table, type } = ops;
     if (table === "contacts") {
       if (type === "update") {
-        state.updateCalls.push({ table, filters: ops.filters });
+        state.updateCalls.push({ table, filters: ops.filters, payload: ops.payload });
         return { data: null, error: null };
       }
       // ownership guard / condition read
       return { data: state.owned, error: null };
+    }
+    if (table === "conversations") {
+      if (type === "update") {
+        state.updateCalls.push({ table, filters: ops.filters, payload: ops.payload });
+      }
+      return { data: null, error: null };
     }
     if (table === "custom_fields") {
       // account-scoped ownership lookup for a custom field definition
@@ -93,7 +105,13 @@ vi.mock("./admin-client", () => {
         state.fromCalls.push(t);
         return builder(t);
       },
-      rpc: () => Promise.resolve({ error: null }),
+      rpc: (name: string, args: unknown) => {
+        state.rpcCalls.push({ name, args });
+        if (name === "next_round_robin_agent") {
+          return Promise.resolve({ data: state.roundRobinAgentId, error: null });
+        }
+        return Promise.resolve({ data: null, error: null });
+      },
     }),
   };
 });
@@ -119,6 +137,8 @@ beforeEach(() => {
   h.state.upsertCalls = [];
   h.state.logInserts = [];
   h.state.logUpdates = [];
+  h.state.rpcCalls = [];
+  h.state.roundRobinAgentId = null;
 });
 
 describe("runAutomationsForTrigger — tenant isolation", () => {
@@ -277,6 +297,69 @@ describe("update_contact_field — custom fields", () => {
   });
 });
 
+describe("assign_conversation", () => {
+  it("round_robin mode assigns to the agent next_round_robin_agent resolves", async () => {
+    h.state.owned = { id: "c1" };
+    h.state.automations = [automationWithUpdateStep()];
+    h.state.steps = [assignConversationStep("round_robin")];
+    h.state.roundRobinAgentId = "agent-9";
+
+    await runAutomationsForTrigger({
+      accountId: ACCOUNT,
+      triggerType: "new_message_received",
+      contactId: "c1",
+      context: {},
+    });
+
+    expect(h.state.rpcCalls).toContainEqual({
+      name: "next_round_robin_agent",
+      args: { p_account_id: ACCOUNT },
+    });
+    expect(h.state.updateCalls).toHaveLength(1);
+    expect(h.state.updateCalls[0]).toMatchObject({
+      table: "conversations",
+      payload: { assigned_agent_id: "agent-9" },
+    });
+  });
+
+  it("round_robin mode leaves the conversation untouched when no agent is eligible", async () => {
+    h.state.owned = { id: "c1" };
+    h.state.automations = [automationWithUpdateStep()];
+    h.state.steps = [assignConversationStep("round_robin")];
+    h.state.roundRobinAgentId = null;
+
+    await runAutomationsForTrigger({
+      accountId: ACCOUNT,
+      triggerType: "new_message_received",
+      contactId: "c1",
+      context: {},
+    });
+
+    expect(h.state.updateCalls).toHaveLength(0);
+  });
+
+  it("specific mode assigns the pinned agent without consulting round-robin", async () => {
+    h.state.owned = { id: "c1" };
+    h.state.automations = [automationWithUpdateStep()];
+    h.state.steps = [assignConversationStep("specific", "agent-5")];
+
+    await runAutomationsForTrigger({
+      accountId: ACCOUNT,
+      triggerType: "new_message_received",
+      contactId: "c1",
+      context: {},
+    });
+
+    expect(h.state.rpcCalls).not.toContainEqual(
+      expect.objectContaining({ name: "next_round_robin_agent" }),
+    );
+    expect(h.state.updateCalls[0]).toMatchObject({
+      table: "conversations",
+      payload: { assigned_agent_id: "agent-5" },
+    });
+  });
+});
+
 describe("send_webhook — SSRF guard (GHSA-8jqh-598v-rfxc)", () => {
   it("refuses a private / link-local destination and never calls fetch", async () => {
     const fetchSpy = vi.fn(async () => ({ ok: true, status: 200 }));
@@ -312,6 +395,17 @@ function webhookStep(url: string) {
     position: 0,
     parent_step_id: null,
     step_config: { url, headers: { "Metadata-Flavor": "Google" }, body_template: "{}" },
+  };
+}
+
+function assignConversationStep(mode: "specific" | "round_robin", agent_id?: string) {
+  return {
+    id: "s1",
+    automation_id: "a1",
+    step_type: "assign_conversation",
+    position: 0,
+    parent_step_id: null,
+    step_config: { mode, agent_id },
   };
 }
 

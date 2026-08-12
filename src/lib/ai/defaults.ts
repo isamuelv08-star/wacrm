@@ -31,6 +31,16 @@ export const HANDOFF_SENTINEL = '[[HANDOFF]]'
  */
 export const SCORE_SENTINEL_PATTERN = /\[\[SCORE:(HOT|WARM|COLD)\]\]/i
 
+/**
+ * Sentinel the model appends immediately after HANDOFF_SENTINEL, in the
+ * same turn, carrying a short internal note for the human agent it's
+ * handing off to. Same contract as the other sentinels: parsed and
+ * stripped by `parseGeneration`, never shown to the customer — `text`
+ * is discarded entirely whenever `handoff` is true, so even a
+ * malformed/unstripped tag can never leak (see auto-reply.ts).
+ */
+export const HANDOFF_SUMMARY_PATTERN = /\[\[HANDOFF_SUMMARY:\s*([\s\S]*?)\]\]/i
+
 /** Cap on generated reply length — keeps WhatsApp replies short and
  *  bounds token spend on the caller's own key. */
 export const MAX_OUTPUT_TOKENS = 1024
@@ -85,7 +95,7 @@ export function buildSystemPrompt(args: {
 
   if (mode === 'auto_reply') {
     parts.push(
-      `You are replying automatically with no human in the loop. If you cannot confidently and safely help — the customer explicitly asks for a human, is upset or complaining, or the request needs information you do not have — reply with exactly ${HANDOFF_SENTINEL} and nothing else. A human agent will then take over. Prefer handing off over guessing.`,
+      `You are replying automatically with no human in the loop. If you cannot confidently and safely help — the customer explicitly asks for a human, is upset or complaining, or the request needs information you do not have — reply with exactly ${HANDOFF_SENTINEL} immediately followed by [[HANDOFF_SUMMARY: ...]] and nothing else. Inside the summary tag, write a short (1-2 sentence) internal note for the human agent taking over: what the customer needs, what has been discussed, and any relevant details already captured (name, order number, etc.) — never omit this tag when you hand off. A human agent will then take over. Prefer handing off over guessing. The summary is for internal use only — never shown to the customer, so never mention or explain it.`,
     )
   }
 

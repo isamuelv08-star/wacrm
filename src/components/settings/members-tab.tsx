@@ -62,6 +62,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { useTranslations } from 'next-intl';
 import { RequireRole } from '@/components/auth/require-role';
 import { useAuth } from '@/hooks/use-auth';
@@ -83,6 +84,8 @@ interface Member {
   avatar_url: string | null;
   role: AccountRole;
   joined_at: string;
+  round_robin_opt_in: boolean | null;
+  receives_round_robin_leads: boolean;
 }
 
 interface Invitation {
@@ -222,6 +225,63 @@ export function MembersTab() {
         ),
       );
       console.error('[MembersTab] role change error:', err);
+      toast.error('Could not reach the server');
+    } finally {
+      setPendingMemberAction(null);
+    }
+  }
+
+  async function handleReceivesLeadsChange(member: Member, next: boolean) {
+    const previous = member.receives_round_robin_leads;
+    const previousOptIn = member.round_robin_opt_in;
+    setPendingMemberAction(member.user_id);
+    setMembers((prev) =>
+      prev.map((m) =>
+        m.user_id === member.user_id
+          ? { ...m, receives_round_robin_leads: next, round_robin_opt_in: next }
+          : m,
+      ),
+    );
+    try {
+      const res = await fetch(`/api/account/members/${member.user_id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ receivesLeads: next }),
+      });
+      if (!res.ok) {
+        setMembers((prev) =>
+          prev.map((m) =>
+            m.user_id === member.user_id
+              ? {
+                  ...m,
+                  receives_round_robin_leads: previous,
+                  round_robin_opt_in: previousOptIn,
+                }
+              : m,
+          ),
+        );
+        const payload = await res.json().catch(() => ({}));
+        toast.error(payload.error || t('receivesLeadsError'));
+        return;
+      }
+      toast.success(
+        next
+          ? t('receivesLeadsOnToast', { name: member.full_name || t('unnamed') })
+          : t('receivesLeadsOffToast', { name: member.full_name || t('unnamed') }),
+      );
+    } catch (err) {
+      setMembers((prev) =>
+        prev.map((m) =>
+          m.user_id === member.user_id
+            ? {
+                ...m,
+                receives_round_robin_leads: previous,
+                round_robin_opt_in: previousOptIn,
+              }
+            : m,
+        ),
+      );
+      console.error('[MembersTab] receives-leads change error:', err);
       toast.error('Could not reach the server');
     } finally {
       setPendingMemberAction(null);
@@ -410,6 +470,32 @@ export function MembersTab() {
                       inline. Items align to the start on mobile so the
                       role dropdown lines up under the avatar. */}
                   <div className="flex items-center gap-2 sm:gap-3">
+                    {/* Round-robin opt-in. Admin+ only, but — unlike
+                        the role editor — allowed on the owner row and
+                        on self: a solo-selling owner/admin needs to be
+                        able to flip themselves into the lead pool. */}
+                    {canManageMembers && (
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <label className="flex items-center gap-1.5">
+                              <Switch
+                                checked={member.receives_round_robin_leads}
+                                onCheckedChange={(v) =>
+                                  handleReceivesLeadsChange(member, v)
+                                }
+                                disabled={isBusy}
+                              />
+                              <span className="hidden text-xs text-muted-foreground md:inline">
+                                {t('receivesLeads')}
+                              </span>
+                            </label>
+                          }
+                        />
+                        <TooltipContent>{t('receivesLeadsHint')}</TooltipContent>
+                      </Tooltip>
+                    )}
+
                     {/* Role display / editor. Inline Select is admin+
                         only AND not allowed on the owner row (owner
                         changes go through transfer, which lands later). */}

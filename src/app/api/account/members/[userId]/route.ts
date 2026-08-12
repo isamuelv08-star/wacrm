@@ -1,17 +1,19 @@
 // ============================================================
 // /api/account/members/[userId]
 //
-//   PATCH  — change a member's role.   Admin+.
-//   DELETE — remove a member.          Admin+.
+//   PATCH  — change a member's role and/or round-robin opt-in. Admin+.
+//   DELETE — remove a member.                                  Admin+.
 //
-// Both delegate to SECURITY DEFINER RPCs from migration 018:
+// Delegate to SECURITY DEFINER RPCs from migrations 018 / 042:
 //   - set_member_role(p_user_id, p_new_role)
+//   - set_member_round_robin_opt_in(p_user_id, p_opt_in)
 //   - remove_account_member(p_user_id)
 //
 // The RPCs do the *real* authorisation work — caller must be
 // admin+, target must be in caller's account, target can't be the
-// owner, can't be self. The TS layer here only forwards the call
-// and maps Postgres SQLSTATEs back to HTTP statuses.
+// owner (role changes only), can't be self (role changes only). The
+// TS layer here only forwards the call and maps Postgres SQLSTATEs
+// back to HTTP statuses.
 // ============================================================
 
 import { NextResponse } from "next/server";
@@ -58,35 +60,58 @@ export async function PATCH(
     const { userId } = await params;
 
     const body = (await request.json().catch(() => null)) as
-      | { role?: unknown }
+      | { role?: unknown; receivesLeads?: unknown }
       | null;
-    const role = body?.role;
+    const { role, receivesLeads } = body ?? {};
 
-    if (!isAccountRole(role)) {
+    if (role === undefined && receivesLeads === undefined) {
       return NextResponse.json(
-        { error: "'role' must be one of owner, admin, agent, viewer" },
+        { error: "Provide 'role' and/or 'receivesLeads'" },
         { status: 400 },
       );
     }
 
-    // The RPC blocks promotion to / demotion from owner, but
-    // surface the friendlier 400 before crossing the wire too.
-    if (role === "owner") {
-      return NextResponse.json(
-        {
-          error:
-            "Use POST /api/account/transfer-ownership to promote a member to owner",
-        },
-        { status: 400 },
-      );
+    if (role !== undefined) {
+      if (!isAccountRole(role)) {
+        return NextResponse.json(
+          { error: "'role' must be one of owner, admin, agent, viewer" },
+          { status: 400 },
+        );
+      }
+
+      // The RPC blocks promotion to / demotion from owner, but
+      // surface the friendlier 400 before crossing the wire too.
+      if (role === "owner") {
+        return NextResponse.json(
+          {
+            error:
+              "Use POST /api/account/transfer-ownership to promote a member to owner",
+          },
+          { status: 400 },
+        );
+      }
+
+      const { error } = await ctx.supabase.rpc("set_member_role", {
+        p_user_id: userId,
+        p_new_role: role,
+      });
+      if (error) return rpcErrorToResponse(error);
     }
 
-    const { error } = await ctx.supabase.rpc("set_member_role", {
-      p_user_id: userId,
-      p_new_role: role,
-    });
+    if (receivesLeads !== undefined) {
+      if (receivesLeads !== null && typeof receivesLeads !== "boolean") {
+        return NextResponse.json(
+          { error: "'receivesLeads' must be a boolean or null" },
+          { status: 400 },
+        );
+      }
 
-    if (error) return rpcErrorToResponse(error);
+      const { error } = await ctx.supabase.rpc(
+        "set_member_round_robin_opt_in",
+        { p_user_id: userId, p_opt_in: receivesLeads },
+      );
+      if (error) return rpcErrorToResponse(error);
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {
