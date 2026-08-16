@@ -57,6 +57,7 @@ import { CustomFieldsManager } from '@/components/contacts/custom-fields-manager
 import { useCan } from '@/hooks/use-can';
 import { GatedButton } from '@/components/ui/gated-button';
 import { useTranslations } from 'next-intl';
+import { LeadScoreBadge } from '@/components/leads/lead-score-badge';
 
 const PAGE_SIZE = 25;
 
@@ -601,7 +602,10 @@ export default function ContactsPage() {
                     />
                   </TableCell>
                   <TableCell className="text-foreground font-medium">
-                    {contact.name || <span className="text-muted-foreground italic">{t('unnamed')}</span>}
+                    <span className="flex items-center gap-1.5">
+                      {contact.name || <span className="text-muted-foreground italic">{t('unnamed')}</span>}
+                      <LeadScoreBadge score={contact.lead_score} />
+                    </span>
                   </TableCell>
                   <TableCell className="text-muted-foreground font-mono text-xs">
                     {contact.phone}

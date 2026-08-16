@@ -4,6 +4,7 @@ import type { Deal, PipelineStage } from "@/types";
 import { Calendar, Check, X } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
 import { useTranslations } from "next-intl";
+import { LeadScoreBadge } from "@/components/leads/lead-score-badge";
 
 interface DealCardProps {
   deal: Deal;
@@ -77,7 +78,8 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
         <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-foreground">
           {initials(deal.contact?.name, deal.contact?.phone)}
         </span>
-        <span className="truncate text-xs text-muted-foreground">{contactLabel}</span>
+        <span className="min-w-0 truncate text-xs text-muted-foreground">{contactLabel}</span>
+        <LeadScoreBadge score={deal.contact?.lead_score} />
       </div>
 
       <div className="mt-2 flex items-center justify-between">

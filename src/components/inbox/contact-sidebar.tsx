@@ -34,6 +34,7 @@ import { format } from "date-fns";
 import { useTranslations } from "next-intl";
 import { fetchAiAccountStatus, toggleAiAutoReply } from "@/lib/ai/autoreply-toggle";
 import { LEAD_SOURCE_FIELD_NAME } from "@/lib/contacts/lead-source";
+import { LeadScoreBadge } from "@/components/leads/lead-score-badge";
 
 interface ContactSidebarProps {
   contact: Contact | null;
@@ -330,6 +331,7 @@ export function ContactSidebar({
             <h3 className="mt-3 text-sm font-semibold text-foreground">
               {displayName}
             </h3>
+            <LeadScoreBadge score={contact.lead_score} className="mt-1.5" />
           </div>
 
           {/* Phone / Email / Company */}

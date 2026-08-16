@@ -1758,5 +1758,11 @@
       "reindexTooltip": "Re-embed all documents (e.g. after adding an embeddings key)",
       "loading": "Loading…"
     }
+  },
+  "Leads": {
+    "hot": "Hot",
+    "warm": "Warm",
+    "cold": "Cold",
+    "unscored": "Not scored"
   }
 }
