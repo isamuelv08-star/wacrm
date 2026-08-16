@@ -60,6 +60,9 @@
   "ModeToggle": {
     "switchMode": "{mode} 모드로 전환"
   },
+  "LanguageToggle": {
+    "ariaLabel": "언어 변경"
+  },
   "Dashboard": {
     "page": {
       "title": "대시보드",

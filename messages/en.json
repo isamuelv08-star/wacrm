@@ -60,6 +60,9 @@
   "ModeToggle": {
     "switchMode": "Switch to {mode} mode"
   },
+  "LanguageToggle": {
+    "ariaLabel": "Change language"
+  },
   "Dashboard": {
     "page": {
       "title": "Dashboard",
