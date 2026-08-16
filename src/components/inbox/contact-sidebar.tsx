@@ -311,6 +311,24 @@ export function ContactSidebar({
   const displayName = contact.name || contact.phone;
   const initials = displayName.charAt(0).toUpperCase();
 
+  // "Status" badge — the contact's furthest-along deal: prefer an open
+  // one (most recent, since `deals` is fetched newest-first) so a
+  // stale won/lost deal from months ago doesn't outrank an active
+  // negotiation; fall back to the single most recent deal otherwise.
+  const statusDeal = deals.find((d) => d.status === "open") ?? deals[0] ?? null;
+  const statusLabel =
+    statusDeal?.status === "won"
+      ? tSidebar("dealWon")
+      : statusDeal?.status === "lost"
+        ? tSidebar("dealLost")
+        : statusDeal?.stage?.name;
+  const statusColor =
+    statusDeal?.status === "won"
+      ? "#22c55e"
+      : statusDeal?.status === "lost"
+        ? "#ef4444"
+        : (statusDeal?.stage?.color ?? "#94a3b8");
+
   return (
     <div className="flex h-full w-70 flex-col border-l border-border bg-card">
       <ScrollArea className="flex-1">
@@ -331,7 +349,17 @@ export function ContactSidebar({
             <h3 className="mt-3 text-sm font-semibold text-foreground">
               {displayName}
             </h3>
-            <LeadScoreBadge score={contact.lead_score} className="mt-1.5" />
+            <div className="mt-1.5 flex flex-wrap items-center justify-center gap-1">
+              <LeadScoreBadge score={contact.lead_score} />
+              {statusLabel && (
+                <span
+                  className="inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
+                  style={{ backgroundColor: `${statusColor}20`, color: statusColor }}
+                >
+                  {statusLabel}
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Phone / Email / Company */}

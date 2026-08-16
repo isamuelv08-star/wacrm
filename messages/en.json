@@ -285,7 +285,9 @@
       "leadSourcePlaceholder": "Lead source",
       "saveFieldError": "Couldn't save — try again.",
       "aiAssistant": "AI Assistant",
-      "aiOwnedByAgent": "A teammate has taken over this chat."
+      "aiOwnedByAgent": "A teammate has taken over this chat.",
+      "dealWon": "Won",
+      "dealLost": "Lost"
     },
     "aiBanner": {
       "pausedTitle": "AI assistant is paused here",

@@ -217,10 +217,13 @@ export interface Conversation {
 }
 
 // ============================================================
-// Notifications (migration 027, widened in 040)
+// Notifications (migration 027, widened in 040 and 043)
 // ============================================================
 
-export type NotificationType = 'conversation_assigned' | 'hot_lead_unanswered';
+export type NotificationType =
+  | 'conversation_assigned'
+  | 'hot_lead_unanswered'
+  | 'lead_qualified';
 
 export interface Notification {
   id: string;

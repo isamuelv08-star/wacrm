@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import type { Notification } from "@/types";
-import { Bell, CheckCheck, Loader2, UserPlus, Flame } from "lucide-react";
+import { Bell, CheckCheck, Loader2, UserPlus, Flame, Star } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -16,6 +16,7 @@ import { toast } from "sonner";
 const TYPE_ICON: Record<Notification["type"], typeof Bell> = {
   conversation_assigned: UserPlus,
   hot_lead_unanswered: Flame,
+  lead_qualified: Star,
 };
 
 export default function NotificationsPage() {

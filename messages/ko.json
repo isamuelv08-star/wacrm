@@ -285,7 +285,9 @@
       "leadSourcePlaceholder": "리드 출처",
       "saveFieldError": "저장하지 못했습니다 — 다시 시도하세요.",
       "aiAssistant": "AI 어시스턴트",
-      "aiOwnedByAgent": "팀원이 이 대화를 넘겨받았습니다."
+      "aiOwnedByAgent": "팀원이 이 대화를 넘겨받았습니다.",
+      "dealWon": "성사됨",
+      "dealLost": "실패"
     },
     "aiBanner": {
       "pausedTitle": "이 대화에서 AI 어시스턴트가 일시 중지됨",
