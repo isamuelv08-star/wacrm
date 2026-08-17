@@ -5,7 +5,16 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import type { Notification } from "@/types";
-import { Bell, CheckCheck, Loader2, UserPlus, Flame, Star } from "lucide-react";
+import {
+  Bell,
+  CheckCheck,
+  Loader2,
+  UserPlus,
+  Flame,
+  Star,
+  UserRoundPlus,
+  Sparkles,
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -17,6 +26,8 @@ const TYPE_ICON: Record<Notification["type"], typeof Bell> = {
   conversation_assigned: UserPlus,
   hot_lead_unanswered: Flame,
   lead_qualified: Star,
+  new_lead: UserRoundPlus,
+  lead_scored: Sparkles,
 };
 
 export default function NotificationsPage() {
@@ -169,7 +180,7 @@ export default function NotificationsPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Notifications</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Conversations other teammates assign to you show up here.
+            New leads, lead scoring, and assignments show up here.
           </p>
         </div>
         <Button
@@ -196,8 +207,8 @@ export default function NotificationsPage() {
             No notifications yet
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            You&apos;ll see an alert here when someone assigns you a
-            conversation.
+            You&apos;ll see an alert here for new leads, lead scoring, and
+            conversations assigned to you.
           </p>
         </div>
       ) : (
