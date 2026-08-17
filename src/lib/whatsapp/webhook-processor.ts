@@ -12,6 +12,7 @@ import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
 import { pickRoundRobinAgent } from '@/lib/assignment/round-robin'
 import { transcribeAndStoreAudioMessage } from '@/lib/ai/transcribe'
 import { dispatchWebhookEvent } from '@/lib/webhooks/deliver'
+import { notifyNewMessage } from '@/lib/notifications/new-message-alert'
 import {
   handleTemplateWebhookChange,
   isTemplateWebhookField,
@@ -839,6 +840,18 @@ async function processMessage(
   // so the broadcast's `replied_count` advances (via the aggregate
   // trigger installed in migration 003).
   await flagBroadcastReplyIfAny(accountId, contactRecord.id)
+
+  // Popup + tray notification for this inbound message (migration
+  // 045) — best-effort, never blocks the webhook response.
+  await notifyNewMessage(supabaseAdmin(), {
+    accountId,
+    conversationId: conversation.id,
+    contactId: contactRecord.id,
+    contactName: contactRecord.name ?? null,
+    contactPhone: contactRecord.phone,
+    assignedAgentId: conversation.assigned_agent_id ?? null,
+    preview: contentText || `[${message.type}]`,
+  })
 
   // ============================================================
   // Flow runner dispatch.

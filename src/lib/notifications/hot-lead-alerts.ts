@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { resolveOwnersAndAdmins } from './recipients'
 
 // ============================================================
 // HOT lead response-time alerting.
@@ -146,15 +147,5 @@ async function resolveRecipients(
   assignedAgentId: string | null,
 ): Promise<string[]> {
   if (assignedAgentId) return [assignedAgentId]
-
-  const { data, error } = await db
-    .from('profiles')
-    .select('user_id')
-    .eq('account_id', accountId)
-    .in('account_role', ['owner', 'admin'])
-  if (error) {
-    console.error('[hot-lead-alerts] admin lookup failed:', error.message)
-    return []
-  }
-  return (data ?? []).map((r) => r.user_id as string)
+  return resolveOwnersAndAdmins(db, accountId)
 }

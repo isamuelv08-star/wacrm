@@ -18,6 +18,15 @@ import type { Notification } from "@/types";
  * Deliberately not scoped to a specific notification `type` — HOT-lead
  * alerts (Fase 2) are just as time-sensitive as a new assignment, so
  * both surface here the same way.
+ *
+ * One exception: a `new_message` notification for the conversation
+ * the user currently has open in the Inbox is skipped — the message
+ * already appears directly in the open thread, so toasting it too
+ * would just be a redundant popup for the one conversation they're
+ * actively looking at. Read via `window.location` (not a routing
+ * hook) since this only needs the URL at the moment the event fires,
+ * not a reactive value — keeps this component free of the Suspense
+ * boundary `useSearchParams` would otherwise require.
  */
 export function NewNotificationToastListener() {
   const router = useRouter();
@@ -31,6 +40,15 @@ export function NewNotificationToastListener() {
         { event: "INSERT", schema: "public", table: "notifications" },
         (payload) => {
           const row = payload.new as Notification;
+
+          if (row.type === "new_message" && row.conversation_id) {
+            const onInboxWithThisConversation =
+              window.location.pathname === "/inbox" &&
+              new URLSearchParams(window.location.search).get("c") ===
+                row.conversation_id;
+            if (onInboxWithThisConversation) return;
+          }
+
           toast(row.title, {
             description: row.body,
             action: row.conversation_id
