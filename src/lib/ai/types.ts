@@ -30,7 +30,11 @@ export interface AiConfig {
   qualificationCriteria: string | null
   isActive: boolean
   autoReplyEnabled: boolean
-  autoReplyMaxPerConversation: number
+  /** Caps how many times the bot answers one thread before going quiet.
+   *  `null` means no cap — the bot keeps answering (migration 047); the
+   *  account-wide rate limiter in `lib/rate-limit.ts` is the separate
+   *  safety net that still bounds runaway spend in that case. */
+  autoReplyMaxPerConversation: number | null
   /** Where auto-reply hands a conversation off when the model bails: an
    *  agent's `auth.users.id`, or null to leave it unassigned (drop into
    *  the shared queue). */

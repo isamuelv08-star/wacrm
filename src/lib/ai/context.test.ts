@@ -61,4 +61,46 @@ describe('buildConversationContext', () => {
     )
     expect(out).toEqual([{ role: 'user', content: 'transcribed voice note' }])
   })
+
+  it('combines an image caption with its AI description', async () => {
+    const out = await buildConversationContext(
+      fakeDb([
+        {
+          sender_type: 'customer',
+          content_type: 'image',
+          content_text: 'it arrived like this',
+          ai_image_description: 'A cracked phone screen.',
+        },
+      ]),
+      'conv-1',
+    )
+    expect(out).toEqual([
+      { role: 'user', content: 'it arrived like this\nA cracked phone screen.' },
+    ])
+  })
+
+  it('falls back to just the description for a captionless image', async () => {
+    const out = await buildConversationContext(
+      fakeDb([
+        {
+          sender_type: 'customer',
+          content_type: 'image',
+          content_text: null,
+          ai_image_description: 'A red hoodie with a $45 price tag.',
+        },
+      ]),
+      'conv-1',
+    )
+    expect(out).toEqual([{ role: 'user', content: 'A red hoodie with a $45 price tag.' }])
+  })
+
+  it('drops an image with neither a caption nor a description yet', async () => {
+    const out = await buildConversationContext(
+      fakeDb([
+        { sender_type: 'customer', content_type: 'image', content_text: null, ai_image_description: null },
+      ]),
+      'conv-1',
+    )
+    expect(out).toEqual([])
+  })
 })

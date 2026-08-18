@@ -78,7 +78,8 @@ export function AiConfig() {
   const [qualificationCriteria, setQualificationCriteria] = useState('');
   const [isActive, setIsActive] = useState(false);
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(false);
-  const [maxPerConversation, setMaxPerConversation] = useState(3);
+  // null = "never stop responding" (migration 047).
+  const [maxPerConversation, setMaxPerConversation] = useState<number | null>(3);
   // Empty string = leave unassigned (shared queue).
   const [handoffAgentId, setHandoffAgentId] = useState('');
   const [members, setMembers] = useState<AccountMember[]>([]);
@@ -114,7 +115,14 @@ export function AiConfig() {
         setQualificationCriteria(data.qualification_criteria ?? '');
         setIsActive(data.is_active);
         setAutoReplyEnabled(data.auto_reply_enabled);
-        setMaxPerConversation(data.auto_reply_max_per_conversation ?? 3);
+        // The stored value is a number, or null ("never stop") — only an
+        // absent key (older/partial payload) should fall back to the
+        // column's own default, so this checks for undefined, not ??.
+        setMaxPerConversation(
+          data.auto_reply_max_per_conversation === undefined
+            ? 3
+            : data.auto_reply_max_per_conversation,
+        );
         setHandoffAgentId(data.handoff_agent_id ?? '');
         setHasStoredKey(Boolean(data.has_key));
         setApiKey(data.has_key ? MASKED_KEY : '');
@@ -542,27 +550,52 @@ export function AiConfig() {
               />
             </div>
 
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <Label htmlFor="ai-max">{t('maxAutoReplies')}</Label>
-                <p className="text-xs text-muted-foreground">
-                  {t('maxAutoRepliesDesc')}
-                </p>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <Label htmlFor="ai-max">{t('maxAutoReplies')}</Label>
+                  <p className="text-xs text-muted-foreground">
+                    {t('maxAutoRepliesDesc')}
+                  </p>
+                </div>
+                <Input
+                  id="ai-max"
+                  type="number"
+                  min={1}
+                  max={1000}
+                  value={maxPerConversation ?? ''}
+                  onChange={(e) =>
+                    setMaxPerConversation(
+                      Math.min(1000, Math.max(1, Number(e.target.value) || 1)),
+                    )
+                  }
+                  disabled={disabled || !autoReplyEnabled || maxPerConversation === null}
+                  className="w-20"
+                />
               </div>
-              <Input
-                id="ai-max"
-                type="number"
-                min={1}
-                max={20}
-                value={maxPerConversation}
-                onChange={(e) =>
-                  setMaxPerConversation(
-                    Math.min(20, Math.max(1, Number(e.target.value) || 1)),
-                  )
-                }
-                disabled={disabled || !autoReplyEnabled}
-                className="w-20"
-              />
+              <div className="flex flex-wrap items-center gap-2">
+                {[20, 30, 100].map((preset) => (
+                  <Button
+                    key={preset}
+                    type="button"
+                    variant={maxPerConversation === preset ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setMaxPerConversation(preset)}
+                    disabled={disabled || !autoReplyEnabled}
+                  >
+                    {preset}
+                  </Button>
+                ))}
+                <Button
+                  type="button"
+                  variant={maxPerConversation === null ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setMaxPerConversation(null)}
+                  disabled={disabled || !autoReplyEnabled}
+                >
+                  {t('maxAutoRepliesUnlimited')}
+                </Button>
+              </div>
             </div>
 
             <div className="space-y-2">

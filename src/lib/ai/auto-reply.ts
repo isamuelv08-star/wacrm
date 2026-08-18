@@ -3,7 +3,7 @@ import { loadAiConfig } from './config'
 import { buildConversationContext } from './context'
 import { retrieveKnowledge } from './knowledge'
 import { generateReply } from './generate'
-import { buildSystemPrompt } from './defaults'
+import { buildSystemPrompt, splitReplyIntoMessages } from './defaults'
 import { buildHandoffSummary } from './handoff'
 import { applyLeadScore, ensureDealInQualifiedStage } from './lead-scoring'
 import { logAiUsage } from './usage'
@@ -11,6 +11,14 @@ import { latestUserMessage } from './query'
 import { engineSendText } from '@/lib/flows/meta-send'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 import { pickRoundRobinAgent } from '@/lib/assignment/round-robin'
+
+/** Pause between consecutive parts of a split auto-reply — long enough
+ *  to read as separate texts, short enough not to stall the thread. */
+const REPLY_PART_DELAY_MS = 1200
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
 
 interface DispatchArgs {
   /** Tenancy key — drives config, contact, and whatsapp_config lookups. */
@@ -78,8 +86,13 @@ export async function dispatchInboundToAiReply(
     if (conv.assigned_agent_id) return // a human owns this thread
     if (conv.ai_autoreply_disabled) return // handed off / turned off here
     // Cheap early-out; the authoritative cap check is the atomic claim
-    // below (this read can race a concurrent inbound).
-    if (conv.ai_reply_count >= config.autoReplyMaxPerConversation) return
+    // below (this read can race a concurrent inbound). A null cap means
+    // "never stop responding" (migration 047) — skip the check entirely.
+    if (
+      config.autoReplyMaxPerConversation !== null &&
+      conv.ai_reply_count >= config.autoReplyMaxPerConversation
+    )
+      return
 
     const messages = await buildConversationContext(db, conversationId)
     if (messages.length === 0) return
@@ -213,14 +226,21 @@ export async function dispatchInboundToAiReply(
     }
     if (claimed !== true) return // lost the per-conversation cap race
 
-    await engineSendText({
-      accountId,
-      userId: configOwnerUserId,
-      conversationId,
-      contactId,
-      text,
-      aiGenerated: true,
-    })
+    // Sent as separate consecutive messages (up to MAX_REPLY_PARTS) rather
+    // than one block, with a short pause in between — closer to how a
+    // person actually texts than a single wall of text arriving at once.
+    const parts = splitReplyIntoMessages(text)
+    for (let i = 0; i < parts.length; i++) {
+      await engineSendText({
+        accountId,
+        userId: configOwnerUserId,
+        conversationId,
+        contactId,
+        text: parts[i],
+        aiGenerated: true,
+      })
+      if (i < parts.length - 1) await sleep(REPLY_PART_DELAY_MS)
+    }
   } catch (err) {
     console.error('[ai auto-reply] dispatch failed:', err)
   }

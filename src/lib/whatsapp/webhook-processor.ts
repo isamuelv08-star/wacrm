@@ -11,6 +11,7 @@ import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
 import { pickRoundRobinAgent } from '@/lib/assignment/round-robin'
 import { transcribeAndStoreAudioMessage } from '@/lib/ai/transcribe'
+import { describeAndStoreImageMessage } from '@/lib/ai/vision'
 import { dispatchWebhookEvent } from '@/lib/webhooks/deliver'
 import { notifyNewMessage } from '@/lib/notifications/new-message-alert'
 import {
@@ -815,6 +816,30 @@ async function processMessage(
     if (transcript) contentText = transcript
   }
 
+  // Best-effort image description (migration 046) — same shape as the
+  // transcription block above, but the result is stored on its own
+  // `ai_image_description` column rather than folded into `contentText`:
+  // an image's `content_text` is the customer's own caption (may be
+  // null), and overwriting it with synthesized text would destroy real
+  // customer input shown in the inbox. `hasImageDescription` only widens
+  // the auto-reply gate below so the bot can still react to a captionless
+  // photo; it leaves the conversation preview, notifications, flows, and
+  // automations untouched (still driven by the real caption, same as
+  // before this migration).
+  let hasImageDescription = false
+  if (contentType === 'image' && mediaUrl && message.image?.id) {
+    const description = await describeAndStoreImageMessage({
+      db: supabaseAdmin(),
+      accountId,
+      messageId: insertedMessage.id,
+      mediaId: message.image.id,
+      mimeType: message.image.mime_type,
+      accessToken,
+      caption: contentText,
+    })
+    if (description) hasImageDescription = true
+  }
+
   // Update conversation
   const { error: convError } = await supabaseAdmin()
     .from('conversations')
@@ -950,12 +975,16 @@ async function processMessage(
     }).catch((err) => console.error('[automations] dispatch failed:', err))
   }
 
-  // AI auto-reply. Runs only for plain-text inbound the deterministic
-  // flow runner did NOT consume (flows win over the LLM), and only when
-  // the account has enabled it. Awaited inside `after()` (same reason as
-  // the webhook dispatch below); `dispatchInboundToAiReply` owns its
-  // eligibility gates + try/catch and never throws.
-  if (!flowConsumed && !interactiveReplyId && inboundText.trim()) {
+  // AI auto-reply. Runs only for plain-text inbound (or an image the
+  // vision pass above could describe) the deterministic flow runner did
+  // NOT consume (flows win over the LLM), and only when the account has
+  // enabled it. `hasImageDescription` lets a captionless photo through
+  // this gate even though `inboundText` is empty for it — the bot reacts
+  // to the description via `buildConversationContext`, same as it reacts
+  // to a caption or a transcribed voice note. Awaited inside `after()`
+  // (same reason as the webhook dispatch below); `dispatchInboundToAiReply`
+  // owns its eligibility gates + try/catch and never throws.
+  if (!flowConsumed && !interactiveReplyId && (inboundText.trim() || hasImageDescription)) {
     await dispatchInboundToAiReply({
       accountId,
       conversationId: conversation.id,

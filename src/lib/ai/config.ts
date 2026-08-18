@@ -10,7 +10,7 @@ interface AiConfigRow {
   qualification_criteria: string | null
   is_active: boolean
   auto_reply_enabled: boolean
-  auto_reply_max_per_conversation: number
+  auto_reply_max_per_conversation: number | null
   handoff_agent_id: string | null
   embeddings_api_key: string | null
   transcription_api_key: string | null

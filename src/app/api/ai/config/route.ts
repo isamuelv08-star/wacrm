@@ -96,9 +96,19 @@ export async function POST(request: Request) {
     const isActive = body.is_active === true
     const autoReplyEnabled = body.auto_reply_enabled === true
 
-    let maxPer = Number(body.auto_reply_max_per_conversation)
-    if (!Number.isFinite(maxPer)) maxPer = 3
-    maxPer = Math.min(20, Math.max(1, Math.floor(maxPer)))
+    // null = "never stop responding" (migration 047), enforced by
+    // claim_ai_reply_slot treating a NULL cap as unbounded. Anything
+    // else is clamped to a sane finite range; an unparseable value
+    // falls back to the same default the column ships with.
+    let maxPer: number | null
+    if (body.auto_reply_max_per_conversation === null) {
+      maxPer = null
+    } else {
+      const parsed = Number(body.auto_reply_max_per_conversation)
+      maxPer = Number.isFinite(parsed)
+        ? Math.min(1000, Math.max(1, Math.floor(parsed)))
+        : 3
+    }
 
     // Handoff routing target for auto-reply. A non-empty string must be a
     // member of this account (else the conversation would be assigned to a
