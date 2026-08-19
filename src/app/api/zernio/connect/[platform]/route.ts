@@ -53,9 +53,15 @@ function settingsRedirect(
 }
 
 class ZernioRequestError extends Error {
-  constructor(message: string) {
+  /** HTTP status Zernio responded with, when the error came from a response (not a network failure). */
+  status?: number
+  /** Parsed JSON body when Zernio's response was valid JSON, else the raw text. */
+  body?: unknown
+  constructor(message: string, opts?: { status?: number; body?: unknown }) {
     super(message)
     this.name = 'ZernioRequestError'
+    this.status = opts?.status
+    this.body = opts?.body
   }
 }
 
@@ -94,18 +100,26 @@ async function zernioFetch(
       body: rawBody,
     })
 
+    let parsed: unknown
+    let validJson = true
+    try {
+      parsed = JSON.parse(rawBody)
+    } catch {
+      validJson = false
+    }
+
     if (!res.ok) {
       throw new ZernioRequestError(
         `Zernio request to ${url.pathname} failed (${res.status}): ${rawBody.slice(0, 300)}`,
+        { status: res.status, body: validJson ? parsed : rawBody },
       )
     }
 
-    try {
-      return JSON.parse(rawBody)
-    } catch (err) {
-      console.error(`[zernio] ${url.pathname} response was not valid JSON:`, err)
+    if (!validJson) {
+      console.error(`[zernio] ${url.pathname} response was not valid JSON:`, rawBody)
       throw new ZernioRequestError('Zernio returned an unexpected response.')
     }
+    return parsed
   } catch (err) {
     if (err instanceof ZernioRequestError) throw err
     const timedOut = err instanceof Error && err.name === 'AbortError'
@@ -120,6 +134,35 @@ async function zernioFetch(
   }
 }
 
+async function persistProfileId(
+  admin: SupabaseClient,
+  accountId: string,
+  accountName: string,
+  profileId: string,
+): Promise<void> {
+  const { error: upsertError } = await admin.from('client_zernio_accounts').upsert(
+    {
+      account_id: accountId,
+      client_name: accountName,
+      zernio_profile_id: profileId,
+    },
+    { onConflict: 'account_id' },
+  )
+  if (upsertError) {
+    console.error('[zernio/connect] persisting profile id failed:', upsertError)
+    throw new ZernioRequestError('Could not save the new connection. Please try again.')
+  }
+}
+
+/** Shape of Zernio's 409 body when POST /v1/profiles rejects a duplicate name. */
+function existingProfileIdFromConflict(body: unknown): string | null {
+  if (!body || typeof body !== 'object') return null
+  const b = body as { code?: unknown; details?: { existingProfileId?: unknown } }
+  if (b.code !== 'profile_name_conflict') return null
+  const id = b.details?.existingProfileId
+  return typeof id === 'string' && id.length > 0 ? id : null
+}
+
 /**
  * Resolve a real Zernio profileId for this account: reuse the one
  * already on `client_zernio_accounts` if present, otherwise mint one
@@ -131,6 +174,15 @@ async function zernioFetch(
  * profileId format". Treat a stored value equal to `accountId` the
  * same as "no profile yet" so those accounts get a real one minted
  * here instead of replaying the bad id forever.
+ *
+ * That self-heal itself can hit a second failure mode: an earlier,
+ * pre-fix attempt may have already created a Zernio profile under
+ * this account's name and then failed *before* we saved the id it
+ * got back (e.g. the old code crashed on the next step). Re-creating
+ * then 409s with `profile_name_conflict` — Zernio hands back the
+ * existing profile's id in `details.existingProfileId`, which we
+ * adopt as if we'd created it ourselves rather than treating it as a
+ * hard failure.
  */
 async function resolveZernioProfileId(
   admin: SupabaseClient,
@@ -156,11 +208,27 @@ async function resolveZernioProfileId(
   }
 
   const profilesUrl = new URL('/api/v1/profiles', zernioBase)
-  const data = (await zernioFetch(profilesUrl, {
-    method: 'POST',
-    apiKey,
-    body: { name: accountName },
-  })) as { profileId?: string; id?: string }
+  let data: { profileId?: string; id?: string }
+  try {
+    data = (await zernioFetch(profilesUrl, {
+      method: 'POST',
+      apiKey,
+      body: { name: accountName },
+    })) as { profileId?: string; id?: string }
+  } catch (err) {
+    if (err instanceof ZernioRequestError && err.status === 409) {
+      const existingProfileId = existingProfileIdFromConflict(err.body)
+      if (existingProfileId) {
+        console.warn(
+          '[zernio/connect] profile name conflict — adopting existing Zernio profile',
+          existingProfileId,
+        )
+        await persistProfileId(admin, accountId, accountName, existingProfileId)
+        return existingProfileId
+      }
+    }
+    throw err
+  }
 
   const profileId = data.profileId || data.id
   if (!profileId) {
@@ -168,19 +236,7 @@ async function resolveZernioProfileId(
     throw new ZernioRequestError("Zernio didn't return a profile id.")
   }
 
-  const { error: upsertError } = await admin.from('client_zernio_accounts').upsert(
-    {
-      account_id: accountId,
-      client_name: accountName,
-      zernio_profile_id: profileId,
-    },
-    { onConflict: 'account_id' },
-  )
-  if (upsertError) {
-    console.error('[zernio/connect] persisting new profile id failed:', upsertError)
-    throw new ZernioRequestError('Could not save the new connection. Please try again.')
-  }
-
+  await persistProfileId(admin, accountId, accountName, profileId)
   return profileId
 }
 
