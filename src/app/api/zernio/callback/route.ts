@@ -16,6 +16,7 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { getPublicOrigin } from '@/lib/http/request-origin'
 
 const PLATFORMS = ['whatsapp', 'instagram'] as const
 type Platform = (typeof PLATFORMS)[number]
@@ -38,7 +39,11 @@ function settingsRedirect(
 }
 
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = request.nextUrl
+  const { searchParams } = request.nextUrl
+  // NOT request.nextUrl.origin — see the comment in
+  // /api/zernio/connect/[platform]/route.ts. Same proxy problem
+  // applies here since this route also redirects the browser.
+  const origin = getPublicOrigin(request)
   const platform = searchParams.get('platform')
 
   // Meta cancellation or a Zernio-side failure surfaces as an

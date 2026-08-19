@@ -20,6 +20,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { requireRole } from '@/lib/auth/account'
+import { getPublicOrigin } from '@/lib/http/request-origin'
 
 const PLATFORMS = ['whatsapp', 'instagram'] as const
 type Platform = (typeof PLATFORMS)[number]
@@ -50,7 +51,11 @@ export async function GET(
   { params }: { params: Promise<{ platform: string }> },
 ) {
   const { platform: rawPlatform } = await params
-  const origin = request.nextUrl.origin
+  // NOT request.nextUrl.origin — behind a reverse proxy that doesn't
+  // rewrite Host (e.g. EasyPanel), that resolves to the container's
+  // internal bind address (0.0.0.0:80) instead of the public domain,
+  // and every redirect built from it below would be unreachable.
+  const origin = getPublicOrigin(request)
 
   if (!isPlatform(rawPlatform)) {
     return settingsRedirect(origin, rawPlatform, {
@@ -84,6 +89,13 @@ export async function GET(
       error: 'Zernio is not configured on this server.',
     })
   }
+  // TEMP diagnostic (no secret value logged) — confirms the deployed
+  // env actually has a key loaded, and roughly which one, without
+  // printing it. Remove once the 400 from Zernio is root-caused.
+  console.log('[zernio/connect] using ZERNIO_API_KEY', {
+    length: apiKey.length,
+    prefix: apiKey.slice(0, 4),
+  })
 
   // Zernio's own base URL, e.g. https://zernio.com. Kept overridable
   // for staging/sandbox environments; falls back to the documented
@@ -135,6 +147,12 @@ export async function GET(
   zernioUrl.searchParams.set('profileId', zernioProfileId)
   zernioUrl.searchParams.set('redirect_url', redirectUrl.toString())
 
+  // TEMP diagnostic — the exact outbound request (no secret in it;
+  // the key only ever goes in the Authorization header). Cross-check
+  // `redirect_url` here against whatever Zernio's dashboard/docs say
+  // it expects (e.g. an exact allow-listed URL vs. a wildcard).
+  console.log('[zernio/connect] requesting', zernioUrl.toString())
+
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), ZERNIO_TIMEOUT_MS)
 
@@ -145,16 +163,35 @@ export async function GET(
       signal: controller.signal,
     })
 
+    // TEMP diagnostic — full response, not just the status, on every
+    // call while we're root-causing the 400. Zernio's body usually
+    // carries the actual reason (bad key, redirect_url mismatch,
+    // unknown profileId, etc.) that the status code alone hides.
+    const rawBody = await res.text()
+    console.log('[zernio/connect] Zernio responded', {
+      status: res.status,
+      headers: Object.fromEntries(res.headers.entries()),
+      body: rawBody,
+    })
+
     if (!res.ok) {
-      const detail = await res.text().catch(() => '')
-      console.error('[zernio/connect] Zernio returned', res.status, detail)
       return settingsRedirect(origin, platform, {
         connected: false,
-        error: `Zernio couldn't start the connection (${res.status}).`,
+        error: `Zernio couldn't start the connection (${res.status}): ${rawBody.slice(0, 300)}`,
       })
     }
 
-    const data = (await res.json()) as { authUrl?: string }
+    let data: { authUrl?: string }
+    try {
+      data = JSON.parse(rawBody) as { authUrl?: string }
+    } catch (err) {
+      console.error('[zernio/connect] Zernio response was not valid JSON:', err)
+      return settingsRedirect(origin, platform, {
+        connected: false,
+        error: 'Zernio returned an unexpected response.',
+      })
+    }
+
     if (!data.authUrl) {
       console.error('[zernio/connect] Zernio response missing authUrl:', data)
       return settingsRedirect(origin, platform, {
