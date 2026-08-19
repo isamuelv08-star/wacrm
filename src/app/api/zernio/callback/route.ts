@@ -9,9 +9,10 @@
 // Deliberately does NOT require a Supabase session: this is a
 // server-to-browser redirect chain through Meta and Zernio, and
 // there's no guarantee the original session cookie survives that
-// round trip intact. `profileId` (== our account_id, see migration
-// 048) is enough to find the right row with the service-role client,
-// independent of whoever's browser it is.
+// round trip intact. `profileId` (Zernio's own id, minted via POST
+// /v1/profiles and stored on client_zernio_accounts — see migration
+// 048 and the connect route) is enough to find the right row with
+// the service-role client, independent of whoever's browser it is.
 // ============================================================
 
 import { NextResponse, type NextRequest } from 'next/server'

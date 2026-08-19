@@ -6,9 +6,14 @@
 // must stay server-side). We:
 //   1. Resolve the caller's account (admin+ only — connecting a
 //      channel is a settings-class action, mirrors whatsapp_config).
-//   2. Ensure a `client_zernio_accounts` row exists for this account,
-//      using the account's own id (as text) as the Zernio `profileId`
-//      — see migration 048 for why we don't mint a separate id.
+//   2. Resolve a real Zernio profileId for this account — reusing the
+//      one already stored on `client_zernio_accounts`, or lazily
+//      creating one via POST /v1/profiles on first use (see
+//      resolveZernioProfileId below; Zernio rejects
+//      `/v1/connect/{platform}?profileId=` unless that id was
+//      actually minted by POST /v1/profiles first — our own account
+//      UUID doesn't count, which is what caused the
+//      "Invalid profileId format" 400).
 //   3. Ask Zernio for an `authUrl` and redirect the browser there.
 //
 // Every failure path redirects back to Settings with `zernio_error`
@@ -18,7 +23,7 @@
 // ============================================================
 
 import { NextResponse, type NextRequest } from 'next/server'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { createClient as createAdminClient, type SupabaseClient } from '@supabase/supabase-js'
 import { requireRole } from '@/lib/auth/account'
 import { getPublicOrigin } from '@/lib/http/request-origin'
 
@@ -29,8 +34,9 @@ function isPlatform(value: string): value is Platform {
   return (PLATFORMS as readonly string[]).includes(value)
 }
 
-// Outbound call to Zernio gets a hard timeout so a hung upstream can
-// never leave the browser navigation (and therefore the button) stuck.
+// Every outbound call to Zernio gets a hard timeout so a hung upstream
+// can never leave the browser navigation (and therefore the button)
+// stuck.
 const ZERNIO_TIMEOUT_MS = 10_000
 
 function settingsRedirect(
@@ -44,6 +50,138 @@ function settingsRedirect(
   url.searchParams.set('zernio_connected', '0')
   url.searchParams.set('zernio_error', outcome.error)
   return NextResponse.redirect(url)
+}
+
+class ZernioRequestError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ZernioRequestError'
+  }
+}
+
+/**
+ * fetch() against Zernio with a shared timeout + full request/response
+ * logging (TEMP — see the 400-diagnostics note below). Throws
+ * ZernioRequestError with a user-safe message on any failure; callers
+ * catch once and redirect.
+ */
+async function zernioFetch(
+  url: URL,
+  init: { method: 'GET' | 'POST'; apiKey: string; body?: unknown },
+): Promise<unknown> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), ZERNIO_TIMEOUT_MS)
+  console.log(`[zernio] ${init.method} ${url.toString()}`, init.body ?? '')
+
+  try {
+    const res = await fetch(url, {
+      method: init.method,
+      headers: {
+        Authorization: `Bearer ${init.apiKey}`,
+        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+      },
+      body: init.body ? JSON.stringify(init.body) : undefined,
+      signal: controller.signal,
+    })
+
+    // TEMP diagnostic — full response, not just the status, while
+    // we're root-causing Zernio integration errors. The body usually
+    // carries the actual reason (bad key, unknown profileId, a field
+    // validation error, etc.) that the status code alone hides.
+    const rawBody = await res.text()
+    console.log(`[zernio] ${res.status} ${url.pathname}`, {
+      headers: Object.fromEntries(res.headers.entries()),
+      body: rawBody,
+    })
+
+    if (!res.ok) {
+      throw new ZernioRequestError(
+        `Zernio request to ${url.pathname} failed (${res.status}): ${rawBody.slice(0, 300)}`,
+      )
+    }
+
+    try {
+      return JSON.parse(rawBody)
+    } catch (err) {
+      console.error(`[zernio] ${url.pathname} response was not valid JSON:`, err)
+      throw new ZernioRequestError('Zernio returned an unexpected response.')
+    }
+  } catch (err) {
+    if (err instanceof ZernioRequestError) throw err
+    const timedOut = err instanceof Error && err.name === 'AbortError'
+    console.error(`[zernio] request to ${url.pathname} failed:`, err)
+    throw new ZernioRequestError(
+      timedOut
+        ? 'Zernio took too long to respond. Please try again.'
+        : 'Could not reach Zernio. Please try again.',
+    )
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+/**
+ * Resolve a real Zernio profileId for this account: reuse the one
+ * already on `client_zernio_accounts` if present, otherwise mint one
+ * via POST /v1/profiles and persist it.
+ *
+ * IMPORTANT: rows written before this fix stored the account's own
+ * Supabase UUID as a stand-in profileId — Zernio never actually
+ * issued that id, so `/v1/connect` rejects it with "Invalid
+ * profileId format". Treat a stored value equal to `accountId` the
+ * same as "no profile yet" so those accounts get a real one minted
+ * here instead of replaying the bad id forever.
+ */
+async function resolveZernioProfileId(
+  admin: SupabaseClient,
+  zernioBase: string,
+  apiKey: string,
+  accountId: string,
+  accountName: string,
+): Promise<string> {
+  const { data: existing, error: fetchError } = await admin
+    .from('client_zernio_accounts')
+    .select('zernio_profile_id')
+    .eq('account_id', accountId)
+    .maybeSingle()
+
+  if (fetchError) {
+    console.error('[zernio/connect] lookup failed:', fetchError)
+    throw new ZernioRequestError('Could not look up the existing connection. Please try again.')
+  }
+
+  const stored = existing?.zernio_profile_id ?? null
+  if (stored && stored !== accountId) {
+    return stored
+  }
+
+  const profilesUrl = new URL('/api/v1/profiles', zernioBase)
+  const data = (await zernioFetch(profilesUrl, {
+    method: 'POST',
+    apiKey,
+    body: { name: accountName },
+  })) as { profileId?: string; id?: string }
+
+  const profileId = data.profileId || data.id
+  if (!profileId) {
+    console.error('[zernio/connect] profile creation response missing an id:', data)
+    throw new ZernioRequestError("Zernio didn't return a profile id.")
+  }
+
+  const { error: upsertError } = await admin.from('client_zernio_accounts').upsert(
+    {
+      account_id: accountId,
+      client_name: accountName,
+      zernio_profile_id: profileId,
+    },
+    { onConflict: 'account_id' },
+  )
+  if (upsertError) {
+    console.error('[zernio/connect] persisting new profile id failed:', upsertError)
+    throw new ZernioRequestError('Could not save the new connection. Please try again.')
+  }
+
+  return profileId
 }
 
 export async function GET(
@@ -89,13 +227,6 @@ export async function GET(
       error: 'Zernio is not configured on this server.',
     })
   }
-  // TEMP diagnostic (no secret value logged) — confirms the deployed
-  // env actually has a key loaded, and roughly which one, without
-  // printing it. Remove once the 400 from Zernio is root-caused.
-  console.log('[zernio/connect] using ZERNIO_API_KEY', {
-    length: apiKey.length,
-    prefix: apiKey.slice(0, 4),
-  })
 
   // Zernio's own base URL, e.g. https://zernio.com. Kept overridable
   // for staging/sandbox environments; falls back to the documented
@@ -112,84 +243,26 @@ export async function GET(
   const redirectUrl = new URL(callbackBase)
   redirectUrl.searchParams.set('platform', platform)
 
-  // Reuse the account's own id as the Zernio profileId — one Zernio
-  // profile per wacrm account, no separate signup step needed.
-  const zernioProfileId = accountId
-
   const admin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 
-  // Make sure the row exists *before* sending the user to Meta, so the
-  // callback (which has no session to fall back on) can always find it
-  // by zernio_profile_id.
-  const { error: upsertError } = await admin
-    .from('client_zernio_accounts')
-    .upsert(
-      {
-        account_id: accountId,
-        client_name: accountName,
-        zernio_profile_id: zernioProfileId,
-      },
-      { onConflict: 'account_id' },
+  try {
+    const zernioProfileId = await resolveZernioProfileId(
+      admin,
+      zernioBase,
+      apiKey,
+      accountId,
+      accountName,
     )
 
-  if (upsertError) {
-    console.error('[zernio/connect] upsert failed:', upsertError)
-    return settingsRedirect(origin, platform, {
-      connected: false,
-      error: 'Could not prepare the connection. Please try again.',
-    })
-  }
+    const zernioUrl = new URL(`/api/v1/connect/${platform}`, zernioBase)
+    zernioUrl.searchParams.set('profileId', zernioProfileId)
+    zernioUrl.searchParams.set('redirect_url', redirectUrl.toString())
 
-  const zernioUrl = new URL(`/api/v1/connect/${platform}`, zernioBase)
-  zernioUrl.searchParams.set('profileId', zernioProfileId)
-  zernioUrl.searchParams.set('redirect_url', redirectUrl.toString())
-
-  // TEMP diagnostic — the exact outbound request (no secret in it;
-  // the key only ever goes in the Authorization header). Cross-check
-  // `redirect_url` here against whatever Zernio's dashboard/docs say
-  // it expects (e.g. an exact allow-listed URL vs. a wildcard).
-  console.log('[zernio/connect] requesting', zernioUrl.toString())
-
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), ZERNIO_TIMEOUT_MS)
-
-  try {
-    const res = await fetch(zernioUrl, {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${apiKey}` },
-      signal: controller.signal,
-    })
-
-    // TEMP diagnostic — full response, not just the status, on every
-    // call while we're root-causing the 400. Zernio's body usually
-    // carries the actual reason (bad key, redirect_url mismatch,
-    // unknown profileId, etc.) that the status code alone hides.
-    const rawBody = await res.text()
-    console.log('[zernio/connect] Zernio responded', {
-      status: res.status,
-      headers: Object.fromEntries(res.headers.entries()),
-      body: rawBody,
-    })
-
-    if (!res.ok) {
-      return settingsRedirect(origin, platform, {
-        connected: false,
-        error: `Zernio couldn't start the connection (${res.status}): ${rawBody.slice(0, 300)}`,
-      })
-    }
-
-    let data: { authUrl?: string }
-    try {
-      data = JSON.parse(rawBody) as { authUrl?: string }
-    } catch (err) {
-      console.error('[zernio/connect] Zernio response was not valid JSON:', err)
-      return settingsRedirect(origin, platform, {
-        connected: false,
-        error: 'Zernio returned an unexpected response.',
-      })
+    const data = (await zernioFetch(zernioUrl, { method: 'GET', apiKey })) as {
+      authUrl?: string
     }
 
     if (!data.authUrl) {
@@ -202,15 +275,10 @@ export async function GET(
 
     return NextResponse.redirect(data.authUrl)
   } catch (err) {
-    const timedOut = err instanceof Error && err.name === 'AbortError'
-    console.error('[zernio/connect] request to Zernio failed:', err)
-    return settingsRedirect(origin, platform, {
-      connected: false,
-      error: timedOut
-        ? 'Zernio took too long to respond. Please try again.'
-        : 'Could not reach Zernio. Please try again.',
-    })
-  } finally {
-    clearTimeout(timeout)
+    const message =
+      err instanceof ZernioRequestError
+        ? err.message
+        : 'Could not start the connection. Please try again.'
+    return settingsRedirect(origin, platform, { connected: false, error: message })
   }
 }

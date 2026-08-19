@@ -11,11 +11,15 @@
 --   - One row per account (UNIQUE(account_id)), same shape as
 --     `whatsapp_config` — this instance is single-tenant-per-account
 --     for Zernio, so a plain unique row (not a list) is enough.
---   - `zernio_profile_id` is the identifier we hand Zernio as
---     `profileId` when starting a connect. We reuse the account's own
---     id (cast to text) rather than minting a separate identifier, so
---     the callback can resolve the row without needing an active
---     session (see route comments).
+--   - `zernio_profile_id` is the identifier Zernio itself issues via
+--     POST /v1/profiles (NOT our own account id — Zernio's
+--     /v1/connect rejects an id it never minted with "Invalid
+--     profileId format"). /api/zernio/connect/[platform] creates the
+--     profile lazily on first connect and reuses the stored value on
+--     every later connect for the same account. Having it land on
+--     this row (rather than needing a session) is what lets the
+--     callback resolve the account without an active session (see
+--     route comments).
 --   - `client_name` is a display copy of `accounts.name` at connect
 --     time — not kept in sync by a trigger, since Zernio only reads
 --     it as a label at signup time and nothing in-app re-displays it.
