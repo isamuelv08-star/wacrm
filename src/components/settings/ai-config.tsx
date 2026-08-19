@@ -41,11 +41,13 @@ const HANDOFF_QUEUE = '__queue__';
 const PROVIDER_LABEL: Record<AiProvider, string> = {
   openai: 'OpenAI',
   anthropic: 'Anthropic (Claude)',
+  openrouter: 'OpenRouter',
 };
 
 const KEY_PLACEHOLDER: Record<AiProvider, string> = {
   openai: 'sk-...',
   anthropic: 'sk-ant-...',
+  openrouter: 'sk-or-...',
 };
 
 export function AiConfig() {
@@ -69,8 +71,9 @@ export function AiConfig() {
   const [embeddingsKeyEdited, setEmbeddingsKeyEdited] = useState(false);
   const [hasStoredEmbeddingsKey, setHasStoredEmbeddingsKey] = useState(false);
   // Voice-note transcription key (OpenRouter, migration 041) — only
-  // relevant when provider is 'anthropic' (OpenAI accounts transcribe
-  // directly with their own key, see transcribe.ts's hybrid rule).
+  // relevant when provider is 'anthropic' (OpenAI and OpenRouter
+  // accounts both transcribe directly with their own main key, see
+  // transcribe.ts's hybrid rule).
   const [transcriptionKey, setTranscriptionKey] = useState('');
   const [transcriptionKeyEdited, setTranscriptionKeyEdited] = useState(false);
   const [hasStoredTranscriptionKey, setHasStoredTranscriptionKey] = useState(false);
@@ -173,6 +176,7 @@ export function AiConfig() {
     const isDefaultModel =
       model === AI_PROVIDER_DEFAULT_MODEL.openai ||
       model === AI_PROVIDER_DEFAULT_MODEL.anthropic ||
+      model === AI_PROVIDER_DEFAULT_MODEL.openrouter ||
       model.trim() === '';
     if (isDefaultModel) setModel(AI_PROVIDER_DEFAULT_MODEL[next]);
   };
@@ -348,6 +352,9 @@ export function AiConfig() {
                     <SelectItem value="openai">{PROVIDER_LABEL.openai}</SelectItem>
                     <SelectItem value="anthropic">
                       {PROVIDER_LABEL.anthropic}
+                    </SelectItem>
+                    <SelectItem value="openrouter">
+                      {PROVIDER_LABEL.openrouter}
                     </SelectItem>
                   </SelectContent>
                 </Select>

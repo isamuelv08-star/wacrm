@@ -6,7 +6,7 @@
 // whether the account is on OpenAI or Anthropic.
 // ============================================================
 
-export type AiProvider = 'openai' | 'anthropic'
+export type AiProvider = 'openai' | 'anthropic' | 'openrouter'
 
 /** Mirrors the `contacts.lead_score` CHECK constraint (migration 038). */
 export type LeadScore = 'hot' | 'warm' | 'cold'

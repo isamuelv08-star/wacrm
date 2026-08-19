@@ -9,12 +9,15 @@ import { downloadMedia, getMediaUrl } from '@/lib/whatsapp/meta-api'
 // Voice-note transcription (migration 041).
 //
 // Hybrid provider strategy — see the migration's doc comment:
-//   - provider = 'openai'    → Whisper directly, via the account's own
+//   - provider = 'openai'     → Whisper directly, via the account's own
 //     (already-stored) chat api_key. Zero extra setup.
-//   - provider = 'anthropic' → OpenRouter's unified transcription
+//   - provider = 'openrouter' → OpenRouter's unified transcription
+//     endpoint, via that SAME chat api_key — it's already an
+//     OpenRouter key, no separate transcription key needed.
+//   - provider = 'anthropic'  → OpenRouter's unified transcription
 //     endpoint, via the optional transcription_api_key, since Anthropic
 //     has no native transcription API of its own.
-//   - Neither key available  → transcribeInboundAudio resolves to null;
+//   - Neither key available   → transcribeInboundAudio resolves to null;
 //     the caller leaves the message as a plain (untranscribed) audio
 //     bubble, exactly like today.
 //
@@ -160,6 +163,13 @@ export async function transcribeInboundAudio(
   if (config.provider === 'openai') {
     return transcribeWithOpenAiWhisper(config.apiKey, audio, mimeType)
   }
+  // An 'openrouter' account's main chat key already IS an OpenRouter
+  // key — use it directly rather than requiring the separate optional
+  // transcriptionApiKey, which exists specifically for 'anthropic'
+  // accounts that have no OpenRouter key of their own.
+  if (config.provider === 'openrouter') {
+    return transcribeWithOpenRouter(config.apiKey, audio, mimeType)
+  }
   if (config.transcriptionApiKey) {
     return transcribeWithOpenRouter(config.transcriptionApiKey, audio, mimeType)
   }
@@ -202,7 +212,14 @@ export async function transcribeAndStoreAudioMessage(
     // gates drafting/auto-reply.
     const config = await loadAiConfig(db, accountId, { requireActive: false })
     if (!config) return null
-    if (config.provider !== 'openai' && !config.transcriptionApiKey) return null
+    // Mirrors transcribeInboundAudio's hybrid rule: 'openai' and
+    // 'openrouter' can always transcribe with their own main key;
+    // 'anthropic' needs the separate optional transcriptionApiKey.
+    const canTranscribe =
+      config.provider === 'openai' ||
+      config.provider === 'openrouter' ||
+      Boolean(config.transcriptionApiKey)
+    if (!canTranscribe) return null
 
     const mediaInfo = await getMediaUrl({ mediaId, accessToken })
     const { buffer } = await downloadMedia({

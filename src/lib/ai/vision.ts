@@ -8,10 +8,10 @@ import { downloadMedia, getMediaUrl } from '@/lib/whatsapp/meta-api'
 // ============================================================
 // Inbound image description (migration 046).
 //
-// Unlike voice-note transcription, both OpenAI and Anthropic accept
-// image content natively in their normal chat endpoints, via the
-// account's own existing chat api_key/model — no OpenRouter-style
-// fallback provider needed.
+// Unlike voice-note transcription, OpenAI, Anthropic, and OpenRouter
+// all accept image content natively in their normal chat endpoints,
+// via the account's own existing chat api_key/model — no separate
+// fallback key needed for any of the three.
 //
 // Mirrors transcribe.ts's shape: best-effort, never throws from the
 // orchestrator. The description is stored on the image message's own
@@ -23,6 +23,7 @@ import { downloadMedia, getMediaUrl } from '@/lib/whatsapp/meta-api'
 // ============================================================
 
 const OPENAI_CHAT_URL = 'https://api.openai.com/v1/chat/completions'
+const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions'
 const ANTHROPIC_MESSAGES_URL = 'https://api.anthropic.com/v1/messages'
 const ANTHROPIC_VERSION = '2023-06-01'
 const MAX_DESCRIPTION_TOKENS = 300
@@ -78,6 +79,60 @@ export async function describeImageWithOpenAi(
   const text = data?.choices?.[0]?.message?.content?.trim()
   if (!text) {
     throw new AiError('OpenAI vision returned an empty description.', {
+      code: 'empty_response',
+    })
+  }
+  return text
+}
+
+/** Describe an image with OpenRouter's Chat Completions endpoint — same
+ *  OpenAI-compatible request/response shape as describeImageWithOpenAi,
+ *  just pointed at OpenRouter with the account's OpenRouter key. */
+export async function describeImageWithOpenRouter(
+  apiKey: string,
+  model: string,
+  image: Buffer,
+  mimeType: string,
+  caption: string | null,
+): Promise<string> {
+  const timeoutMs = aiRequestTimeoutMs()
+  const dataUrl = `data:${mimeType};base64,${image.toString('base64')}`
+  const userContent: Record<string, unknown>[] = []
+  if (caption) userContent.push({ type: 'text', text: `Caption from sender: ${caption}` })
+  userContent.push({ type: 'image_url', image_url: { url: dataUrl } })
+
+  let res: Response
+  try {
+    res = await fetch(OPENROUTER_CHAT_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        ...(process.env.NEXT_PUBLIC_SITE_URL
+          ? { 'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL }
+          : {}),
+        'X-Title': 'wacrm',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: MAX_DESCRIPTION_TOKENS,
+        messages: [
+          { role: 'system', content: VISION_SYSTEM_PROMPT },
+          { role: 'user', content: userContent },
+        ],
+      }),
+      signal: AbortSignal.timeout(timeoutMs),
+    })
+  } catch (err) {
+    throw toNetworkError(err)
+  }
+
+  if (!res.ok) throw await providerHttpError('OpenRouter vision', res)
+
+  const data = (await res.json().catch(() => null)) as OpenAiVisionResponse | null
+  const text = data?.choices?.[0]?.message?.content?.trim()
+  if (!text) {
+    throw new AiError('OpenRouter vision returned an empty description.', {
       code: 'empty_response',
     })
   }
@@ -151,6 +206,9 @@ export async function describeInboundImage(
 ): Promise<string> {
   if (config.provider === 'openai') {
     return describeImageWithOpenAi(config.apiKey, config.model, image, mimeType, caption)
+  }
+  if (config.provider === 'openrouter') {
+    return describeImageWithOpenRouter(config.apiKey, config.model, image, mimeType, caption)
   }
   return describeImageWithAnthropic(config.apiKey, config.model, image, mimeType, caption)
 }
