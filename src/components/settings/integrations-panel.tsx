@@ -8,13 +8,21 @@ import { useTranslations } from 'next-intl';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { SettingsPanelHead } from './settings-panel-head';
 import { ConnectPlatformButton } from './connect-platform-button';
+import { WhatsAppConfig } from './whatsapp-config';
 import { useAuth } from '@/hooks/use-auth';
 
 /**
- * Integrations tab — connect WhatsApp / Instagram via Zernio's Meta
- * OAuth flow. Also picks up the `zernio_*` query params that
- * /api/zernio/callback redirects back with and surfaces them as a
- * toast, then strips them from the URL so a refresh doesn't re-fire it.
+ * Integrations tab — two groups:
+ *   - "Channels": connect WhatsApp / Instagram via Zernio's guided
+ *     Meta OAuth flow (no manual credentials).
+ *   - "Integrations by API": the pre-existing manual WhatsApp setup
+ *     (Cloud API credentials, or a Coexistence provider like
+ *     Dualhook via "Send API Base URL") — unchanged, just relocated
+ *     out of its own top-level tab into this one.
+ *
+ * Also picks up the `zernio_*` query params that /api/zernio/callback
+ * redirects back with and surfaces them as a toast, then strips them
+ * from the URL so a refresh doesn't re-fire it.
  */
 export function IntegrationsPanel() {
   const t = useTranslations('Settings.integrations');
@@ -76,6 +84,12 @@ export function IntegrationsPanel() {
           </div>
         </CardContent>
       </Card>
+
+      <div className="mt-8 mb-1 text-[11px] font-semibold tracking-[0.09em] text-muted-foreground uppercase">
+        {t('apiIntegrationsTitle')}
+      </div>
+      <p className="mb-4 text-sm text-muted-foreground">{t('apiIntegrationsDesc')}</p>
+      <WhatsAppConfig />
     </section>
   );
 }

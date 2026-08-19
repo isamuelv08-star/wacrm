@@ -1567,14 +1567,15 @@
       "connected": "Conectado ✓",
       "adminOnly": "Solo los administradores de la cuenta pueden conectar un canal.",
       "toastConnected": "{platform} conectado correctamente.",
-      "toastFailedGeneric": "No se pudo completar la conexión."
+      "toastFailedGeneric": "No se pudo completar la conexión.",
+      "apiIntegrationsTitle": "Integraciones por API",
+      "apiIntegrationsDesc": "¿Prefieres gestionarlo tú mismo? Conecta WhatsApp directamente con tus propias credenciales de la API de Meta, o con un proveedor de coexistencia como Dualhook."
     },
     "sections": {
       "overview": "Resumen",
       "profile": "Tu perfil",
       "security": "Acceso y seguridad",
       "appearance": "Apariencia",
-      "whatsapp": "WhatsApp",
       "integrations": "Integraciones",
       "templates": "Plantillas",
       "quick-replies": "Respuestas rápidas",

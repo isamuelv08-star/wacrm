@@ -1567,14 +1567,15 @@
       "connected": "연결됨 ✓",
       "adminOnly": "계정 관리자만 채널을 연결할 수 있습니다.",
       "toastConnected": "{platform} 연결이 완료되었습니다.",
-      "toastFailedGeneric": "연결을 완료할 수 없습니다."
+      "toastFailedGeneric": "연결을 완료할 수 없습니다.",
+      "apiIntegrationsTitle": "API로 연동하기",
+      "apiIntegrationsDesc": "직접 관리하고 싶으신가요? 자체 Meta Cloud API 자격 증명이나 Dualhook 같은 코엑시스턴스 제공업체로 WhatsApp을 직접 연결하세요."
     },
     "sections": {
       "overview": "개요",
       "profile": "내 프로필",
       "security": "로그인 & 보안",
       "appearance": "화면 설정",
-      "whatsapp": "WhatsApp",
       "integrations": "연동",
       "templates": "템플릿",
       "quick-replies": "빠른 답장",

@@ -5,7 +5,6 @@ import {
   LayoutGrid,
   Link2,
   Palette,
-  PlugZap,
   Shield,
   Tags,
   User,
@@ -27,7 +26,6 @@ export const SETTINGS_SECTIONS = [
   'profile',
   'security',
   'appearance',
-  'whatsapp',
   'integrations',
   'templates',
   'quick-replies',
@@ -54,7 +52,6 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   profile: { id: 'profile', label: 'Your profile', icon: User, group: 'account' },
   security: { id: 'security', label: 'Login & security', icon: Shield, group: 'account' },
   appearance: { id: 'appearance', label: 'Appearance', icon: Palette, group: 'account' },
-  whatsapp: { id: 'whatsapp', label: 'WhatsApp', icon: PlugZap, group: 'workspace' },
   integrations: { id: 'integrations', label: 'Integrations', icon: Link2, group: 'workspace' },
   templates: { id: 'templates', label: 'Templates', icon: FileText, group: 'workspace' },
   'quick-replies': { id: 'quick-replies', label: 'Quick replies', icon: Zap, group: 'workspace' },
@@ -77,11 +74,14 @@ function isSection(value: string | null): value is SettingsSection {
 /**
  * Resolve a raw `?tab=` value to a section. Legacy tabs from the old
  * flat layout collapse onto their new home (Tags + Custom fields → the
- * merged "Fields & tags" section). Anything unknown falls back to the
- * Overview landing.
+ * merged "Fields & tags" section; WhatsApp → the "Integrations" tab,
+ * which now nests the WhatsApp API/Dualhook config under its own
+ * "Integrations by API" group alongside the Zernio channel connects).
+ * Anything unknown falls back to the Overview landing.
  */
 export function resolveSection(raw: string | null): SettingsSection {
   if (raw === 'tags' || raw === 'custom-fields') return 'fields';
+  if (raw === 'whatsapp') return 'integrations';
   if (isSection(raw)) return raw;
   return DEFAULT_SECTION;
 }
