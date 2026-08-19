@@ -332,6 +332,17 @@ export interface WhatsAppConfig {
   send_api_base?: string | null;
 }
 
+/** A connected Zernio account (WhatsApp/Instagram via Meta OAuth). See migration 048. */
+export interface ClientZernioAccount {
+  id: string;
+  account_id: string;
+  client_name: string;
+  zernio_profile_id: string;
+  whatsapp_account_id: string | null;
+  instagram_account_id: string | null;
+  connected_at: string | null;
+}
+
 // Raw Meta status enum. We persist this verbatim from Meta (sync + webhook)
 // rather than collapsing to a local TitleCase set — distinctions like
 // PAUSED vs DISABLED vs IN_APPEAL drive the edit/resubmit/delete flows.

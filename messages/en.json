@@ -1552,12 +1552,30 @@
       "step4_5": "Subscribe to \"messages\" webhook field",
       "metaDocs": "Meta WhatsApp API Documentation"
     },
+    "integrations": {
+      "title": "Integrations",
+      "description": "Connect WhatsApp and Instagram through Zernio's guided Meta connect flow.",
+      "channelsTitle": "Channels",
+      "channelsDesc": "Each channel opens Meta's connect flow through Zernio. You'll be redirected back here when it's done.",
+      "platform": {
+        "whatsapp": "WhatsApp",
+        "instagram": "Instagram"
+      },
+      "whatsappHint": "Connect a WhatsApp Business account via Zernio.",
+      "instagramHint": "Connect an Instagram professional account via Zernio.",
+      "connect": "Connect",
+      "connected": "Connected ✓",
+      "adminOnly": "Only account admins can connect a channel.",
+      "toastConnected": "{platform} connected successfully.",
+      "toastFailedGeneric": "The connection could not be completed."
+    },
     "sections": {
       "overview": "Overview",
       "profile": "Your profile",
       "security": "Login & security",
       "appearance": "Appearance",
       "whatsapp": "WhatsApp",
+      "integrations": "Integrations",
       "templates": "Templates",
       "quick-replies": "Quick replies",
       "fields": "Fields & tags",

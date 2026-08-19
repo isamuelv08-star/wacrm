@@ -1552,12 +1552,30 @@
       "step4_5": "\"messages\" 웹훅 필드를 구독",
       "metaDocs": "Meta WhatsApp API 문서"
     },
+    "integrations": {
+      "title": "연동",
+      "description": "Zernio의 안내형 Meta 연결 흐름으로 WhatsApp과 Instagram을 연결하세요.",
+      "channelsTitle": "채널",
+      "channelsDesc": "각 채널은 Zernio를 통해 Meta 연결 흐름을 엽니다. 완료되면 이 페이지로 자동으로 돌아옵니다.",
+      "platform": {
+        "whatsapp": "WhatsApp",
+        "instagram": "Instagram"
+      },
+      "whatsappHint": "Zernio를 통해 WhatsApp Business 계정을 연결하세요.",
+      "instagramHint": "Zernio를 통해 Instagram 프로페셔널 계정을 연결하세요.",
+      "connect": "연결하기",
+      "connected": "연결됨 ✓",
+      "adminOnly": "계정 관리자만 채널을 연결할 수 있습니다.",
+      "toastConnected": "{platform} 연결이 완료되었습니다.",
+      "toastFailedGeneric": "연결을 완료할 수 없습니다."
+    },
     "sections": {
       "overview": "개요",
       "profile": "내 프로필",
       "security": "로그인 & 보안",
       "appearance": "화면 설정",
       "whatsapp": "WhatsApp",
+      "integrations": "연동",
       "templates": "템플릿",
       "quick-replies": "빠른 답장",
       "fields": "필드 & 태그",
