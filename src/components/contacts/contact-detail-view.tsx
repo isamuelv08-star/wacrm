@@ -46,6 +46,7 @@ import {
   X,
   DollarSign,
   LayoutTemplate,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
@@ -436,6 +437,19 @@ export function ContactDetailView({
                         {contact.company}
                       </span>
                     )}
+                    {/* Custom fields (RUC, Ciudad, ...) with a value — surfaced
+                        here too so they're visible at a glance instead of only
+                        inside the Custom Fields tab. */}
+                    {customFields.map((field) => {
+                      const value = customValues[field.id];
+                      if (!value?.trim()) return null;
+                      return (
+                        <span key={field.id} className="flex items-center gap-1">
+                          <SlidersHorizontal className="size-3" />
+                          {field.field_name}: {value}
+                        </span>
+                      );
+                    })}
                   </div>
                 </div>
               </div>

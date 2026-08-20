@@ -30,9 +30,16 @@ import {
   MessageSquare,
   DollarSign,
   Loader2,
+  Mail,
+  Building2,
+  SlidersHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
+import {
+  fetchContactCustomFields,
+  type CustomFieldWithValue,
+} from "@/lib/contacts/custom-fields";
 
 interface DealFormProps {
   open: boolean;
@@ -70,6 +77,10 @@ export function DealForm({
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [linkedConversation, setLinkedConversation] =
     useState<Conversation | null>(null);
+  // Read-only snapshot of the selected contact's custom fields (RUC,
+  // Ciudad, ...) — quick context for whoever's working the deal,
+  // without leaving this sheet to open the Contacts page.
+  const [contactCustomFields, setContactCustomFields] = useState<CustomFieldWithValue[]>([]);
 
   const [saving, setSaving] = useState(false);
   const [statusAction, setStatusAction] = useState<DealStatus | null>(null);
@@ -132,24 +143,31 @@ export function DealForm({
     if (!open || !contactId) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setLinkedConversation(null);
+      setContactCustomFields([]);
       return;
     }
     let cancelled = false;
     (async () => {
-      const { data } = await supabase
-        .from("conversations")
-        .select("*")
-        .eq("contact_id", contactId)
-        .order("last_message_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const [{ data: conv }, customFields] = await Promise.all([
+        supabase
+          .from("conversations")
+          .select("*")
+          .eq("contact_id", contactId)
+          .order("last_message_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        fetchContactCustomFields(supabase, contactId),
+      ]);
       if (cancelled) return;
-      setLinkedConversation((data as Conversation | null) ?? null);
+      setLinkedConversation((conv as Conversation | null) ?? null);
+      setContactCustomFields(customFields.filter((cf) => cf.value.trim()));
     })();
     return () => {
       cancelled = true;
     };
   }, [open, contactId, supabase]);
+
+  const selectedContact = contacts.find((c) => c.id === contactId) ?? null;
 
   async function handleSave() {
     if (!title.trim() || !contactId || !stageId) {
@@ -292,6 +310,35 @@ export function DealForm({
                   <MessageSquare className="h-3 w-3" />
                   {t("linkToConversation")}
                 </Link>
+              )}
+
+              {/* Read-only contact snapshot — email/company plus any
+                  account custom fields (RUC, Ciudad, ...) with a value,
+                  so whoever's working this deal has context without
+                  leaving the sheet to open the Contacts page. */}
+              {selectedContact && (selectedContact.email || selectedContact.company || contactCustomFields.length > 0) && (
+                <div className="mt-1 space-y-1 rounded-lg border border-border bg-muted/40 p-2.5">
+                  {selectedContact.email && (
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Mail className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{selectedContact.email}</span>
+                    </div>
+                  )}
+                  {selectedContact.company && (
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Building2 className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{selectedContact.company}</span>
+                    </div>
+                  )}
+                  {contactCustomFields.map(({ field, value }) => (
+                    <div key={field.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <SlidersHorizontal className="h-3 w-3 shrink-0" />
+                      <span className="truncate">
+                        <span className="text-foreground/70">{field.field_name}:</span> {value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
 

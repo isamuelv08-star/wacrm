@@ -292,6 +292,7 @@
       "emailPlaceholder": "Adicionar email",
       "companyPlaceholder": "Adicionar empresa",
       "leadSourcePlaceholder": "Origem do lead",
+      "customFieldPlaceholder": "Digite {name}...",
       "saveFieldError": "Não foi possível salvar — tente novamente.",
       "aiAssistant": "Assistente de IA",
       "aiOwnedByAgent": "Um colega de equipe assumiu esta conversa.",

@@ -292,6 +292,7 @@
       "emailPlaceholder": "Agregar correo electrónico",
       "companyPlaceholder": "Agregar empresa",
       "leadSourcePlaceholder": "Origen del lead",
+      "customFieldPlaceholder": "Ingresa {name}...",
       "saveFieldError": "No se pudo guardar — inténtalo de nuevo.",
       "aiAssistant": "Asistente de IA",
       "aiOwnedByAgent": "Un compañero de equipo ha tomado el control de este chat.",

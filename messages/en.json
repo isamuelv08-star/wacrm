@@ -292,6 +292,7 @@
       "emailPlaceholder": "Add email",
       "companyPlaceholder": "Add company",
       "leadSourcePlaceholder": "Lead source",
+      "customFieldPlaceholder": "Enter {name}...",
       "saveFieldError": "Couldn't save — try again.",
       "aiAssistant": "AI Assistant",
       "aiOwnedByAgent": "A teammate has taken over this chat.",
