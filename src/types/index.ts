@@ -214,6 +214,15 @@ export interface Conversation {
    * Not meant to be read/written from the client.
    */
   hot_lead_last_alerted_message_at?: string | null;
+  /**
+   * Source channel for the conversation. Optional and unpopulated today —
+   * every conversation currently arrives through WhatsApp, there is no
+   * Instagram integration or `platform` column yet. Reading it here (via
+   * {@link getConversationPlatform}) keeps the Inbox's per-platform UI
+   * forward-compatible with a real multi-channel backend later without a
+   * type change.
+   */
+  platform?: "whatsapp" | "instagram";
 }
 
 // ============================================================

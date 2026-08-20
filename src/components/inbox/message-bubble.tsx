@@ -24,6 +24,11 @@ import {
 } from "./message-media";
 import { InteractivePreview } from "@/components/interactive/interactive-preview";
 import { useTranslations } from "next-intl";
+import {
+  INSTAGRAM_STOPS,
+  WHATSAPP_TINT,
+  type ConversationPlatform,
+} from "@/lib/inbox/platform";
 
 interface MessageBubbleProps {
   message: Message;
@@ -38,6 +43,26 @@ interface MessageBubbleProps {
    * stays inline and non-clickable.
    */
   onOpenMedia?: (messageId: string) => void;
+  /** Drives the outgoing-bubble accent color; defaults to "whatsapp". */
+  platform?: ConversationPlatform;
+}
+
+// Soft, mode-adaptive fill for the agent's own bubbles — blended against
+// `--card` (not a fixed hex) so it reads correctly in both light and dark
+// mode. WhatsApp gets a flat tint; Instagram gets a subtle version of its
+// gradient. Both pair with `text-foreground`, which already adapts to
+// light/dark, rather than the theme's `--primary-foreground`.
+function outgoingBubbleStyle(platform: ConversationPlatform): React.CSSProperties {
+  if (platform === "instagram") {
+    return {
+      backgroundImage: `linear-gradient(135deg, ${INSTAGRAM_STOPS.map(
+        (stop) => `color-mix(in oklch, ${stop} 26%, var(--card))`,
+      ).join(", ")})`,
+    };
+  }
+  return {
+    backgroundColor: `color-mix(in oklch, ${WHATSAPP_TINT} 30%, var(--card))`,
+  };
 }
 
 function StatusIcon({ status }: { status: Message["status"] }) {
@@ -204,6 +229,7 @@ export function MessageBubble({
   currentUserId,
   onToggleReaction,
   onOpenMedia,
+  platform = "whatsapp",
 }: MessageBubbleProps) {
   const t = useTranslations("Inbox.bubble");
 
@@ -222,10 +248,9 @@ export function MessageBubble({
       <div
         className={cn(
           "relative rounded-2xl px-3 py-2",
-          isAgent
-            ? "rounded-br-md bg-primary text-primary-foreground"
-            : "rounded-bl-md bg-muted text-foreground",
+          isAgent ? "rounded-br-md text-foreground" : "rounded-bl-md bg-muted text-foreground",
         )}
+        style={isAgent ? outgoingBubbleStyle(platform) : undefined}
       >
         {reply && (
           <ReplyQuote
@@ -242,12 +267,14 @@ export function MessageBubble({
           )}
         >
           {/* AI badge — only on replies the auto-reply bot generated
-              (always outbound, so it sits on the primary fill). Lets
-              agents tell an AI reply from their own / a Flow's at a
-              glance. */}
+              (always outbound). Outbound bubbles now sit on a soft
+              platform-tinted fill (not the solid primary color), so this
+              reads against `text-foreground` like the rest of the bubble
+              rather than `text-primary-foreground`. Lets agents tell an
+              AI reply from their own / a Flow's at a glance. */}
           {message.ai_generated && (
             <span
-              className="inline-flex items-center gap-0.5 rounded-full bg-primary-foreground/20 px-1.5 py-px text-[9px] font-semibold uppercase leading-none tracking-wide text-primary-foreground"
+              className="inline-flex items-center gap-0.5 rounded-full bg-foreground/10 px-1.5 py-px text-[9px] font-semibold uppercase leading-none tracking-wide text-foreground/80"
               title={t("aiBadgeTitle")}
             >
               <Sparkles className="h-2.5 w-2.5" />
@@ -257,11 +284,7 @@ export function MessageBubble({
           <span
             className={cn(
               "text-[10px]",
-              // Outbound bubbles sit on the primary fill, so the
-              // timestamp must read against that (not the neutral
-              // foreground) — otherwise it goes low-contrast in light
-              // mode. Inbound bubbles use the muted surface.
-              isAgent ? "text-primary-foreground/70" : "text-muted-foreground",
+              isAgent ? "text-foreground/60" : "text-muted-foreground",
             )}
           >
             {time}

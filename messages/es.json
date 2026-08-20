@@ -34,6 +34,8 @@
     "roleAgent": "Agente",
     "roleViewer": "Visualizador",
     "closeMenu": "Cerrar menú",
+    "collapseSidebar": "Colapsar barra lateral",
+    "expandSidebar": "Expandir barra lateral",
     "defaultUser": "Usuario",
     "defaultAvatar": "Avatar",
     "menuProfile": "Perfil",
@@ -65,7 +67,8 @@
   },
   "Dashboard": {
     "page": {
-      "title": "Panel",
+      "welcome": "Bienvenido, {name}",
+      "defaultUser": "Usuario",
       "description": "Analítica en vivo de conversaciones, contactos, negocios, difusiones y automatizaciones.",
       "activeConversations": "Conversaciones activas",
       "newContactsToday": "Nuevos contactos hoy",
@@ -145,7 +148,10 @@
       "clearAll": "Borrar todo",
       "noConversations": "No se encontraron conversaciones",
       "noMessagesYet": "Aún no hay mensajes",
-      "unknown": "Desconocido"
+      "unknown": "Desconocido",
+      "platformWhatsapp": "WhatsApp",
+      "platformInstagram": "Instagram",
+      "platformAll": "Todas"
     },
     "messageThread": {
       "backToConversations": "Volver a conversaciones",
@@ -534,7 +540,8 @@
     },
     "board": {
       "dropDealHere": "Suelta un negocio aquí",
-      "addDeal": "Agregar negocio"
+      "addDeal": "Agregar negocio",
+      "pipelineValue": "Valor del pipeline"
     },
     "card": {
       "noContact": "Sin contacto",

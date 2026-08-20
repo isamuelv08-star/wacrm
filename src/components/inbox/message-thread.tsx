@@ -25,8 +25,6 @@ import {
   Clock,
   ArrowLeft,
   RefreshCw,
-  PanelRightOpen,
-  PanelRightClose,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { useTranslations } from "next-intl";
@@ -53,6 +51,13 @@ import { TemplatePicker } from "./template-picker";
 import { AiThreadBanner } from "./ai-thread-banner";
 import { buildReplyPreview } from "./reply-quote";
 import { toast } from "sonner";
+import { AvatarRing } from "./platform-accent";
+import {
+  getConversationPlatform,
+  platformSoftBackground,
+  WHATSAPP_TINT,
+  INSTAGRAM_GRADIENT,
+} from "@/lib/inbox/platform";
 
 interface ReplyDraft {
   id: string;
@@ -107,15 +112,6 @@ interface MessageThreadProps {
    * working; the button is only rendered when this is provided.
    */
   onRefresh?: () => void;
-  /**
-   * Desktop-only contact-panel toggle. The page owns the open/closed
-   * state (it's the one that renders the sidebar), so the thread just
-   * reflects it and asks the page to flip it. Both optional so existing
-   * callers keep working; the toggle button only renders when
-   * `onToggleContactPanel` is wired up.
-   */
-  contactPanelOpen?: boolean;
-  onToggleContactPanel?: () => void;
 }
 
 function formatDateSeparator(dateStr: string, t: ReturnType<typeof useTranslations>): string {
@@ -173,8 +169,6 @@ export function MessageThread({
   onBack,
   resyncToken = 0,
   onRefresh,
-  contactPanelOpen,
-  onToggleContactPanel,
 }: MessageThreadProps) {
   const t = useTranslations("Inbox.messageThread");
   const tTimer = useTranslations("Inbox.sessionTimer");
@@ -892,6 +886,7 @@ export function MessageThread({
   }
 
   const displayName = contact.name || contact.phone;
+  const platform = getConversationPlatform(conversation);
   const messageGroups = groupMessagesByDate(messages);
   const currentStatus = STATUS_OPTIONS.find(
     (s) => s.value === conversation.status
@@ -911,7 +906,24 @@ export function MessageThread({
     // clipped and the hover toolbar overlaps the Tags panel. Letting the
     // root shrink lets the bubbles' break-words / max-w caps apply.
     // Issue #257.
-    <div className={cn("flex min-w-0 flex-1 flex-col", DOODLE_BG_CLASSES)}>
+    <div
+      className={cn("flex min-w-0 flex-1 flex-col", DOODLE_BG_CLASSES)}
+      // Full-window wash only for WhatsApp — Instagram's accent stays on
+      // the top bar + avatar ring below rather than tinting the whole
+      // chat surface, per the "just a nod, not the full gradient" brief.
+      style={platform === "whatsapp" ? { backgroundColor: platformSoftBackground("whatsapp", 5) } : undefined}
+    >
+      {/* Platform accent — thin colored bar identifying the conversation's
+          channel (green for WhatsApp, the IG gradient for Instagram) atop
+          the header, same treatment as the pipeline stage cards' accent. */}
+      <div
+        aria-hidden
+        className="h-[3px] shrink-0"
+        style={{
+          backgroundColor: platform === "whatsapp" ? WHATSAPP_TINT : undefined,
+          backgroundImage: platform === "instagram" ? INSTAGRAM_GRADIENT : undefined,
+        }}
+      />
       {/* Header — solid card surface sits on top of the doodle so the
           name/avatar/dropdowns stay legible. */}
       <div className="flex items-center justify-between gap-2 border-b border-border bg-card px-3 py-3 sm:px-4">
@@ -928,9 +940,11 @@ export function MessageThread({
               <ArrowLeft className="h-5 w-5" />
             </button>
           )}
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
-            {displayName.charAt(0).toUpperCase()}
-          </div>
+          <AvatarRing platform={platform} sizeClass="h-9 w-9">
+            <div className="flex h-full w-full items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
+              {displayName.charAt(0).toUpperCase()}
+            </div>
+          </AvatarRing>
           <div className="min-w-0">
             <h2 className="truncate text-sm font-semibold text-foreground">{displayName}</h2>
             <p className="truncate text-xs text-muted-foreground">{contact.phone}</p>
@@ -950,33 +964,6 @@ export function MessageThread({
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Contact-panel toggle — desktop only. The contact sidebar
-              eats a chunk of horizontal width that crowds the thread on
-              smaller laptops; this lets agents reclaim it when they just
-              want to read and reply. Hidden on mobile, where the sidebar
-              never renders as a permanent panel anyway. Issue #258. */}
-          {onToggleContactPanel && (
-            <button
-              type="button"
-              onClick={onToggleContactPanel}
-              aria-label={
-                contactPanelOpen ? t("hideContactPanel") : t("showContactPanel")
-              }
-              title={contactPanelOpen ? t("hideContact") : t("showContact")}
-              aria-pressed={contactPanelOpen}
-              className={cn(
-                "hidden h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-muted hover:text-foreground lg:inline-flex",
-                contactPanelOpen ? "text-primary" : "text-muted-foreground",
-              )}
-            >
-              {contactPanelOpen ? (
-                <PanelRightClose className="h-4 w-4" />
-              ) : (
-                <PanelRightOpen className="h-4 w-4" />
-              )}
-            </button>
-          )}
-
           {/* Manual refresh — forces a refetch of the messages + the
               conversation list (the parent bumps its resyncToken). Useful
               when realtime missed an event or the agent just wants to be
@@ -1157,6 +1144,7 @@ export function MessageThread({
                           currentUserId={user?.id}
                           onToggleReaction={handlePillToggle}
                           onOpenMedia={handleMediaChange}
+                          platform={platform}
                         />
                       </MessageActions>
                     );

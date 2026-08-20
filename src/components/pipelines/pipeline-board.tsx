@@ -17,10 +17,58 @@ import {
 import type { Deal, PipelineStage } from "@/types";
 import { DealCard } from "./deal-card";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import {
+  Plus,
+  UserPlus,
+  PhoneCall,
+  Star,
+  FileText,
+  Handshake,
+  Trophy,
+  XCircle,
+  Layers,
+  Target,
+  Flag,
+  CircleDot,
+  type LucideIcon,
+} from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { formatCurrency } from "@/lib/currency";
 import { useTranslations } from "next-intl";
+
+// Stage names are freely renamed by the user (no fixed enum), so the icon
+// is picked heuristically off common English/Spanish/Portuguese wording,
+// with a position-based fallback cycle for anything unmatched — keeps
+// every column feeling distinct even for fully custom stage names.
+//
+// The heuristic only ever resolves a *key*; the actual icon component is
+// then looked up from a plain static map (mirroring ROLE_META's pattern
+// in settings/role-meta.ts). Returning a component straight out of a
+// regex-branching function instead trips the "components created during
+// render" check, since the compiler can't prove that kind of function is
+// stable across renders.
+const STAGE_ICON_MAP: Record<string, LucideIcon> = {
+  new: UserPlus,
+  contact: PhoneCall,
+  qualify: Star,
+  proposal: FileText,
+  negotiate: Handshake,
+  won: Trophy,
+  lost: XCircle,
+};
+const STAGE_ICON_FALLBACKS: LucideIcon[] = [Layers, Target, Flag, CircleDot];
+
+function stageIconKey(name: string): string {
+  const n = name.toLowerCase();
+  if (/\b(new|nuevo|novo)\b/.test(n)) return "new";
+  if (/\b(contact|contactad|contato)/.test(n)) return "contact";
+  if (/\b(qualif|calific)/.test(n)) return "qualify";
+  if (/\b(propos|cotiz|orcamento|orçamento)/.test(n)) return "proposal";
+  if (/\b(negoti|nego)/.test(n)) return "negotiate";
+  if (/\b(won|ganado|ganho|cerrad|fechad)/.test(n)) return "won";
+  if (/\b(lost|perdido|perdid)/.test(n)) return "lost";
+  return "";
+}
 
 interface PipelineBoardProps {
   stages: PipelineStage[];
@@ -203,6 +251,10 @@ function StageColumn({
 }) {
   const t = useTranslations("Pipelines.board");
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
+  const iconKey = stageIconKey(stage.name);
+  const StageIcon =
+    STAGE_ICON_MAP[iconKey] ??
+    STAGE_ICON_FALLBACKS[stage.position % STAGE_ICON_FALLBACKS.length];
 
   return (
     // On mobile each column is `w-[85vw]` (with a reasonable min/max)
@@ -211,23 +263,48 @@ function StageColumn({
     // restore the flex-1 share-the-row behavior. The droppable ref is
     // on the inner messages region below — intentionally NOT here, so
     // a drag over the column header doesn't highlight the whole column.
-    <div className="flex w-[85vw] min-w-[260px] max-w-[320px] shrink-0 snap-start flex-col rounded-xl border border-border bg-card/60 p-4 lg:w-auto lg:max-w-none lg:flex-1 lg:basis-[260px] lg:shrink lg:snap-none">
-      {/* 3px colored top border — sits above the column's padding */}
-      <div
-        className="-mx-4 -mt-4 h-[3px] rounded-t-xl"
-        style={{ backgroundColor: stage.color }}
-      />
-      <div className="flex items-center justify-between pt-3">
-        <h3 className="truncate text-sm font-semibold text-foreground">
-          {stage.name}
-        </h3>
-        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-          {deals.length}
+    //
+    // The whole column is tinted with the stage's own color (via
+    // color-mix against the card surface) so it reads as a "vistoso"
+    // KPI tile rather than a flat table column — mirrors the colored
+    // summary-card treatment used elsewhere in the redesign.
+    <div
+      className="flex w-[85vw] min-w-[260px] max-w-[320px] shrink-0 snap-start flex-col rounded-2xl border p-4 shadow-sm shadow-black/5 transition-shadow hover:shadow-md lg:w-auto lg:max-w-none lg:flex-1 lg:basis-[260px] lg:shrink lg:snap-none"
+      style={{
+        backgroundColor: `color-mix(in oklch, ${stage.color} 10%, var(--card))`,
+        borderColor: `color-mix(in oklch, ${stage.color} 28%, var(--border))`,
+      }}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {stage.name}
+          </h3>
+          <p className="mt-1 text-3xl font-bold leading-none text-foreground">
+            {deals.length}
+          </p>
+        </div>
+        <span
+          aria-hidden
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+          style={{
+            backgroundColor: `color-mix(in oklch, ${stage.color} 24%, transparent)`,
+            color: stage.color,
+          }}
+        >
+          <StageIcon className="h-[18px] w-[18px]" />
         </span>
       </div>
-      <p className="text-xs text-muted-foreground">
-        {formatCurrency(totalValue, currency)}
-      </p>
+
+      <div
+        className="mt-3 flex items-center justify-between border-t pt-2 text-xs"
+        style={{ borderColor: `color-mix(in oklch, ${stage.color} 20%, var(--border))` }}
+      >
+        <span className="text-muted-foreground">{t("pipelineValue")}</span>
+        <span className="font-semibold text-foreground">
+          {formatCurrency(totalValue, currency)}
+        </span>
+      </div>
 
       <div
         ref={setNodeRef}

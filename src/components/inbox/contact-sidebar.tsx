@@ -17,6 +17,8 @@ import {
   Building2,
   Sparkles,
   Compass,
+  PanelRightOpen,
+  PanelRightClose,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,6 +52,19 @@ interface ContactSidebarProps {
    *  AiThreadBanner, fed by the same lifted state) stay in sync — see
    *  inbox/page.tsx's handleAiAutoReplyChange. */
   onAiAutoReplyChange?: (conversationId: string, disabled: boolean) => void;
+  /**
+   * Whether the panel is expanded. Defaults to `true` so callers that
+   * don't wire up collapsing just get the panel as before. When `false`,
+   * the panel renders as a slim icon rail instead of unmounting — the
+   * same "always mounted, collapses to a rail" pattern the main nav
+   * Sidebar uses, so the reopen affordance lives on the panel itself
+   * rather than bolted onto an unrelated control elsewhere (previously
+   * the message thread's header, wedged between the status and assign
+   * dropdowns).
+   */
+  open?: boolean;
+  /** Flips `open`. Omit to render the panel with no collapse control. */
+  onToggle?: () => void;
 }
 
 export function ContactSidebar({
@@ -58,6 +73,8 @@ export function ContactSidebar({
   aiAutoreplyDisabled = false,
   assignedAgentId,
   onAiAutoReplyChange,
+  open = true,
+  onToggle,
 }: ContactSidebarProps) {
   const tSidebar = useTranslations("Inbox.sidebar");
   const tThread = useTranslations("Inbox.messageThread");
@@ -300,10 +317,50 @@ export function ContactSidebar({
     setAddingNote(false);
   }, [contact, newNote, accountId]);
 
+  // Collapsed — a slim icon rail rather than unmounting, so reopening
+  // stays a one-click affordance on the panel itself instead of hunting
+  // for a control somewhere else in the thread header.
+  if (!open) {
+    return (
+      <div className="flex h-full w-12 shrink-0 flex-col items-center border-l border-border bg-card pt-3">
+        {onToggle && (
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-label={tThread("showContactPanel")}
+            title={tThread("showContact")}
+            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <PanelRightOpen className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // Shared header bar — every expanded state (this "no contact selected"
+  // placeholder included) gets the same close control in the same spot.
+  const collapseButton = onToggle && (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-label={tThread("hideContactPanel")}
+      title={tThread("hideContact")}
+      className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+    >
+      <PanelRightClose className="h-4 w-4" />
+    </button>
+  );
+
   if (!contact) {
     return (
-      <div className="flex h-full w-70 items-center justify-center border-l border-border bg-card">
-        <p className="text-sm text-muted-foreground">{tThread("selectConversation")}</p>
+      <div className="flex h-full w-70 flex-col border-l border-border bg-card">
+        <div className="flex h-12 shrink-0 items-center justify-end border-b border-border px-2">
+          {collapseButton}
+        </div>
+        <div className="flex flex-1 items-center justify-center">
+          <p className="text-sm text-muted-foreground">{tThread("selectConversation")}</p>
+        </div>
       </div>
     );
   }
@@ -331,6 +388,9 @@ export function ContactSidebar({
 
   return (
     <div className="flex h-full w-70 flex-col border-l border-border bg-card">
+      <div className="flex h-12 shrink-0 items-center justify-end border-b border-border px-2">
+        {collapseButton}
+      </div>
       <ScrollArea className="flex-1">
         <div className="p-4">
           {/* Contact Info */}

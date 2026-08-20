@@ -2,6 +2,19 @@ import { ArrowDown, ArrowUp, Minus } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { cn } from '@/lib/utils'
 
+export type MetricCardTint = 'blue' | 'green' | 'purple' | 'amber'
+
+// One base hue per card, matched to Tailwind's 500-weight swatches so they
+// read as the same family as the rest of the app's status colors. Blended
+// against `--card` via `color-mix` (not a fixed hex) so the tint stays
+// correct in both light and dark mode and with any accent theme selected.
+const TINT_COLORS: Record<MetricCardTint, string> = {
+  blue: '#3b82f6',
+  green: '#22c55e',
+  purple: '#8b5cf6',
+  amber: '#f59e0b',
+}
+
 interface MetricCardProps {
   title: string
   /** Pre-formatted value for display (e.g. "42" or "$1,250"). */
@@ -19,14 +32,29 @@ interface MetricCardProps {
   }
   /** Used instead of `delta` when the metric has a static subtitle. */
   subtitle?: string
+  /** Per-card accent — each of the four dashboard KPIs gets its own. */
+  tint: MetricCardTint
 }
 
-export function MetricCard({ title, value, icon: Icon, delta, subtitle }: MetricCardProps) {
+export function MetricCard({ title, value, icon: Icon, delta, subtitle, tint }: MetricCardProps) {
+  const color = TINT_COLORS[tint]
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <div
+      className="rounded-2xl border p-5 shadow-md shadow-black/5"
+      style={{
+        backgroundImage: `linear-gradient(135deg, color-mix(in oklch, ${color} 20%, var(--card)), color-mix(in oklch, ${color} 8%, var(--card)))`,
+        borderColor: `color-mix(in oklch, ${color} 25%, var(--border))`,
+      }}
+    >
       <div className="flex items-start justify-between">
         <p className="text-sm font-medium text-muted-foreground">{title}</p>
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+        <div
+          className="flex h-8 w-8 items-center justify-center rounded-lg"
+          style={{
+            backgroundColor: `color-mix(in oklch, ${color} 26%, transparent)`,
+            color,
+          }}
+        >
           <Icon className="h-4 w-4" />
         </div>
       </div>

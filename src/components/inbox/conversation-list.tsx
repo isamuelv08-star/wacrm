@@ -9,7 +9,7 @@ import {
 } from "@/lib/inbox/conversations";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus, Tag } from "@/types";
-import { Search, ChevronDown, X } from "lucide-react";
+import { Search, ChevronDown, X, Inbox, MessageCircle, Camera } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { LeadScoreBadge } from "@/components/leads/lead-score-badge";
+import { PlatformIcon, AvatarRing } from "./platform-accent";
+import {
+  getConversationPlatform,
+  platformSoftBackground,
+  WHATSAPP_TINT,
+  INSTAGRAM_GRADIENT,
+  type ConversationPlatform,
+} from "@/lib/inbox/platform";
 
 interface ConversationListProps {
   activeConversationId: string | null;
@@ -46,6 +54,14 @@ const STATUS_COLORS: Record<ConversationStatus, string> = {
 
 
 type InboxFilter = ConversationStatus | "all" | "unread";
+type PlatformFilter = ConversationPlatform | "all";
+
+// Session-only (not localStorage) per the platform filter's own persistence
+// scope — it should survive navigating around the inbox but not outlive the
+// browsing session, unlike the contact-panel open/closed preference.
+const PLATFORM_FILTER_STORAGE_KEY = "scalingcrm:inbox:platform-filter";
+
+const PLATFORM_TAB_ORDER: PlatformFilter[] = ["whatsapp", "instagram", "all"];
 
 export function ConversationList({
   activeConversationId,
@@ -67,6 +83,28 @@ export function ConversationList({
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<InboxFilter>("all");
   const [loading, setLoading] = useState(true);
+  // Platform tab (WhatsApp / Instagram / Todas). Session-scoped — restored
+  // from sessionStorage after mount (not read in the initializer, so SSR
+  // and first client render agree and there's no hydration mismatch).
+  const [platformFilter, setPlatformFilter] = useState<PlatformFilter>("all");
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem(PLATFORM_FILTER_STORAGE_KEY);
+      if (stored === "all" || stored === "whatsapp" || stored === "instagram") {
+        setPlatformFilter(stored);
+      }
+    } catch {
+      // sessionStorage can throw in private-browsing / sandboxed contexts.
+    }
+  }, []);
+  const handlePlatformFilterChange = useCallback((value: PlatformFilter) => {
+    setPlatformFilter(value);
+    try {
+      sessionStorage.setItem(PLATFORM_FILTER_STORAGE_KEY, value);
+    } catch {
+      // Persistence is best-effort; ignore storage failures.
+    }
+  }, []);
   // Contact-based filters (issue #272). Tags use OR logic (a conversation
   // matches if its contact carries any selected tag), consistent with
   // Broadcast audience filtering. Company is an exact match on the field.
@@ -162,6 +200,12 @@ export function ConversationList({
   const filtered = useMemo(() => {
     let result = conversations;
 
+    if (platformFilter !== "all") {
+      result = result.filter(
+        (c) => getConversationPlatform(c) === platformFilter,
+      );
+    }
+
     if (filter === "unread") {
       result = result.filter((c) => c.unread_count > 0);
     } else if (filter !== "all") {
@@ -189,7 +233,7 @@ export function ConversationList({
     }
 
     return result;
-  }, [conversations, filter, search, selectedTagIds, selectedCompany]);
+  }, [conversations, platformFilter, filter, search, selectedTagIds, selectedCompany]);
 
   const toggleTag = useCallback((id: string) => {
     setSelectedTagIds((prev) =>
@@ -225,6 +269,52 @@ export function ConversationList({
     // the single pane showing; fixed 320px on desktop where it shares the
     // row with the thread + contact sidebar.
     <div className="flex h-full w-full flex-col border-r border-border bg-card lg:w-80">
+      {/* Platform tabs — WhatsApp / Instagram / Todas as a filled pill
+          segmented control. The active pill is solid-filled with that
+          platform's own accent (Instagram's gradient, WhatsApp's green);
+          "Todas" fills with the app's theme primary since it isn't
+          platform-specific. Inactive pills sit on a flat muted fill so
+          the active one reads clearly as "selected", not just underlined. */}
+      <div className="flex items-center gap-1.5 border-b border-border px-3 py-2.5">
+        {PLATFORM_TAB_ORDER.map((tab) => {
+          const isActive = platformFilter === tab;
+          const label =
+            tab === "whatsapp"
+              ? t("platformWhatsapp")
+              : tab === "instagram"
+                ? t("platformInstagram")
+                : t("platformAll");
+          const Icon = tab === "whatsapp" ? MessageCircle : tab === "instagram" ? Camera : Inbox;
+          return (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => handlePlatformFilterChange(tab)}
+              className={cn(
+                "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all",
+                isActive
+                  ? "text-white shadow-sm"
+                  : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+              style={
+                isActive
+                  ? {
+                      backgroundColor: tab === "whatsapp" ? WHATSAPP_TINT : undefined,
+                      backgroundImage: tab === "instagram" ? INSTAGRAM_GRADIENT : undefined,
+                      ...(tab === "all"
+                        ? { backgroundColor: "var(--primary)", color: "var(--primary-foreground)" }
+                        : null),
+                    }
+                  : undefined
+              }
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
       {/* Search + Filter */}
       <div className="space-y-2 border-b border-border p-3">
         <div className="relative">
@@ -397,7 +487,14 @@ export function ConversationList({
           every conversation instead of shrinking to the remaining
           space — the list then overflows and gets clipped by the
           parent's overflow-hidden with no scrollbar (issue #229). */}
-      <ScrollArea className="min-h-0 flex-1">
+      <ScrollArea
+        className="min-h-0 flex-1"
+        style={
+          platformFilter !== "all"
+            ? { background: platformSoftBackground(platformFilter, 6, "--card") }
+            : undefined
+        }
+      >
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -415,6 +512,7 @@ export function ConversationList({
                 isActive={conv.id === activeConversationId}
                 onSelect={handleSelect}
                 t={t}
+                showPlatformBadge={platformFilter === "all"}
               />
             ))}
           </div>
@@ -429,6 +527,7 @@ interface ConversationItemProps {
   isActive: boolean;
   onSelect: (conversation: Conversation) => void;
   t: ReturnType<typeof useTranslations>;
+  showPlatformBadge: boolean;
 }
 
 function ConversationItem({
@@ -436,10 +535,12 @@ function ConversationItem({
   isActive,
   onSelect,
   t,
+  showPlatformBadge,
 }: ConversationItemProps) {
   const contact = conversation.contact;
   const displayName = contact?.name || contact?.phone || t("unknown");
   const initials = displayName.charAt(0).toUpperCase();
+  const platform = getConversationPlatform(conversation);
 
   const handleClick = useCallback(() => {
     onSelect(conversation);
@@ -459,16 +560,27 @@ function ConversationItem({
         isActive && "border-l-2 border-primary bg-muted/70"
       )}
     >
-      {/* Avatar */}
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
-        {contact?.avatar_url ? (
-          <img
-            src={contact.avatar_url}
-            alt={displayName}
-            className="h-10 w-10 rounded-full object-cover"
-          />
-        ) : (
-          initials
+      {/* Avatar — Instagram conversations get the gradient "story ring";
+          the platform badge (only shown on the "Todas" tab) sits at the
+          bottom-right corner so a mixed list stays scannable. */}
+      <div className="relative shrink-0">
+        <AvatarRing platform={platform} sizeClass="h-10 w-10">
+          <div className="flex h-full w-full items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
+            {contact?.avatar_url ? (
+              <img
+                src={contact.avatar_url}
+                alt={displayName}
+                className="h-full w-full rounded-full object-cover"
+              />
+            ) : (
+              initials
+            )}
+          </div>
+        </AvatarRing>
+        {showPlatformBadge && (
+          <span className="absolute -bottom-0.5 -right-0.5">
+            <PlatformIcon platform={platform} className="h-2.5 w-2.5" />
+          </span>
         )}
       </div>
 

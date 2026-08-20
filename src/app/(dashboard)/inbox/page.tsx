@@ -644,26 +644,26 @@ function InboxPageInner() {
             onBack={handleCloseConversation}
             resyncToken={resyncToken}
             onRefresh={handleManualRefresh}
-            contactPanelOpen={contactPanelOpen}
-            onToggleContactPanel={handleToggleContactPanel}
           />
         </div>
 
-        {/* Right panel: Contact sidebar — desktop only, and only when the
-            agent hasn't collapsed it via the thread-header toggle (#258).
-            On mobile it's always hidden (the `lg:block` below), so the
-            toggle — which is itself desktop-only — never affects it. */}
-        {contactPanelOpen && (
-          <div className="hidden lg:block">
-            <ContactSidebar
-              contact={activeContact}
-              conversationId={activeConversation?.id ?? null}
-              aiAutoreplyDisabled={activeConversation?.ai_autoreply_disabled ?? false}
-              assignedAgentId={activeConversation?.assigned_agent_id ?? null}
-              onAiAutoReplyChange={handleAiAutoReplyChange}
-            />
-          </div>
-        )}
+        {/* Right panel: Contact sidebar — desktop only. Always mounted
+            (unlike before #258's rework) so its own collapse toggle keeps
+            working when the agent has it collapsed — a slim icon rail
+            instead of unmounting outright, the same pattern the main nav
+            Sidebar uses. On mobile it's always hidden (the `lg:block`
+            below); the toggle is itself desktop-only. */}
+        <div className="hidden lg:block">
+          <ContactSidebar
+            contact={activeContact}
+            conversationId={activeConversation?.id ?? null}
+            aiAutoreplyDisabled={activeConversation?.ai_autoreply_disabled ?? false}
+            assignedAgentId={activeConversation?.assigned_agent_id ?? null}
+            onAiAutoReplyChange={handleAiAutoReplyChange}
+            open={contactPanelOpen}
+            onToggle={handleToggleContactPanel}
+          />
+        </div>
       </div>
     </div>
   );

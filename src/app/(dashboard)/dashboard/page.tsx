@@ -40,7 +40,7 @@ type RangeDays = 7 | 30 | 90
 
 export default function DashboardPage() {
   const t = useTranslations('Dashboard.page')
-  const { defaultCurrency } = useAuth()
+  const { profile, defaultCurrency } = useAuth()
   const [metrics, setMetrics] = useState<MetricsBundle | null>(null)
   const [metricsLoading, setMetricsLoading] = useState(true)
 
@@ -123,9 +123,12 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
+      {/* Header — greets the signed-in user by name (falls back to a
+          generic label while the profile is still loading / unset). */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
+        <h1 className="text-2xl font-bold text-foreground">
+          {t('welcome', { name: profile?.full_name || t('defaultUser') })}
+        </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {t('description')}
         </p>
@@ -141,6 +144,7 @@ export default function DashboardPage() {
               title={t('activeConversations')}
               value={metrics.activeConversations.current.toLocaleString()}
               icon={MessageSquare}
+              tint="blue"
               delta={{
                 sign: metrics.activeConversations.previous,
                 label: deltaLabel(
@@ -154,6 +158,7 @@ export default function DashboardPage() {
               title={t('newContactsToday')}
               value={metrics.newContactsToday.current.toLocaleString()}
               icon={UserPlus}
+              tint="green"
               delta={{
                 sign:
                   metrics.newContactsToday.current - metrics.newContactsToday.previous,
@@ -168,12 +173,14 @@ export default function DashboardPage() {
               title={t('openDealsValue')}
               value={formatCurrency(metrics.openDealsValue, defaultCurrency)}
               icon={DollarSign}
+              tint="purple"
               subtitle={t('openDeals', { count: metrics.openDealsCount })}
             />
             <MetricCard
               title={t('messagesSentToday')}
               value={metrics.messagesSentToday.current.toLocaleString()}
               icon={Send}
+              tint="amber"
               delta={{
                 sign:
                   metrics.messagesSentToday.current - metrics.messagesSentToday.previous,
