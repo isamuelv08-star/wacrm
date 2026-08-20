@@ -1078,8 +1078,10 @@ export function MessageThread({
         </div>
       </div>
 
-      {/* Messages Area */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
+      {/* Messages Area — `chat-scroll` swaps the browser's default (thick,
+          square, mismatched-with-theme) scrollbar for a thin themed one,
+          same treatment pipeline-board.tsx's horizontal scroll uses. */}
+      <div ref={scrollRef} className="chat-scroll flex-1 overflow-y-auto px-4 py-4">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -1199,6 +1201,26 @@ export function MessageThread({
         onActiveIdChange={handleMediaChange}
         contactLabel={contactDisplayName}
       />
+
+      <style jsx>{`
+        .chat-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: var(--border) transparent;
+        }
+        .chat-scroll::-webkit-scrollbar {
+          width: 8px;
+        }
+        .chat-scroll::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .chat-scroll::-webkit-scrollbar-thumb {
+          background-color: var(--border);
+          border-radius: 9999px;
+        }
+        .chat-scroll::-webkit-scrollbar-thumb:hover {
+          background-color: var(--muted-foreground);
+        }
+      `}</style>
     </div>
   );
 }

@@ -25,11 +25,9 @@
  *   - Canvas-view UI state (selected node id, side-sheet open) —
  *     those are canvas-only and stay in `flow-canvas.tsx`.
  *
- * `removeNode` does NOT auto-clean inbound edges. The list-view's
- * NodeKeySelect dropdowns and the validator both surface dangling
- * `next_node_key` references; that visibility is enough for v1. PR 2b
- * (canvas delete via keyboard) will revisit if the canvas adds an
- * implicit-delete affordance that's easier to trip accidentally.
+ * `removeNode` auto-unlinks inbound edges (via `unlinkNodeReferences`)
+ * so canvas / list deletes never leave a dangling `next_node_key`
+ * pointing at a node that no longer exists.
  */
 
 import {

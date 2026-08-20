@@ -132,7 +132,88 @@ export function validateFlowForActivation(
     }
   }
 
+  // Cycles among auto-advancing nodes — independent of reachability
+  // (a cyclic node can be perfectly reachable and still be a problem).
+  for (const key of autoAdvancingCycleNodes(nodes)) {
+    issues.push({
+      severity: "error",
+      scope: "node",
+      node_key: key,
+      message:
+        "This node is part of a loop with nothing that pauses it (no button, list, or question node in between) — the flow engine would fire messages back-to-back until its safety limit cuts the run off. Break the loop with a send-buttons/send-list/collect-input node, or repoint one of these nodes.",
+    });
+  }
+
   return issues;
+}
+
+// ============================================================
+// Cycle detection among auto-advancing nodes
+// ============================================================
+
+/**
+ * `start` / `send_message` / `send_media` / `condition` / `set_tag` all
+ * advance to their next node synchronously, without waiting for a
+ * customer reply (mirrors `isAutoAdvancing` in engine.ts — duplicated
+ * here rather than imported so this validator, which the builder calls
+ * client-side too, doesn't pull in the server-only engine module).
+ *
+ * A cycle made up entirely of these node types has nothing to break
+ * it — the engine just keeps advancing node-to-node inside the same
+ * webhook call until `advanceFromNodeKey`'s hardcoded 64-iteration
+ * safety cap kills the run as `advance_loop_overflow`, after firing up
+ * to that many outbound WhatsApp messages in one burst. A cycle that
+ * passes through a suspending node (send_buttons/send_list/
+ * collect_input) is fine — the run stops there each time and waits for
+ * the next customer message — so those are deliberately excluded.
+ */
+const AUTO_ADVANCING_TYPES = new Set([
+  "start",
+  "send_message",
+  "send_media",
+  "condition",
+  "set_tag",
+]);
+
+function autoAdvancingCycleNodes(nodes: NodeInput[]): Set<string> {
+  const byKey = new Map<string, NodeInput>();
+  for (const n of nodes) byKey.set(n.node_key, n);
+
+  const autoAdvancing = new Set(
+    nodes
+      .filter((n) => AUTO_ADVANCING_TYPES.has(n.node_type))
+      .map((n) => n.node_key),
+  );
+
+  const cyclic = new Set<string>();
+  const state = new Map<string, "visiting" | "done">();
+
+  function visit(key: string, stack: string[]): void {
+    if (state.get(key) === "done") return;
+    if (state.get(key) === "visiting") {
+      // Back-edge — every node from `key`'s first occurrence onward is
+      // part of the cycle.
+      const start = stack.indexOf(key);
+      for (const k of stack.slice(start)) cyclic.add(k);
+      return;
+    }
+    state.set(key, "visiting");
+    stack.push(key);
+    const node = byKey.get(key);
+    if (node) {
+      for (const next of outgoingEdges(node)) {
+        if (autoAdvancing.has(next)) visit(next, stack);
+      }
+    }
+    stack.pop();
+    state.set(key, "done");
+  }
+
+  for (const key of autoAdvancing) {
+    if (!state.has(key)) visit(key, []);
+  }
+
+  return cyclic;
 }
 
 // ============================================================

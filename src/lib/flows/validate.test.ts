@@ -547,3 +547,63 @@ describe("reachableFromEntry", () => {
     expect(set).toEqual(new Set(["a", "b"]));
   });
 });
+
+describe("validateFlowForActivation — auto-advancing cycles", () => {
+  it("flags a tight loop of auto-advancing nodes", () => {
+    // start -> a -> b -> a: `a` and `b` are both send_message
+    // (auto-advancing), so the engine would fire them back-to-back
+    // forever with nothing to suspend the run.
+    const nodes = [
+      { node_key: "start", node_type: "start", config: { next_node_key: "a" } },
+      {
+        node_key: "a",
+        node_type: "send_message",
+        config: { text: "A", next_node_key: "b" },
+      },
+      {
+        node_key: "b",
+        node_type: "send_message",
+        config: { text: "B", next_node_key: "a" },
+      },
+    ];
+    const issues = validateFlowForActivation(
+      { ...validFlow, entry_node_id: "start" },
+      nodes,
+    );
+    expect(
+      issues.some((i) => i.severity === "error" && i.node_key === "a"),
+    ).toBe(true);
+    expect(
+      issues.some((i) => i.severity === "error" && i.node_key === "b"),
+    ).toBe(true);
+  });
+
+  it("does not flag a cycle broken by a suspending node", () => {
+    // Same shape as reachableFromEntry's "survives a cycle" case —
+    // send_buttons suspends the run each pass, so the loop is legit.
+    const nodes = [
+      { node_key: "a", node_type: "start", config: { next_node_key: "b" } },
+      {
+        node_key: "b",
+        node_type: "send_buttons",
+        config: {
+          text: "Loop",
+          buttons: [{ reply_id: "x", title: "Back", next_node_key: "a" }],
+        },
+      },
+    ];
+    const issues = validateFlowForActivation(
+      { ...validFlow, entry_node_id: "a" },
+      nodes,
+    );
+    expect(issues.some((i) => i.message.includes("loop"))).toBe(false);
+  });
+
+  it("does not flag a normal, acyclic flow", () => {
+    expect(
+      validateFlowForActivation(validFlow, validNodes).some((i) =>
+        i.message.includes("loop"),
+      ),
+    ).toBe(false);
+  });
+});

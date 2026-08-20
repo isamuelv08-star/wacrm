@@ -1,8 +1,10 @@
 import { timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
-import { resumePendingExecution } from '@/lib/automations/engine'
+import { resumePendingExecution, executeAutomation } from '@/lib/automations/engine'
 import type { AutomationContext } from '@/lib/automations/engine'
+import { isTimeBasedAutomationDue } from '@/lib/automations/schedule'
+import type { Automation, TimeBasedTriggerConfig } from '@/types'
 
 /**
  * Drain due `automation_pending_executions` rows. Meant to be hit
@@ -70,5 +72,66 @@ export async function GET(request: Request) {
     processed++
   }
 
-  return NextResponse.json({ processed })
+  const scheduledFired = await fireDueTimeBasedAutomations(admin)
+
+  return NextResponse.json({ processed, scheduledFired })
+}
+
+/**
+ * Fires every active `time_based` automation whose schedule is due.
+ *
+ * Reuses `automations.last_executed_at` as the idempotency marker
+ * (already bumped by `increment_automation_execution_count` at the end
+ * of every run, time_based or not — no schema change needed) instead
+ * of a separate scheduling table. The claim step below still bumps it
+ * up front, before `executeAutomation` runs: a slow automation could
+ * otherwise still be mid-run on the NEXT cron tick, whose `SELECT` read
+ * the same stale `last_executed_at` and would double-fire without this.
+ */
+async function fireDueTimeBasedAutomations(
+  admin: ReturnType<typeof supabaseAdmin>,
+): Promise<number> {
+  const { data: candidates, error } = await admin
+    .from('automations')
+    .select('*')
+    .eq('trigger_type', 'time_based')
+    .eq('is_active', true)
+
+  if (error) {
+    console.error('[automations cron] time_based fetch failed:', error)
+    return 0
+  }
+  if (!candidates || candidates.length === 0) return 0
+
+  const now = new Date()
+  const nowIso = now.toISOString()
+  let fired = 0
+
+  for (const automation of candidates as Automation[]) {
+    const cfg = automation.trigger_config as TimeBasedTriggerConfig
+    if (!cfg?.schedule) continue
+    if (!isTimeBasedAutomationDue(cfg.schedule, cfg.timezone, automation.last_executed_at, now)) {
+      continue
+    }
+
+    let claim = admin
+      .from('automations')
+      .update({ last_executed_at: nowIso })
+      .eq('id', automation.id)
+    claim = automation.last_executed_at
+      ? claim.eq('last_executed_at', automation.last_executed_at)
+      : claim.is('last_executed_at', null)
+    const { data: claimed } = await claim.select('id').maybeSingle()
+    if (!claimed) continue // another invocation (or a run still in flight) beat us to it
+
+    await executeAutomation(automation, {
+      accountId: automation.account_id,
+      triggerType: 'time_based',
+      contactId: null,
+      context: {},
+    })
+    fired++
+  }
+
+  return fired
 }

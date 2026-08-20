@@ -933,7 +933,9 @@
       "replyIdsHint": "yes, no, more_info",
       "replyIdsHelp": "IDs de botón/fila de lista separados por comas para coincidencia exacta. Usa los mismos IDs que configuraste en un paso de Enviar botones / Enviar lista.",
       "schedule": "Horario",
-      "scheduleHint": "Expresión cron (p. ej. 0 9 * * 1-5)",
+      "scheduleHint": "Hora del día en formato 24h, HH:mm (p. ej. 09:00). Se repite todos los días.",
+      "timezone": "Zona horaria",
+      "timezoneHint": "Nombre de zona horaria IANA (p. ej. America/Guayaquil). Si se deja vacío, se usa UTC.",
       "active": "Activo",
       "activeAria": "Activo",
       "save": "Guardar",
@@ -1035,7 +1037,6 @@
   "Flows": {
     "list": {
       "title": "Flujos",
-      "beta": "Beta",
       "description": "Crea conversaciones de WhatsApp ramificadas y basadas en botones. Útil para menús, preguntas frecuentes y clasificación antes de que intervenga un humano.",
       "newFlow": "Nuevo flujo",
       "statusDraft": "Borrador",

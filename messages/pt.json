@@ -933,7 +933,9 @@
       "replyIdsHint": "sim, não, mais_info",
       "replyIdsHelp": "IDs de botão/linha de lista separados por vírgula, para correspondência exata. Use os mesmos ids definidos em uma etapa de Enviar Botões / Enviar Lista.",
       "schedule": "Agendamento",
-      "scheduleHint": "Expressão cron (ex.: 0 9 * * 1-5)",
+      "scheduleHint": "Horário do dia em formato 24h, HH:mm (ex.: 09:00). Repete todos os dias.",
+      "timezone": "Fuso horário",
+      "timezoneHint": "Nome de fuso horário IANA (ex.: America/Guayaquil). Se deixado em branco, usa UTC.",
       "active": "Ativa",
       "activeAria": "Ativa",
       "save": "Salvar",
@@ -1035,7 +1037,6 @@
   "Flows": {
     "list": {
       "title": "Fluxos",
-      "beta": "Beta",
       "description": "Crie conversas ramificadas do WhatsApp guiadas por botões. Útil para menus, perguntas frequentes e triagem antes que um humano assuma.",
       "newFlow": "Novo fluxo",
       "statusDraft": "Rascunho",

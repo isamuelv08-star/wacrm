@@ -174,7 +174,16 @@ export async function resumePendingExecution(pending: {
 // Internal execution
 // ------------------------------------------------------------
 
-async function executeAutomation(automation: Automation, input: DispatchInput) {
+/**
+ * Runs one automation's steps end-to-end and logs the result.
+ *
+ * Exported (not just called internally from `runAutomationsForTrigger`)
+ * so the cron endpoint can execute a specific `time_based` automation
+ * directly once it's confirmed due — `runAutomationsForTrigger`'s
+ * `triggerMatches` has no schedule awareness and would fire every
+ * active time_based automation unconditionally, not just the due ones.
+ */
+export async function executeAutomation(automation: Automation, input: DispatchInput) {
   const db = supabaseAdmin()
 
   const { data: log, error: logErr } = await db

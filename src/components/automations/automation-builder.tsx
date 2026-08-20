@@ -861,21 +861,39 @@ function TriggerCard({
               </div>
             )}
             {type === "time_based" && (
-              <div>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                  {t("schedule")}
-                </label>
-                <Input
-                  placeholder="Cron expression or HH:mm"
-                  value={(config.schedule as string) ?? ""}
-                  onChange={(e) =>
-                    onConfigChange({ ...config, schedule: e.target.value })
-                  }
-                  className="bg-muted text-foreground"
-                />
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  {t("scheduleHint")}
-                </p>
+              <div className="space-y-3">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                    {t("schedule")}
+                  </label>
+                  <Input
+                    placeholder="09:00"
+                    value={(config.schedule as string) ?? ""}
+                    onChange={(e) =>
+                      onConfigChange({ ...config, schedule: e.target.value })
+                    }
+                    className="bg-muted text-foreground"
+                  />
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {t("scheduleHint")}
+                  </p>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                    {t("timezone")}
+                  </label>
+                  <Input
+                    placeholder="America/Guayaquil"
+                    value={(config.timezone as string) ?? ""}
+                    onChange={(e) =>
+                      onConfigChange({ ...config, timezone: e.target.value })
+                    }
+                    className="bg-muted text-foreground"
+                  />
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {t("timezoneHint")}
+                  </p>
+                </div>
               </div>
             )}
           </div>

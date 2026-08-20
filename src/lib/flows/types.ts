@@ -177,12 +177,14 @@ export interface SetTagNodeConfig {
 export type EndNodeConfig = Record<string, never>;
 
 /**
- * Total union — every concrete node_type the v1 engine understands.
+ * Total union — every concrete node_type the engine understands.
  * Add new node types here and the engine's switch will flag missing
  * cases via TypeScript's exhaustiveness check.
  *
- * v1.5+ additions (collect_input, condition, set_tag, http_fetch) will
- * extend this union — out-of-scope for the v1 engine PR.
+ * collect_input / condition / set_tag shipped after the initial v1 PR
+ * but are fully implemented (engine.ts, validate.ts, and the builder
+ * forms all handle all ten types below). `http_fetch` is the one
+ * still-hypothetical future addition — not started.
  */
 export type FlowNodeConfig =
   | { node_type: "start"; config: StartNodeConfig }

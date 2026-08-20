@@ -1,5 +1,6 @@
 import type { AutomationTriggerType } from '@/types'
 import { validateInteractivePayload } from '@/lib/whatsapp/interactive'
+import { isValidSchedule, isValidTimezone } from './schedule'
 
 // ------------------------------------------------------------
 // Pre-flight config validation for automations about to be activated.
@@ -185,6 +186,19 @@ export function validateTriggerForActivation(
   } else if (triggerType === 'time_based') {
     if (!nonEmpty(cfg.schedule)) {
       issues.push({ path: 'trigger.schedule', message: 'schedule is required' })
+    } else if (!isValidSchedule(cfg.schedule as string)) {
+      // Only a daily "HH:mm" (24h) schedule actually executes today —
+      // see schedule.ts's doc comment for why cron expressions aren't
+      // supported yet. Rejecting anything else here (rather than
+      // accepting it and letting it silently never fire) is the whole
+      // point of this check.
+      issues.push({
+        path: 'trigger.schedule',
+        message: 'schedule must be a 24h time in HH:mm format, e.g. "09:00"',
+      })
+    }
+    if (nonEmpty(cfg.timezone) && !isValidTimezone(cfg.timezone as string)) {
+      issues.push({ path: 'trigger.timezone', message: 'timezone is not a recognized IANA zone name' })
     }
   } else if (triggerType === 'tag_added') {
     if (!nonEmpty(cfg.tag_id)) {

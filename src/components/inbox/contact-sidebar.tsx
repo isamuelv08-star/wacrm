@@ -368,7 +368,13 @@ export function ContactSidebar({
       <div className="flex h-12 shrink-0 items-center justify-end border-b border-border px-2">
         {collapseButton}
       </div>
-      <ScrollArea className="flex-1">
+      {/* `min-h-0` is load-bearing: a flex child defaults to
+          min-height:auto, so without it this ScrollArea grows to fit
+          all its content (contact info, custom fields, deals, notes...)
+          instead of shrinking to the remaining space — it then just
+          stops scrolling once content exceeds the viewport, same bug
+          conversation-list.tsx hit (issue #229). */}
+      <ScrollArea className="min-h-0 flex-1">
         <div className="p-4">
           {/* Contact Info */}
           <div className="flex flex-col items-center text-center">

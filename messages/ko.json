@@ -933,7 +933,9 @@
       "replyIdsHint": "yes, no, more_info",
       "replyIdsHelp": "정확히 일치시킬 버튼/목록 행 id를 쉼표로 구분해 입력하세요. 버튼 보내기 / 목록 보내기 단계에서 설정한 것과 같은 id를 사용하세요.",
       "schedule": "일정",
-      "scheduleHint": "Cron 표현식 (예: 0 9 * * 1-5)",
+      "scheduleHint": "24시간 형식의 시각, HH:mm (예: 09:00). 매일 반복됩니다.",
+      "timezone": "표준 시간대",
+      "timezoneHint": "IANA 표준 시간대 이름 (예: America/Guayaquil). 비워두면 UTC가 사용됩니다.",
       "active": "활성",
       "activeAria": "활성",
       "save": "저장",
@@ -1035,7 +1037,6 @@
   "Flows": {
     "list": {
       "title": "플로우",
-      "beta": "베타",
       "description": "분기하는 버튼 기반 WhatsApp 대화를 만드세요. 메뉴, FAQ, 사람이 개입하기 전 1차 응대에 유용합니다.",
       "newFlow": "새 플로우",
       "statusDraft": "초안",

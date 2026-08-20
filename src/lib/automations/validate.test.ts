@@ -266,7 +266,41 @@ describe("validateTriggerForActivation", () => {
       { path: "trigger.schedule", message: "schedule is required" },
     ]);
     expect(
-      validateTriggerForActivation("time_based", { schedule: "0 9 * * *" }),
+      validateTriggerForActivation("time_based", { schedule: "09:00" }),
+    ).toEqual([]);
+  });
+
+  it("rejects a time_based schedule that isn't HH:mm (e.g. a cron expression)", () => {
+    // Only HH:mm actually executes (schedule.ts) — accepting anything
+    // else here would let an automation activate clean and then just
+    // never fire, which is the exact bug this validation exists to close.
+    const issues = validateTriggerForActivation("time_based", {
+      schedule: "0 9 * * *",
+    });
+    expect(issues).toEqual([
+      {
+        path: "trigger.schedule",
+        message: 'schedule must be a 24h time in HH:mm format, e.g. "09:00"',
+      },
+    ]);
+  });
+
+  it("rejects an unrecognized time_based timezone", () => {
+    const issues = validateTriggerForActivation("time_based", {
+      schedule: "09:00",
+      timezone: "Not/A_Real_Zone",
+    });
+    expect(issues).toEqual([
+      { path: "trigger.timezone", message: "timezone is not a recognized IANA zone name" },
+    ]);
+  });
+
+  it("accepts a time_based trigger with a valid schedule + timezone", () => {
+    expect(
+      validateTriggerForActivation("time_based", {
+        schedule: "09:00",
+        timezone: "America/Guayaquil",
+      }),
     ).toEqual([]);
   });
 

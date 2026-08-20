@@ -933,7 +933,9 @@
       "replyIdsHint": "yes, no, more_info",
       "replyIdsHelp": "Comma-separated button/list-row ids to match, exact. Use the same ids you set on a Send Buttons / Send List step.",
       "schedule": "Schedule",
-      "scheduleHint": "Cron expression (e.g. 0 9 * * 1-5)",
+      "scheduleHint": "24h time of day, HH:mm (e.g. 09:00). Repeats every day.",
+      "timezone": "Timezone",
+      "timezoneHint": "IANA timezone name (e.g. America/Guayaquil). Defaults to UTC if left empty.",
       "active": "Active",
       "activeAria": "Active",
       "save": "Save",
@@ -1035,7 +1037,6 @@
   "Flows": {
     "list": {
       "title": "Flows",
-      "beta": "Beta",
       "description": "Build branching, button-driven WhatsApp conversations. Useful for menus, FAQs, and triage before a human steps in.",
       "newFlow": "New flow",
       "statusDraft": "Draft",

@@ -55,7 +55,11 @@ export function ValidationPanel() {
         )}
         {t("summary", { errorCount: errors.length, warningCount: warnings.length })}
       </div>
-      <div className="flex flex-col gap-1">
+      {/* Capped + internally scrollable — otherwise this list just keeps
+          growing with every issue and, since it sits below the canvas
+          in a fixed-height column, eats into the canvas's height instead
+          (the more errors/warnings, the smaller the editing area got). */}
+      <div className="themed-scrollbar flex max-h-48 flex-col gap-1 overflow-y-auto pr-1">
         {issues.map((i, ix) => (
           <IssueLine key={ix} issue={i} onJump={requestFlash} t={t} />
         ))}
