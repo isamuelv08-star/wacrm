@@ -23,6 +23,11 @@ export interface AgencyAccountOverview {
   /** Derived client-side-friendly read on `lastActivityAt` — null
    *  means "not stale", so callers can `if (staleness)` directly. */
   staleness: { neverActive: true } | { daysSinceActivity: number } | null
+  /** True when WhatsApp is disconnected OR the account is stale —
+   *  computed once here so the default sort and the card's "needs
+   *  attention" styling can never disagree on what counts as an
+   *  alert. */
+  hasAlert: boolean
 }
 
 interface AgencyOverviewRow {
@@ -56,6 +61,15 @@ function computeStaleness(
  * comment for why this is safe. Callers MUST have already called
  * requireSuperAdmin() before this — this function does not check
  * identity itself, it trusts the caller did.
+ *
+ * Default order: accounts needing attention (WhatsApp disconnected or
+ * stale) first, so the whole point of the panel — "what needs me
+ * right now" — doesn't require scrolling past healthy accounts to
+ * find. Within each group, biggest open pipeline first — among
+ * healthy accounts that's "which client matters most today"; among
+ * alerted ones it's "which of these is the most costly to keep
+ * ignoring". Re-sort here (not in the SQL view) if this ever needs to
+ * become a user-facing toggle instead of a fixed default.
  */
 export async function loadAgencyOverview(): Promise<AgencyAccountOverview[]> {
   const db = supabaseAdmin()
@@ -69,19 +83,30 @@ export async function loadAgencyOverview(): Promise<AgencyAccountOverview[]> {
     throw new Error('Failed to load agency overview')
   }
 
-  return ((data ?? []) as AgencyOverviewRow[]).map((row) => ({
-    accountId: row.account_id,
-    accountName: row.account_name,
-    accountCreatedAt: row.account_created_at,
-    defaultCurrency: row.default_currency,
-    whatsappStatus: row.whatsapp_status,
-    activeConversations: row.active_conversations,
-    messagesToday: row.messages_today,
-    newLeadsToday: row.new_leads_today,
-    newLeadsWeek: row.new_leads_week,
-    hotLeads: row.hot_leads,
-    openPipelineValue: row.open_pipeline_value,
-    lastActivityAt: row.last_activity_at,
-    staleness: computeStaleness(row.last_activity_at),
-  }))
+  const accounts = ((data ?? []) as AgencyOverviewRow[]).map((row) => {
+    const staleness = computeStaleness(row.last_activity_at)
+    return {
+      accountId: row.account_id,
+      accountName: row.account_name,
+      accountCreatedAt: row.account_created_at,
+      defaultCurrency: row.default_currency,
+      whatsappStatus: row.whatsapp_status,
+      activeConversations: row.active_conversations,
+      messagesToday: row.messages_today,
+      newLeadsToday: row.new_leads_today,
+      newLeadsWeek: row.new_leads_week,
+      hotLeads: row.hot_leads,
+      openPipelineValue: row.open_pipeline_value,
+      lastActivityAt: row.last_activity_at,
+      staleness,
+      hasAlert: row.whatsapp_status !== 'connected' || staleness !== null,
+    }
+  })
+
+  accounts.sort((a, b) => {
+    if (a.hasAlert !== b.hasAlert) return a.hasAlert ? -1 : 1
+    return b.openPipelineValue - a.openPipelineValue
+  })
+
+  return accounts
 }
