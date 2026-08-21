@@ -3,6 +3,7 @@ import { Building2 } from "lucide-react";
 import { requireSuperAdmin } from "@/lib/auth/agency";
 import { loadAgencyOverview } from "@/lib/agency/overview";
 import { AgencyAccountCard } from "@/components/agency/agency-account-card";
+import { CreateClientDialog } from "@/components/agency/create-client-dialog";
 
 export const metadata = {
   title: "Panel de agencia",
@@ -31,14 +32,19 @@ export default async function AgencyPage() {
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="mx-auto max-w-6xl">
-        <div className="flex items-center gap-2">
-          <Building2 className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold text-foreground">Panel de agencia</h1>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <Building2 className="h-6 w-6 text-primary" />
+              <h1 className="text-2xl font-bold text-foreground">Panel de agencia</h1>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Vista de todas las cuentas administradas — {accounts.length}{" "}
+              {accounts.length === 1 ? "cliente" : "clientes"}.
+            </p>
+          </div>
+          <CreateClientDialog />
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Vista de todas las cuentas administradas — {accounts.length}{" "}
-          {accounts.length === 1 ? "cliente" : "clientes"}.
-        </p>
 
         {accounts.length === 0 ? (
           <div className="mt-8 rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">

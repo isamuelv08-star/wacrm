@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clampExpiryDays,
   DEFAULT_INVITE_EXPIRY_DAYS,
   generateInviteToken,
+  getBaseUrl,
   hashInviteToken,
   inviteExpiresAt,
   inviteUrl,
@@ -140,5 +141,66 @@ describe("inviteExpiresAt", () => {
       now.getTime() + MAX_INVITE_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
     );
     expect(out.toISOString()).toBe(expected.toISOString());
+  });
+});
+
+describe("getBaseUrl", () => {
+  const ORIGINAL_ENV = { ...process.env };
+
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    process.env = { ...ORIGINAL_ENV };
+    vi.restoreAllMocks();
+  });
+
+  it("prefers NEXT_PUBLIC_SITE_URL over any header", () => {
+    process.env.NEXT_PUBLIC_SITE_URL = "https://configured.example/";
+    const req = new Request("https://ignored.example/api", {
+      headers: { host: "ignored.example" },
+    });
+    expect(getBaseUrl(req, "test")).toBe("https://configured.example");
+  });
+
+  it("falls back to X-Forwarded-Host / X-Forwarded-Proto", () => {
+    delete process.env.NEXT_PUBLIC_SITE_URL;
+    const req = new Request("https://internal.example/api", {
+      headers: {
+        "x-forwarded-host": "app.example",
+        "x-forwarded-proto": "https",
+      },
+    });
+    expect(getBaseUrl(req, "test")).toBe("https://app.example");
+  });
+
+  it("falls back to the Host header + request protocol when no forwarded headers exist", () => {
+    delete process.env.NEXT_PUBLIC_SITE_URL;
+    const req = new Request("http://bare.example/api", {
+      headers: { host: "bare.example" },
+    });
+    expect(getBaseUrl(req, "test")).toBe("http://bare.example");
+  });
+
+  it("rejects a forwarded host not on ALLOWED_INVITE_HOSTS and falls back to the marketing domain", () => {
+    delete process.env.NEXT_PUBLIC_SITE_URL;
+    process.env.ALLOWED_INVITE_HOSTS = "app.example,other.example";
+    const req = new Request("https://x/api", {
+      headers: {
+        "x-forwarded-host": "phishing.example",
+        host: "phishing.example",
+      },
+    });
+    expect(getBaseUrl(req, "test")).toBe("https://wacrm.tech");
+  });
+
+  it("allows a forwarded host that matches ALLOWED_INVITE_HOSTS", () => {
+    delete process.env.NEXT_PUBLIC_SITE_URL;
+    process.env.ALLOWED_INVITE_HOSTS = "app.example";
+    const req = new Request("https://x/api", {
+      headers: { "x-forwarded-host": "app.example" },
+    });
+    expect(getBaseUrl(req, "test")).toBe("https://app.example");
   });
 });
