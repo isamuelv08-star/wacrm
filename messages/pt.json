@@ -1804,7 +1804,11 @@
       "addDoc": "Adicionar documento",
       "reindex": "Reindexar",
       "reindexTooltip": "Re-vetorizar todos os documentos (ex.: após adicionar uma chave de embeddings)",
-      "loading": "Carregando…"
+      "loading": "Carregando…",
+      "uploadPdf": "Enviar PDF",
+      "uploadSuccess": "\"{title}\" adicionado a partir do PDF.",
+      "uploadFailed": "Falha ao enviar o PDF.",
+      "pdfOnly": "Apenas arquivos PDF são suportados."
     }
   },
   "Leads": {

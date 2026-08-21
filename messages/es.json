@@ -1804,7 +1804,11 @@
       "addDoc": "Agregar documento",
       "reindex": "Reindexar",
       "reindexTooltip": "Regenera los embeddings de todos los documentos (p. ej. después de agregar una clave de embeddings)",
-      "loading": "Cargando…"
+      "loading": "Cargando…",
+      "uploadPdf": "Subir PDF",
+      "uploadSuccess": "\"{title}\" agregado desde el PDF.",
+      "uploadFailed": "Error al subir el PDF.",
+      "pdfOnly": "Solo se admiten archivos PDF."
     }
   },
   "Leads": {

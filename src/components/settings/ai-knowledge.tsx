@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Plus, Trash2, Pencil, RefreshCw, BookOpen } from 'lucide-react';
+import { Loader2, Plus, Trash2, Pencil, RefreshCw, BookOpen, FileUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -41,7 +41,9 @@ export function AiKnowledgeCard({
   const [content, setContent] = useState('');
   const [saving, setSaving] = useState(false);
   const [reindexing, setReindexing] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const loadedAccountIdRef = useRef<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const t = useTranslations('Settings.aiKnowledge');
 
   const fetchDocs = useCallback(async () => {
@@ -137,6 +139,36 @@ export function AiKnowledgeCard({
       }
     } catch {
       toast.error(t('removeFailed'));
+    }
+  };
+
+  const pickPdf = () => fileInputRef.current?.click();
+
+  const uploadPdf = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file next time
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
+      toast.error(t('pdfOnly'));
+      return;
+    }
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/api/ai/knowledge/upload', { method: 'POST', body: form });
+      const data = await res.json();
+      if (res.ok) {
+        if (data.warning) toast.warning(data.warning);
+        else toast.success(t('uploadSuccess', { title: data.title ?? file.name }));
+        await fetchDocs();
+      } else {
+        toast.error(data.error ?? t('uploadFailed'));
+      }
+    } catch {
+      toast.error(t('uploadFailed'));
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -255,9 +287,31 @@ export function AiKnowledgeCard({
             ) : (
               canEdit && (
                 <div className="flex items-center justify-between">
-                  <Button variant="outline" size="sm" onClick={openNew}>
-                    <Plus className="mr-2 h-4 w-4" /> {t('addDoc')}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={openNew}>
+                      <Plus className="mr-2 h-4 w-4" /> {t('addDoc')}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={pickPdf}
+                      disabled={uploading}
+                    >
+                      {uploading ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <FileUp className="mr-2 h-4 w-4" />
+                      )}
+                      {t('uploadPdf')}
+                    </Button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      className="hidden"
+                      onChange={(e) => void uploadPdf(e)}
+                    />
+                  </div>
                   {hasEmbeddingsKey && docs.length > 0 && (
                     <Button
                       variant="ghost"

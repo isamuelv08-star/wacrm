@@ -1804,7 +1804,11 @@
       "addDoc": "문서 추가",
       "reindex": "재색인",
       "reindexTooltip": "모든 문서를 다시 임베딩합니다 (예: 임베딩 키 추가 후)",
-      "loading": "불러오는 중…"
+      "loading": "불러오는 중…",
+      "uploadPdf": "PDF 업로드",
+      "uploadSuccess": "PDF에서 \"{title}\" 문서를 추가했습니다.",
+      "uploadFailed": "PDF 업로드에 실패했습니다.",
+      "pdfOnly": "PDF 파일만 지원됩니다."
     }
   },
   "Leads": {
