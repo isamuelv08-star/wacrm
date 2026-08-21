@@ -45,6 +45,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import type {
   AccountMember,
   AutomationStepType,
@@ -305,8 +314,36 @@ function ResourcesProvider({ children }: { children: ReactNode }) {
   )
 }
 
-const SELECT_CLASS =
-  "w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+/** Themed stand-in for a native `<select>` — matches the app's dark popup
+ *  styling (used everywhere else, e.g. the "+" add-step menu) instead of
+ *  falling back to the browser's unstyled native dropdown, which looked
+ *  jarringly out of place against the rest of this builder. */
+function Picker({
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  children,
+}: {
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+  disabled?: boolean
+  children: ReactNode
+}) {
+  return (
+    <Select
+      value={value}
+      onValueChange={(v) => onChange((v as string) ?? "")}
+      disabled={disabled}
+    >
+      <SelectTrigger className="w-full bg-muted">
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>{children}</SelectContent>
+    </Select>
+  )
+}
 
 /** Tag dropdown by name + color, storing the tag's id. Falls back to a
  *  raw id input when no tags exist yet. */
@@ -338,23 +375,18 @@ function TagSelect({
         style={{ backgroundColor: selected?.color ?? "transparent" }}
         aria-hidden
       />
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={SELECT_CLASS}
-      >
-        <option value="">{t("tags.select")}</option>
+      <Picker value={value} onChange={onChange} placeholder={t("tags.select")}>
         {tags.map((tg) => (
-          <option key={tg.id} value={tg.id}>
+          <SelectItem key={tg.id} value={tg.id}>
             {tg.name}
-          </option>
+          </SelectItem>
         ))}
         {/* Preserve a saved tag that's since been deleted so editing an
             existing automation doesn't silently drop it. */}
         {value && !selected && (
-          <option value={value}>{t("tags.unknown", { id: value })}</option>
+          <SelectItem value={value}>{t("tags.unknown", { id: value })}</SelectItem>
         )}
-      </select>
+      </Picker>
     </div>
   )
 }
@@ -377,27 +409,24 @@ function ContactFieldSelect({
   const knownCustom =
     customValue && customFields.some((f) => `custom:${f.id}` === customValue)
   return (
-    <select
-      value={value || "name"}
-      onChange={(e) => onChange(e.target.value)}
-      className={SELECT_CLASS}
-    >
-      <option value="name">{t("fields.name")}</option>
-      <option value="email">{t("fields.email")}</option>
-      <option value="company">{t("fields.company")}</option>
+    <Picker value={value || "name"} onChange={onChange}>
+      <SelectItem value="name">{t("fields.name")}</SelectItem>
+      <SelectItem value="email">{t("fields.email")}</SelectItem>
+      <SelectItem value="company">{t("fields.company")}</SelectItem>
       {customFields.length > 0 && (
-        <optgroup label={t("fields.customFields")}>
+        <SelectGroup>
+          <SelectLabel>{t("fields.customFields")}</SelectLabel>
           {customFields.map((f) => (
-            <option key={f.id} value={`custom:${f.id}`}>
+            <SelectItem key={f.id} value={`custom:${f.id}`}>
               {f.field_name}
-            </option>
+            </SelectItem>
           ))}
-        </optgroup>
+        </SelectGroup>
       )}
       {customValue && !knownCustom && (
-        <option value={customValue}>{t("fields.unknown", { id: customValue })}</option>
+        <SelectItem value={customValue}>{t("fields.unknown", { id: customValue })}</SelectItem>
       )}
-    </select>
+    </Picker>
   )
 }
 
@@ -425,21 +454,16 @@ function AgentSelect({
   }
   const selected = members.find((m) => m.user_id === value)
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className={SELECT_CLASS}
-    >
-      <option value="">{t("agents.select")}</option>
+    <Picker value={value} onChange={onChange} placeholder={t("agents.select")}>
       {members.map((m) => (
-        <option key={m.user_id} value={m.user_id}>
+        <SelectItem key={m.user_id} value={m.user_id}>
           {m.full_name || m.email || m.user_id}
-        </option>
+        </SelectItem>
       ))}
       {value && !selected && (
-        <option value={value}>{t("agents.unknown", { id: value })}</option>
+        <SelectItem value={value}>{t("agents.unknown", { id: value })}</SelectItem>
       )}
-    </select>
+    </Picker>
   )
 }
 
@@ -490,10 +514,9 @@ function DealPipelineFields({
   return (
     <>
       <FieldBlock label={t("pipelines.pipelineLabel")}>
-        <select
+        <Picker
           value={pipelineId}
-          onChange={(e) => {
-            const nextPipelineId = e.target.value
+          onChange={(nextPipelineId) => {
             const firstStage = stages.find(
               (s) => s.pipeline_id === nextPipelineId
             )
@@ -502,40 +525,34 @@ function DealPipelineFields({
               stage_id: firstStage?.id ?? "",
             })
           }}
-          className={SELECT_CLASS}
+          placeholder={t("pipelines.selectPipeline")}
         >
-          <option value="">{t("pipelines.selectPipeline")}</option>
           {pipelines.map((p) => (
-            <option key={p.id} value={p.id}>
+            <SelectItem key={p.id} value={p.id}>
               {p.name}
-            </option>
+            </SelectItem>
           ))}
           {pipelineId && !selectedPipeline && (
-            <option value={pipelineId}>{t("pipelines.unknownPipeline", { id: pipelineId })}</option>
+            <SelectItem value={pipelineId}>{t("pipelines.unknownPipeline", { id: pipelineId })}</SelectItem>
           )}
-        </select>
+        </Picker>
       </FieldBlock>
       <FieldBlock label={t("pipelines.stageLabel")}>
-        <select
+        <Picker
           value={stageId}
-          onChange={(e) =>
-            onChange({ pipeline_id: pipelineId, stage_id: e.target.value })
-          }
-          className={SELECT_CLASS}
+          onChange={(v) => onChange({ pipeline_id: pipelineId, stage_id: v })}
+          placeholder={pipelineId ? t("pipelines.selectStage") : t("pipelines.selectPipelineFirst")}
           disabled={!pipelineId || stageOptions.length === 0}
         >
-          <option value="">
-            {pipelineId ? t("pipelines.selectStage") : t("pipelines.selectPipelineFirst")}
-          </option>
           {stageOptions.map((s) => (
-            <option key={s.id} value={s.id}>
+            <SelectItem key={s.id} value={s.id}>
               {s.name}
-            </option>
+            </SelectItem>
           ))}
           {stageId && pipelineId && !selectedStage && (
-            <option value={stageId}>{t("pipelines.unknownStage", { id: stageId })}</option>
+            <SelectItem value={stageId}>{t("pipelines.unknownStage", { id: stageId })}</SelectItem>
           )}
-        </select>
+        </Picker>
       </FieldBlock>
     </>
   )
@@ -592,29 +609,28 @@ function SendTemplateFields({
 
   return (
     <FieldBlock label={t("templates.templateLabel")}>
-      <select
+      <Picker
         value={current}
-        onChange={(e) => {
-          const [name, lang] = e.target.value.split("::")
+        onChange={(v) => {
+          const [name, lang] = v.split("::")
           onChange({ template_name: name ?? "", language: lang ?? "" })
         }}
-        className={SELECT_CLASS}
+        placeholder={t("templates.select")}
       >
-        <option value="">{t("templates.select")}</option>
         {templates.map((tmpl) => {
           const lang = tmpl.language ?? "en_US"
           return (
-            <option key={tmpl.id} value={toValue(tmpl.name, lang)}>
+            <SelectItem key={tmpl.id} value={toValue(tmpl.name, lang)}>
               {tmpl.name} ({lang})
-            </option>
+            </SelectItem>
           )
         })}
         {current && !hasMatch && (
-          <option value={current}>
+          <SelectItem value={current}>
             {t("templates.unknown", { name: templateName, lang: language || t("templates.unknownLang") })}
-          </option>
+          </SelectItem>
         )}
-      </select>
+      </Picker>
     </FieldBlock>
   )
 }
@@ -823,17 +839,16 @@ function TriggerCard({
               <label className="mb-1 block text-xs font-medium text-muted-foreground">
                 {t("triggerType")}
               </label>
-              <select
+              <Picker
                 value={type}
-                onChange={(e) => onTypeChange(e.target.value as AutomationTriggerType)}
-                className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+                onChange={(v) => onTypeChange(v as AutomationTriggerType)}
               >
                 {TRIGGER_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
+                  <SelectItem key={o.value} value={o.value}>
                     {t(`triggers.${o.value}.label`)}
-                  </option>
+                  </SelectItem>
                 ))}
-              </select>
+              </Picker>
               <p className="mt-1 text-[11px] text-muted-foreground">
                 {t(`triggers.${type}.hint`)}
               </p>
@@ -966,20 +981,19 @@ function KeywordMatchConfig({
         <label className="mb-1 block text-xs font-medium text-muted-foreground">
           {t("config.matchType")}
         </label>
-        <select
+        <Picker
           value={config?.match_type ?? "contains"}
-          onChange={(e) =>
+          onChange={(v) =>
             onChange({
               ...config,
-              match_type: e.target.value as "exact" | "contains" | "word",
+              match_type: v as "exact" | "contains" | "word",
             })
           }
-          className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:outline-none"
         >
-          <option value="contains">{t("config.matchContains")}</option>
-          <option value="word">{t("config.matchWord")}</option>
-          <option value="exact">{t("config.matchExact")}</option>
-        </select>
+          <SelectItem value="contains">{t("config.matchContains")}</SelectItem>
+          <SelectItem value="word">{t("config.matchWord")}</SelectItem>
+          <SelectItem value="exact">{t("config.matchExact")}</SelectItem>
+        </Picker>
         {/* Only worth explaining for `word` — "contains" and "exact" read
             for themselves, and this is the one that changes which messages
             fire an automation in a way that isn't obvious. */}
@@ -1055,6 +1069,12 @@ type StepPath = (
 interface StepListProps {
   steps: BuilderStep[]
   parentPath: StepPath
+  /** How many condition-branch levels deep this list is nested (0 = the
+   *  top-level flow). Nested cards render narrower and their own
+   *  branches stack vertically instead of side-by-side, so a step card's
+   *  fixed width never exceeds the column it's actually rendered in —
+   *  see the width calc in StepRenderer. */
+  depth?: number
   expandedId: string | null
   setExpandedId: (id: string | null) => void
   updateStep: (path: StepPath, updater: (s: BuilderStep) => BuilderStep) => void
@@ -1117,12 +1137,27 @@ function StepRenderer({
   const Icon = meta.icon
   const expanded = props.expandedId === step.cid
   const isCondition = step.step_type === "condition"
+  const depth = props.depth ?? 0
   // Card widths on mobile fill the full canvas column (max-w-2xl px-4
-  // still keeps them reasonable). On sm+ the original fixed widths
-  // come back so the flow visual stays recognisable.
+  // still keeps them reasonable). On sm+ the original fixed widths come
+  // back so the flow visual stays recognisable.
+  //
+  // A condition's Yes/No branches sit side by side in a 2-column grid
+  // (see ConditionBranches), so a card nested inside one only has half
+  // its parent's width to work with. Using the top-level widths at any
+  // depth used to force a fixed 320px-wide card into a ~190px column,
+  // overflowing and overlapping its neighbour — this is the fix: nested
+  // cards get a narrower fixed width that actually fits a branch column,
+  // and a nested condition's own branches always stack vertically
+  // (ConditionBranches only goes 2-column at depth 0) so nesting never
+  // compounds the width requirement.
   const width = isCondition
-    ? "w-full max-w-[400px] sm:w-[400px]"
-    : "w-full max-w-[320px] sm:w-80"
+    ? depth === 0
+      ? "w-full max-w-[560px] sm:w-[560px]"
+      : "w-full max-w-[260px] sm:w-64"
+    : depth === 0
+      ? "w-full max-w-[320px] sm:w-80"
+      : "w-full max-w-[260px] sm:w-64"
 
   return (
     <>
@@ -1232,16 +1267,22 @@ function ConditionBranches({
     ...parentPath,
     { kind: "branch", parentCid: step.cid, branch: "no", index: 0 },
   ]
+  const depth = props.depth ?? 0
+  const childDepth = depth + 1
   return (
     // Stack Yes/No vertically on mobile — two columns at 375px would
     // cram each branch to ~170px which is too narrow for the nested
-    // cards. Two-column grid returns on sm+.
-    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+    // cards. Two-column grid returns on sm+, but only at the top level:
+    // a condition nested inside another branch has half the horizontal
+    // room already, so its own Yes/No stay stacked at every breakpoint
+    // rather than squeezing a third level of columns into the same
+    // space (see the width comment in StepRenderer).
+    <div className={cn("mt-3 grid grid-cols-1 gap-3", depth === 0 && "sm:grid-cols-2")}>
       <BranchColumn label={t("branches.yes")} color="text-primary">
-        <StepList {...props} steps={yes} parentPath={yesPath} />
+        <StepList {...props} depth={childDepth} steps={yes} parentPath={yesPath} />
       </BranchColumn>
       <BranchColumn label={t("branches.no")} color="text-rose-400">
-        <StepList {...props} steps={no} parentPath={noPath} />
+        <StepList {...props} depth={childDepth} steps={no} parentPath={noPath} />
       </BranchColumn>
     </div>
   )
@@ -1360,14 +1401,13 @@ function StepEditor({
       return (
         <>
           <FieldBlock label={t("config.modeLabel")}>
-            <select
+            <Picker
               value={(cfg.mode as string) ?? "round_robin"}
-              onChange={(e) => set({ mode: e.target.value })}
-              className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
+              onChange={(v) => set({ mode: v })}
             >
-              <option value="round_robin">{t("config.modes.round_robin")}</option>
-              <option value="specific">{t("config.modes.specific")}</option>
-            </select>
+              <SelectItem value="round_robin">{t("config.modes.round_robin")}</SelectItem>
+              <SelectItem value="specific">{t("config.modes.specific")}</SelectItem>
+            </Picker>
           </FieldBlock>
           {cfg.mode === "specific" && (
             <FieldBlock label={t("config.agentLabel")}>
@@ -1439,15 +1479,14 @@ function StepEditor({
             />
           </FieldBlock>
           <FieldBlock label={t("config.unitLabel")}>
-            <select
+            <Picker
               value={(cfg.unit as string) ?? "hours"}
-              onChange={(e) => set({ unit: e.target.value })}
-              className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
+              onChange={(v) => set({ unit: v })}
             >
-              <option value="minutes">{t("config.units.minutes")}</option>
-              <option value="hours">{t("config.units.hours")}</option>
-              <option value="days">{t("config.units.days")}</option>
-            </select>
+              <SelectItem value="minutes">{t("config.units.minutes")}</SelectItem>
+              <SelectItem value="hours">{t("config.units.hours")}</SelectItem>
+              <SelectItem value="days">{t("config.units.days")}</SelectItem>
+            </Picker>
           </FieldBlock>
         </div>
       )
@@ -1455,16 +1494,15 @@ function StepEditor({
       return (
         <>
           <FieldBlock label={t("config.subjectLabel")}>
-            <select
+            <Picker
               value={(cfg.subject as string) ?? "tag_presence"}
-              onChange={(e) => set({ subject: e.target.value })}
-              className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
+              onChange={(v) => set({ subject: v })}
             >
-              <option value="tag_presence">{t("config.subjects.tag_presence")}</option>
-              <option value="contact_field">{t("config.subjects.contact_field")}</option>
-              <option value="message_content">{t("config.subjects.message_content")}</option>
-              <option value="time_of_day">{t("config.subjects.time_of_day")}</option>
-            </select>
+              <SelectItem value="tag_presence">{t("config.subjects.tag_presence")}</SelectItem>
+              <SelectItem value="contact_field">{t("config.subjects.contact_field")}</SelectItem>
+              <SelectItem value="message_content">{t("config.subjects.message_content")}</SelectItem>
+              <SelectItem value="time_of_day">{t("config.subjects.time_of_day")}</SelectItem>
+            </Picker>
           </FieldBlock>
           <FieldBlock label={t("config.operandLabel")}>
             <Input
