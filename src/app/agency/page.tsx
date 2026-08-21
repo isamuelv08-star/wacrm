@@ -1,12 +1,13 @@
 import { notFound } from "next/navigation";
 import { Building2 } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 import { requireSuperAdmin } from "@/lib/auth/agency";
 import { loadAgencyOverview } from "@/lib/agency/overview";
 import { AgencyAccountCard } from "@/components/agency/agency-account-card";
 import { CreateClientDialog } from "@/components/agency/create-client-dialog";
 
 export const metadata = {
-  title: "Panel de agencia",
+  title: "Agency panel",
 };
 
 /**
@@ -28,6 +29,7 @@ export default async function AgencyPage() {
   }
 
   const accounts = await loadAgencyOverview();
+  const t = await getTranslations("Agency.page");
 
   return (
     <div className="min-h-screen bg-background p-6">
@@ -36,11 +38,10 @@ export default async function AgencyPage() {
           <div>
             <div className="flex items-center gap-2">
               <Building2 className="h-6 w-6 text-primary" />
-              <h1 className="text-2xl font-bold text-foreground">Panel de agencia</h1>
+              <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Vista de todas las cuentas administradas — {accounts.length}{" "}
-              {accounts.length === 1 ? "cliente" : "clientes"}.
+              {t("subtitle", { count: accounts.length })}
             </p>
           </div>
           <CreateClientDialog />
@@ -48,7 +49,7 @@ export default async function AgencyPage() {
 
         {accounts.length === 0 ? (
           <div className="mt-8 rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-            Todavía no hay cuentas dadas de alta.
+            {t("empty")}
           </div>
         ) : (
           <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">

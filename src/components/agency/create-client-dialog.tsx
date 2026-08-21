@@ -18,6 +18,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Building2, Copy, Loader2, MessageCircle, Plus, Sparkles } from 'lucide-react';
 
@@ -50,6 +51,7 @@ interface CreatedAccount {
 }
 
 export function CreateClientDialog() {
+  const t = useTranslations('Agency.createDialog');
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
@@ -84,11 +86,11 @@ export function CreateClientDialog() {
     const trimmedName = name.trim();
     const trimmedEmail = ownerEmail.trim();
     if (!trimmedName) {
-      toast.error('El nombre del negocio es obligatorio');
+      toast.error(t('nameRequired'));
       return;
     }
     if (!trimmedEmail) {
-      toast.error('El email del dueño es obligatorio');
+      toast.error(t('emailRequired'));
       return;
     }
     setSubmitting(true);
@@ -105,7 +107,7 @@ export function CreateClientDialog() {
 
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
-        toast.error(payload.error || 'No se pudo crear la cuenta');
+        toast.error(payload.error || t('createError'));
         return;
       }
 
@@ -119,7 +121,7 @@ export function CreateClientDialog() {
       setCreatedAnAccount(true);
     } catch (err) {
       console.error('[CreateClientDialog] create error:', err);
-      toast.error('No se pudo conectar con el servidor. ¿Intentar de nuevo?');
+      toast.error(t('connectError'));
     } finally {
       setSubmitting(false);
     }
@@ -129,15 +131,19 @@ export function CreateClientDialog() {
     if (!result) return;
     try {
       await navigator.clipboard.writeText(result.url);
-      toast.success('Link copiado');
+      toast.success(t('linkCopied'));
     } catch {
-      toast.error('No se pudo copiar automáticamente — copiá el link manualmente');
+      toast.error(t('copyError'));
     }
   }
 
   function whatsappShareUrl(url: string): string {
-    const accountName = result?.accountName ?? 'tu cuenta';
-    const message = `¡Bienvenido a ScalingCRM! Activá tu cuenta de ${accountName} acá (el link vence en ${result?.expiresInDays ?? 7} días): ${url}`;
+    const accountName = result?.accountName ?? t('defaultAccountName');
+    const message = t('whatsappMessage', {
+      account: accountName,
+      days: result?.expiresInDays ?? 7,
+      url,
+    });
     return `https://wa.me/?text=${encodeURIComponent(message)}`;
   }
 
@@ -148,7 +154,7 @@ export function CreateClientDialog() {
         className="gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90"
       >
         <Plus className="size-4" />
-        Crear cliente
+        {t('trigger')}
       </Button>
 
       <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -158,17 +164,18 @@ export function CreateClientDialog() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-popover-foreground">
                 <Sparkles className="size-4 text-primary" />
-                Cuenta creada
+                {t('accountCreatedTitle')}
               </DialogTitle>
               <DialogDescription className="text-muted-foreground">
-                <strong>{result.accountName}</strong> ya está dada de alta. Compartile
-                este link al dueño para que active su cuenta — vence en{' '}
-                {result.expiresInDays} días.
+                {t('accountCreatedDesc', {
+                  account: result.accountName,
+                  days: result.expiresInDays,
+                })}
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-3 py-2">
-              <Label className="text-muted-foreground">Link de activación</Label>
+              <Label className="text-muted-foreground">{t('activationLinkLabel')}</Label>
               <div className="flex gap-2">
                 <Input
                   readOnly
@@ -182,13 +189,13 @@ export function CreateClientDialog() {
                   className="bg-primary hover:bg-primary/90 text-primary-foreground shrink-0"
                 >
                   <Copy className="size-4" />
-                  Copiar
+                  {t('copy')}
                 </Button>
               </div>
 
               <div className="rounded-md border border-amber-500/50 bg-amber-500/15 px-3 py-2 text-xs text-amber-200">
-                <strong className="font-semibold text-amber-100">Guardá este link ahora.</strong>{' '}
-                No se puede volver a mostrar — si lo perdés, tenés que crear la cuenta de nuevo.
+                <strong className="font-semibold text-amber-100">{t('saveNowTitle')}</strong>{' '}
+                {t('saveNowBody')}
               </div>
 
               <a
@@ -201,7 +208,7 @@ export function CreateClientDialog() {
                 })}
               >
                 <MessageCircle className="size-4" />
-                Enviar por WhatsApp
+                {t('sendWhatsapp')}
               </a>
             </div>
 
@@ -210,7 +217,7 @@ export function CreateClientDialog() {
                 onClick={() => handleOpenChange(false)}
                 className="bg-primary hover:bg-primary/90 text-primary-foreground"
               >
-                Listo
+                {t('done')}
               </Button>
             </DialogFooter>
           </>
@@ -219,18 +226,18 @@ export function CreateClientDialog() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-popover-foreground">
                 <Building2 className="size-4 text-primary" />
-                Crear cliente nuevo
+                {t('newClientTitle')}
               </DialogTitle>
               <DialogDescription className="text-muted-foreground">
-                Da de alta la cuenta y generá el link para que el dueño active su acceso.
+                {t('newClientDesc')}
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-2">
               <div className="space-y-2">
-                <Label className="text-muted-foreground">Nombre del negocio</Label>
+                <Label className="text-muted-foreground">{t('businessNameLabel')}</Label>
                 <Input
-                  placeholder="Ej. Panadería La Espiga"
+                  placeholder={t('businessNamePlaceholder')}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   maxLength={MAX_NAME_LEN}
@@ -239,21 +246,21 @@ export function CreateClientDialog() {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-muted-foreground">Email del dueño</Label>
+                <Label className="text-muted-foreground">{t('ownerEmailLabel')}</Label>
                 <Input
                   type="email"
-                  placeholder="dueño@negocio.com"
+                  placeholder={t('ownerEmailPlaceholder')}
                   value={ownerEmail}
                   onChange={(e) => setOwnerEmail(e.target.value)}
                   className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Solo de referencia — no restringe quién puede abrir el link.
+                  {t('ownerEmailHint')}
                 </p>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-muted-foreground">Moneda por defecto</Label>
+                <Label className="text-muted-foreground">{t('defaultCurrencyLabel')}</Label>
                 <Select value={currency} onValueChange={(v) => v && setCurrency(v)}>
                   <SelectTrigger className="w-full bg-muted border-border text-foreground">
                     <SelectValue />
@@ -275,7 +282,7 @@ export function CreateClientDialog() {
                 onClick={() => handleOpenChange(false)}
                 className="border-border text-muted-foreground hover:bg-muted"
               >
-                Cancelar
+                {t('cancel')}
               </Button>
               <Button
                 onClick={handleCreate}
@@ -285,10 +292,10 @@ export function CreateClientDialog() {
                 {submitting ? (
                   <>
                     <Loader2 className="size-4 animate-spin" />
-                    Creando…
+                    {t('creating')}
                   </>
                 ) : (
-                  'Crear cliente'
+                  t('createClient')
                 )}
               </Button>
             </DialogFooter>

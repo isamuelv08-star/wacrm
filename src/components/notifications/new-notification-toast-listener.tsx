@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import type { Notification } from "@/types";
@@ -30,6 +31,7 @@ import type { Notification } from "@/types";
  */
 export function NewNotificationToastListener() {
   const router = useRouter();
+  const t = useTranslations("NotificationsToast");
 
   useEffect(() => {
     const supabase = createClient();
@@ -53,7 +55,7 @@ export function NewNotificationToastListener() {
             description: row.body,
             action: row.conversation_id
               ? {
-                  label: "Gestionar",
+                  label: t("manage"),
                   onClick: () => router.push(`/inbox?c=${row.conversation_id}`),
                 }
               : undefined,
@@ -65,7 +67,7 @@ export function NewNotificationToastListener() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [router]);
+  }, [router, t]);
 
   return null;
 }

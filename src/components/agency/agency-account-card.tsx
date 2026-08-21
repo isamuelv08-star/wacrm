@@ -8,28 +8,28 @@ import {
   UserPlus,
   TriangleAlert,
 } from "lucide-react";
+import { getLocale, getTranslations } from "next-intl/server";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/currency";
 import type { AgencyAccountOverview } from "@/lib/agency/overview";
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("es", {
+function formatDate(iso: string, locale: string): string {
+  return new Date(iso).toLocaleDateString(locale, {
     day: "numeric",
     month: "short",
     year: "numeric",
   });
 }
 
-function stalenessLabel(staleness: AgencyAccountOverview["staleness"]): string | null {
-  if (!staleness) return null;
-  if ("neverActive" in staleness) return "Sin actividad registrada";
-  return `Sin actividad hace ${staleness.daysSinceActivity} ${
-    staleness.daysSinceActivity === 1 ? "día" : "días"
-  }`;
-}
-
-export function AgencyAccountCard({ account }: { account: AgencyAccountOverview }) {
-  const stale = stalenessLabel(account.staleness);
+export async function AgencyAccountCard({ account }: { account: AgencyAccountOverview }) {
+  const t = await getTranslations("Agency.card");
+  const locale = await getLocale();
+  const staleness = account.staleness;
+  const stale = !staleness
+    ? null
+    : "neverActive" in staleness
+      ? t("staleNoActivity")
+      : t("staleDays", { count: staleness.daysSinceActivity });
   const connected = account.whatsappStatus === "connected";
 
   return (
@@ -45,7 +45,7 @@ export function AgencyAccountCard({ account }: { account: AgencyAccountOverview 
             {account.accountName}
           </h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Cliente desde {formatDate(account.accountCreatedAt)}
+            {t("clientSince", { date: formatDate(account.accountCreatedAt, locale) })}
           </p>
         </div>
         {/* Connected reads as a quiet, informational green — disconnected
@@ -60,14 +60,14 @@ export function AgencyAccountCard({ account }: { account: AgencyAccountOverview 
           )}
         >
           {connected ? <CircleCheck className="h-3 w-3" /> : <CircleAlert className="h-3 w-3" />}
-          {connected ? "WhatsApp conectado" : "WhatsApp desconectado"}
+          {connected ? t("whatsappConnected") : t("whatsappDisconnected")}
         </span>
       </div>
 
       {stale && (
         <div className="mt-3 flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/8 px-3 py-2 text-xs font-medium text-primary">
           <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
-          {stale} — puede que el cliente dejó de usar el sistema
+          {stale} {t("staleSuffix")}
         </div>
       )}
 
@@ -78,23 +78,23 @@ export function AgencyAccountCard({ account }: { account: AgencyAccountOverview 
       <div className="mt-4 grid grid-cols-2 gap-3">
         <HeroMetric
           icon={Flame}
-          label="Leads HOT"
+          label={t("hotLeads")}
           value={account.hotLeads}
           emphasize={account.hotLeads > 0}
         />
         <HeroMetric
           icon={DollarSign}
-          label="Pipeline abierto"
+          label={t("openPipeline")}
           value={formatCurrency(account.openPipelineValue, account.defaultCurrency)}
           valueClassName="text-primary"
         />
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <MiniMetric icon={MessageSquare} label="Mensajes hoy" value={account.messagesToday} />
-        <MiniMetric icon={Users} label="Conv. activas" value={account.activeConversations} />
-        <MiniMetric icon={UserPlus} label="Leads hoy" value={account.newLeadsToday} />
-        <MiniMetric icon={UserPlus} label="Leads semana" value={account.newLeadsWeek} />
+        <MiniMetric icon={MessageSquare} label={t("messagesToday")} value={account.messagesToday} />
+        <MiniMetric icon={Users} label={t("activeConversations")} value={account.activeConversations} />
+        <MiniMetric icon={UserPlus} label={t("leadsToday")} value={account.newLeadsToday} />
+        <MiniMetric icon={UserPlus} label={t("leadsWeek")} value={account.newLeadsWeek} />
       </div>
     </div>
   );
