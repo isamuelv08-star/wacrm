@@ -27,6 +27,8 @@ const pageTitles: Record<string, string> = {
   "/pipelines": "pipelines",
   "/broadcasts": "broadcasts",
   "/automations": "automations",
+  "/flows": "flows",
+  "/agents": "agents",
   "/settings": "settings",
 };
 
@@ -69,9 +71,14 @@ export function Header({ onOpenSidebar }: HeaderProps) {
         >
           <Menu className="h-5 w-5" />
         </button>
-        <h1 className="truncate text-base font-semibold text-foreground sm:text-lg">
-          {t(titleKey as string)}
-        </h1>
+        {/* The dashboard page renders its own "Welcome back" heading in
+            the body, so the header's generic page title would just
+            duplicate it — omit it there only. */}
+        {titleKey !== "dashboard" && (
+          <h1 className="truncate text-base font-semibold text-foreground sm:text-lg">
+            {t(titleKey as string)}
+          </h1>
+        )}
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2">
