@@ -8,8 +8,8 @@ import {
   startOfLocalDay,
 } from './date-utils'
 import type {
-  ActivityItem,
   ConversationsSeriesPoint,
+  HotUnansweredItem,
   MetricsBundle,
   PipelineDonutData,
   PipelineStageSlice,
@@ -263,136 +263,62 @@ export async function loadResponseTime(db: DB): Promise<ResponseTimeSummary> {
   }
 }
 
-// --- 5. Activity feed --------------------------------------------------
+// --- 5. HOT leads waiting on a reply ------------------------------------
 
-export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> {
-  // Pull ~10 from each source (plenty of headroom after merge-sort),
-  // then interleave by timestamp. The individual per-table limits
-  // keep the payload small; the final limit is enforced after sort.
-  const [msgs, contacts, deals, broadcasts, autoLogs] = await Promise.all([
-    db
-      .from('messages')
-      .select('id, content_text, sender_type, created_at, conversation_id, conversations(contact_id, contacts(name, phone))')
-      .eq('sender_type', 'customer')
-      .order('created_at', { ascending: false })
-      .limit(10),
-    db
-      .from('contacts')
-      .select('id, name, phone, created_at')
-      .order('created_at', { ascending: false })
-      .limit(10),
-    db
-      .from('deals')
-      .select('id, title, updated_at, stage:pipeline_stages(name)')
-      .order('updated_at', { ascending: false })
-      .limit(10),
-    db
-      .from('broadcasts')
-      .select('id, name, status, total_recipients, created_at')
-      .order('created_at', { ascending: false })
-      .limit(5),
-    db
-      .from('automation_logs')
-      .select('id, trigger_event, status, created_at, automation:automations(name), contact:contacts(name, phone)')
-      .order('created_at', { ascending: false })
-      .limit(10),
-  ])
+const MAX_HOT_CANDIDATES = 30
 
-  const items: ActivityItem[] = []
+/**
+ * Open conversations with a HOT-scored contact whose last message is
+ * from the customer and still unanswered — the dashboard's "Juana
+ * +15m sin respuesta" card. Read-only sibling of
+ * `runHotLeadAlertScan` (src/lib/notifications/hot-lead-alerts.ts),
+ * which does the same candidate scan to raise notifications; this one
+ * just surfaces the live list, sorted longest-waiting first, and
+ * never writes anything.
+ */
+export async function loadHotUnanswered(db: DB, limit = 6): Promise<HotUnansweredItem[]> {
+  const { data: candidates, error } = await db
+    .from('conversations')
+    .select('id, contacts!inner(name, phone, lead_score)')
+    .eq('status', 'open')
+    .eq('contacts.lead_score', 'hot')
+    .limit(MAX_HOT_CANDIDATES)
+  if (error) throw error
+  if (!candidates || candidates.length === 0) return []
 
-  // PostgREST returns nested selections as arrays by default, even when
-  // the foreign key is 1:1. We normalise by taking [0] on each level.
-  for (const m of (msgs.data ?? []) as unknown as Array<{
+  type Candidate = {
     id: string
-    content_text: string | null
-    created_at: string
-    conversation_id: string
-    conversations:
-      | { contact_id: string | null; contacts: { name: string | null; phone: string }[] | { name: string | null; phone: string } | null }[]
-      | { contact_id: string | null; contacts: { name: string | null; phone: string }[] | { name: string | null; phone: string } | null }
+    contacts:
+      | { name: string | null; phone: string }[]
+      | { name: string | null; phone: string }
       | null
-  }>) {
-    const conv = Array.isArray(m.conversations) ? m.conversations[0] : m.conversations
-    const contact = Array.isArray(conv?.contacts) ? conv?.contacts[0] : conv?.contacts
-    const who = contact?.name || contact?.phone || 'Unknown'
-    items.push({
-      id: `msg-${m.id}`,
-      kind: 'message',
-      text: `New message from ${who}`,
-      at: m.created_at,
-      href: `/inbox?c=${m.conversation_id}`,
-    })
   }
 
-  for (const c of (contacts.data ?? []) as Array<{ id: string; name: string | null; phone: string; created_at: string }>) {
-    items.push({
-      id: `contact-${c.id}`,
-      kind: 'contact',
-      text: `New contact: ${c.name || c.phone}`,
-      at: c.created_at,
-      href: '/contacts',
-    })
-  }
+  const now = Date.now()
+  const results = await Promise.all(
+    (candidates as unknown as Candidate[]).map(async (conv) => {
+      const { data: lastMessage } = await db
+        .from('messages')
+        .select('sender_type, created_at')
+        .eq('conversation_id', conv.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      // No message yet, or we already had the last word — not waiting.
+      if (!lastMessage || lastMessage.sender_type !== 'customer') return null
 
-  for (const d of (deals.data ?? []) as unknown as Array<{
-    id: string
-    title: string
-    updated_at: string
-    stage: { name: string }[] | { name: string } | null
-  }>) {
-    const stage = Array.isArray(d.stage) ? d.stage[0] : d.stage
-    items.push({
-      id: `deal-${d.id}`,
-      kind: 'deal',
-      text: stage?.name
-        ? `Deal "${d.title}" in ${stage.name}`
-        : `Deal "${d.title}" updated`,
-      at: d.updated_at,
-      href: '/pipelines',
-    })
-  }
+      const contact = Array.isArray(conv.contacts) ? conv.contacts[0] : conv.contacts
+      const waitingMinutes = Math.round((now - new Date(lastMessage.created_at).getTime()) / 60_000)
+      return {
+        conversationId: conv.id,
+        contactName: contact?.name || contact?.phone || '—',
+        waitingMinutes,
+      } satisfies HotUnansweredItem
+    }),
+  )
 
-  for (const b of (broadcasts.data ?? []) as Array<{
-    id: string
-    name: string
-    status: string
-    total_recipients: number
-    created_at: string
-  }>) {
-    const label =
-      b.status === 'sent'
-        ? `sent to ${b.total_recipients} contacts`
-        : `${b.status} (${b.total_recipients} recipients)`
-    items.push({
-      id: `broadcast-${b.id}`,
-      kind: 'broadcast',
-      text: `Broadcast "${b.name}" ${label}`,
-      at: b.created_at,
-      href: '/broadcasts',
-    })
-  }
-
-  for (const l of (autoLogs.data ?? []) as unknown as Array<{
-    id: string
-    trigger_event: string
-    status: string
-    created_at: string
-    automation: { name: string }[] | { name: string } | null
-    contact: { name: string | null; phone: string }[] | { name: string | null; phone: string } | null
-  }>) {
-    const automation = Array.isArray(l.automation) ? l.automation[0] : l.automation
-    const contact = Array.isArray(l.contact) ? l.contact[0] : l.contact
-    const who = contact?.name || contact?.phone || 'a contact'
-    const autoName = automation?.name || 'Automation'
-    items.push({
-      id: `auto-${l.id}`,
-      kind: 'automation',
-      text: `Automation "${autoName}" ${l.status === 'failed' ? 'failed for' : 'triggered for'} ${who}`,
-      at: l.created_at,
-    })
-  }
-
-  return items
-    .sort((a, b) => (a.at > b.at ? -1 : a.at < b.at ? 1 : 0))
+  return results
+    .filter((r): r is HotUnansweredItem => r !== null)
+    .sort((a, b) => b.waitingMinutes - a.waitingMinutes)
     .slice(0, limit)
 }

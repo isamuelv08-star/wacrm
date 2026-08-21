@@ -48,20 +48,13 @@ export interface ResponseTimeSummary {
   lastWeekAvg: number | null
 }
 
-export type ActivityKind =
-  | 'message'
-  | 'deal'
-  | 'broadcast'
-  | 'automation'
-  | 'contact'
-
-export interface ActivityItem {
-  id: string
-  kind: ActivityKind
-  /** Primary line of text rendered in the feed. Pre-formatted. */
-  text: string
-  /** ISO timestamp the item happened at, drives relative-time + sort. */
-  at: string
-  /** Optional deep-link for the whole row (not all items have a target). */
-  href?: string
+/** A HOT-scored lead whose conversation has gone unanswered past the
+ *  account's response-time window — the "Juana +15m sin respuesta"
+ *  card. Mirrors the candidate shape `runHotLeadAlertScan` (the cron
+ *  job) already scans for, but read-only and dashboard-scoped. */
+export interface HotUnansweredItem {
+  conversationId: string
+  contactName: string
+  /** Minutes since the customer's last (still-unanswered) message. */
+  waitingMinutes: number
 }

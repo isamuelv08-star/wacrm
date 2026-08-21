@@ -5,6 +5,7 @@ import { MessageSquare } from 'lucide-react'
 import type { ConversationsSeriesPoint } from '@/lib/dashboard/types'
 import { EmptyState } from './empty-state'
 import { Skeleton } from './skeleton'
+import { GlowSeries } from './glow-series'
 import { cn } from '@/lib/utils'
 
 type RangeDays = 7 | 30 | 90
@@ -131,8 +132,9 @@ function LineSvg({
     maxY === 0 ? PADDING.top + chartH : PADDING.top + chartH - (v / maxY) * chartH
   const xFor = (i: number) => PADDING.left + i * stepX
 
-  const incomingPath = data.map((p, i) => `${i === 0 ? 'M' : 'L'}${xFor(i)},${yFor(p.incoming)}`).join(' ')
-  const outgoingPath = data.map((p, i) => `${i === 0 ? 'M' : 'L'}${xFor(i)},${yFor(p.outgoing)}`).join(' ')
+  const incomingPoints = data.map((p, i) => ({ x: xFor(i), y: yFor(p.incoming) }))
+  const outgoingPoints = data.map((p, i) => ({ x: xFor(i), y: yFor(p.outgoing) }))
+  const baselineY = PADDING.top + chartH
 
   // Mouse-move: use the SVG's current screen-CTM to map clientX
   // back to viewBox coordinates. The previous rect-based math
@@ -243,24 +245,11 @@ function LineSvg({
           ) : null,
         )}
 
-        {/* Outgoing polyline (brand red — #FF3131, the "flame" theme's --primary) */}
-        <path
-          d={outgoingPath}
-          fill="none"
-          stroke="#FF3131"
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        {/* Incoming polyline (blue) */}
-        <path
-          d={incomingPath}
-          fill="none"
-          stroke="#3b82f6"
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+        {/* Incoming (blue) drawn first so the outgoing brand line sits on
+            top of it at crossing points — same z-order as the legend. */}
+        <GlowSeries points={incomingPoints} baselineY={baselineY} color="#3b82f6" />
+        {/* Outgoing (brand red — #FF3131, the "flame" theme's --primary) */}
+        <GlowSeries points={outgoingPoints} baselineY={baselineY} color="#FF3131" />
 
         {/* Hover crosshair */}
         {hover !== null && (

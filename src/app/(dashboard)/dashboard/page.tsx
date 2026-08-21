@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
 import { formatCurrency } from '@/lib/currency'
@@ -12,15 +13,15 @@ import {
 } from 'lucide-react'
 
 import {
-  loadActivity,
   loadConversationsSeries,
+  loadHotUnanswered,
   loadMetrics,
   loadPipelineDonut,
   loadResponseTime,
 } from '@/lib/dashboard/queries'
 import type {
-  ActivityItem,
   ConversationsSeriesPoint,
+  HotUnansweredItem,
   MetricsBundle,
   PipelineDonutData,
   ResponseTimeSummary,
@@ -32,7 +33,8 @@ import { QuickActions } from '@/components/dashboard/quick-actions'
 import { ConversationsChart } from '@/components/dashboard/conversations-chart'
 import { PipelineDonut } from '@/components/dashboard/pipeline-donut'
 import { ResponseTimeChart } from '@/components/dashboard/response-time-chart'
-import { ActivityFeed } from '@/components/dashboard/activity-feed'
+import { HotUnansweredCard } from '@/components/dashboard/hot-unanswered-card'
+import { TeamCard } from '@/components/dashboard/team-card'
 
 import { useTranslations } from 'next-intl'
 
@@ -61,8 +63,8 @@ export default function DashboardPage() {
   const [responseTime, setResponseTime] = useState<ResponseTimeSummary | null>(null)
   const [responseTimeLoading, setResponseTimeLoading] = useState(true)
 
-  const [activity, setActivity] = useState<ActivityItem[] | null>(null)
-  const [activityLoading, setActivityLoading] = useState(true)
+  const [hotUnanswered, setHotUnanswered] = useState<HotUnansweredItem[] | null>(null)
+  const [hotUnansweredLoading, setHotUnansweredLoading] = useState(true)
 
   const loadAll = useCallback(() => {
     const db = createClient()
@@ -90,17 +92,33 @@ export default function DashboardPage() {
       .catch((err) => console.error('[dashboard] response time failed:', err))
       .finally(() => setResponseTimeLoading(false))
 
-    // Fetch up to 50 so the biggest page-size option in the feed
-    // (50 rows) is already in memory — switching sizes then becomes
-    // a pure client-side slice with no extra round trip.
-    void loadActivity(db, 50)
-      .then((a) => setActivity(a))
-      .catch((err) => console.error('[dashboard] activity failed:', err))
-      .finally(() => setActivityLoading(false))
+    void loadHotUnanswered(db)
+      .then((h) => setHotUnanswered(h))
+      .catch((err) => console.error('[dashboard] hot-unanswered failed:', err))
+      .finally(() => setHotUnansweredLoading(false))
   }, [])
 
+  // Re-fetch every time this route becomes the active page — not just
+  // on first mount. Next's client router cache can keep this page's
+  // component instance alive when the user navigates away and back
+  // within the app, so a mount-only effect would silently show stale
+  // numbers on return. Keying on `pathname` re-runs the load whenever
+  // navigation lands back on /dashboard, even if the instance survived.
+  const pathname = usePathname()
   useEffect(() => {
-    loadAll()
+    if (pathname === '/dashboard') loadAll()
+  }, [pathname, loadAll])
+
+  // Belt-and-suspenders for the same staleness: a backgrounded browser
+  // tab can sit for a long time before the user returns to it. Refresh
+  // on regaining visibility too, matching the pattern already used by
+  // the inbox and broadcasts pages.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') loadAll()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
   }, [loadAll])
 
   // Range switch handler — kept in an event callback (not an effect)
@@ -226,8 +244,15 @@ export default function DashboardPage() {
       {/* Response time */}
       <ResponseTimeChart data={responseTime} loading={responseTimeLoading} />
 
-      {/* Activity feed */}
-      <ActivityFeed items={activity} loading={activityLoading} />
+      {/* Team + HOT leads waiting on a reply */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+        <div className="h-full lg:col-span-2">
+          <TeamCard />
+        </div>
+        <div className="h-full lg:col-span-3">
+          <HotUnansweredCard items={hotUnanswered} loading={hotUnansweredLoading} />
+        </div>
+      </div>
     </div>
   )
 }

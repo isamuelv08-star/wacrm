@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowUp, Minus } from 'lucide-react'
-import type { ComponentType } from 'react'
+import { useEffect, useState, type ComponentType } from 'react'
 import { cn } from '@/lib/utils'
 
 export type MetricCardTint = 'blue' | 'green' | 'purple' | 'amber'
@@ -38,9 +38,28 @@ interface MetricCardProps {
 
 export function MetricCard({ title, value, icon: Icon, delta, subtitle, tint }: MetricCardProps) {
   const color = TINT_COLORS[tint]
+
+  // Entrance transition — the card fades/slides in on mount instead of
+  // just appearing, and the glow accent below only starts pulsing once
+  // that's done. Purely presentational; no data dependency, so a plain
+  // "flip true one frame after mount" is enough (no need to key it to
+  // `value` — the whole card already remounts when its skeleton swaps
+  // out for real data, since the dashboard page renders skeletons and
+  // cards as different elements).
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setMounted(true))
+    return () => cancelAnimationFrame(raf)
+  }, [])
+
   return (
     <div
-      className="rounded-2xl border p-5 shadow-md shadow-black/5"
+      className={cn(
+        'group relative overflow-hidden rounded-2xl border p-5 shadow-md shadow-black/5',
+        'transition-all duration-500 ease-out',
+        'hover:-translate-y-0.5 hover:shadow-lg',
+        mounted ? 'translate-y-0 opacity-100' : 'translate-y-1.5 opacity-0',
+      )}
       style={{
         backgroundImage: `linear-gradient(135deg, color-mix(in oklch, ${color} 20%, var(--card)), color-mix(in oklch, ${color} 8%, var(--card)))`,
         borderColor: `color-mix(in oklch, ${color} 25%, var(--border))`,
@@ -49,7 +68,7 @@ export function MetricCard({ title, value, icon: Icon, delta, subtitle, tint }: 
       <div className="flex items-start justify-between">
         <p className="text-sm font-medium text-muted-foreground">{title}</p>
         <div
-          className="flex h-8 w-8 items-center justify-center rounded-lg"
+          className="flex h-8 w-8 items-center justify-center rounded-lg transition-transform duration-300 group-hover:scale-110"
           style={{
             backgroundColor: `color-mix(in oklch, ${color} 26%, transparent)`,
             color,
@@ -64,6 +83,18 @@ export function MetricCard({ title, value, icon: Icon, delta, subtitle, tint }: 
       {delta ? <DeltaRow sign={delta.sign} label={delta.label} /> : subtitle ? (
         <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>
       ) : null}
+
+      {/* Glowing accent — a soft, slowly breathing bar that ties the
+          card to the rest of the dashboard's "illuminated" charts
+          instead of sitting flat next to them. */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-x-5 bottom-0 h-[3px] rounded-full opacity-70"
+        style={{
+          background: `linear-gradient(90deg, transparent, ${color}, transparent)`,
+          animation: mounted ? 'metric-glow-pulse 2.8s ease-in-out infinite' : undefined,
+        }}
+      />
     </div>
   )
 }

@@ -87,18 +87,6 @@
       "newBroadcast": "New Broadcast",
       "newAutomation": "New Automation"
     },
-    "activityFeed": {
-      "title": "Recent Activity",
-      "viewAll": "View all →",
-      "noActivity": "No activity yet",
-      "noActivityHint": "Activity from messages, deals, broadcasts, and automations will appear here.",
-      "showingOf": "Showing {visible} of {totalLoaded}{plus}",
-      "show": "Show",
-      "timeS": "{sec}s ago",
-      "timeM": "{min}m ago",
-      "timeH": "{hr}h ago",
-      "timeD": "{day}d ago"
-    },
     "conversationsChart": {
       "title": "Conversations Over Time",
       "description": "Daily message volume by direction",
@@ -127,10 +115,27 @@
       "thisWeek": "This week:",
       "lastWeek": "Last week:",
       "noReplies": "No replies recorded yet",
-      "noRepliesHint": "This chart fills in as you reply to customer messages."
+      "noRepliesHint": "This chart fills in as you reply to customer messages.",
+      "tooltipAvg": "{minutes}m avg",
+      "tooltipNoSamples": "No samples"
     },
     "emptyState": {
       "title": "Not enough data yet"
+    },
+    "hotUnanswered": {
+      "title": "HOT leads waiting",
+      "description": "Customers who haven't heard back yet",
+      "waiting": "+{minutes}m",
+      "allCaughtUp": "All caught up",
+      "allCaughtUpHint": "No HOT leads are waiting on a reply right now."
+    },
+    "team": {
+      "title": "Team",
+      "activeCount": "{count, plural, =1 {# active member} other {# active members}}",
+      "noMembers": "No team members yet",
+      "unnamed": "Unnamed",
+      "active": "Active",
+      "inactive": "Inactive"
     }
   },
   "Inbox": {

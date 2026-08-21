@@ -87,18 +87,6 @@
       "newBroadcast": "Nova Transmissão",
       "newAutomation": "Nova Automação"
     },
-    "activityFeed": {
-      "title": "Atividade Recente",
-      "viewAll": "Ver tudo →",
-      "noActivity": "Nenhuma atividade ainda",
-      "noActivityHint": "Atividades de mensagens, negócios, transmissões e automações aparecerão aqui.",
-      "showingOf": "Mostrando {visible} de {totalLoaded}{plus}",
-      "show": "Mostrar",
-      "timeS": "{sec}s atrás",
-      "timeM": "{min}min atrás",
-      "timeH": "{hr}h atrás",
-      "timeD": "{day}d atrás"
-    },
     "conversationsChart": {
       "title": "Conversas ao Longo do Tempo",
       "description": "Volume diário de mensagens por direção",
@@ -127,10 +115,27 @@
       "thisWeek": "Esta semana:",
       "lastWeek": "Semana passada:",
       "noReplies": "Nenhuma resposta registrada ainda",
-      "noRepliesHint": "Este gráfico se preenche à medida que você responde às mensagens dos clientes."
+      "noRepliesHint": "Este gráfico se preenche à medida que você responde às mensagens dos clientes.",
+      "tooltipAvg": "{minutes}min méd.",
+      "tooltipNoSamples": "Sem dados"
     },
     "emptyState": {
       "title": "Ainda não há dados suficientes"
+    },
+    "hotUnanswered": {
+      "title": "Leads quentes esperando",
+      "description": "Clientes que ainda não receberam resposta",
+      "waiting": "+{minutes}min",
+      "allCaughtUp": "Tudo em dia",
+      "allCaughtUpHint": "Nenhum lead quente está esperando uma resposta agora."
+    },
+    "team": {
+      "title": "Equipe",
+      "activeCount": "{count, plural, =1 {# membro ativo} other {# membros ativos}}",
+      "noMembers": "Ainda não há membros",
+      "unnamed": "Sem nome",
+      "active": "Ativo",
+      "inactive": "Inativo"
     }
   },
   "Inbox": {
