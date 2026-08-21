@@ -547,7 +547,19 @@
     "card": {
       "noContact": "No contact",
       "won": "Won",
-      "lost": "Lost"
+      "lost": "Lost",
+      "staleness": {
+        "tier1": "Cooling off",
+        "tier2": "Cooling off",
+        "tier3": "Cooling off",
+        "tier4": "Lead at risk",
+        "minutesSuffix": "+{minutes} min unanswered",
+        "hoursSuffix": "+{hours}h unanswered",
+        "tier1Hint": "Unanswered for over 5 minutes",
+        "tier2Hint": "Unanswered for over 15 minutes",
+        "tier3Hint": "Unanswered for over 30 minutes",
+        "tier4Hint": "Unanswered for over an hour — this lead is at risk of going cold"
+      }
     },
     "form": {
       "editDeal": "Edit Deal",
@@ -1745,6 +1757,8 @@
       "enableAssistantDesc": "Master switch. Turns on the “Draft with AI” button in the inbox.",
       "autoReply": "Auto-reply to inbound messages",
       "autoReplyDesc": "The bot answers new inbound messages automatically (only when no flow handles them and no agent is assigned). Hands off to a human when it can’t help.",
+      "salesMode": "Sales mode",
+      "salesModeDesc": "The bot actively drives the sale — qualifies, handles objections, and moves the deal through the pipeline stages as the conversation progresses, right up to closing it. Still hands off to a human whenever the customer asks for one.",
       "maxAutoReplies": "Max auto-replies per conversation",
       "maxAutoRepliesDesc": "After this many bot replies in one thread, the bot goes quiet. Pick a preset or type your own — or choose “Never stop” for no limit.",
       "maxAutoRepliesUnlimited": "Never stop",

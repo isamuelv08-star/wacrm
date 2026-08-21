@@ -11,6 +11,7 @@ function config(overrides: Partial<AiConfig> = {}): AiConfig {
     qualificationCriteria: null,
     isActive: true,
     autoReplyEnabled: false,
+    salesModeEnabled: false,
     autoReplyMaxPerConversation: 3,
     handoffAgentId: null,
     embeddingsApiKey: null,
@@ -47,6 +48,10 @@ describe('parseGeneration', () => {
       handoff: false,
       score: null,
       handoffSummary: null,
+      stageMove: null,
+      dealWon: false,
+      dealLost: false,
+      summary: null,
       usage: null,
     })
   })
@@ -57,6 +62,10 @@ describe('parseGeneration', () => {
       handoff: true,
       score: null,
       handoffSummary: null,
+      stageMove: null,
+      dealWon: false,
+      dealLost: false,
+      summary: null,
       usage: null,
     })
     expect(parseGeneration('Let me get a human [[HANDOFF]]')).toEqual({
@@ -64,6 +73,10 @@ describe('parseGeneration', () => {
       handoff: true,
       score: null,
       handoffSummary: null,
+      stageMove: null,
+      dealWon: false,
+      dealLost: false,
+      summary: null,
       usage: null,
     })
   })
@@ -75,6 +88,10 @@ describe('parseGeneration', () => {
       handoff: false,
       score: null,
       handoffSummary: null,
+      stageMove: null,
+      dealWon: false,
+      dealLost: false,
+      summary: null,
       usage,
     })
   })
@@ -85,6 +102,10 @@ describe('parseGeneration', () => {
       handoff: false,
       score: 'hot',
       handoffSummary: null,
+      stageMove: null,
+      dealWon: false,
+      dealLost: false,
+      summary: null,
       usage: null,
     })
     expect(parseGeneration('Ok, noted. [[score:warm]]')).toEqual({
@@ -92,6 +113,10 @@ describe('parseGeneration', () => {
       handoff: false,
       score: 'warm',
       handoffSummary: null,
+      stageMove: null,
+      dealWon: false,
+      dealLost: false,
+      summary: null,
       usage: null,
     })
   })
@@ -110,6 +135,10 @@ describe('parseGeneration', () => {
       handoff: true,
       score: 'warm',
       handoffSummary: null,
+      stageMove: null,
+      dealWon: false,
+      dealLost: false,
+      summary: null,
       usage: null,
     })
   })
@@ -163,6 +192,10 @@ describe('generateReply — OpenAI', () => {
       handoff: false,
       score: null,
       handoffSummary: null,
+      stageMove: null,
+      dealWon: false,
+      dealLost: false,
+      summary: null,
       usage: { promptTokens: 42, completionTokens: 8, totalTokens: 50 },
     })
     const [url, opts] = fetchMock.mock.calls[0]
@@ -224,6 +257,10 @@ describe('generateReply — Anthropic', () => {
       handoff: false,
       score: null,
       handoffSummary: null,
+      stageMove: null,
+      dealWon: false,
+      dealLost: false,
+      summary: null,
       usage: { promptTokens: 30, completionTokens: 6, totalTokens: 36 },
     })
     const [url, opts] = fetchMock.mock.calls[0]

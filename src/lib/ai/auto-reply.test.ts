@@ -85,6 +85,7 @@ function aiConfig(overrides: Partial<AiConfig> = {}): AiConfig {
     qualificationCriteria: null,
     isActive: true,
     autoReplyEnabled: true,
+    salesModeEnabled: false,
     autoReplyMaxPerConversation: 3,
     handoffAgentId: null,
     embeddingsApiKey: null,

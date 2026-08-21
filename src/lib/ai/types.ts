@@ -30,6 +30,14 @@ export interface AiConfig {
   qualificationCriteria: string | null
   isActive: boolean
   autoReplyEnabled: boolean
+  /**
+   * Opt-in extension of auto-reply: when true, the bot is taught the
+   * sales-mode sentinel protocol ([[STAGE:...]] / [[DEAL_WON]] /
+   * [[DEAL_LOST]]) and actively drives a lead's open deal through its
+   * pipeline as the conversation progresses, rather than only
+   * qualifying it. See `buildSystemPrompt`'s `salesMode` param.
+   */
+  salesModeEnabled: boolean
   /** Caps how many times the bot answers one thread before going quiet.
    *  `null` means no cap — the bot keeps answering (migration 047); the
    *  account-wide rate limiter in `lib/rate-limit.ts` is the separate
@@ -96,6 +104,24 @@ export interface GenerateResult {
    * present in `text`, never shown to the customer.
    */
   handoffSummary: string | null
+  /**
+   * The exact pipeline stage name the model asked to move this deal
+   * to via [[STAGE:...]] (sales mode only), or null when it didn't
+   * emit one this turn. Matching against the deal's actual stage list
+   * (case-insensitive, exact-name) happens in `sales-actions.ts` —
+   * this is just the raw string the model wrote.
+   */
+  stageMove: string | null
+  /** True when the model emitted [[DEAL_WON]] this turn (sales mode). */
+  dealWon: boolean
+  /** True when the model emitted [[DEAL_LOST]] this turn (sales mode). */
+  dealLost: boolean
+  /**
+   * The running one-line CRM summary from [[SUMMARY:...]], or null
+   * when the model didn't emit one (no open deal, or it didn't
+   * comply). Shown on the lead's pipeline deal card.
+   */
+  summary: string | null
   /** Provider token usage for this call, or null when unavailable. */
   usage: AiUsage | null
 }

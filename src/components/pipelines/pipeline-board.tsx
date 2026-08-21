@@ -15,6 +15,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import type { Deal, PipelineStage } from "@/types";
+import type { ConversationStaleness } from "@/lib/pipelines/lead-staleness";
 import { DealCard } from "./deal-card";
 import { Button } from "@/components/ui/button";
 import {
@@ -76,6 +77,8 @@ interface PipelineBoardProps {
   onDealMoved: (dealId: string, newStageId: string) => void;
   onAddDeal: (stageId: string) => void;
   onEditDeal: (deal: Deal) => void;
+  /** Optional — omit to render every card without a staleness badge. */
+  conversationStaleness?: Map<string, ConversationStaleness>;
 }
 
 export function PipelineBoard({
@@ -84,6 +87,7 @@ export function PipelineBoard({
   onDealMoved,
   onAddDeal,
   onEditDeal,
+  conversationStaleness,
 }: PipelineBoardProps) {
   const { defaultCurrency } = useAuth();
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
@@ -167,6 +171,7 @@ export function PipelineBoard({
               currency={defaultCurrency}
               onAddDeal={onAddDeal}
               onEditDeal={onEditDeal}
+              conversationStaleness={conversationStaleness}
             />
           );
         })}
@@ -187,6 +192,11 @@ export function PipelineBoard({
               }
               onEdit={() => {}}
               isOverlay
+              conversationStaleness={
+                activeDeal.contact_id
+                  ? conversationStaleness?.get(activeDeal.contact_id)
+                  : undefined
+              }
             />
           </div>
         ) : null}
@@ -241,6 +251,7 @@ function StageColumn({
   currency,
   onAddDeal,
   onEditDeal,
+  conversationStaleness,
 }: {
   stage: PipelineStage;
   deals: Deal[];
@@ -248,6 +259,7 @@ function StageColumn({
   currency: string;
   onAddDeal: (stageId: string) => void;
   onEditDeal: (deal: Deal) => void;
+  conversationStaleness?: Map<string, ConversationStaleness>;
 }) {
   const t = useTranslations("Pipelines.board");
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
@@ -325,6 +337,9 @@ function StageColumn({
               deal={deal}
               stage={stage}
               onEdit={onEditDeal}
+              conversationStaleness={
+                deal.contact_id ? conversationStaleness?.get(deal.contact_id) : undefined
+              }
             />
           ))
         )}
@@ -347,10 +362,12 @@ function DraggableDealCard({
   deal,
   stage,
   onEdit,
+  conversationStaleness,
 }: {
   deal: Deal;
   stage: PipelineStage;
   onEdit: (deal: Deal) => void;
+  conversationStaleness?: ConversationStaleness;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: deal.id,
@@ -363,7 +380,12 @@ function DraggableDealCard({
       {...attributes}
       style={{ opacity: isDragging ? 0.3 : 1, touchAction: "none" }}
     >
-      <DealCard deal={deal} stage={stage} onEdit={onEdit} />
+      <DealCard
+        deal={deal}
+        stage={stage}
+        onEdit={onEdit}
+        conversationStaleness={conversationStaleness}
+      />
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Pipeline, PipelineStage, Deal } from "@/types";
+import type { ConversationStaleness } from "@/lib/pipelines/lead-staleness";
 import { PipelineBoard } from "@/components/pipelines/pipeline-board";
 import { PipelineSettings } from "@/components/pipelines/pipeline-settings";
 import { DealForm } from "@/components/pipelines/deal-form";
@@ -57,6 +58,13 @@ export default function PipelinesPage() {
   const [stages, setStages] = useState<PipelineStage[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
+  // Keyed by contact_id — drives each open deal card's "cooling off"
+  // badge. Refetched below whenever the open deals' contact set
+  // changes; the badge itself then ticks live client-side off
+  // `last_message_at` between refetches (lead-staleness-badge.tsx).
+  const [conversationStaleness, setConversationStaleness] = useState<
+    Map<string, ConversationStaleness>
+  >(new Map());
 
   // Dialog / sheet state
   const [newPipelineOpen, setNewPipelineOpen] = useState(false);
@@ -195,6 +203,49 @@ export default function PipelinesPage() {
       cancelled = true;
     };
   }, [selectedPipelineId, loadStages, loadDeals]);
+
+  // Conversation staleness for every OPEN deal's contact — won/lost
+  // deals don't get a badge (see deal-card.tsx), so their contacts are
+  // deliberately excluded from this fetch.
+  useEffect(() => {
+    const openContactIds = Array.from(
+      new Set(
+        deals
+          .filter((d) => d.status === "open" && d.contact_id)
+          .map((d) => d.contact_id as string),
+      ),
+    );
+    if (openContactIds.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setConversationStaleness(new Map());
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("conversations")
+        .select("contact_id, last_message_at, last_message_sender_type")
+        .in("contact_id", openContactIds);
+      if (cancelled) return;
+      if (error) {
+        console.error("Failed to load conversation staleness:", error.message);
+        return;
+      }
+      const map = new Map<string, ConversationStaleness>();
+      for (const row of data ?? []) {
+        if (row.contact_id) {
+          map.set(row.contact_id, {
+            last_message_at: row.last_message_at,
+            last_message_sender_type: row.last_message_sender_type,
+          });
+        }
+      }
+      setConversationStaleness(map);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [deals, supabase]);
 
   const refreshPipelines = useCallback(async () => {
     const list = await loadPipelines();
@@ -419,6 +470,7 @@ export default function PipelinesPage() {
             onDealMoved={handleDealMoved}
             onAddDeal={handleAddDeal}
             onEditDeal={handleEditDeal}
+            conversationStaleness={conversationStaleness}
           />
         </>
       )}

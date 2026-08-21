@@ -10,6 +10,7 @@ interface AiConfigRow {
   qualification_criteria: string | null
   is_active: boolean
   auto_reply_enabled: boolean
+  sales_mode_enabled: boolean
   auto_reply_max_per_conversation: number | null
   handoff_agent_id: string | null
   embeddings_api_key: string | null
@@ -17,7 +18,7 @@ interface AiConfigRow {
 }
 
 const CONFIG_COLUMNS =
-  'provider, model, api_key, system_prompt, qualification_criteria, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, embeddings_api_key, transcription_api_key'
+  'provider, model, api_key, system_prompt, qualification_criteria, is_active, auto_reply_enabled, sales_mode_enabled, auto_reply_max_per_conversation, handoff_agent_id, embeddings_api_key, transcription_api_key'
 
 /**
  * Load and decrypt the account's AI config for *use* (draft or
@@ -94,6 +95,7 @@ export async function loadAiConfig(
     qualificationCriteria: row.qualification_criteria,
     isActive: row.is_active,
     autoReplyEnabled: row.auto_reply_enabled,
+    salesModeEnabled: row.sales_mode_enabled,
     autoReplyMaxPerConversation: row.auto_reply_max_per_conversation,
     handoffAgentId: row.handoff_agent_id,
     embeddingsApiKey,

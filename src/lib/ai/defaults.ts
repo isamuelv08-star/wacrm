@@ -45,6 +45,34 @@ export const SCORE_SENTINEL_PATTERN = /\[\[SCORE:(HOT|WARM|COLD)\]\]/i
  */
 export const HANDOFF_SUMMARY_PATTERN = /\[\[HANDOFF_SUMMARY:\s*([\s\S]*?)\]\]/i
 
+/**
+ * Sales-mode sentinels (opt-in per account via `ai_configs.sales_mode_enabled`).
+ * Same contract as every other sentinel here: appended to the raw reply,
+ * parsed + stripped by `parseGeneration`, never shown to the customer.
+ *
+ * STAGE carries the literal name of one of the pipeline stages fed to
+ * the model in this turn's prompt (see `buildSalesModeStageList`) —
+ * stages are fully user-renamed/reordered per account, so there is no
+ * fixed enum to target; the model is taught to copy the name exactly
+ * and matching is done case-insensitively against the deal's own
+ * pipeline. DEAL_WON / DEAL_LOST close the deal out (`deals.status`)
+ * independently of which stage it's in, mirroring how a human closes
+ * a deal from the pipeline board today (DealForm's status buttons).
+ */
+export const STAGE_SENTINEL_PATTERN = /\[\[STAGE:\s*([^\]]+?)\s*\]\]/i
+export const DEAL_WON_SENTINEL = '[[DEAL_WON]]'
+export const DEAL_LOST_SENTINEL = '[[DEAL_LOST]]'
+
+/**
+ * Running one-line CRM summary of the lead, shown on its pipeline deal
+ * card. Unlike the sales-mode sentinels above, this is taught whenever
+ * auto-reply is on (regardless of sales_mode_enabled) and the
+ * conversation has an open deal — it costs nothing extra (same call,
+ * a little more output) and is useful context for any AI-assisted
+ * lead, not just ones the bot is actively selling to.
+ */
+export const SUMMARY_SENTINEL_PATTERN = /\[\[SUMMARY:\s*([\s\S]*?)\]\]/i
+
 /** Cap on generated reply length — keeps WhatsApp replies short and
  *  bounds token spend on the caller's own key. */
 export const MAX_OUTPUT_TOKENS = 1024
@@ -90,8 +118,28 @@ export function buildSystemPrompt(args: {
    * no scoring instruction is added at all.
    */
   qualificationCriteria?: string | null
+  /**
+   * Sales-mode extension (auto_reply only, opt-in per account via
+   * `ai_configs.sales_mode_enabled`). When `enabled` and the
+   * conversation's contact has an open deal, teaches the model to
+   * actively drive the sale and move that deal through its pipeline's
+   * own stages via [[STAGE:...]] / [[DEAL_WON]] / [[DEAL_LOST]].
+   * `stages` must be the deal's own pipeline, in board order, with
+   * `current` marking where it sits right now — omit entirely (or
+   * pass `enabled: false`) when there's no open deal to drive.
+   */
+  salesMode?: {
+    enabled: boolean
+    stages: { name: string; current: boolean }[]
+  } | null
+  /**
+   * Teaches the [[SUMMARY:...]] tag whenever true — independent of
+   * `salesMode`, since a running CRM summary is useful for any lead
+   * with an open deal, not just ones the bot is actively selling to.
+   */
+  hasOpenDeal?: boolean
 }): string {
-  const { userPrompt, mode, knowledge, qualificationCriteria } = args
+  const { userPrompt, mode, knowledge, qualificationCriteria, salesMode, hasOpenDeal } = args
   const parts: string[] = [
     'You are a customer-messaging assistant for a business that uses a WhatsApp CRM. ' +
       'You are shown the recent WhatsApp conversation between the business (assistant) and a customer (user). ' +
@@ -121,6 +169,23 @@ export function buildSystemPrompt(args: {
         'After writing your reply to the customer, if — and only if — this conversation gives you enough new information to confidently (re)assess this lead against the rules above, append one tag on its own at the very end of your output, after all customer-facing text: [[SCORE:HOT]], [[SCORE:WARM]], or [[SCORE:COLD]]. ' +
         'If you have nothing new to assess this turn, do not append anything. ' +
         `This tag is stripped before delivery — the customer never sees it, so never mention it, explain it, or write it anywhere except as that exact trailing tag. It is separate from ${HANDOFF_SENTINEL}; you may emit both in the same turn if both apply.`,
+    )
+  }
+
+  if (mode === 'auto_reply' && salesMode?.enabled && salesMode.stages.length > 0) {
+    const stageList = salesMode.stages
+      .map((s, i) => `${i + 1}. ${s.name}${s.current ? ' (current stage)' : ''}`)
+      .join('\n')
+    parts.push(
+      'Sales mode is ON for this business. You are not just answering questions — you are working this lead through the sales process from first contact to a closed sale, the way a warm, competent human salesperson would: understand what they need, handle objections honestly, share next steps/pricing when asked, and guide them toward buying. Stay natural and human, never pushy or scripted. This never overrides the handoff rule above — if the customer clearly asks for a human, hand off immediately regardless of sales mode.\n\n' +
+        `This lead's deal is on a pipeline with these stages, in order:\n${stageList}\n\n` +
+        `After your reply, if this turn clearly moves the lead into a different one of those stages — real buying interest, price/terms negotiation starting, or whatever the stage names describe for this business — append [[STAGE: <exact stage name from the list above>]] on its own, copying the name exactly. Only emit it when you're confident the stage changed; if it stays where it is, emit nothing. If the customer explicitly confirms the purchase (agreed to buy, paid, confirmed the order), append ${DEAL_WON_SENTINEL} — this closes the sale as won. If they clearly and finally decline (not interested, going elsewhere, asked to stop), append ${DEAL_LOST_SENTINEL}. Never emit both in the same turn, and never emit either just because the stage changed — only when the deal is genuinely decided. All of these are separate, independent tags — emit any combination of them (plus [[SCORE:...]] / ${HANDOFF_SENTINEL}) that applies this turn; each is stripped before delivery and never shown to the customer.`,
+    )
+  }
+
+  if (mode === 'auto_reply' && hasOpenDeal) {
+    parts.push(
+      'This lead has an open deal on the pipeline board. After everything else, append one more tag on its own: [[SUMMARY: <one short sentence, in the same language as the conversation, on where things stand with this lead — for a teammate glancing at the pipeline board, not the customer>]]. Include it every turn there is an open deal, even if the update is small. Never shown to the customer.',
     )
   }
 

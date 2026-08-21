@@ -6,6 +6,7 @@ import { generateReply } from './generate'
 import { buildSystemPrompt, splitReplyIntoMessages } from './defaults'
 import { buildHandoffSummary } from './handoff'
 import { applyLeadScore, ensureDealInQualifiedStage } from './lead-scoring'
+import { applySalesActions, loadDealStageContext } from './sales-actions'
 import { logAiUsage } from './usage'
 import { latestUserMessage } from './query'
 import { engineSendText } from '@/lib/flows/meta-send'
@@ -121,14 +122,35 @@ export async function dispatchInboundToAiReply(
       latestUserMessage(messages),
     )
 
+    // Deal + pipeline-stage context, needed regardless of sales mode:
+    // it drives sales mode's [[STAGE:...]] protocol when enabled, AND
+    // decides whether [[SUMMARY:...]] gets taught at all (only
+    // meaningful with an open deal to attach it to). Two short
+    // lookups; a no-op cost when there's no open deal either way.
+    const dealContext = await loadDealStageContext(db, { accountId, contactId })
+
     const systemPrompt = buildSystemPrompt({
       userPrompt: config.systemPrompt,
       mode: 'auto_reply',
       knowledge,
       qualificationCriteria: config.qualificationCriteria,
+      salesMode: config.salesModeEnabled
+        ? { enabled: true, stages: dealContext.stages }
+        : null,
+      hasOpenDeal: dealContext.hasOpenDeal,
     })
 
-    const { text, handoff, score, handoffSummary, usage } = await generateReply({
+    const {
+      text,
+      handoff,
+      score,
+      handoffSummary,
+      stageMove,
+      dealWon,
+      dealLost,
+      summary,
+      usage,
+    } = await generateReply({
       config,
       systemPrompt,
       messages,
@@ -154,6 +176,22 @@ export async function dispatchInboundToAiReply(
     // its own try/catch and never throws.
     if (score) {
       await applyLeadScore(db, { accountId, contactId, configOwnerUserId, score })
+    }
+
+    // Same "independent of handoff/reply outcome" posture as the score
+    // above — a handoff and a stage move/close/summary can all be true
+    // in the same turn ("customer confirmed the order AND wants a
+    // human for delivery details"). applySalesActions owns its own
+    // try/catch and never throws.
+    if (stageMove || dealWon || dealLost || summary) {
+      await applySalesActions(db, {
+        accountId,
+        contactId,
+        stageMove,
+        dealWon,
+        dealLost,
+        summary,
+      })
     }
 
     if (handoff || !text) {

@@ -547,7 +547,19 @@
     "card": {
       "noContact": "Sin contacto",
       "won": "Ganado",
-      "lost": "Perdido"
+      "lost": "Perdido",
+      "staleness": {
+        "tier1": "Enfriando",
+        "tier2": "Enfriando",
+        "tier3": "Enfriando",
+        "tier4": "Lead en riesgo",
+        "minutesSuffix": "+{minutes} min sin responder",
+        "hoursSuffix": "+{hours}h sin responder",
+        "tier1Hint": "Sin responder hace más de 5 minutos",
+        "tier2Hint": "Sin responder hace más de 15 minutos",
+        "tier3Hint": "Sin responder hace más de 30 minutos",
+        "tier4Hint": "Sin responder hace más de una hora — este lead corre riesgo de perderse"
+      }
     },
     "form": {
       "editDeal": "Editar negocio",
@@ -1745,6 +1757,8 @@
       "enableAssistantDesc": "Interruptor principal. Activa el botón “Redactar con IA” en la bandeja de entrada.",
       "autoReply": "Respuesta automática a mensajes entrantes",
       "autoReplyDesc": "El bot responde automáticamente a los nuevos mensajes entrantes (solo cuando ningún flujo los maneja y no hay ningún agente asignado). Transfiere a un humano cuando no puede ayudar.",
+      "salesMode": "Modo de ventas",
+      "salesModeDesc": "El bot impulsa la venta activamente — califica, maneja objeciones y mueve el negocio por las etapas del pipeline a medida que avanza la conversación, hasta cerrarlo. Igual transfiere a un humano si el cliente lo pide.",
       "maxAutoReplies": "Máximo de respuestas automáticas por conversación",
       "maxAutoRepliesDesc": "Después de esta cantidad de respuestas del bot en un hilo, el bot deja de responder. Elige un valor sugerido o escribe el tuyo, o selecciona “Nunca detenerse” para no tener límite.",
       "maxAutoRepliesUnlimited": "Nunca detenerse",

@@ -235,7 +235,10 @@ export type NotificationType =
   | 'lead_qualified'
   | 'new_lead'
   | 'lead_scored'
-  | 'new_message';
+  | 'new_message'
+  /** Escalating "unanswered too long" alert on a pipeline lead
+   *  (migration 050) — see src/lib/notifications/lead-staleness-alerts.ts. */
+  | 'lead_stale';
 
 export interface Notification {
   id: string;
@@ -444,6 +447,13 @@ export interface Deal {
   notes?: string;
   expected_close_date?: string;
   status?: DealStatus;
+  /**
+   * Running one-line AI summary of the lead's status, kept fresh by
+   * the auto-reply bot's [[SUMMARY:...]] sentinel whenever this deal's
+   * conversation has AI replies (migration 050) — see
+   * src/lib/ai/sales-actions.ts. Null until the bot has generated one.
+   */
+  ai_summary?: string | null;
   created_at: string;
   updated_at?: string;
   contact?: Contact;

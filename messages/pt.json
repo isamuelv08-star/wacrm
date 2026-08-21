@@ -547,7 +547,19 @@
     "card": {
       "noContact": "Sem contato",
       "won": "Ganho",
-      "lost": "Perdido"
+      "lost": "Perdido",
+      "staleness": {
+        "tier1": "Esfriando",
+        "tier2": "Esfriando",
+        "tier3": "Esfriando",
+        "tier4": "Lead em risco",
+        "minutesSuffix": "+{minutes} min sem resposta",
+        "hoursSuffix": "+{hours}h sem resposta",
+        "tier1Hint": "Sem resposta há mais de 5 minutos",
+        "tier2Hint": "Sem resposta há mais de 15 minutos",
+        "tier3Hint": "Sem resposta há mais de 30 minutos",
+        "tier4Hint": "Sem resposta há mais de uma hora — esse lead corre risco de esfriar de vez"
+      }
     },
     "form": {
       "editDeal": "Editar Negócio",
@@ -1745,6 +1757,8 @@
       "enableAssistantDesc": "Chave geral. Ativa o botão “Redigir com IA” na caixa de entrada.",
       "autoReply": "Responder automaticamente a mensagens recebidas",
       "autoReplyDesc": "O bot responde automaticamente a novas mensagens recebidas (somente quando nenhum fluxo as trata e nenhum agente está atribuído). Transfere para um humano quando não consegue ajudar.",
+      "salesMode": "Modo de vendas",
+      "salesModeDesc": "O bot conduz ativamente a venda — qualifica, lida com objeções e move o negócio pelas etapas do pipeline conforme a conversa avança, até fechá-lo. Ainda assim transfere para um humano sempre que o cliente pedir.",
       "maxAutoReplies": "Máximo de respostas automáticas por conversa",
       "maxAutoRepliesDesc": "Após esse número de respostas do bot em uma conversa, o bot fica em silêncio. Escolha uma opção sugerida ou digite a sua, ou selecione “Nunca parar” para não ter limite.",
       "maxAutoRepliesUnlimited": "Nunca parar",

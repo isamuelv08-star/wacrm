@@ -15,6 +15,7 @@ import {
   UserRoundPlus,
   Sparkles,
   MessageCircle,
+  Snowflake,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ const TYPE_ICON: Record<Notification["type"], typeof Bell> = {
   new_lead: UserRoundPlus,
   lead_scored: Sparkles,
   new_message: MessageCircle,
+  lead_stale: Snowflake,
 };
 
 export default function NotificationsPage() {

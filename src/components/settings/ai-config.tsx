@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Sparkles, CheckCircle2, Trash2, Eye, EyeOff, Flame } from 'lucide-react';
+import { Loader2, Sparkles, CheckCircle2, Trash2, Eye, EyeOff, Flame, Handshake } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { canEditSettings } from '@/lib/auth/roles';
 import { Button } from '@/components/ui/button';
@@ -81,6 +81,7 @@ export function AiConfig() {
   const [qualificationCriteria, setQualificationCriteria] = useState('');
   const [isActive, setIsActive] = useState(false);
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(false);
+  const [salesModeEnabled, setSalesModeEnabled] = useState(false);
   // null = "never stop responding" (migration 047).
   const [maxPerConversation, setMaxPerConversation] = useState<number | null>(3);
   // Empty string = leave unassigned (shared queue).
@@ -118,6 +119,7 @@ export function AiConfig() {
         setQualificationCriteria(data.qualification_criteria ?? '');
         setIsActive(data.is_active);
         setAutoReplyEnabled(data.auto_reply_enabled);
+        setSalesModeEnabled(Boolean(data.sales_mode_enabled));
         // The stored value is a number, or null ("never stop") — only an
         // absent key (older/partial payload) should fall back to the
         // column's own default, so this checks for undefined, not ??.
@@ -201,6 +203,7 @@ export function AiConfig() {
     qualification_criteria: qualificationCriteria.trim() || null,
     is_active: isActive,
     auto_reply_enabled: autoReplyEnabled,
+    sales_mode_enabled: salesModeEnabled,
     auto_reply_max_per_conversation: maxPerConversation,
     handoff_agent_id: handoffAgentId || null,
   });
@@ -554,6 +557,23 @@ export function AiConfig() {
                 checked={autoReplyEnabled}
                 onCheckedChange={setAutoReplyEnabled}
                 disabled={disabled || !isActive}
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-4 rounded-md border border-border p-3">
+              <div>
+                <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                  <Handshake className="h-3.5 w-3.5 text-primary" />
+                  {t('salesMode')}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t('salesModeDesc')}
+                </p>
+              </div>
+              <Switch
+                checked={salesModeEnabled}
+                onCheckedChange={setSalesModeEnabled}
+                disabled={disabled || !autoReplyEnabled}
               />
             </div>
 

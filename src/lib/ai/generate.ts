@@ -10,6 +10,10 @@ import {
   HANDOFF_SENTINEL,
   HANDOFF_SUMMARY_PATTERN,
   SCORE_SENTINEL_PATTERN,
+  STAGE_SENTINEL_PATTERN,
+  DEAL_WON_SENTINEL,
+  DEAL_LOST_SENTINEL,
+  SUMMARY_SENTINEL_PATTERN,
   aiRequestTimeoutMs,
 } from './defaults'
 import { generateOpenAi } from './providers/openai'
@@ -81,11 +85,35 @@ export function parseGeneration(
   const summaryMatch = raw.match(HANDOFF_SUMMARY_PATTERN)
   const handoffSummary =
     handoff && summaryMatch ? summaryMatch[1].trim() || null : null
+
+  const stageMatch = raw.match(STAGE_SENTINEL_PATTERN)
+  const stageMove = stageMatch ? stageMatch[1].trim() || null : null
+  const dealWon = raw.includes(DEAL_WON_SENTINEL)
+  const dealLost = raw.includes(DEAL_LOST_SENTINEL)
+  const crmSummaryMatch = raw.match(SUMMARY_SENTINEL_PATTERN)
+  const summary = crmSummaryMatch ? crmSummaryMatch[1].trim() || null : null
+
   const text = raw
     .split(HANDOFF_SENTINEL)
     .join('')
+    .split(DEAL_WON_SENTINEL)
+    .join('')
+    .split(DEAL_LOST_SENTINEL)
+    .join('')
     .replace(SCORE_SENTINEL_PATTERN, '')
     .replace(HANDOFF_SUMMARY_PATTERN, '')
+    .replace(STAGE_SENTINEL_PATTERN, '')
+    .replace(SUMMARY_SENTINEL_PATTERN, '')
     .trim()
-  return { text, handoff, score, handoffSummary, usage }
+  return {
+    text,
+    handoff,
+    score,
+    handoffSummary,
+    stageMove,
+    dealWon,
+    dealLost,
+    summary,
+    usage,
+  }
 }

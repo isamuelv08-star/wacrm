@@ -30,7 +30,7 @@ export async function GET() {
       // `api_key` is selected only to derive `has_key` — it is stripped
       // out below and never returned to the client.
       .select(
-        'provider, model, system_prompt, qualification_criteria, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, api_key, embeddings_api_key, transcription_api_key',
+        'provider, model, system_prompt, qualification_criteria, is_active, auto_reply_enabled, sales_mode_enabled, auto_reply_max_per_conversation, handoff_agent_id, api_key, embeddings_api_key, transcription_api_key',
       )
       .eq('account_id', accountId)
       .maybeSingle()
@@ -95,6 +95,7 @@ export async function POST(request: Request) {
         : null
     const isActive = body.is_active === true
     const autoReplyEnabled = body.auto_reply_enabled === true
+    const salesModeEnabled = body.sales_mode_enabled === true
 
     // null = "never stop responding" (migration 047), enforced by
     // claim_ai_reply_slot treating a NULL cap as unbounded. Anything
@@ -191,6 +192,7 @@ export async function POST(request: Request) {
           qualificationCriteria,
           isActive,
           autoReplyEnabled,
+          salesModeEnabled,
           autoReplyMaxPerConversation: maxPer,
           handoffAgentId: null,
           embeddingsApiKey: null,
@@ -233,6 +235,7 @@ export async function POST(request: Request) {
       qualification_criteria: qualificationCriteria,
       is_active: isActive,
       auto_reply_enabled: autoReplyEnabled,
+      sales_mode_enabled: salesModeEnabled,
       auto_reply_max_per_conversation: maxPer,
     }
     // Only touch the handoff target when the form actually sent the field,
