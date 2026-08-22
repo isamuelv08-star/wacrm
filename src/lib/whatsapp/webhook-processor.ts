@@ -638,7 +638,7 @@ async function handleReaction(
   }
 }
 
-async function processMessage(
+export async function processMessage(
   message: WhatsAppMessage,
   contact: { profile: { name: string }; wa_id: string },
   // Tenancy. Resolved from the matched whatsapp_config row; every
@@ -649,7 +649,14 @@ async function processMessage(
   // (contacts, conversations). Always the admin who saved the
   // WhatsApp config; the choice is arbitrary post-017 but stable.
   configOwnerUserId: string,
-  accessToken: string
+  accessToken: string,
+  // 'zernio' for accounts whose WhatsApp channel is bridged through
+  // Zernio's inbox API instead of a direct whatsapp_config row (see
+  // src/app/api/whatsapp/webhook/zernio/route.ts). Only affects how
+  // media URLs are verified/proxied below — everything else in this
+  // pipeline (contacts, conversations, automations, flows, AI
+  // auto-reply, notifications) is provider-agnostic by design.
+  provider: 'meta' | 'zernio' = 'meta',
 ) {
   const senderPhone = normalizePhone(message.from)
   const contactName = contact.profile.name
@@ -711,7 +718,7 @@ async function processMessage(
   }
 
   // Parse message content based on type.
-  const parsedContent = await parseMessageContent(message, accessToken)
+  const parsedContent = await parseMessageContent(message, accessToken, provider)
   const { mediaUrl, mediaType, interactiveReplyId } = parsedContent
   // `let`, not `const` — reassigned below for audio once
   // transcribeAndStoreAudioMessage resolves, so that the SAME inbound
@@ -804,7 +811,14 @@ async function processMessage(
   // the AI auto-reply dispatch below both see it in the same turn.
   // transcribeAndStoreAudioMessage owns its own try/catch and never
   // throws; it silently no-ops when the account has no usable key.
-  if (contentType === 'audio' && mediaUrl && message.audio?.id) {
+  // Meta-only: both helpers fetch the media bytes straight from Meta's
+  // Graph API using `mediaId` + `accessToken`. A Zernio-bridged
+  // message's "mediaId" is really an encoded Zernio proxy token (see
+  // parseMessageContent above), so calling these would just fail —
+  // skip them rather than burn a Meta-shaped call on a non-Meta id.
+  // Voice transcription / image description for Zernio-connected
+  // accounts is a known gap, not yet built.
+  if (provider === 'meta' && contentType === 'audio' && mediaUrl && message.audio?.id) {
     const transcript = await transcribeAndStoreAudioMessage({
       db: supabaseAdmin(),
       accountId,
@@ -827,7 +841,7 @@ async function processMessage(
   // automations untouched (still driven by the real caption, same as
   // before this migration).
   let hasImageDescription = false
-  if (contentType === 'image' && mediaUrl && message.image?.id) {
+  if (provider === 'meta' && contentType === 'image' && mediaUrl && message.image?.id) {
     const description = await describeAndStoreImageMessage({
       db: supabaseAdmin(),
       accountId,
@@ -1011,7 +1025,8 @@ async function processMessage(
 
 async function parseMessageContent(
   message: WhatsAppMessage,
-  accessToken: string
+  accessToken: string,
+  provider: 'meta' | 'zernio' = 'meta',
 ): Promise<{
   contentText: string | null
   mediaUrl: string | null
@@ -1029,9 +1044,19 @@ async function parseMessageContent(
   // the args swapped, so every verification hit an invalid Meta URL and
   // fell through to the catch block, leaving mediaUrl as null. That's
   // why images showed up as empty bubbles in the inbox.
+  //
+  // For 'zernio', `mediaId` is not a real Meta media id — the caller
+  // (webhook/zernio/route.ts) puts the base64url-encoded Zernio
+  // attachment URL there instead, since Zernio's own inbound-media
+  // endpoint takes a full authenticated URL, not a bare id. There's no
+  // Meta token to verify against, so we skip straight to building the
+  // proxy URL and let the proxy itself surface a fetch failure lazily.
   const verifyAndBuildUrl = async (
     mediaId: string
   ): Promise<string | null> => {
+    if (provider === 'zernio') {
+      return `/api/whatsapp/media/zernio/${mediaId}`
+    }
     try {
       await getMediaUrl({ mediaId, accessToken })
       return `/api/whatsapp/media/${mediaId}`

@@ -66,7 +66,17 @@ export async function GET(request: NextRequest) {
     })
   }
 
-  const connected = searchParams.get('connected') === 'true'
+  // Zernio's own docs for GET /v1/connect/{platform} spell out the
+  // success shape precisely: "Standard mode appends
+  // connected={platform}&profileId=X&accountId=Y&username=Z" — the
+  // `connected` param's VALUE is the platform name, not the literal
+  // string "true". Comparing it to 'true' meant this branch was
+  // unreachable on every real successful connection (Meta + Zernio
+  // both show connected, but this route always fell through to the
+  // "not completed" branch below and never wrote the row) — confirmed
+  // against a real account where whatsapp_account_id/connected_at
+  // were still null despite the user having finished the Meta flow.
+  const connected = searchParams.get('connected') === platform
   const profileId = searchParams.get('profileId')
   const accountId = searchParams.get('accountId')
 

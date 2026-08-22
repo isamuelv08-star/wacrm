@@ -139,12 +139,14 @@ async function persistProfileId(
   accountId: string,
   accountName: string,
   profileId: string,
+  connectedByUserId: string,
 ): Promise<void> {
   const { error: upsertError } = await admin.from('client_zernio_accounts').upsert(
     {
       account_id: accountId,
       client_name: accountName,
       zernio_profile_id: profileId,
+      connected_by_user_id: connectedByUserId,
     },
     { onConflict: 'account_id' },
   )
@@ -190,6 +192,7 @@ async function resolveZernioProfileId(
   apiKey: string,
   accountId: string,
   accountName: string,
+  connectedByUserId: string,
 ): Promise<string> {
   const { data: existing, error: fetchError } = await admin
     .from('client_zernio_accounts')
@@ -223,7 +226,7 @@ async function resolveZernioProfileId(
           '[zernio/connect] profile name conflict — adopting existing Zernio profile',
           existingProfileId,
         )
-        await persistProfileId(admin, accountId, accountName, existingProfileId)
+        await persistProfileId(admin, accountId, accountName, existingProfileId, connectedByUserId)
         return existingProfileId
       }
     }
@@ -236,7 +239,7 @@ async function resolveZernioProfileId(
     throw new ZernioRequestError("Zernio didn't return a profile id.")
   }
 
-  await persistProfileId(admin, accountId, accountName, profileId)
+  await persistProfileId(admin, accountId, accountName, profileId, connectedByUserId)
   return profileId
 }
 
@@ -261,12 +264,14 @@ export async function GET(
 
   let accountId: string
   let accountName: string
+  let userId: string
   try {
     // Connecting/disconnecting a channel is settings-class — same bar
     // as whatsapp_config, api keys, etc.
     const ctx = await requireRole('admin')
     accountId = ctx.accountId
     accountName = ctx.account.name
+    userId = ctx.userId
   } catch (err) {
     // No session / insufficient role. This route is only ever reached
     // via a click inside the (already auth-gated) settings page, so
@@ -311,6 +316,7 @@ export async function GET(
       apiKey,
       accountId,
       accountName,
+      userId,
     )
 
     const zernioUrl = new URL(`/api/v1/connect/${platform}`, zernioBase)
