@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
@@ -107,6 +107,19 @@ export default function DashboardPage() {
   // call in loadAll) — they're explicitly labeled "Today" and read as
   // live snapshots, not a trend the viewer would want to re-window.
   const [rangeDays, setRangeDays] = useState<DashboardRangeDays>(30)
+  // Read inside `loadAll` instead of the state value directly, so
+  // `loadAll` (used for the initial load, pathname changes, and
+  // regained visibility) doesn't need `rangeDays` as a dependency —
+  // otherwise switching the period would recreate `loadAll` and trip
+  // the pathname effect below, reloading the ENTIRE dashboard (pipeline
+  // donut, hot-unanswered, funnel, commercial metrics — none of which
+  // are range-dependent) on every click instead of just the widgets
+  // that actually care. `handleRangeDaysChange` further down is the
+  // one place that actually reacts to a period change.
+  const rangeDaysRef = useRef(rangeDays)
+  useEffect(() => {
+    rangeDaysRef.current = rangeDays
+  }, [rangeDays])
 
   const [range, setRange] = useState<RangeDays>(30)
   // Keep a cache per range so switching tabs doesn't re-fetch what we
@@ -144,6 +157,7 @@ export default function DashboardPage() {
 
   const loadAll = useCallback(() => {
     const db = createClient()
+    const currentRangeDays = rangeDaysRef.current
 
     // Kick everything off in parallel. Each block has its own
     // setState + finally so a slow query doesn't hold up faster
@@ -163,7 +177,7 @@ export default function DashboardPage() {
       .catch((err) => console.error('[dashboard] pipeline failed:', err))
       .finally(() => setPipelineLoading(false))
 
-    void loadResponseTime(db, rangeDays)
+    void loadResponseTime(db, currentRangeDays)
       .then((r) => setResponseTime(r))
       .catch((err) => console.error('[dashboard] response time failed:', err))
       .finally(() => setResponseTimeLoading(false))
@@ -183,7 +197,7 @@ export default function DashboardPage() {
       return
     }
 
-    void loadCeoMetrics(db, rangeDays)
+    void loadCeoMetrics(db, currentRangeDays)
       .then((m) => {
         setCeoMetrics(m)
         // Alerts need the full metrics bundle this same call already
@@ -198,7 +212,7 @@ export default function DashboardPage() {
       .catch((err) => console.error('[dashboard] sales metrics failed:', err))
       .finally(() => setCeoMetricsLoading(false))
 
-    void loadSalesVsGoal(db, rangeDays)
+    void loadSalesVsGoal(db, currentRangeDays)
       .then((s) => setSalesVsGoal(s))
       .catch((err) => console.error('[dashboard] sales-vs-goal failed:', err))
       .finally(() => setSalesVsGoalLoading(false))
@@ -213,11 +227,11 @@ export default function DashboardPage() {
       .catch((err) => console.error('[dashboard] commercial metrics failed:', err))
       .finally(() => setCommercialLoading(false))
 
-    void loadTopSellers(db, rangeDays)
+    void loadTopSellers(db, currentRangeDays)
       .then((s) => setTopSellers(s))
       .catch((err) => console.error('[dashboard] top-sellers failed:', err))
       .finally(() => setTopSellersLoading(false))
-  }, [hasAnySalesAccess, rangeDays])
+  }, [hasAnySalesAccess])
 
   // Re-fetch every time this route becomes the active page — not just
   // on first mount. Next's client router cache can keep this page's
@@ -288,6 +302,52 @@ export default function DashboardPage() {
     [series],
   )
 
+  // Global period switch handler — only refetches the widgets that
+  // actually depend on it (Response Time, and the Sales section's
+  // metrics/goal chart/top sellers), not the whole dashboard. See the
+  // `rangeDaysRef` note above for why `loadAll` itself can't be reused
+  // here.
+  const handleRangeDaysChange = useCallback(
+    (r: DashboardRangeDays) => {
+      setRangeDays(r)
+      const db = createClient()
+
+      setResponseTimeLoading(true)
+      loadResponseTime(db, r)
+        .then((res) => setResponseTime(res))
+        .catch((err) => console.error('[dashboard] response time failed:', err))
+        .finally(() => setResponseTimeLoading(false))
+
+      if (!hasAnySalesAccess) return
+
+      setCeoMetricsLoading(true)
+      loadCeoMetrics(db, r)
+        .then((m) => {
+          setCeoMetrics(m)
+          setAlertsLoading(true)
+          void loadCeoAlerts(db, m, STALE_DAYS)
+            .then((a) => setAlerts(a))
+            .catch((err) => console.error('[dashboard] sales alerts failed:', err))
+            .finally(() => setAlertsLoading(false))
+        })
+        .catch((err) => console.error('[dashboard] sales metrics failed:', err))
+        .finally(() => setCeoMetricsLoading(false))
+
+      setSalesVsGoalLoading(true)
+      loadSalesVsGoal(db, r)
+        .then((s) => setSalesVsGoal(s))
+        .catch((err) => console.error('[dashboard] sales-vs-goal failed:', err))
+        .finally(() => setSalesVsGoalLoading(false))
+
+      setTopSellersLoading(true)
+      loadTopSellers(db, r)
+        .then((s) => setTopSellers(s))
+        .catch((err) => console.error('[dashboard] top-sellers failed:', err))
+        .finally(() => setTopSellersLoading(false))
+    },
+    [hasAnySalesAccess],
+  )
+
   return (
     <div className="space-y-5">
       {/* Header — greets the signed-in user by name (falls back to a
@@ -309,7 +369,7 @@ export default function DashboardPage() {
             <button
               key={r}
               type="button"
-              onClick={() => setRangeDays(r)}
+              onClick={() => handleRangeDaysChange(r)}
               className={
                 'rounded-md px-2.5 py-1 text-xs font-medium transition-colors ' +
                 (rangeDays === r

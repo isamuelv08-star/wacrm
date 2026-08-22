@@ -222,7 +222,7 @@ export function InviteMemberDialog({
         onOpenChange(next);
       }}
     >
-      <DialogContent className="bg-popover border-border sm:max-w-md">
+      <DialogContent className="bg-popover border-border sm:max-w-md max-h-[85vh] overflow-y-auto">
         {result ? (
           <>
             <DialogHeader>

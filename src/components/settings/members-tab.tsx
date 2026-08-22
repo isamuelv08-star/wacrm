@@ -748,7 +748,7 @@ export function MembersTab() {
           if (!open) setEditingPermissionsFor(null);
         }}
       >
-        <DialogContent className="bg-popover border-border sm:max-w-sm">
+        <DialogContent className="bg-popover border-border sm:max-w-sm max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-popover-foreground">
               {t('editDashboardAccessTitle', {
