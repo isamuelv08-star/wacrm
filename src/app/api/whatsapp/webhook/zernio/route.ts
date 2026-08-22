@@ -171,6 +171,42 @@ async function processZernioEvent(payload: ZernioWebhookPayload) {
     '', // no Meta access token for a Zernio-bridged account
     'zernio',
   )
+
+  // Stamp the conversation with Zernio's own conversation id, so any
+  // reply (AI auto-reply, a human agent, Flows, Automations) sends via
+  // POST /v1/inbox/conversations/{id}/messages — the reply path Zernio
+  // actually supports for text/media/interactive — instead of wrongly
+  // trying to cold-start a NEW conversation (POST /v1/inbox/conversations,
+  // which only accepts a template or a Direct-Send-eligible message).
+  // Without this, every reply looked like a business-initiated opener
+  // even seconds after the customer just texted in, and got rejected
+  // by Meta with "Direct Send is not enabled for this WhatsApp account."
+  //
+  // Resolved via the message we just inserted (by its wamid) rather
+  // than threading a return value through processMessage's several
+  // early-exit paths — cheap, and a miss here (e.g. the reaction
+  // short-circuit, which never inserts into `messages`) just means the
+  // NEXT real inbound text sets it, not a lost message.
+  if (payload.conversation?.id) {
+    const { data: insertedMsg } = await supabaseAdmin()
+      .from('messages')
+      .select('conversation_id, conversations(zernio_conversation_id)')
+      .eq('message_id', adapted.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const conv = insertedMsg?.conversations as { zernio_conversation_id: string | null } | null
+    if (insertedMsg && conv?.zernio_conversation_id !== payload.conversation.id) {
+      const { error: stampError } = await supabaseAdmin()
+        .from('conversations')
+        .update({ zernio_conversation_id: payload.conversation.id })
+        .eq('id', insertedMsg.conversation_id)
+      if (stampError) {
+        console.error('[webhook/zernio] failed to stamp zernio_conversation_id:', stampError.message)
+      }
+    }
+  }
 }
 
 /**
