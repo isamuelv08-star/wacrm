@@ -15,13 +15,38 @@
 // brand-new thread is a genuine Meta limitation, not a gap in this
 // bridge.
 //
-// Interactive (button/list) sends aren't wired yet for Zernio — a
-// known, explicit gap (see the thrown SendMessageError below), not a
-// silent no-op.
+// Interactive (button/list) sends build the same raw Meta objects
+// meta-api.ts's sendInteractiveButtons/sendInteractiveList already
+// construct — Zernio's `buttons` field for the ≤3-button case, and its
+// `interactive` field (forwarded to Meta verbatim) for the list case,
+// which Meta itself requires to open a NEW conversation (they're
+// session-only, so an interactive send with no existing thread is a
+// genuine Meta limitation, not a gap here — see the check below).
 // ============================================================
 
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { zernioClient } from '@/lib/whatsapp/zernio-client'
 import { SendMessageError, type SendMessageParams } from '@/lib/whatsapp/send-message'
+import type { InteractiveMessagePayload } from '@/lib/whatsapp/interactive'
+
+/**
+ * The Zernio SocialAccount id for this account's WhatsApp channel, or
+ * null when it's not Zernio-bridged (direct-Meta / Dualhook instead).
+ * Every outbound sender (dashboard send, AI auto-reply, Flows,
+ * Automations) checks this FIRST, before touching whatsapp_config —
+ * a Zernio-connected account has no row there at all.
+ */
+export async function resolveZernioSocialAccountId(
+  db: SupabaseClient,
+  accountId: string,
+): Promise<string | null> {
+  const { data } = await db
+    .from('client_zernio_accounts')
+    .select('whatsapp_account_id')
+    .eq('account_id', accountId)
+    .maybeSingle()
+  return (data?.whatsapp_account_id as string | null) ?? null
+}
 
 export interface ZernioSendResult {
   waMessageId: string
@@ -45,14 +70,16 @@ export async function sendViaZernio(
   >,
   /** Meta wamid of the message being swipe-replied to, if any. */
   contextMessageId?: string,
+  /** Required when messageType === 'interactive'. */
+  interactivePayload?: InteractiveMessagePayload | null,
 ): Promise<ZernioSendResult> {
   const { messageType, contentText, mediaUrl, filename, templateName, templateLanguage, templateParams } =
     params
 
-  if (messageType === 'interactive') {
+  if (messageType === 'interactive' && !existingZernioConversationId) {
     throw new SendMessageError(
-      'unsupported_for_zernio',
-      'Interactive button/list messages are not yet supported for WhatsApp accounts connected via Zernio. Use text, a media message, or a template instead.',
+      'bad_request',
+      'Interactive (button/list) messages are session-only on WhatsApp — they need an existing conversation and can\'t open a new one. Use a template to start the thread.',
       400,
     )
   }
@@ -71,11 +98,30 @@ export async function sendViaZernio(
       path: { conversationId: existingZernioConversationId },
       body: {
         accountId: zernioSocialAccountId,
-        message: contentText || undefined,
+        // The list case's body text lives inside the raw `interactive`
+        // object built below — setting it here too would send it twice.
+        message:
+          messageType === 'interactive'
+            ? interactivePayload!.kind === 'buttons'
+              ? interactivePayload!.body
+              : undefined
+            : contentText || undefined,
         attachmentUrl: attachmentType ? mediaUrl || undefined : undefined,
         attachmentType,
         attachmentName: attachmentType === 'file' ? filename || undefined : undefined,
         replyTo: contextMessageId,
+        buttons:
+          messageType === 'interactive' && interactivePayload!.kind === 'buttons'
+            ? interactivePayload!.buttons.map((b) => ({
+                type: 'postback' as const,
+                title: b.title,
+                payload: b.id,
+              }))
+            : undefined,
+        interactive:
+          messageType === 'interactive' && interactivePayload!.kind === 'list'
+            ? buildMetaListInteractive(interactivePayload!)
+            : undefined,
         template:
           messageType === 'template' && templateName
             ? {
@@ -137,6 +183,32 @@ export async function sendViaZernio(
     waMessageId: data.data.messageId,
     zernioConversationId: data.data.conversationId,
   }
+}
+
+/**
+ * Meta's raw Cloud API `interactive` list object — mirrors
+ * meta-api.ts's sendInteractiveList exactly (field-for-field), since
+ * Zernio forwards this object to Meta verbatim.
+ */
+function buildMetaListInteractive(payload: Extract<InteractiveMessagePayload, { kind: 'list' }>) {
+  const interactive: Record<string, unknown> = {
+    type: 'list',
+    body: { text: payload.body },
+    action: {
+      button: payload.button_label,
+      sections: payload.sections.map((s) => ({
+        ...(s.title ? { title: s.title } : {}),
+        rows: s.rows.map((r) => ({
+          id: r.id,
+          title: r.title,
+          ...(r.description ? { description: r.description } : {}),
+        })),
+      })),
+    },
+  }
+  if (payload.header) interactive.header = { type: 'text', text: payload.header }
+  if (payload.footer) interactive.footer = { text: payload.footer }
+  return interactive
 }
 
 /**

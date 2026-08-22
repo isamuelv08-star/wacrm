@@ -15,7 +15,58 @@ import {
   phoneVariants,
   isRecipientNotAllowedError,
 } from '@/lib/whatsapp/phone-utils'
+import { resolveZernioSocialAccountId, sendViaZernio } from '@/lib/whatsapp/zernio-send'
 import { supabaseAdmin } from './admin-client'
+
+/**
+ * Send via the Zernio bridge and persist, for a Zernio-connected
+ * account — shared by engineSendText / engineSendMedia /
+ * sendInteractiveViaMeta below so none of the three has to duplicate
+ * the "load conversation's zernio_conversation_id, send, persist it
+ * back if new" dance.
+ */
+async function sendViaZernioAndPersist(
+  db: ReturnType<typeof supabaseAdmin>,
+  zernioSocialAccountId: string,
+  args: {
+    conversationId: string
+    recipientPhone: string
+    messageType: 'text' | 'image' | 'video' | 'document' | 'audio' | 'template' | 'interactive'
+    contentText?: string | null
+    mediaUrl?: string | null
+    filename?: string | null
+    interactivePayload?: InteractiveMessagePayload | null
+  },
+): Promise<string> {
+  const { data: conv } = await db
+    .from('conversations')
+    .select('zernio_conversation_id')
+    .eq('id', args.conversationId)
+    .maybeSingle()
+
+  const result = await sendViaZernio(
+    zernioSocialAccountId,
+    (conv?.zernio_conversation_id as string | null) ?? null,
+    args.recipientPhone,
+    {
+      messageType: args.messageType,
+      contentText: args.contentText,
+      mediaUrl: args.mediaUrl,
+      filename: args.filename,
+    },
+    undefined,
+    args.interactivePayload,
+  )
+
+  if (result.zernioConversationId) {
+    await db
+      .from('conversations')
+      .update({ zernio_conversation_id: result.zernioConversationId })
+      .eq('id', args.conversationId)
+  }
+
+  return result.waMessageId
+}
 
 // ------------------------------------------------------------
 // Flows-side Meta sender (interactive variants).
@@ -82,48 +133,61 @@ export async function engineSendText(
     throw new Error(`contact phone invalid: ${contact.phone}`)
   }
 
-  const { data: config, error: configErr } = await db
-    .from('whatsapp_config')
-    .select('*')
-    .eq('account_id', args.accountId)
-    .single()
-  if (configErr || !config) {
-    throw new Error('WhatsApp not configured for this account')
-  }
+  const zernioSocialAccountId = await resolveZernioSocialAccountId(db, args.accountId)
 
-  const accessToken = decrypt(config.access_token)
-
-  const attempt = async (phone: string): Promise<string> => {
-    const r = await sendTextMessage({
-      phoneNumberId: config.phone_number_id,
-      accessToken,
-      to: phone,
-      text: args.text,
-      apiBase: config.send_api_base ?? undefined,
+  let waMessageId: string
+  if (zernioSocialAccountId) {
+    waMessageId = await sendViaZernioAndPersist(db, zernioSocialAccountId, {
+      conversationId: args.conversationId,
+      recipientPhone: sanitized,
+      messageType: 'text',
+      contentText: args.text,
     })
-    return r.messageId
-  }
-
-  const variants = phoneVariants(sanitized)
-  let workingPhone = sanitized
-  let waMessageId = ''
-  let lastError: unknown = null
-  for (const v of variants) {
-    try {
-      waMessageId = await attempt(v)
-      workingPhone = v
-      lastError = null
-      break
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      if (!isRecipientNotAllowedError(msg)) throw err
-      lastError = err
+  } else {
+    const { data: config, error: configErr } = await db
+      .from('whatsapp_config')
+      .select('*')
+      .eq('account_id', args.accountId)
+      .single()
+    if (configErr || !config) {
+      throw new Error('WhatsApp not configured for this account')
     }
-  }
-  if (lastError) throw lastError
 
-  if (workingPhone !== sanitized) {
-    await db.from('contacts').update({ phone: workingPhone }).eq('id', contact.id)
+    const accessToken = decrypt(config.access_token)
+
+    const attempt = async (phone: string): Promise<string> => {
+      const r = await sendTextMessage({
+        phoneNumberId: config.phone_number_id,
+        accessToken,
+        to: phone,
+        text: args.text,
+        apiBase: config.send_api_base ?? undefined,
+      })
+      return r.messageId
+    }
+
+    const variants = phoneVariants(sanitized)
+    let workingPhone = sanitized
+    let sentId = ''
+    let lastError: unknown = null
+    for (const v of variants) {
+      try {
+        sentId = await attempt(v)
+        workingPhone = v
+        lastError = null
+        break
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        if (!isRecipientNotAllowedError(msg)) throw err
+        lastError = err
+      }
+    }
+    if (lastError) throw lastError
+    waMessageId = sentId
+
+    if (workingPhone !== sanitized) {
+      await db.from('contacts').update({ phone: workingPhone }).eq('id', contact.id)
+    }
   }
 
   const { error: msgErr } = await db.from('messages').insert({
@@ -193,51 +257,66 @@ export async function engineSendMedia(
     throw new Error(`contact phone invalid: ${contact.phone}`)
   }
 
-  const { data: config, error: configErr } = await db
-    .from('whatsapp_config')
-    .select('*')
-    .eq('account_id', args.accountId)
-    .single()
-  if (configErr || !config) {
-    throw new Error('WhatsApp not configured for this account')
-  }
+  const zernioSocialAccountId = await resolveZernioSocialAccountId(db, args.accountId)
 
-  const accessToken = decrypt(config.access_token)
-
-  const attempt = async (phone: string): Promise<string> => {
-    const r = await sendMediaMessage({
-      phoneNumberId: config.phone_number_id,
-      accessToken,
-      to: phone,
-      kind: args.kind,
-      link: args.link,
-      caption: args.caption,
+  let waMessageId: string
+  if (zernioSocialAccountId) {
+    waMessageId = await sendViaZernioAndPersist(db, zernioSocialAccountId, {
+      conversationId: args.conversationId,
+      recipientPhone: sanitized,
+      messageType: args.kind,
+      contentText: args.caption,
+      mediaUrl: args.link,
       filename: args.filename,
-      apiBase: config.send_api_base ?? undefined,
     })
-    return r.messageId
-  }
-
-  const variants = phoneVariants(sanitized)
-  let workingPhone = sanitized
-  let waMessageId = ''
-  let lastError: unknown = null
-  for (const v of variants) {
-    try {
-      waMessageId = await attempt(v)
-      workingPhone = v
-      lastError = null
-      break
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      if (!isRecipientNotAllowedError(msg)) throw err
-      lastError = err
+  } else {
+    const { data: config, error: configErr } = await db
+      .from('whatsapp_config')
+      .select('*')
+      .eq('account_id', args.accountId)
+      .single()
+    if (configErr || !config) {
+      throw new Error('WhatsApp not configured for this account')
     }
-  }
-  if (lastError) throw lastError
 
-  if (workingPhone !== sanitized) {
-    await db.from('contacts').update({ phone: workingPhone }).eq('id', contact.id)
+    const accessToken = decrypt(config.access_token)
+
+    const attempt = async (phone: string): Promise<string> => {
+      const r = await sendMediaMessage({
+        phoneNumberId: config.phone_number_id,
+        accessToken,
+        to: phone,
+        kind: args.kind,
+        link: args.link,
+        caption: args.caption,
+        filename: args.filename,
+        apiBase: config.send_api_base ?? undefined,
+      })
+      return r.messageId
+    }
+
+    const variants = phoneVariants(sanitized)
+    let workingPhone = sanitized
+    let sentId = ''
+    let lastError: unknown = null
+    for (const v of variants) {
+      try {
+        sentId = await attempt(v)
+        workingPhone = v
+        lastError = null
+        break
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        if (!isRecipientNotAllowedError(msg)) throw err
+        lastError = err
+      }
+    }
+    if (lastError) throw lastError
+    waMessageId = sentId
+
+    if (workingPhone !== sanitized) {
+      await db.from('contacts').update({ phone: workingPhone }).eq('id', contact.id)
+    }
   }
 
   // content_type='image'|'video'|'document' — these are already in the
@@ -346,81 +425,6 @@ async function sendInteractiveViaMeta(
     throw new Error(`contact phone invalid: ${contact.phone}`)
   }
 
-  const { data: config, error: configErr } = await db
-    .from('whatsapp_config')
-    .select('*')
-    .eq('account_id', input.accountId)
-    .single()
-  if (configErr || !config) {
-    throw new Error('WhatsApp not configured for this account')
-  }
-
-  const accessToken = decrypt(config.access_token)
-
-  const attempt = async (phone: string): Promise<string> => {
-    if (input.kind === 'buttons') {
-      const r = await sendInteractiveButtons({
-        phoneNumberId: config.phone_number_id,
-        accessToken,
-        to: phone,
-        bodyText: input.bodyText,
-        buttons: input.buttons,
-        headerText: input.headerText,
-        footerText: input.footerText,
-        apiBase: config.send_api_base ?? undefined,
-      })
-      return r.messageId
-    }
-    const r = await sendInteractiveList({
-      phoneNumberId: config.phone_number_id,
-      accessToken,
-      to: phone,
-      bodyText: input.bodyText,
-      buttonLabel: input.buttonLabel,
-      sections: input.sections,
-      headerText: input.headerText,
-      footerText: input.footerText,
-      apiBase: config.send_api_base ?? undefined,
-    })
-    return r.messageId
-  }
-
-  // Same phone-variant retry as automations/meta-send.ts. Numbers
-  // registered with/without a trunk 0 + Meta's sandbox quirks all
-  // need this to reliably land a message.
-  const variants = phoneVariants(sanitized)
-  let workingPhone = sanitized
-  let waMessageId = ''
-  let lastError: unknown = null
-  for (const v of variants) {
-    try {
-      waMessageId = await attempt(v)
-      workingPhone = v
-      lastError = null
-      break
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      if (!isRecipientNotAllowedError(msg)) throw err
-      lastError = err
-    }
-  }
-  if (lastError) throw lastError
-
-  if (workingPhone !== sanitized) {
-    await db.from('contacts').update({ phone: workingPhone }).eq('id', contact.id)
-  }
-
-  // Persist the bot's prompt to the messages table so it appears in
-  // the inbox. content_type='interactive' is supported as of
-  // migration 010; sender_type='bot' distinguishes flow sends from
-  // manual agent sends (the conversation list preview will pick up
-  // last_message_text as a sensible summary).
-  //
-  // We do NOT set interactive_reply_id here — that column is reserved
-  // for the customer's tap on this message, populated by the webhook
-  // when their reply arrives. We DO persist the structured payload so
-  // the inbox thread re-renders the buttons/rows the bot sent (round-
-  // trip), matching the composer + automation send paths.
   const interactivePayload: InteractiveMessagePayload =
     input.kind === 'buttons'
       ? {
@@ -439,6 +443,95 @@ async function sendInteractiveViaMeta(
           sections: input.sections,
         }
 
+  const zernioSocialAccountId = await resolveZernioSocialAccountId(db, input.accountId)
+
+  let waMessageId: string
+  if (zernioSocialAccountId) {
+    waMessageId = await sendViaZernioAndPersist(db, zernioSocialAccountId, {
+      conversationId: input.conversationId,
+      recipientPhone: sanitized,
+      messageType: 'interactive',
+      interactivePayload,
+    })
+  } else {
+    const { data: config, error: configErr } = await db
+      .from('whatsapp_config')
+      .select('*')
+      .eq('account_id', input.accountId)
+      .single()
+    if (configErr || !config) {
+      throw new Error('WhatsApp not configured for this account')
+    }
+
+    const accessToken = decrypt(config.access_token)
+
+    const attempt = async (phone: string): Promise<string> => {
+      if (input.kind === 'buttons') {
+        const r = await sendInteractiveButtons({
+          phoneNumberId: config.phone_number_id,
+          accessToken,
+          to: phone,
+          bodyText: input.bodyText,
+          buttons: input.buttons,
+          headerText: input.headerText,
+          footerText: input.footerText,
+          apiBase: config.send_api_base ?? undefined,
+        })
+        return r.messageId
+      }
+      const r = await sendInteractiveList({
+        phoneNumberId: config.phone_number_id,
+        accessToken,
+        to: phone,
+        bodyText: input.bodyText,
+        buttonLabel: input.buttonLabel,
+        sections: input.sections,
+        headerText: input.headerText,
+        footerText: input.footerText,
+        apiBase: config.send_api_base ?? undefined,
+      })
+      return r.messageId
+    }
+
+    // Same phone-variant retry as automations/meta-send.ts. Numbers
+    // registered with/without a trunk 0 + Meta's sandbox quirks all
+    // need this to reliably land a message.
+    const variants = phoneVariants(sanitized)
+    let workingPhone = sanitized
+    let sentId = ''
+    let lastError: unknown = null
+    for (const v of variants) {
+      try {
+        sentId = await attempt(v)
+        workingPhone = v
+        lastError = null
+        break
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        if (!isRecipientNotAllowedError(msg)) throw err
+        lastError = err
+      }
+    }
+    if (lastError) throw lastError
+    waMessageId = sentId
+
+    if (workingPhone !== sanitized) {
+      await db.from('contacts').update({ phone: workingPhone }).eq('id', contact.id)
+    }
+  }
+
+  // Persist the bot's prompt to the messages table so it appears in
+  // the inbox. content_type='interactive' is supported as of
+  // migration 010; sender_type='bot' distinguishes flow sends from
+  // manual agent sends (the conversation list preview will pick up
+  // last_message_text as a sensible summary).
+  //
+  // We do NOT set interactive_reply_id here — that column is reserved
+  // for the customer's tap on this message, populated by the webhook
+  // when their reply arrives. We DO persist the structured payload so
+  // the inbox thread re-renders the buttons/rows the bot sent (round-
+  // trip), matching the composer + automation send paths. Built above
+  // (before the send) since the Zernio branch needs it too.
   const { error: msgErr } = await db.from('messages').insert({
     conversation_id: input.conversationId,
     sender_type: 'bot',

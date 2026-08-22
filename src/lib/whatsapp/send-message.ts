@@ -35,7 +35,7 @@ import {
   type InteractiveMessagePayload,
 } from '@/lib/whatsapp/interactive';
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption';
-import { sendViaZernio } from '@/lib/whatsapp/zernio-send';
+import { sendViaZernio, resolveZernioSocialAccountId } from '@/lib/whatsapp/zernio-send';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
 import {
   sanitizePhoneForMeta,
@@ -281,21 +281,18 @@ export async function sendMessageToConversation(
   // holds the Meta credentials itself (see zernio-send.ts). Branch out
   // to that path entirely before touching whatsapp_config, which would
   // otherwise 400 with "not configured" for every Zernio account.
-  const { data: zernioAccount } = await db
-    .from('client_zernio_accounts')
-    .select('whatsapp_account_id')
-    .eq('account_id', accountId)
-    .maybeSingle();
+  const zernioSocialAccountId = await resolveZernioSocialAccountId(db, accountId);
 
   let waMessageId = '';
 
-  if (zernioAccount?.whatsapp_account_id) {
+  if (zernioSocialAccountId) {
     const result = await sendViaZernio(
-      zernioAccount.whatsapp_account_id,
+      zernioSocialAccountId,
       (conversation.zernio_conversation_id as string | null) ?? null,
       sanitizedPhone,
       { messageType, contentText, mediaUrl, filename, templateName, templateLanguage, templateParams },
       contextMessageId,
+      interactivePayload,
     );
     waMessageId = result.waMessageId;
     if (result.zernioConversationId) {
