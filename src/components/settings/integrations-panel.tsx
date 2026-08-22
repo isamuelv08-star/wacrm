@@ -8,17 +8,16 @@ import { useTranslations } from 'next-intl';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { SettingsPanelHead } from './settings-panel-head';
 import { ConnectPlatformButton } from './connect-platform-button';
-import { WhatsAppConfig } from './whatsapp-config';
+import { WhatsAppApiConnectCard } from './whatsapp-api-connect-card';
 import { useAuth } from '@/hooks/use-auth';
 
 /**
- * Integrations tab — two groups:
- *   - "Channels": connect WhatsApp / Instagram via Zernio's guided
- *     Meta OAuth flow (no manual credentials).
- *   - "Integrations by API": the pre-existing manual WhatsApp setup
- *     (Cloud API credentials, or a Coexistence provider like
- *     Dualhook via "Send API Base URL") — unchanged, just relocated
- *     out of its own top-level tab into this one.
+ * Integrations tab — one "Channels" list, three ways to connect
+ * WhatsApp/Instagram: Zernio's guided Meta OAuth flow (no manual
+ * credentials), or your own Meta Cloud API credentials / a
+ * Coexistence provider like Dualhook (the "WhatsApp (API)" card,
+ * whose full form now opens in a dialog instead of always sitting
+ * inline on the page).
  *
  * Also picks up the `zernio_*` query params that /api/zernio/callback
  * redirects back with and surfaces them as a toast, then strips them
@@ -82,14 +81,15 @@ export function IntegrationsPanel() {
               <ConnectPlatformButton platform="instagram" profileId={accountId} />
             ) : null}
           </div>
+
+          {/* Manual Cloud API connection — same horizontal-card shape
+              as the Zernio channels above, so the two ways to connect
+              WhatsApp read as one consistent list. The full
+              credentials form opens in a dialog on "Connect" rather
+              than always sitting inline on the page. */}
+          <WhatsAppApiConnectCard />
         </CardContent>
       </Card>
-
-      <div className="mt-8 mb-1 text-[11px] font-semibold tracking-[0.09em] text-muted-foreground uppercase">
-        {t('apiIntegrationsTitle')}
-      </div>
-      <p className="mb-4 text-sm text-muted-foreground">{t('apiIntegrationsDesc')}</p>
-      <WhatsAppConfig />
     </section>
   );
 }

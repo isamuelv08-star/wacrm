@@ -1672,10 +1672,11 @@
       "title": "Integraciones",
       "description": "Conecta WhatsApp e Instagram con el flujo guiado de conexión de Meta a través de Zernio.",
       "channelsTitle": "Canales",
-      "channelsDesc": "Cada canal abre el flujo de conexión de Meta a través de Zernio. Volverás aquí automáticamente cuando termine.",
+      "channelsDesc": "Conectá WhatsApp con el flujo guiado de Zernio, o con tus propias credenciales de Cloud API.",
       "platform": {
         "whatsapp": "WhatsApp",
-        "instagram": "Instagram"
+        "instagram": "Instagram",
+        "whatsappApi": "WhatsApp (API)"
       },
       "whatsappHint": "Conecta una cuenta de WhatsApp Business a través de Zernio.",
       "instagramHint": "Conecta una cuenta profesional de Instagram a través de Zernio.",
@@ -1690,7 +1691,9 @@
       "disconnectConfirm": "¿Desconectar {platform}? Los mensajes van a dejar de llegar a este CRM hasta que vuelvas a conectar.",
       "disconnected": "{platform} desconectado.",
       "disconnectError": "No se pudo desconectar. Intentalo de nuevo.",
-      "disconnectPartial": "Se desconectó acá, pero no se pudo contactar a Zernio para revocarlo también ahí — revisá el panel de Zernio."
+      "disconnectPartial": "Se desconectó acá, pero no se pudo contactar a Zernio para revocarlo también ahí — revisá el panel de Zernio.",
+      "manage": "Gestionar",
+      "whatsappApiHint": "Conectá con tus propias credenciales de Meta Cloud API, o con un proveedor de coexistencia como Dualhook."
     },
     "sections": {
       "overview": "Resumen",

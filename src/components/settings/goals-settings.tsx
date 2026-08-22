@@ -102,7 +102,12 @@ export function GoalsSettings() {
     if (existing) {
       return supabase.from("sales_goals").update({ target_value: value }).eq("id", existing.id);
     }
+    // account_id is NOT NULL on sales_goals and the insert RLS policy
+    // checks is_account_member(account_id, 'admin') — omitting it made
+    // every first-time goal (account-wide or per-member) fail outright,
+    // which is exactly the "no se pudieron guardar las metas" report.
     return supabase.from("sales_goals").insert({
+      account_id: accountId,
       user_id: userId,
       period_month: thisMonthKey,
       target_value: value,

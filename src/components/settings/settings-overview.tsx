@@ -117,21 +117,33 @@ export function SettingsOverview({
       setCountsLoading(false);
     })();
 
-    // WhatsApp connection status — slower, independent.
+    // WhatsApp connection status — slower, independent. A Zernio-
+    // bridged account has no whatsapp_config row at all (see
+    // src/lib/whatsapp/zernio-send.ts) — without this check, this
+    // tile said "not set up" for every Zernio connection regardless
+    // of whether messages were actually flowing.
     (async () => {
       setWhatsappLoading(true);
-      const [row, health] = await Promise.allSettled([
+      const [row, health, zernioRow] = await Promise.allSettled([
         supabase
           .from('whatsapp_config')
           .select('phone_number_id')
           .eq('account_id', acctId)
           .maybeSingle(),
         fetch('/api/whatsapp/config', { cache: 'no-store' }).then((r) => r.json()),
+        supabase
+          .from('client_zernio_accounts')
+          .select('whatsapp_account_id')
+          .eq('account_id', acctId)
+          .maybeSingle(),
       ]);
       if (cancelled) return;
+      const zernioConnected =
+        zernioRow.status === 'fulfilled' && !!zernioRow.value.data?.whatsapp_account_id;
+      const apiConfigured = row.status === 'fulfilled' && !!row.value.data?.phone_number_id;
       setWhatsapp({
-        configured: row.status === 'fulfilled' && !!row.value.data?.phone_number_id,
-        connected: health.status === 'fulfilled' && !!health.value?.connected,
+        configured: apiConfigured || zernioConnected,
+        connected: (health.status === 'fulfilled' && !!health.value?.connected) || zernioConnected,
       });
       setWhatsappLoading(false);
     })();

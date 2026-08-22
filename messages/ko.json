@@ -1672,10 +1672,11 @@
       "title": "연동",
       "description": "Zernio의 안내형 Meta 연결 흐름으로 WhatsApp과 Instagram을 연결하세요.",
       "channelsTitle": "채널",
-      "channelsDesc": "각 채널은 Zernio를 통해 Meta 연결 흐름을 엽니다. 완료되면 이 페이지로 자동으로 돌아옵니다.",
+      "channelsDesc": "Zernio의 안내된 흐름으로, 또는 직접 발급받은 Cloud API 자격 증명으로 WhatsApp을 연결하세요.",
       "platform": {
         "whatsapp": "WhatsApp",
-        "instagram": "Instagram"
+        "instagram": "Instagram",
+        "whatsappApi": "WhatsApp (API)"
       },
       "whatsappHint": "Zernio를 통해 WhatsApp Business 계정을 연결하세요.",
       "instagramHint": "Zernio를 통해 Instagram 프로페셔널 계정을 연결하세요.",
@@ -1690,7 +1691,9 @@
       "disconnectConfirm": "{platform} 연결을 해제할까요? 다시 연결할 때까지 이 CRM으로 메시지가 들어오지 않습니다.",
       "disconnected": "{platform} 연결이 해제되었습니다.",
       "disconnectError": "연결을 해제할 수 없습니다. 다시 시도하세요.",
-      "disconnectPartial": "여기서는 연결이 해제되었지만 Zernio에서도 해제하려면 연결할 수 없었습니다 — Zernio 대시보드를 확인하세요."
+      "disconnectPartial": "여기서는 연결이 해제되었지만 Zernio에서도 해제하려면 연결할 수 없었습니다 — Zernio 대시보드를 확인하세요.",
+      "manage": "관리",
+      "whatsappApiHint": "자체 Meta Cloud API 자격 증명 또는 Dualhook과 같은 코엑시스턴스 공급자로 연결하세요."
     },
     "sections": {
       "overview": "개요",
