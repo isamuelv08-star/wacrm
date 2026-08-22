@@ -1,11 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   daysAgoStart,
-  DOW_SHORT_MON_FIRST,
   lastNDayKeys,
   localDayKey,
-  mondayIndex,
-  startOfLocalDay,
+  previousRangeStart,
+  rangeBuckets,
+  rangeStart,
 } from './date-utils'
 import type {
   ConversationsSeriesPoint,
@@ -29,50 +29,60 @@ type DB = SupabaseClient
 
 // --- 1. Metric cards ---------------------------------------------------
 
-export async function loadMetrics(db: DB): Promise<MetricsBundle> {
-  const todayStart = startOfLocalDay().toISOString()
-  const yesterdayStart = daysAgoStart(1).toISOString()
+/**
+ * `rangeDays` drives the two "activity in a period" cards (new
+ * contacts, messages sent) and the delta on active conversations —
+ * compared against the equal-length window immediately before it.
+ * `activeConversations.current` and the open-deals value/count are
+ * current-STATE snapshots (how many are open / worth right now) and
+ * deliberately stay range-independent — there's no historical
+ * snapshot to compare a live count against, only the deltas can be
+ * windowed.
+ */
+export async function loadMetrics(db: DB, rangeDays: number): Promise<MetricsBundle> {
+  const currentStart = rangeStart(rangeDays).toISOString()
+  const previousStart = previousRangeStart(rangeDays).toISOString()
 
   const [
     openConvCur,
-    newConvToday,
-    newConvYesterday,
-    newContactsToday,
-    newContactsYesterday,
+    newConvCurrent,
+    newConvPrevious,
+    newContactsCurrent,
+    newContactsPrevious,
     openDeals,
-    messagesToday,
-    messagesYesterday,
+    messagesCurrent,
+    messagesPrevious,
   ] = await Promise.all([
     db.from('conversations').select('id', { count: 'exact', head: true }).eq('status', 'open'),
     db
       .from('conversations')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'open')
-      .gte('created_at', todayStart),
+      .gte('created_at', currentStart),
     db
       .from('conversations')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'open')
-      .gte('created_at', yesterdayStart)
-      .lt('created_at', todayStart),
-    db.from('contacts').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
+      .gte('created_at', previousStart)
+      .lt('created_at', currentStart),
+    db.from('contacts').select('id', { count: 'exact', head: true }).gte('created_at', currentStart),
     db
       .from('contacts')
       .select('id', { count: 'exact', head: true })
-      .gte('created_at', yesterdayStart)
-      .lt('created_at', todayStart),
+      .gte('created_at', previousStart)
+      .lt('created_at', currentStart),
     db.from('deals').select('value, status').eq('status', 'open'),
     db
       .from('messages')
       .select('id', { count: 'exact', head: true })
       .eq('sender_type', 'agent')
-      .gte('created_at', todayStart),
+      .gte('created_at', currentStart),
     db
       .from('messages')
       .select('id', { count: 'exact', head: true })
       .eq('sender_type', 'agent')
-      .gte('created_at', yesterdayStart)
-      .lt('created_at', todayStart),
+      .gte('created_at', previousStart)
+      .lt('created_at', currentStart),
   ])
 
   const openDealsRows = (openDeals.data ?? []) as { value: number | null }[]
@@ -81,20 +91,20 @@ export async function loadMetrics(db: DB): Promise<MetricsBundle> {
   return {
     activeConversations: {
       current: openConvCur.count ?? 0,
-      // "vs yesterday" on a current-state count has no clean answer
-      // without snapshots — we show the delta in NEW open conversations
-      // today vs yesterday. That's the business-meaningful daily signal.
-      previous: (newConvToday.count ?? 0) - (newConvYesterday.count ?? 0),
+      // "vs previous period" on a current-state count has no clean
+      // answer without snapshots — we show the delta in NEW open
+      // conversations this period vs the one before it instead.
+      previous: (newConvCurrent.count ?? 0) - (newConvPrevious.count ?? 0),
     },
     newContactsToday: {
-      current: newContactsToday.count ?? 0,
-      previous: newContactsYesterday.count ?? 0,
+      current: newContactsCurrent.count ?? 0,
+      previous: newContactsPrevious.count ?? 0,
     },
     openDealsValue,
     openDealsCount: openDealsRows.length,
     messagesSentToday: {
-      current: messagesToday.count ?? 0,
-      previous: messagesYesterday.count ?? 0,
+      current: messagesCurrent.count ?? 0,
+      previous: messagesPrevious.count ?? 0,
     },
   }
 }
@@ -167,19 +177,18 @@ export async function loadPipelineDonut(db: DB): Promise<PipelineDonutData> {
   }
 }
 
-// --- 4. Response time by day of week ----------------------------------
+// --- 4. Response time over the selected range --------------------------
 
-export async function loadResponseTime(db: DB): Promise<ResponseTimeSummary> {
-  // Pull the last 14 days of messages in one shot, then walk per
-  // conversation to find each "first inbound" → "first subsequent
-  // outbound" pair. 14 days gives us both "this week" + "last week"
-  // with enough overlap if the user opens the dashboard late on a
-  // Monday.
-  const fourteenDaysAgo = daysAgoStart(13).toISOString()
+export async function loadResponseTime(db: DB, rangeDays: number): Promise<ResponseTimeSummary> {
+  // Pull messages spanning both the selected window AND the equal-
+  // length window before it in one shot, then walk per conversation
+  // to find each "first inbound" → "first subsequent outbound" pair.
+  const currentStart = rangeStart(rangeDays)
+  const previousStart = previousRangeStart(rangeDays)
   const { data, error } = await db
     .from('messages')
     .select('conversation_id, sender_type, created_at')
-    .gte('created_at', fourteenDaysAgo)
+    .gte('created_at', previousStart.toISOString())
     .order('conversation_id', { ascending: true })
     .order('created_at', { ascending: true })
   if (error) throw error
@@ -216,50 +225,37 @@ export async function loadResponseTime(db: DB): Promise<ResponseTimeSummary> {
     }
   }
 
-  const now = new Date()
-  const thisWeekStart = daysAgoStart(mondayIndex(now))
-  const lastWeekStart = daysAgoStart(mondayIndex(now) + 7)
+  const currentMins: number[] = []
+  const previousMins: number[] = []
+  const withDiff = samples
+    .map((s) => ({ ...s, diffMin: (s.responseAt.getTime() - s.customerAt.getTime()) / 60_000 }))
+    .filter((s) => s.diffMin >= 0)
 
-  // Per-day-of-week buckets, averaged over both weeks' worth of data
-  // so each bar has more samples to stand on. If a day has no samples
-  // its avgMinutes stays null and the chart renders the bar muted.
-  const byDow = new Map<number, number[]>()
-  for (let i = 0; i < 7; i++) byDow.set(i, [])
-  const thisWeekMins: number[] = []
-  const lastWeekMins: number[] = []
-
-  for (const s of samples) {
-    const diffMin = (s.responseAt.getTime() - s.customerAt.getTime()) / 60_000
-    if (diffMin < 0) continue
-    const dow = mondayIndex(s.customerAt)
-    byDow.get(dow)!.push(diffMin)
-    if (s.customerAt >= thisWeekStart) {
-      thisWeekMins.push(diffMin)
-    } else if (s.customerAt >= lastWeekStart && s.customerAt < thisWeekStart) {
-      lastWeekMins.push(diffMin)
+  for (const s of withDiff) {
+    if (s.customerAt >= currentStart) {
+      currentMins.push(s.diffMin)
+    } else if (s.customerAt >= previousStart) {
+      previousMins.push(s.diffMin)
     }
   }
 
   const avg = (arr: number[]) =>
     arr.length === 0 ? null : arr.reduce((a, b) => a + b, 0) / arr.length
 
-  const buckets: ResponseTimeBucket[] = Array.from({ length: 7 }, (_, dow) => {
-    const samples = byDow.get(dow) ?? []
-    return {
-      dow,
-      avgMinutes: avg(samples),
-      samples: samples.length,
-    }
+  // Bucket the CURRENT window into up to 30 display points (1/bucket
+  // for a range that short, multi-day buckets for 6-month/1-year
+  // ranges — see rangeBuckets' doc comment).
+  const buckets: ResponseTimeBucket[] = rangeBuckets(rangeDays).map((b) => {
+    const inBucket = withDiff
+      .filter((s) => s.customerAt >= b.start && s.customerAt < b.end)
+      .map((s) => s.diffMin)
+    return { label: b.label, avgMinutes: avg(inBucket), samples: inBucket.length }
   })
-
-  // Silence unused-label warnings — keep the arrays explicitly named
-  // for readability above.
-  void DOW_SHORT_MON_FIRST
 
   return {
     buckets,
-    thisWeekAvg: avg(thisWeekMins),
-    lastWeekAvg: avg(lastWeekMins),
+    currentAvg: avg(currentMins),
+    previousAvg: avg(previousMins),
   }
 }
 

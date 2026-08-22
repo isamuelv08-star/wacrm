@@ -81,3 +81,71 @@ export function lastNMonthKeys(n: number): string[] {
   }
   return keys
 }
+
+// ------------------------------------------------------------
+// Global dashboard date-range selector (1/7/15/30/180/365 days).
+// Everything below supports comparing "the selected trailing window"
+// against "the equal-length window immediately before it", and
+// bucketing the selected window into a display-friendly number of
+// points for a trend chart — shared by every dashboard query that
+// needs to respond to the range instead of a fixed "today" or "this
+// month".
+// ------------------------------------------------------------
+
+export const DASHBOARD_RANGE_DAYS = [1, 7, 15, 30, 180, 365] as const
+export type DashboardRangeDays = (typeof DASHBOARD_RANGE_DAYS)[number]
+
+export function isDashboardRangeDays(value: number): value is DashboardRangeDays {
+  return (DASHBOARD_RANGE_DAYS as readonly number[]).includes(value)
+}
+
+/** Start of the selected trailing window — e.g. rangeDays=1 is "today". */
+export function rangeStart(rangeDays: number): Date {
+  return daysAgoStart(rangeDays - 1)
+}
+
+/** Start of the PRIOR window of equal length, immediately before `rangeStart`. */
+export function previousRangeStart(rangeDays: number): Date {
+  return daysAgoStart(rangeDays * 2 - 1)
+}
+
+export interface RangeBucket {
+  start: Date
+  /** Exclusive. */
+  end: Date
+  /** Short label for a chart x-axis — the bucket's own start day. */
+  label: string
+}
+
+/**
+ * Splits the selected trailing window into up to `maxBuckets` even
+ * buckets (each spanning one or more whole days), oldest first. A
+ * range of 30 days or fewer gets one bucket per day (matches
+ * `lastNDayKeys`'s granularity); longer ranges (6 months, 1 year)
+ * collapse into ~`maxBuckets` multi-day buckets so a trend chart or
+ * sparkline never has to plot hundreds of points.
+ */
+export function rangeBuckets(rangeDaysValue: number, maxBuckets = 30): RangeBucket[] {
+  const bucketCount = Math.max(1, Math.min(rangeDaysValue, maxBuckets))
+  const start = rangeStart(rangeDaysValue)
+  const buckets: RangeBucket[] = []
+  for (let i = 0; i < bucketCount; i++) {
+    const startOffset = Math.floor((i * rangeDaysValue) / bucketCount)
+    const endOffset = Math.floor(((i + 1) * rangeDaysValue) / bucketCount)
+    const bStart = new Date(start)
+    bStart.setDate(bStart.getDate() + startOffset)
+    const bEnd = new Date(start)
+    bEnd.setDate(bEnd.getDate() + endOffset)
+    buckets.push({ start: bStart, end: bEnd, label: shortDayLabel(bStart) })
+  }
+  return buckets
+}
+
+function shortDayLabel(d: Date): string {
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+/** Number of calendar days in the month a date falls in (local time). */
+export function daysInMonthOf(d: Date): number {
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
+}

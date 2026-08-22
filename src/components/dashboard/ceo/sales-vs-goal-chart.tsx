@@ -166,8 +166,8 @@ function LineSvg({ data, currency }: { data: SalesVsGoalPoint[]; currency: strin
         })}
 
         {data.map((p, i) => (
-          <text key={p.month} x={xFor(i)} y={VB_H - 8} textAnchor="middle" className="fill-muted-foreground text-[10px]">
-            {shortMonthLabel(p.month)}
+          <text key={i} x={xFor(i)} y={VB_H - 8} textAnchor="middle" className="fill-muted-foreground text-[10px]">
+            {p.label}
           </text>
         ))}
 
@@ -215,7 +215,7 @@ function LineSvg({ data, currency }: { data: SalesVsGoalPoint[]; currency: strin
           className="pointer-events-none absolute top-0 z-10 -translate-x-1/2 rounded-md border border-border bg-popover px-2.5 py-1.5 text-[11px] shadow-lg"
           style={{ left: `${hover.tooltipLeftPx}px` }}
         >
-          <div className="font-medium text-popover-foreground">{longMonthLabel(hovered.month)}</div>
+          <div className="font-medium text-popover-foreground">{hovered.label}</div>
           <div className="mt-1 flex flex-col gap-0.5">
             <span className="flex items-center gap-1.5" style={{ color: ACTUAL_COLOR }}>
               <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: ACTUAL_COLOR }} />
@@ -232,16 +232,6 @@ function LineSvg({ data, currency }: { data: SalesVsGoalPoint[]; currency: strin
       )}
     </div>
   )
-}
-
-function shortMonthLabel(key: string): string {
-  const [y, m] = key.split('-').map(Number)
-  return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: 'short' })
-}
-
-function longMonthLabel(key: string): string {
-  const [y, m] = key.split('-').map(Number)
-  return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
 }
 
 function niceCeil(max: number): number {

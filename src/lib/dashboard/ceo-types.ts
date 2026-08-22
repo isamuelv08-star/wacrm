@@ -6,11 +6,11 @@
 import type { MetricDelta } from './types'
 
 export interface SalesVsGoalPoint {
-  /** First of the month, "YYYY-MM-01". */
-  month: string
-  /** Sum of won deals whose closed_at falls in this month. */
+  /** Short display label for this bucket's start day (e.g. "Aug 12"). */
+  label: string
+  /** Sum of won deals whose closed_at falls in this bucket. */
   actual: number
-  /** The account-level goal for this month. Null if never set. */
+  /** The account-level goal, prorated to this bucket's day count. Null if never set. */
   goal: number | null
 }
 

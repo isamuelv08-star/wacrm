@@ -23,6 +23,7 @@ import {
   loadPipelineDonut,
   loadResponseTime,
 } from '@/lib/dashboard/queries'
+import { DASHBOARD_RANGE_DAYS, type DashboardRangeDays } from '@/lib/dashboard/date-utils'
 import {
   loadCeoAlerts,
   loadCeoMetrics,
@@ -99,6 +100,14 @@ export default function DashboardPage() {
   const [metrics, setMetrics] = useState<MetricsBundle | null>(null)
   const [metricsLoading, setMetricsLoading] = useState(true)
 
+  // Global period selector — drives Response Time and the whole Sales
+  // section (goal proration, top-seller quotas, sales-vs-goal
+  // buckets). The four "Today" KPI cards above deliberately stay on
+  // their own fixed daily window regardless of this (see loadMetrics
+  // call in loadAll) — they're explicitly labeled "Today" and read as
+  // live snapshots, not a trend the viewer would want to re-window.
+  const [rangeDays, setRangeDays] = useState<DashboardRangeDays>(30)
+
   const [range, setRange] = useState<RangeDays>(30)
   // Keep a cache per range so switching tabs doesn't re-fetch what we
   // already have. Ranges the user hasn't opened yet stay null and
@@ -139,7 +148,7 @@ export default function DashboardPage() {
     // Kick everything off in parallel. Each block has its own
     // setState + finally so a slow query doesn't hold up faster
     // sections — each widget shows its own skeleton independently.
-    void loadMetrics(db)
+    void loadMetrics(db, 1)
       .then((m) => setMetrics(m))
       .catch((err) => console.error('[dashboard] metrics failed:', err))
       .finally(() => setMetricsLoading(false))
@@ -154,7 +163,7 @@ export default function DashboardPage() {
       .catch((err) => console.error('[dashboard] pipeline failed:', err))
       .finally(() => setPipelineLoading(false))
 
-    void loadResponseTime(db)
+    void loadResponseTime(db, rangeDays)
       .then((r) => setResponseTime(r))
       .catch((err) => console.error('[dashboard] response time failed:', err))
       .finally(() => setResponseTimeLoading(false))
@@ -174,7 +183,7 @@ export default function DashboardPage() {
       return
     }
 
-    void loadCeoMetrics(db)
+    void loadCeoMetrics(db, rangeDays)
       .then((m) => {
         setCeoMetrics(m)
         // Alerts need the full metrics bundle this same call already
@@ -189,7 +198,7 @@ export default function DashboardPage() {
       .catch((err) => console.error('[dashboard] sales metrics failed:', err))
       .finally(() => setCeoMetricsLoading(false))
 
-    void loadSalesVsGoal(db, 6)
+    void loadSalesVsGoal(db, rangeDays)
       .then((s) => setSalesVsGoal(s))
       .catch((err) => console.error('[dashboard] sales-vs-goal failed:', err))
       .finally(() => setSalesVsGoalLoading(false))
@@ -204,11 +213,11 @@ export default function DashboardPage() {
       .catch((err) => console.error('[dashboard] commercial metrics failed:', err))
       .finally(() => setCommercialLoading(false))
 
-    void loadTopSellers(db)
+    void loadTopSellers(db, rangeDays)
       .then((s) => setTopSellers(s))
       .catch((err) => console.error('[dashboard] top-sellers failed:', err))
       .finally(() => setTopSellersLoading(false))
-  }, [hasAnySalesAccess])
+  }, [hasAnySalesAccess, rangeDays])
 
   // Re-fetch every time this route becomes the active page — not just
   // on first mount. Next's client router cache can keep this page's
@@ -282,14 +291,36 @@ export default function DashboardPage() {
   return (
     <div className="space-y-5">
       {/* Header — greets the signed-in user by name (falls back to a
-          generic label while the profile is still loading / unset). */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">
-          {t('welcome', { name: profile?.full_name || t('defaultUser') })}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {t('description')}
-        </p>
+          generic label while the profile is still loading / unset).
+          The period selector on the right drives Response Time below
+          and the whole Sales section — NOT the four "Today" KPI cards,
+          which stay on their own fixed daily window (see loadAll). */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">
+            {t('welcome', { name: profile?.full_name || t('defaultUser') })}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {t('description')}
+          </p>
+        </div>
+        <div className="flex items-center gap-1 rounded-lg bg-muted/60 p-1">
+          {DASHBOARD_RANGE_DAYS.map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => setRangeDays(r)}
+              className={
+                'rounded-md px-2.5 py-1 text-xs font-medium transition-colors ' +
+                (rangeDays === r
+                  ? 'bg-secondary text-secondary-foreground'
+                  : 'text-muted-foreground hover:text-foreground')
+              }
+            >
+              {t(`period.${r}`)}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Metric cards */}
@@ -371,7 +402,7 @@ export default function DashboardPage() {
           stretched height so their rounded borders line up. */}
       <RevealSection delayMs={80}>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-          <div className="h-full lg:col-span-5">
+          <div className="h-full lg:col-span-6">
             <ConversationsChart
               series={series}
               loading={seriesLoading}
@@ -379,7 +410,7 @@ export default function DashboardPage() {
               onRangeChange={handleRangeChange}
             />
           </div>
-          <div className="h-full lg:col-span-4">
+          <div className="h-full lg:col-span-3">
             <PipelineDonut
               data={pipeline}
               loading={pipelineLoading}
@@ -544,13 +575,13 @@ function ceoDeltaLabel(
   currency: string,
   t: ReturnType<typeof useTranslations>,
 ): string {
-  if (delta === 0) return t('noChangeVsLastMonth')
+  if (delta === 0) return t('noChangeVsPrevious')
   const sign = delta > 0 ? '+' : ''
-  return `${sign}${formatCurrency(delta, currency)} ${t('vsLastMonth')}`
+  return `${sign}${formatCurrency(delta, currency)} ${t('vsPreviousPeriod')}`
 }
 
 function ceoDeltaCountLabel(delta: number, t: ReturnType<typeof useTranslations>): string {
-  if (delta === 0) return t('noChangeVsLastMonth')
+  if (delta === 0) return t('noChangeVsPrevious')
   const sign = delta > 0 ? '+' : ''
-  return `${sign}${delta.toLocaleString()} ${t('vsLastMonth')}`
+  return `${sign}${delta.toLocaleString()} ${t('vsPreviousPeriod')}`
 }

@@ -85,7 +85,15 @@
       "activeConversationsDesc": "Conversaciones con un mensaje sin leer o sin resolver en este momento.",
       "newContactsTodayDesc": "Contactos nuevos creados desde la medianoche de hoy.",
       "openDealsValueDesc": "Valor total de todos los negocios abiertos en tu pipeline.",
-      "messagesSentTodayDesc": "Mensajes salientes enviados por vos y tu equipo hoy."
+      "messagesSentTodayDesc": "Mensajes salientes enviados por vos y tu equipo hoy.",
+      "period": {
+        "1": "1D",
+        "7": "7D",
+        "15": "15D",
+        "30": "30D",
+        "180": "6M",
+        "365": "1A"
+      }
     },
     "quickActions": {
       "newContact": "Nuevo contacto",
@@ -116,10 +124,10 @@
     },
     "responseTimeChart": {
       "title": "Tiempo promedio de primera respuesta",
-      "description": "Minutos para responder al primer mensaje sin contestar de un cliente, por día de la semana",
+      "description": "Minutos para responder al primer mensaje sin contestar de un cliente, en el período seleccionado",
       "target": "objetivo {minutes}m",
-      "thisWeek": "Esta semana:",
-      "lastWeek": "Semana pasada:",
+      "current": "Actual:",
+      "previous": "Anterior:",
       "noReplies": "Aún no se han registrado respuestas",
       "noRepliesHint": "Este gráfico se completa a medida que respondes los mensajes de los clientes.",
       "tooltipAvg": "{minutes}m prom.",
@@ -156,23 +164,23 @@
         "forecast": "Forecast",
         "forecastOfGoal": "{pct}% de la meta",
         "clients": "Clientes",
-        "noChangeVsLastMonth": "Sin cambios vs. el mes pasado",
-        "vsLastMonth": "vs. el mes pasado",
+        "noChangeVsPrevious": "Sin cambios vs. el período anterior",
+        "vsPreviousPeriod": "vs. el período anterior",
         "salesSectionTitle": "Ventas",
-        "salesDesc": "Valor total de los negocios ganados en lo que va del mes.",
-        "goalDesc": "La meta de ingresos de la cuenta para este mes, y tu avance hacia ella.",
+        "salesDesc": "Valor total de los negocios ganados en el período seleccionado.",
+        "goalDesc": "La meta de ingresos de la cuenta para el período seleccionado, y tu avance hacia ella.",
         "pipelineDesc": "Valor combinado de todos los negocios abiertos, y cuántas veces cubre tu meta mensual.",
         "forecastDesc": "Ingresos proyectados a fin de mes, ponderados por la probabilidad de cierre de cada negocio abierto.",
-        "clientsDesc": "Total de clientes distintos registrados, y cuántos son nuevos este mes."
+        "clientsDesc": "Total de clientes distintos registrados, y cuántos son nuevos en el período seleccionado."
       },
       "salesVsGoal": {
         "title": "Ventas vs Meta",
-        "description": "Ingresos mensuales contra la meta de la cuenta, últimos 6 meses",
+        "description": "Ingresos contra la meta de la cuenta, en el período seleccionado",
         "noData": "Todavía no hay suficientes datos",
         "noDataHint": "Cerrá deals y definí una meta mensual para completar este gráfico.",
         "actual": "Real",
         "goal": "Meta",
-        "ariaLabel": "Ventas versus meta, por mes",
+        "ariaLabel": "Ventas versus meta, en el período seleccionado",
         "tooltipGoal": "Meta: {value}",
         "attainment": "{pct}% de la meta"
       },
@@ -186,8 +194,8 @@
       },
       "topSellers": {
         "title": "Top vendedores",
-        "description": "Ingresos del mes vs. la cuota de cada miembro",
-        "noData": "Todavía no hay ventas este mes",
+        "description": "Ingresos vs. la cuota de cada miembro, para el período seleccionado",
+        "noData": "Todavía no hay ventas en este período",
         "noDataHint": "Las ventas asignadas a un miembro del equipo van a aparecer acá."
       },
       "alerts": {

@@ -16,12 +16,14 @@ interface ResponseTimeCardProps {
 
 // Compact replacement for the old full-width response-time chart —
 // same data, but sized to sit as a third card alongside Conversations
-// and Pipeline Value instead of eating its own full-width row. Drops
-// the axis labels, hover tooltip, and target pill in favor of a
-// single headline number + a small trend sparkline, matching how the
-// KPI cards up top read at a glance.
+// and Pipeline Value instead of eating its own full-width row. Mirrors
+// their exact header/content/footer skeleton (border-b header, border-t
+// footer) rather than just a bare number + squiggle, so it carries the
+// same visual weight as its row-mates instead of reading as mostly
+// empty space stretched to match their height.
 const VB_W = 220
-const VB_H = 56
+const VB_H = 70
+const PLOT_H = 52 // leaves room for the day labels below the line
 const LINE_COLOR = '#FF3131' // brand red — the "flame" theme's --primary
 
 export function ResponseTimeCard({ data, loading }: ResponseTimeCardProps) {
@@ -29,45 +31,58 @@ export function ResponseTimeCard({ data, loading }: ResponseTimeCardProps) {
   const hasData = data?.buckets.some((b) => b.avgMinutes != null) ?? false
 
   const delta =
-    data?.thisWeekAvg != null && data?.lastWeekAvg != null
-      ? data.thisWeekAvg - data.lastWeekAvg
+    data?.currentAvg != null && data?.previousAvg != null
+      ? data.currentAvg - data.previousAvg
       : null
 
   return (
-    <section className="flex h-full flex-col rounded-xl border border-border bg-card p-5">
-      <div className="flex items-center gap-2">
-        <Clock className="h-4 w-4 text-muted-foreground" />
-        <h2 className="text-sm font-semibold text-foreground">{t('title')}</h2>
+    <section className="flex h-full flex-col rounded-xl border border-border bg-card">
+      <header className="border-b border-border px-5 py-4">
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+          <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+          {t('title')}
+        </h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">{t('description')}</p>
+      </header>
+
+      <div className="flex flex-1 flex-col p-5">
+        {loading || !data ? (
+          <div className="flex flex-1 flex-col justify-between">
+            <Skeleton className="h-8 w-24" />
+            <Skeleton className="mt-3 h-full min-h-[70px] w-full" />
+          </div>
+        ) : !hasData ? (
+          <div className="flex flex-1 items-center">
+            <EmptyState
+              icon={Clock}
+              title={t('noReplies')}
+              hint={t('noRepliesHint')}
+              className="min-h-0 border-none bg-transparent py-3"
+            />
+          </div>
+        ) : (
+          <div className="flex flex-1 flex-col">
+            <p className="text-[28px] leading-none font-bold tabular-nums text-foreground">
+              <AnimatedNumber value={data.currentAvg ?? 0} formatter={fmt} />
+            </p>
+            {delta != null && <DeltaRow delta={delta} />}
+            <div className="mt-3 min-h-[70px] flex-1">
+              <Sparkline data={data} />
+            </div>
+          </div>
+        )}
       </div>
 
-      {loading || !data ? (
-        <div className="mt-3 flex flex-1 flex-col justify-between">
-          <Skeleton className="h-8 w-24" />
-          <Skeleton className="mt-3 h-14 w-full" />
-        </div>
-      ) : !hasData ? (
-        <div className="mt-2 flex flex-1 items-center">
-          <EmptyState
-            icon={Clock}
-            title={t('noReplies')}
-            hint={t('noRepliesHint')}
-            className="min-h-0 border-none bg-transparent py-3"
-          />
-        </div>
-      ) : (
-        <div className="mt-2 flex flex-1 flex-col justify-between">
-          <div>
-            <p className="text-[28px] leading-none font-bold tabular-nums text-foreground">
-              <AnimatedNumber value={data.thisWeekAvg ?? 0} formatter={fmt} />
-            </p>
-            {delta != null ? (
-              <DeltaRow delta={delta} />
-            ) : (
-              <p className="mt-2 text-sm text-muted-foreground">{t('thisWeek')}</p>
-            )}
-          </div>
-          <Sparkline data={data} />
-        </div>
+      {data && (data.currentAvg != null || data.previousAvg != null) && (
+        <footer className="flex items-center justify-between border-t border-border px-5 py-3 text-xs">
+          <span className="text-muted-foreground">
+            {t('current')}{' '}
+            <span className="font-medium text-foreground tabular-nums">{fmt(data.currentAvg)}</span>
+          </span>
+          <span className="text-muted-foreground">
+            {t('previous')} <span className="tabular-nums">{fmt(data.previousAvg)}</span>
+          </span>
+        </footer>
       )}
     </section>
   )
@@ -93,12 +108,40 @@ function Sparkline({ data }: { data: ResponseTimeSummary }) {
   const buckets = data.buckets
   const maxY = Math.max(1, ...buckets.map((b) => b.avgMinutes ?? 0))
   const stepX = buckets.length > 1 ? VB_W / (buckets.length - 1) : 0
-  const yFor = (v: number) => VB_H - (v / maxY) * VB_H
+  const yFor = (v: number) => PLOT_H - (v / maxY) * PLOT_H
   const points = buckets.map((b, i) => ({ x: i * stepX, y: yFor(b.avgMinutes ?? 0) }))
+  // Longer ranges bucket into many more points than this narrow card
+  // can label without crowding — show at most ~4 evenly-spaced labels.
+  const labelStride = Math.max(1, Math.ceil(buckets.length / 4))
 
   return (
-    <svg viewBox={`0 0 ${VB_W} ${VB_H}`} className="mt-3 h-14 w-full" role="presentation" aria-hidden>
-      <GlowSeries points={points} baselineY={VB_H} color={LINE_COLOR} strokeWidth={2} />
+    <svg
+      viewBox={`0 0 ${VB_W} ${VB_H}`}
+      preserveAspectRatio="none"
+      className="h-full w-full"
+      role="presentation"
+      aria-hidden
+    >
+      {/* Light gridlines — fills the plot with real structure instead
+          of empty space around a bare line. */}
+      <line x1={0} x2={VB_W} y1={PLOT_H * 0.5} y2={PLOT_H * 0.5} stroke="var(--border)" strokeDasharray="3 3" />
+      <line x1={0} x2={VB_W} y1={PLOT_H} y2={PLOT_H} stroke="var(--border)" />
+
+      <GlowSeries points={points} baselineY={PLOT_H} color={LINE_COLOR} strokeWidth={2} />
+
+      {buckets.map((b, i) =>
+        i % labelStride === 0 ? (
+          <text
+            key={i}
+            x={i * stepX}
+            y={VB_H - 4}
+            textAnchor="middle"
+            className="fill-muted-foreground text-[9px]"
+          >
+            {b.label}
+          </text>
+        ) : null,
+      )}
     </svg>
   )
 }

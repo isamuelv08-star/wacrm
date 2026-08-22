@@ -85,7 +85,15 @@
       "activeConversationsDesc": "현재 읽지 않았거나 해결되지 않은 메시지가 있는 대화입니다.",
       "newContactsTodayDesc": "오늘 자정 이후 생성된 신규 연락처입니다.",
       "openDealsValueDesc": "파이프라인에 있는 모든 진행 중인 딜의 총 금액입니다.",
-      "messagesSentTodayDesc": "오늘 회원님과 팀이 발신한 메시지입니다."
+      "messagesSentTodayDesc": "오늘 회원님과 팀이 발신한 메시지입니다.",
+      "period": {
+        "1": "1일",
+        "7": "7일",
+        "15": "15일",
+        "30": "30일",
+        "180": "6개월",
+        "365": "1년"
+      }
     },
     "quickActions": {
       "newContact": "새 연락처",
@@ -116,10 +124,10 @@
     },
     "responseTimeChart": {
       "title": "평균 첫 응답 시간",
-      "description": "요일별, 고객의 첫 미응답 메시지에 답변하기까지 걸린 시간(분)",
+      "description": "선택한 기간 동안 고객의 첫 미응답 메시지에 답변하기까지 걸린 시간(분)",
       "target": "목표 {minutes}분",
-      "thisWeek": "이번 주:",
-      "lastWeek": "지난 주:",
+      "current": "현재:",
+      "previous": "이전:",
       "noReplies": "아직 기록된 응답이 없습니다",
       "noRepliesHint": "고객 메시지에 답변하면 이 차트가 채워집니다.",
       "tooltipAvg": "평균 {minutes}분",
@@ -156,23 +164,23 @@
         "forecast": "예측",
         "forecastOfGoal": "목표의 {pct}%",
         "clients": "고객",
-        "noChangeVsLastMonth": "지난달과 동일",
-        "vsLastMonth": "지난달 대비",
+        "noChangeVsPrevious": "이전 기간과 동일",
+        "vsPreviousPeriod": "이전 기간 대비",
         "salesSectionTitle": "영업",
-        "salesDesc": "이번 달 현재까지 성사된 딜의 총 금액입니다.",
-        "goalDesc": "이번 달 계정의 매출 목표와 목표 대비 진행 상황입니다.",
+        "salesDesc": "선택한 기간 동안 성사된 딜의 총 금액입니다.",
+        "goalDesc": "선택한 기간의 계정 매출 목표와 목표 대비 진행 상황입니다.",
         "pipelineDesc": "진행 중인 모든 딜의 합산 금액과 월간 목표 대비 배수입니다.",
         "forecastDesc": "각 진행 중인 딜의 성사 확률로 가중한 이번 달 예상 매출입니다.",
-        "clientsDesc": "등록된 전체 고유 고객 수와 이번 달 신규 고객 수입니다."
+        "clientsDesc": "등록된 전체 고유 고객 수와 선택한 기간의 신규 고객 수입니다."
       },
       "salesVsGoal": {
         "title": "매출 vs 목표",
-        "description": "최근 6개월간 계정 목표 대비 월별 매출",
+        "description": "선택한 기간 동안의 계정 목표 대비 매출",
         "noData": "아직 데이터가 충분하지 않습니다",
         "noDataHint": "딜을 성사시키고 월간 목표를 설정하면 이 차트가 채워집니다.",
         "actual": "실제",
         "goal": "목표",
-        "ariaLabel": "월별 매출 대 목표",
+        "ariaLabel": "선택한 기간의 매출 대 목표",
         "tooltipGoal": "목표: {value}",
         "attainment": "목표의 {pct}%"
       },
@@ -186,8 +194,8 @@
       },
       "topSellers": {
         "title": "Top 영업사원",
-        "description": "이번 달 매출 대 각 팀원의 할당량",
-        "noData": "이번 달에는 아직 판매가 없습니다",
+        "description": "선택한 기간의 매출과 팀원별 목표 대비 비교",
+        "noData": "이 기간에는 아직 판매가 없습니다",
         "noDataHint": "팀원에게 배정된 판매가 여기에 표시됩니다."
       },
       "alerts": {

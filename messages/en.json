@@ -85,7 +85,15 @@
       "activeConversationsDesc": "Conversations with an unread or unresolved message right now.",
       "newContactsTodayDesc": "New contacts created since midnight today.",
       "openDealsValueDesc": "Total value of every open deal currently in your pipeline.",
-      "messagesSentTodayDesc": "Outbound messages sent by you and your team today."
+      "messagesSentTodayDesc": "Outbound messages sent by you and your team today.",
+      "period": {
+        "1": "1D",
+        "7": "7D",
+        "15": "15D",
+        "30": "30D",
+        "180": "6M",
+        "365": "1Y"
+      }
     },
     "quickActions": {
       "newContact": "New Contact",
@@ -116,10 +124,10 @@
     },
     "responseTimeChart": {
       "title": "Average First Response Time",
-      "description": "Minutes to reply to a customer's first unreplied message, by weekday",
+      "description": "Minutes to reply to a customer's first unreplied message, over the selected period",
       "target": "target {minutes}m",
-      "thisWeek": "This week:",
-      "lastWeek": "Last week:",
+      "current": "Current:",
+      "previous": "Previous:",
       "noReplies": "No replies recorded yet",
       "noRepliesHint": "This chart fills in as you reply to customer messages.",
       "tooltipAvg": "{minutes}m avg",
@@ -156,23 +164,23 @@
         "forecast": "Forecast",
         "forecastOfGoal": "{pct}% of goal",
         "clients": "Clients",
-        "noChangeVsLastMonth": "No change vs last month",
-        "vsLastMonth": "vs last month",
+        "noChangeVsPrevious": "No change vs previous period",
+        "vsPreviousPeriod": "vs previous period",
         "salesSectionTitle": "Sales",
-        "salesDesc": "Total value of deals won so far this calendar month.",
-        "goalDesc": "This account's revenue target for the month, and your progress toward it.",
+        "salesDesc": "Total value of deals won in the selected period.",
+        "goalDesc": "The account's revenue target for the selected period, and your progress toward it.",
         "pipelineDesc": "Combined value of every open deal, and how many times it covers your monthly goal.",
         "forecastDesc": "Projected month-end revenue, weighted by each open deal's win probability.",
-        "clientsDesc": "Total distinct clients on record, and how many are new this month."
+        "clientsDesc": "Total distinct clients on record, and how many are new in the selected period."
       },
       "salesVsGoal": {
         "title": "Sales vs Goal",
-        "description": "Monthly revenue against the account's target, last 6 months",
+        "description": "Revenue against the account's target, over the selected period",
         "noData": "Not enough data yet",
         "noDataHint": "Close deals and set a monthly goal to fill in this chart.",
         "actual": "Actual",
         "goal": "Goal",
-        "ariaLabel": "Sales versus goal, by month",
+        "ariaLabel": "Sales versus goal, over the selected period",
         "tooltipGoal": "Goal: {value}",
         "attainment": "{pct}% of goal"
       },
@@ -186,8 +194,8 @@
       },
       "topSellers": {
         "title": "Top sellers",
-        "description": "This month's revenue vs. each member's quota",
-        "noData": "No sales yet this month",
+        "description": "Revenue vs. each member's quota, for the selected period",
+        "noData": "No sales yet in this period",
         "noDataHint": "Sales attributed to a team member will show up here."
       },
       "alerts": {

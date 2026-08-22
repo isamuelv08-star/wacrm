@@ -35,8 +35,8 @@ export interface PipelineDonutData {
 }
 
 export interface ResponseTimeBucket {
-  /** 0 = Mon … 6 = Sun (Monday-first). */
-  dow: number
+  /** Short display label for this bucket's start day (e.g. "Aug 12"). */
+  label: string
   /** Average first-response time in minutes. Null means no samples. */
   avgMinutes: number | null
   samples: number
@@ -44,8 +44,10 @@ export interface ResponseTimeBucket {
 
 export interface ResponseTimeSummary {
   buckets: ResponseTimeBucket[]
-  thisWeekAvg: number | null
-  lastWeekAvg: number | null
+  /** Average across the selected range. */
+  currentAvg: number | null
+  /** Average across the equal-length window immediately before it. */
+  previousAvg: number | null
 }
 
 /** A HOT-scored lead whose conversation has gone unanswered past the

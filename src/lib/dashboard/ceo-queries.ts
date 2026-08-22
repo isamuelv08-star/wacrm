@@ -1,5 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { monthKey, monthsAgoStart, lastNMonthKeys, daysAgoStart } from './date-utils'
+import {
+  monthKey,
+  daysAgoStart,
+  daysInMonthOf,
+  previousRangeStart,
+  rangeBuckets,
+  rangeStart,
+} from './date-utils'
 import type {
   CeoAlerts,
   CeoMetrics,
@@ -34,54 +41,85 @@ const HEALTHY_PIPELINE_COVERAGE = 3
 // not being moved between pipeline stages (that's `staleDays`).
 const AT_RISK_CONVERSATION_SILENCE_DAYS = 14
 
-// --- 1. Sales vs goal, monthly series -----------------------------------
+// --- 1. Sales vs goal, over the selected range --------------------------
 
-export async function loadSalesVsGoal(db: DB, months = 6): Promise<SalesVsGoalPoint[]> {
-  const monthKeys = lastNMonthKeys(months)
-  const rangeStart = monthsAgoStart(months - 1).toISOString()
+/**
+ * Buckets the selected range (daily for ≤30 days, ~30 multi-day
+ * buckets for 6 months / 1 year — see `rangeBuckets`) and compares
+ * actual won-deal revenue per bucket against a slice of the account's
+ * CURRENT monthly goal, prorated by the bucket's own day count. There's
+ * only ever one goal on the books (this month's), so a 1-year view
+ * necessarily assumes "if every month kept pace with this one" rather
+ * than replaying whatever the goal actually was in each past month —
+ * simpler and still a meaningful trend line, but worth knowing it's a
+ * projection for anything beyond the current month.
+ */
+export async function loadSalesVsGoal(db: DB, rangeDays: number): Promise<SalesVsGoalPoint[]> {
+  const currentStart = rangeStart(rangeDays)
+  const buckets = rangeBuckets(rangeDays)
 
-  const [dealsRes, goalsRes] = await Promise.all([
+  const [dealsRes, goalRow] = await Promise.all([
     db
       .from('deals')
       .select('value, closed_at')
       .eq('status', 'won')
-      .gte('closed_at', rangeStart),
+      .gte('closed_at', currentStart.toISOString()),
     db
       .from('sales_goals')
-      .select('period_month, target_value')
+      .select('target_value')
       .is('user_id', null)
-      .gte('period_month', monthKeys[0]),
+      .eq('period_month', monthKey(new Date()))
+      .maybeSingle(),
   ])
   if (dealsRes.error) throw dealsRes.error
-  if (goalsRes.error) throw goalsRes.error
+  if (goalRow.error) throw goalRow.error
 
-  const actualByMonth = new Map<string, number>()
-  for (const k of monthKeys) actualByMonth.set(k, 0)
-  for (const d of (dealsRes.data ?? []) as { value: number | null; closed_at: string }[]) {
-    const key = monthKey(d.closed_at)
-    if (actualByMonth.has(key)) {
-      actualByMonth.set(key, (actualByMonth.get(key) ?? 0) + (d.value ?? 0))
+  const rows = (dealsRes.data ?? []) as { value: number | null; closed_at: string }[]
+  const monthlyGoal = (goalRow.data as { target_value: number } | null)?.target_value ?? null
+  const goalPerDay = monthlyGoal != null ? monthlyGoal / daysInMonthOf(new Date()) : null
+
+  return buckets.map((b) => {
+    const actual = rows
+      .filter((d) => {
+        const t = new Date(d.closed_at).getTime()
+        return t >= b.start.getTime() && t < b.end.getTime()
+      })
+      .reduce((s, d) => s + (d.value ?? 0), 0)
+    const bucketDays = Math.max(1, Math.round((b.end.getTime() - b.start.getTime()) / 86_400_000))
+    return {
+      label: b.label,
+      actual,
+      goal: goalPerDay != null ? goalPerDay * bucketDays : null,
     }
-  }
-
-  const goalByMonth = new Map<string, number>()
-  for (const g of (goalsRes.data ?? []) as { period_month: string; target_value: number }[]) {
-    goalByMonth.set(g.period_month, g.target_value)
-  }
-
-  return monthKeys.map((m) => ({
-    month: m,
-    actual: actualByMonth.get(m) ?? 0,
-    goal: goalByMonth.get(m) ?? null,
-  }))
+  })
 }
 
 // --- 2. Headline KPIs -----------------------------------------------------
 
-export async function loadCeoMetrics(db: DB): Promise<CeoMetrics> {
-  const thisMonthKey = monthKey(new Date())
-  const thisMonthStart = monthsAgoStart(0).toISOString()
-  const lastMonthStart = monthsAgoStart(1).toISOString()
+/**
+ * `salesThisMonth`/`newClients` are genuinely windowed by `rangeDays`
+ * (current vs the equal-length period before it). `pipelineTotal` and
+ * `forecast` stay current-state snapshots regardless of range — "how
+ * much is in the pipeline right now" has no meaningful reading for
+ * "the pipeline as of N days ago" without deal-history snapshotting,
+ * which this app doesn't keep. `totalClients` is likewise an all-time
+ * cumulative count.
+ *
+ * `goalThisMonth` (and `goalAttainmentPct`, which divides by it) IS
+ * prorated to the selected range — it's what "sales in this period"
+ * gets compared against, so it has to scale with it. `pipelineCoverage`
+ * and `forecastPct`, on the other hand, are deliberately measured
+ * against the UNSCALED monthly goal (`monthlyGoal`, not
+ * `goalForRange`) — "pipeline coverage" and "forecast vs goal" are
+ * conventional monthly sales-ops ratios (the 3x threshold elsewhere in
+ * this file was calibrated for that cadence); dividing a snapshot by a
+ * one-day sliver of the goal would produce a meaningless multiple.
+ */
+export async function loadCeoMetrics(db: DB, rangeDays: number): Promise<CeoMetrics> {
+  const now = new Date()
+  const thisMonthKey = monthKey(now)
+  const currentStart = rangeStart(rangeDays).toISOString()
+  const previousStart = previousRangeStart(rangeDays).toISOString()
 
   type OpenDealRow = {
     value: number | null
@@ -93,21 +131,21 @@ export async function loadCeoMetrics(db: DB): Promise<CeoMetrics> {
   type ContactRow = { contact_id: string | null }
 
   const [
-    wonThisMonth,
-    wonLastMonth,
+    wonCurrent,
+    wonPrevious,
     goalRow,
     openDeals,
     contactsAll,
-    contactsThisMonth,
-    contactsLastMonth,
+    contactsCurrent,
+    contactsPrevious,
   ] = await Promise.all([
-    db.from('deals').select('value').eq('status', 'won').gte('closed_at', thisMonthStart),
+    db.from('deals').select('value').eq('status', 'won').gte('closed_at', currentStart),
     db
       .from('deals')
       .select('value')
       .eq('status', 'won')
-      .gte('closed_at', lastMonthStart)
-      .lt('closed_at', thisMonthStart),
+      .gte('closed_at', previousStart)
+      .lt('closed_at', currentStart),
     db
       .from('sales_goals')
       .select('target_value')
@@ -124,23 +162,23 @@ export async function loadCeoMetrics(db: DB): Promise<CeoMetrics> {
       .from('deals')
       .select('contact_id')
       .not('contact_id', 'is', null)
-      .gte('created_at', thisMonthStart),
+      .gte('created_at', currentStart),
     db
       .from('deals')
       .select('contact_id')
       .not('contact_id', 'is', null)
-      .gte('created_at', lastMonthStart)
-      .lt('created_at', thisMonthStart),
+      .gte('created_at', previousStart)
+      .lt('created_at', currentStart),
   ])
 
-  for (const r of [wonThisMonth, wonLastMonth, goalRow, openDeals, contactsAll, contactsThisMonth, contactsLastMonth]) {
+  for (const r of [wonCurrent, wonPrevious, goalRow, openDeals, contactsAll, contactsCurrent, contactsPrevious]) {
     if (r.error) throw r.error
   }
 
   const sum = (rows: { value: number | null }[]) =>
     rows.reduce((s, r) => s + (r.value ?? 0), 0)
-  const salesThisMonthValue = sum((wonThisMonth.data ?? []) as { value: number | null }[])
-  const salesLastMonthValue = sum((wonLastMonth.data ?? []) as { value: number | null }[])
+  const salesCurrentValue = sum((wonCurrent.data ?? []) as { value: number | null }[])
+  const salesPreviousValue = sum((wonPrevious.data ?? []) as { value: number | null }[])
 
   let pipelineTotal = 0
   let forecast = 0
@@ -155,20 +193,21 @@ export async function loadCeoMetrics(db: DB): Promise<CeoMetrics> {
   const distinctContacts = (rows: ContactRow[]) =>
     new Set(rows.map((r) => r.contact_id).filter((id): id is string => !!id)).size
   const totalClients = distinctContacts((contactsAll.data ?? []) as ContactRow[])
-  const newClientsThisMonth = distinctContacts((contactsThisMonth.data ?? []) as ContactRow[])
-  const newClientsLastMonth = distinctContacts((contactsLastMonth.data ?? []) as ContactRow[])
+  const newClientsCurrent = distinctContacts((contactsCurrent.data ?? []) as ContactRow[])
+  const newClientsPrevious = distinctContacts((contactsPrevious.data ?? []) as ContactRow[])
 
-  const goalThisMonth = (goalRow.data as { target_value: number } | null)?.target_value ?? null
+  const monthlyGoal = (goalRow.data as { target_value: number } | null)?.target_value ?? null
+  const goalForRange = monthlyGoal != null ? (monthlyGoal / daysInMonthOf(now)) * rangeDays : null
 
   return {
-    salesThisMonth: { current: salesThisMonthValue, previous: salesLastMonthValue },
-    goalThisMonth,
-    goalAttainmentPct: goalThisMonth ? (salesThisMonthValue / goalThisMonth) * 100 : null,
+    salesThisMonth: { current: salesCurrentValue, previous: salesPreviousValue },
+    goalThisMonth: goalForRange,
+    goalAttainmentPct: goalForRange ? (salesCurrentValue / goalForRange) * 100 : null,
     pipelineTotal,
-    pipelineCoverage: goalThisMonth ? pipelineTotal / goalThisMonth : null,
+    pipelineCoverage: monthlyGoal ? pipelineTotal / monthlyGoal : null,
     forecast,
-    forecastPct: goalThisMonth ? (forecast / goalThisMonth) * 100 : null,
-    newClients: { current: newClientsThisMonth, previous: newClientsLastMonth },
+    forecastPct: monthlyGoal ? (forecast / monthlyGoal) * 100 : null,
+    newClients: { current: newClientsCurrent, previous: newClientsPrevious },
     totalClients,
   }
 }
@@ -201,9 +240,17 @@ export async function loadCommercialMetrics(db: DB, windowDays = 90): Promise<Co
 
 // --- 4. Top sellers vs their individual goal ------------------------------
 
-export async function loadTopSellers(db: DB, limit = 5): Promise<TopSeller[]> {
-  const thisMonthKey = monthKey(new Date())
-  const thisMonthStart = monthsAgoStart(0).toISOString()
+/**
+ * `goal` is each member's individual monthly goal prorated to
+ * `rangeDays`, same linear-run-rate approach (and same caveat for
+ * ranges beyond the current month) as the account-level goal in
+ * `loadCeoMetrics`.
+ */
+export async function loadTopSellers(db: DB, rangeDays: number, limit = 5): Promise<TopSeller[]> {
+  const now = new Date()
+  const thisMonthKey = monthKey(now)
+  const currentStart = rangeStart(rangeDays).toISOString()
+  const daysInMonth = daysInMonthOf(now)
 
   const [membersRes, dealsRes, goalsRes] = await Promise.all([
     db.from('profiles').select('user_id, full_name, email'),
@@ -211,7 +258,7 @@ export async function loadTopSellers(db: DB, limit = 5): Promise<TopSeller[]> {
       .from('deals')
       .select('assigned_to, value')
       .eq('status', 'won')
-      .gte('closed_at', thisMonthStart)
+      .gte('closed_at', currentStart)
       .not('assigned_to', 'is', null),
     db
       .from('sales_goals')
@@ -229,13 +276,13 @@ export async function loadTopSellers(db: DB, limit = 5): Promise<TopSeller[]> {
   }
   const goalByUser = new Map<string, number>()
   for (const g of (goalsRes.data ?? []) as { user_id: string; target_value: number }[]) {
-    goalByUser.set(g.user_id, g.target_value)
+    goalByUser.set(g.user_id, (g.target_value / daysInMonth) * rangeDays)
   }
 
   const members = (membersRes.data ?? []) as { user_id: string; full_name: string | null; email: string | null }[]
 
   return members
-    // Only members who actually sold something this month, or have a
+    // Only members who actually sold something in range, or have a
     // quota set — otherwise every viewer/admin with zero deals would
     // clutter what's meant to be a sales leaderboard.
     .filter((m) => soldByUser.has(m.user_id) || goalByUser.has(m.user_id))
@@ -265,14 +312,18 @@ export async function loadTopSellers(db: DB, limit = 5): Promise<TopSeller[]> {
 // (from `loadCeoMetrics`) rather than recomputed here, so the page
 // doesn't re-run the same open-deals/forecast scan twice.
 
-export async function loadCeoAlerts(db: DB, metrics: CeoMetrics, staleDays = 7): Promise<CeoAlerts> {
+export async function loadCeoAlerts(
+  db: DB,
+  metrics: CeoMetrics,
+  staleDays = 7,
+  trendWindowDays = 90,
+): Promise<CeoAlerts> {
   const forecastGapPct = computeForecastGap(metrics.forecast, metrics.goalThisMonth)
   const lowPipelineCoverage =
     metrics.pipelineCoverage != null && metrics.pipelineCoverage < HEALTHY_PIPELINE_COVERAGE
       ? metrics.pipelineCoverage
       : null
 
-  const trendWindowDays = 90
   const currentWindowStart = daysAgoStart(trendWindowDays).toISOString()
   const priorWindowStart = daysAgoStart(trendWindowDays * 2).toISOString()
 

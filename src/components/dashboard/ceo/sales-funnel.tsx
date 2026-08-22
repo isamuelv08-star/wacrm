@@ -98,15 +98,7 @@ function FunnelChart({ data, currency }: { data: FunnelStep[]; currency: string 
           const x1 = xFor(i + 1)
           const h0 = heights[i]
           const h1 = heights[i + 1]
-          const path = roundedQuadPath(
-            [
-              { x: x0, y: centerY - h0 / 2 },
-              { x: x1, y: centerY - h1 / 2 },
-              { x: x1, y: centerY + h1 / 2 },
-              { x: x0, y: centerY + h0 / 2 },
-            ],
-            10,
-          )
+          const path = `M ${x0} ${centerY - h0 / 2} L ${x1} ${centerY - h1 / 2} L ${x1} ${centerY + h1 / 2} L ${x0} ${centerY + h0 / 2} Z`
           const isHovered = hoverIdx === i
           const dimmed = hoverIdx !== null && !isHovered
           const pct = step.count > 0 ? (next.count / step.count) * 100 : null
@@ -228,41 +220,4 @@ function FunnelTooltip({
       </div>
     </div>
   )
-}
-
-/**
- * A quadrilateral's path with each corner rounded — SVG has no native
- * "rounded polygon," so this insets each corner along its two
- * adjacent edges by `radius` and joins the shape with a quadratic
- * curve through the original corner point. Every dashboard card
- * elsewhere uses rounded corners (rounded-xl/2xl); the funnel's sharp
- * trapezoids were the one exception.
- *
- * Radius is clamped per-corner to half of whichever adjacent edge is
- * shorter, so a band too thin to fit the requested radius degrades to
- * a smaller one instead of producing a self-intersecting path.
- */
-function roundedQuadPath(points: { x: number; y: number }[], radius: number): string {
-  const n = points.length
-  const dist = (a: { x: number; y: number }, b: { x: number; y: number }) =>
-    Math.hypot(b.x - a.x, b.y - a.y)
-
-  const parts: string[] = []
-  for (let i = 0; i < n; i++) {
-    const prev = points[(i - 1 + n) % n]
-    const curr = points[i]
-    const next = points[(i + 1) % n]
-    const dPrev = dist(prev, curr)
-    const dNext = dist(curr, next)
-    const rIn = Math.min(radius, dPrev / 2)
-    const rOut = Math.min(radius, dNext / 2)
-    const inX = curr.x + ((prev.x - curr.x) / (dPrev || 1)) * rIn
-    const inY = curr.y + ((prev.y - curr.y) / (dPrev || 1)) * rIn
-    const outX = curr.x + ((next.x - curr.x) / (dNext || 1)) * rOut
-    const outY = curr.y + ((next.y - curr.y) / (dNext || 1)) * rOut
-    parts.push(`${i === 0 ? 'M' : 'L'} ${inX} ${inY}`)
-    parts.push(`Q ${curr.x} ${curr.y} ${outX} ${outY}`)
-  }
-  parts.push('Z')
-  return parts.join(' ')
 }
