@@ -208,6 +208,23 @@ async function resolveZernioProfileId(
 
   const stored = existing?.zernio_profile_id ?? null
   if (stored && stored !== accountId) {
+    // Bug fix: this early-return path — reusing a profileId minted on
+    // an EARLIER connect — used to skip persistProfileId entirely, so
+    // connected_by_user_id (added in migration 056, after this
+    // codebase already had live Zernio connections) stayed permanently
+    // null for any account that connected before that migration ran.
+    // The inbound webhook route silently drops every message when
+    // it's null (no owner to attribute the created contact/conversation
+    // to) — this single missed backfill was why messages never landed
+    // even though the OAuth connection itself showed "Connected ✓".
+    // Best-effort: a failure here shouldn't block the connect flow.
+    const { error: backfillError } = await admin
+      .from('client_zernio_accounts')
+      .update({ connected_by_user_id: connectedByUserId })
+      .eq('account_id', accountId)
+    if (backfillError) {
+      console.error('[zernio/connect] connected_by_user_id backfill failed:', backfillError)
+    }
     return stored
   }
 
