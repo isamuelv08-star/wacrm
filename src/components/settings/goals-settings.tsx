@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Loader2, Target } from "lucide-react";
 
@@ -46,6 +46,17 @@ export function GoalsSettings() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // `saving` (React state) doesn't actually block a second click until
+  // a re-render disables the button — a fast double-click or an
+  // impatient re-click before the network round-trip finishes could
+  // fire handleSave twice concurrently. Both calls would then see the
+  // SAME stale `accountGoal` (null, on a brand-new goal), so both take
+  // the INSERT branch and race on the account's unique-per-month index:
+  // one wins, the other fails with a duplicate-key error — the account
+  // goal ends up saved, but the user still sees "no se pudieron
+  // guardar las metas" from the losing call. A ref-backed guard closes
+  // this window synchronously, which state alone can't.
+  const savingRef = useRef(false);
 
   const [accountGoal, setAccountGoal] = useState<GoalRow | null>(null);
   const [accountGoalInput, setAccountGoalInput] = useState("");
@@ -116,9 +127,11 @@ export function GoalsSettings() {
   }
 
   async function handleSave() {
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     try {
-      const writes: Promise<{ error: { message: string } | null }>[] = [];
+      const writes: Promise<{ error: { message: string; code?: string } | null }>[] = [];
 
       const accountValue = Number(accountGoalInput);
       if (accountGoalInput.trim() !== "" && !Number.isNaN(accountValue) && accountValue >= 0) {
@@ -138,7 +151,11 @@ export function GoalsSettings() {
       }
 
       const results = await Promise.all(writes);
-      if (results.some((r) => r.error)) {
+      const failed = results.filter((r) => r.error);
+      if (failed.length > 0) {
+        // The toast alone never says WHY — log the actual Postgres/RLS
+        // error so it's checkable in devtools instead of a dead end.
+        console.error("[goals-settings] save failed:", failed.map((r) => r.error));
         toast.error(t("saveFailed"));
         return;
       }
@@ -146,6 +163,7 @@ export function GoalsSettings() {
       await load();
     } finally {
       setSaving(false);
+      savingRef.current = false;
     }
   }
 
@@ -174,7 +192,7 @@ export function GoalsSettings() {
                 min={0}
                 value={accountGoalInput}
                 onChange={(e) => setAccountGoalInput(e.target.value)}
-                disabled={!canEditSettings || profileLoading || loading}
+                disabled={!canEditSettings || profileLoading || loading || saving}
                 placeholder="0"
                 className="bg-muted text-foreground"
               />
@@ -210,7 +228,7 @@ export function GoalsSettings() {
                       onChange={(e) =>
                         setMemberInputs((prev) => ({ ...prev, [m.user_id]: e.target.value }))
                       }
-                      disabled={!canEditSettings || profileLoading}
+                      disabled={!canEditSettings || profileLoading || saving}
                       placeholder="0"
                       className="w-32 bg-muted text-foreground"
                     />

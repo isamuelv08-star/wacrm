@@ -124,7 +124,7 @@
     },
     "responseTimeChart": {
       "title": "Average First Response Time",
-      "description": "Minutes to reply to a customer's first unreplied message, over the selected period",
+      "description": "First-response speed, by period",
       "target": "target {minutes}m",
       "current": "Current:",
       "previous": "Previous:",

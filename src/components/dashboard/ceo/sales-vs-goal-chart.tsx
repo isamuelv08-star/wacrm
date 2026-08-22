@@ -20,7 +20,15 @@ const VB_W = 760
 const VB_H = 260
 const PADDING = { top: 16, right: 16, bottom: 28, left: 48 }
 const ACTUAL_COLOR = '#22c55e'
-const GOAL_COLOR = '#f59e0b'
+// The goal is a reference threshold, not a second identity competing
+// with "Actual" — rendering it as a neutral dashed line (rather than
+// a second saturated hue) is both the standard target-line convention
+// and sidesteps a real problem the previous amber pairing had: it
+// failed this app's own colorblind-separation check against the
+// green actual line, and the hover tooltip's goal dot was already
+// neutral gray while the line and legend swatch were amber — an
+// inconsistent identity for the same series.
+const GOAL_COLOR = 'var(--muted-foreground)'
 
 export function SalesVsGoalChart({ data, loading, currency }: SalesVsGoalChartProps) {
   const t = useTranslations('Dashboard.ceo.salesVsGoal')
@@ -97,6 +105,11 @@ function LineSvg({ data, currency }: { data: SalesVsGoalPoint[]; currency: strin
   const chartW = VB_W - PADDING.left - PADDING.right
   const chartH = VB_H - PADDING.top - PADDING.bottom
   const stepX = data.length > 1 ? chartW / (data.length - 1) : 0
+  // A monthly view only ever had ≤6 points, so one label per point
+  // fit fine. Now that the range can bucket into up to 30 points (a
+  // 30-day or 6-month/1-year view), labeling every one of them would
+  // overlap into an unreadable smear — show at most ~8 evenly spaced.
+  const labelStride = Math.max(1, Math.ceil(data.length / 8))
   const yFor = (v: number) => (maxY === 0 ? PADDING.top + chartH : PADDING.top + chartH - (v / maxY) * chartH)
   const xFor = (i: number) => PADDING.left + i * stepX
   const baselineY = PADDING.top + chartH
@@ -149,6 +162,7 @@ function LineSvg({ data, currency }: { data: SalesVsGoalPoint[]; currency: strin
       <svg
         ref={svgRef}
         viewBox={`0 0 ${VB_W} ${VB_H}`}
+        preserveAspectRatio="none"
         className="h-[260px] w-full"
         role="img"
         aria-label={t('ariaLabel')}
@@ -157,7 +171,7 @@ function LineSvg({ data, currency }: { data: SalesVsGoalPoint[]; currency: strin
           const y = yFor(tick)
           return (
             <g key={tick}>
-              <line x1={PADDING.left} x2={VB_W - PADDING.right} y1={y} y2={y} stroke="var(--border)" strokeDasharray="3 3" />
+              <line x1={PADDING.left} x2={VB_W - PADDING.right} y1={y} y2={y} stroke="var(--border)" strokeWidth={1} />
               <text x={PADDING.left - 8} y={y} textAnchor="end" dominantBaseline="middle" className="fill-muted-foreground text-[10px]">
                 {formatCompactNumber(tick)}
               </text>
@@ -165,11 +179,13 @@ function LineSvg({ data, currency }: { data: SalesVsGoalPoint[]; currency: strin
           )
         })}
 
-        {data.map((p, i) => (
-          <text key={i} x={xFor(i)} y={VB_H - 8} textAnchor="middle" className="fill-muted-foreground text-[10px]">
-            {p.label}
-          </text>
-        ))}
+        {data.map((p, i) =>
+          i % labelStride === 0 ? (
+            <text key={i} x={xFor(i)} y={VB_H - 8} textAnchor="middle" className="fill-muted-foreground text-[10px]">
+              {p.label}
+            </text>
+          ) : null,
+        )}
 
         <GlowSeries points={actualPoints} baselineY={baselineY} color={ACTUAL_COLOR} />
 
@@ -217,7 +233,7 @@ function LineSvg({ data, currency }: { data: SalesVsGoalPoint[]; currency: strin
         >
           <div className="font-medium text-popover-foreground">{hovered.label}</div>
           <div className="mt-1 flex flex-col gap-0.5">
-            <span className="flex items-center gap-1.5" style={{ color: ACTUAL_COLOR }}>
+            <span className="flex items-center gap-1.5 font-medium text-popover-foreground">
               <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: ACTUAL_COLOR }} />
               {formatCurrency(hovered.actual, currency)}
             </span>

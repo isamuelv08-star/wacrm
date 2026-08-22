@@ -22,8 +22,17 @@ interface ResponseTimeCardProps {
 // same visual weight as its row-mates instead of reading as mostly
 // empty space stretched to match their height.
 const VB_W = 220
-const VB_H = 70
-const PLOT_H = 52 // leaves room for the day labels below the line
+const VB_H = 100
+const PLOT_H = 78 // leaves room for the day labels below the line
+// The sparkline's wrapper below is a fixed h-[100px] that matches
+// VB_H 1:1, so the y-scale is always exactly 1 — only x (time)
+// stretches with card width, same as any responsive line chart's
+// x-axis. It used to sit in a `flex-1`/`min-h` box that grew with
+// whatever the row's tallest sibling happened to be, which meant an
+// unpredictable (and often large) vertical stretch on top of the
+// horizontal one — non-uniform scaling that visibly warped the glow
+// stroke and the day labels into oval, elongated shapes. Fixing the
+// height is what makes `preserveAspectRatio="none"` safe to use at all.
 const LINE_COLOR = '#FF3131' // brand red — the "flame" theme's --primary
 
 export function ResponseTimeCard({ data, loading }: ResponseTimeCardProps) {
@@ -49,7 +58,7 @@ export function ResponseTimeCard({ data, loading }: ResponseTimeCardProps) {
         {loading || !data ? (
           <div className="flex flex-1 flex-col justify-between">
             <Skeleton className="h-8 w-24" />
-            <Skeleton className="mt-3 h-full min-h-[70px] w-full" />
+            <Skeleton className="h-[100px] w-full" />
           </div>
         ) : !hasData ? (
           <div className="flex flex-1 items-center">
@@ -61,12 +70,14 @@ export function ResponseTimeCard({ data, loading }: ResponseTimeCardProps) {
             />
           </div>
         ) : (
-          <div className="flex flex-1 flex-col">
-            <p className="text-[28px] leading-none font-bold tabular-nums text-foreground">
-              <AnimatedNumber value={data.currentAvg ?? 0} formatter={fmt} />
-            </p>
-            {delta != null && <DeltaRow delta={delta} />}
-            <div className="mt-3 min-h-[70px] flex-1">
+          <div className="flex flex-1 flex-col justify-between">
+            <div>
+              <p className="text-[28px] leading-none font-bold tabular-nums text-foreground">
+                <AnimatedNumber value={data.currentAvg ?? 0} formatter={fmt} />
+              </p>
+              {delta != null && <DeltaRow delta={delta} />}
+            </div>
+            <div className="mt-4 h-[100px] w-full">
               <Sparkline data={data} />
             </div>
           </div>
@@ -123,9 +134,11 @@ function Sparkline({ data }: { data: ResponseTimeSummary }) {
       aria-hidden
     >
       {/* Light gridlines — fills the plot with real structure instead
-          of empty space around a bare line. */}
-      <line x1={0} x2={VB_W} y1={PLOT_H * 0.5} y2={PLOT_H * 0.5} stroke="var(--border)" strokeDasharray="3 3" />
-      <line x1={0} x2={VB_W} y1={PLOT_H} y2={PLOT_H} stroke="var(--border)" />
+          of empty space around a bare line. Solid hairlines, one step
+          off the surface — a dashed grid reads as a threshold/projection,
+          which this isn't. */}
+      <line x1={0} x2={VB_W} y1={PLOT_H * 0.5} y2={PLOT_H * 0.5} stroke="var(--border)" strokeWidth={1} opacity={0.6} />
+      <line x1={0} x2={VB_W} y1={PLOT_H} y2={PLOT_H} stroke="var(--border)" strokeWidth={1} />
 
       <GlowSeries points={points} baselineY={PLOT_H} color={LINE_COLOR} strokeWidth={2} />
 

@@ -124,7 +124,7 @@
     },
     "responseTimeChart": {
       "title": "Tiempo promedio de primera respuesta",
-      "description": "Minutos para responder al primer mensaje sin contestar de un cliente, en el período seleccionado",
+      "description": "Velocidad de primera respuesta",
       "target": "objetivo {minutes}m",
       "current": "Actual:",
       "previous": "Anterior:",
