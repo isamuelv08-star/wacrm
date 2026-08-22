@@ -118,6 +118,7 @@ export function PipelineSettings({
       color: s.color,
       position: i,
       is_qualified_stage: s.is_qualified_stage ?? false,
+      win_probability: s.win_probability ?? null,
     }));
 
     const [renameRes, stagesRes] = await Promise.all([
@@ -279,6 +280,11 @@ export function PipelineSettings({
                             updated[index] = { ...updated[index], color: v };
                             setLocalStages(updated);
                           }}
+                          onProbabilityChange={(v) => {
+                            const updated = [...localStages];
+                            updated[index] = { ...updated[index], win_probability: v };
+                            setLocalStages(updated);
+                          }}
                           onRemove={() => handleRemoveStage(stage.id)}
                           onToggleQualified={() => {
                             setLocalStages(
@@ -382,6 +388,7 @@ function SortableStageRow({
   stage,
   onNameChange,
   onColorChange,
+  onProbabilityChange,
   onRemove,
   onToggleQualified,
   colors,
@@ -390,6 +397,7 @@ function SortableStageRow({
   stage: PipelineStage;
   onNameChange: (v: string) => void;
   onColorChange: (v: string) => void;
+  onProbabilityChange: (v: number | null) => void;
   onRemove: () => void;
   onToggleQualified: () => void;
   colors: string[];
@@ -426,6 +434,21 @@ function SortableStageRow({
         onChange={(e) => onNameChange(e.target.value)}
         className="h-7 flex-1 border-transparent bg-transparent text-sm text-foreground focus:border-border"
       />
+      <div className="flex shrink-0 items-center gap-0.5" title={t("winProbabilityHint")}>
+        <Input
+          type="number"
+          min={0}
+          max={100}
+          value={stage.win_probability ?? ""}
+          onChange={(e) => {
+            const raw = e.target.value;
+            onProbabilityChange(raw === "" ? null : Math.max(0, Math.min(100, Number(raw))));
+          }}
+          placeholder="—"
+          className="h-7 w-12 border-border bg-transparent px-1 text-center text-xs text-foreground"
+        />
+        <span className="text-xs text-muted-foreground">%</span>
+      </div>
       <Button
         variant="ghost"
         size="icon-xs"

@@ -13,6 +13,7 @@ import {
   Crown,
   GitBranch,
   LayoutDashboard,
+  LineChart,
   PanelLeftClose,
   PanelLeftOpen,
   LogOut,
@@ -99,10 +100,14 @@ interface NavItem {
    * Purely informational — doesn't affect routing or access.
    */
   beta?: boolean;
+  /** Hidden from the nav (and unreachable via a direct link, gated
+   *  again at the route itself) for anyone who isn't the account owner. */
+  ownerOnly?: boolean;
 }
 
 const navItems: NavItem[] = [
   { href: "/dashboard", labelKey: "dashboard", icon: LayoutDashboard },
+  { href: "/ceo", labelKey: "ceo", icon: LineChart, ownerOnly: true },
   { href: "/inbox", labelKey: "inbox", icon: MessageSquare },
   { href: "/notifications", labelKey: "notifications", icon: Bell },
   { href: "/contacts", labelKey: "contacts", icon: Users },
@@ -292,7 +297,9 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         <TooltipProvider>
           <nav className="flex-1 overflow-y-auto px-3 py-4">
             <ul className="flex flex-col gap-1">
-              {navItems.map((item) => {
+              {navItems
+                .filter((item) => !item.ownerOnly || accountRole === "owner")
+                .map((item) => {
                 const isActive =
                   pathname === item.href ||
                   (item.href !== "/dashboard" && pathname.startsWith(item.href));

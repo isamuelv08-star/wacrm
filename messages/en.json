@@ -40,7 +40,8 @@
     "defaultAvatar": "Avatar",
     "menuProfile": "Profile",
     "menuSettings": "Settings",
-    "menuSignOut": "Sign out"
+    "menuSignOut": "Sign out",
+    "ceo": "CEO Dashboard"
   },
   "Header": {
     "dashboard": "Dashboard",
@@ -59,7 +60,8 @@
     "defaultAvatar": "Avatar",
     "menuProfile": "Profile",
     "menuSettings": "Settings",
-    "menuSignOut": "Sign out"
+    "menuSignOut": "Sign out",
+    "ceo": "CEO Dashboard"
   },
   "ModeToggle": {
     "switchMode": "Switch to {mode} mode"
@@ -136,6 +138,54 @@
       "unnamed": "Unnamed",
       "active": "Active",
       "inactive": "Inactive"
+    },
+    "ceo": {
+      "page": {
+        "title": "CEO Dashboard",
+        "description": "Revenue, pipeline, and team performance at a glance.",
+        "sales": "Sales",
+        "goal": "Goal",
+        "goalAttainment": "{pct}% of goal",
+        "goalNotSet": "No goal set",
+        "pipeline": "Pipeline",
+        "pipelineCoverage": "{multiple}x the goal",
+        "forecast": "Forecast",
+        "forecastOfGoal": "{pct}% of goal",
+        "clients": "Clients",
+        "noChangeVsLastMonth": "No change vs last month",
+        "vsLastMonth": "vs last month"
+      },
+      "salesVsGoal": {
+        "title": "Sales vs Goal",
+        "description": "Monthly revenue against the account's target, last 6 months",
+        "noData": "Not enough data yet",
+        "noDataHint": "Close deals and set a monthly goal to fill in this chart.",
+        "actual": "Actual",
+        "goal": "Goal",
+        "ariaLabel": "Sales versus goal, by month",
+        "tooltipGoal": "Goal: {value}"
+      },
+      "commercial": {
+        "title": "Commercial metrics",
+        "description": "Trailing 90 days",
+        "winRate": "Win rate",
+        "avgTicket": "Avg. ticket",
+        "salesCycle": "Sales cycle",
+        "days": "{count, plural, =1 {# day} other {# days}}"
+      },
+      "topSellers": {
+        "title": "Top sellers",
+        "description": "This month's revenue vs. each member's quota",
+        "noData": "No sales yet this month",
+        "noDataHint": "Sales attributed to a team member will show up here."
+      },
+      "alerts": {
+        "title": "Alerts",
+        "stalledCount": "{count, plural, =1 {# opportunity} other {# opportunities}} stalled for {days}+ days",
+        "stalledValue": "{value} at risk",
+        "forecastGap": "Forecast is {pct}% below goal",
+        "allGood": "Nothing needs your attention right now"
+      }
     }
   },
   "Inbox": {
@@ -634,7 +684,8 @@
       "toastMoveOrDeleteDeals": "Move or delete deals in this stage first",
       "toastFailedDeleteStage": "Failed to delete stage",
       "toastFailedDeletePipeline": "Failed to delete pipeline",
-      "toastDeleted": "Pipeline deleted"
+      "toastDeleted": "Pipeline deleted",
+      "winProbabilityHint": "Chance this stage's deals eventually close won — powers the CEO dashboard's weighted forecast."
     },
     "analytics": {
       "totalDeals": "Total Deals",
@@ -1600,7 +1651,8 @@
       "fields": "Fields & tags",
       "deals": "Deals & currency",
       "members": "Team members",
-      "api": "API keys"
+      "api": "API keys",
+      "goals": "Sales goals"
     },
     "groups": {
       "account": "Account",
@@ -1804,6 +1856,24 @@
       "uploadSuccess": "\"{title}\" added from PDF.",
       "uploadFailed": "Failed to upload PDF.",
       "pdfOnly": "Only PDF files are supported."
+    },
+    "goals": {
+      "title": "Sales goals",
+      "description": "Monthly revenue targets for the account and each team member — power the CEO dashboard's goal, forecast, and leaderboard.",
+      "accountGoal": "Account goal",
+      "accountGoalDesc": "The overall monthly target shown on the CEO dashboard.",
+      "monthlyTargetLabel": "Monthly target ({currency})",
+      "memberGoals": "Individual quotas",
+      "memberGoalsDesc": "Set a monthly quota per member to power the Top Sellers leaderboard.",
+      "noMembers": "No team members yet.",
+      "unnamed": "Unnamed",
+      "adminOnlyHint": "Only account admins can set sales goals.",
+      "save": "Save",
+      "saving": "Saving...",
+      "saveSuccess": "Goals updated",
+      "saveFailed": "Failed to save goals",
+      "loadFailed": "Failed to load goals",
+      "currentGoalHint": "Current account goal: {value}"
     }
   },
   "Leads": {

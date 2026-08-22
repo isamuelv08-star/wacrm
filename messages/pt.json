@@ -40,7 +40,8 @@
     "defaultAvatar": "Avatar",
     "menuProfile": "Perfil",
     "menuSettings": "Configurações",
-    "menuSignOut": "Sair"
+    "menuSignOut": "Sair",
+    "ceo": "Painel CEO"
   },
   "Header": {
     "dashboard": "Painel",
@@ -59,7 +60,8 @@
     "defaultAvatar": "Avatar",
     "menuProfile": "Perfil",
     "menuSettings": "Configurações",
-    "menuSignOut": "Sair"
+    "menuSignOut": "Sair",
+    "ceo": "Painel CEO"
   },
   "ModeToggle": {
     "switchMode": "Mudar para o modo {mode}"
@@ -136,6 +138,54 @@
       "unnamed": "Sem nome",
       "active": "Ativo",
       "inactive": "Inativo"
+    },
+    "ceo": {
+      "page": {
+        "title": "Painel CEO",
+        "description": "Receita, pipeline e desempenho da equipe em um só lugar.",
+        "sales": "Vendas",
+        "goal": "Meta",
+        "goalAttainment": "{pct}% da meta",
+        "goalNotSet": "Nenhuma meta definida",
+        "pipeline": "Pipeline",
+        "pipelineCoverage": "{multiple}x a meta",
+        "forecast": "Forecast",
+        "forecastOfGoal": "{pct}% da meta",
+        "clients": "Clientes",
+        "noChangeVsLastMonth": "Sem alteração vs. mês passado",
+        "vsLastMonth": "vs. mês passado"
+      },
+      "salesVsGoal": {
+        "title": "Vendas vs Meta",
+        "description": "Receita mensal comparada à meta da conta, últimos 6 meses",
+        "noData": "Ainda não há dados suficientes",
+        "noDataHint": "Feche negócios e defina uma meta mensal para preencher este gráfico.",
+        "actual": "Real",
+        "goal": "Meta",
+        "ariaLabel": "Vendas versus meta, por mês",
+        "tooltipGoal": "Meta: {value}"
+      },
+      "commercial": {
+        "title": "Métricas comerciais",
+        "description": "Últimos 90 dias",
+        "winRate": "Win rate",
+        "avgTicket": "Ticket médio",
+        "salesCycle": "Ciclo de vendas",
+        "days": "{count, plural, =1 {# dia} other {# dias}}"
+      },
+      "topSellers": {
+        "title": "Top vendedores",
+        "description": "Receita do mês vs. a cota de cada membro",
+        "noData": "Ainda não há vendas este mês",
+        "noDataHint": "Vendas atribuídas a um membro da equipe vão aparecer aqui."
+      },
+      "alerts": {
+        "title": "Alertas",
+        "stalledCount": "{count, plural, =1 {# oportunidade parada} other {# oportunidades paradas}} há {days}+ dias",
+        "stalledValue": "{value} em risco",
+        "forecastGap": "O forecast está {pct}% abaixo da meta",
+        "allGood": "Nada precisa da sua atenção agora"
+      }
     }
   },
   "Inbox": {
@@ -634,7 +684,8 @@
       "toastMoveOrDeleteDeals": "Mova ou exclua os negócios desta etapa primeiro",
       "toastFailedDeleteStage": "Falha ao excluir etapa",
       "toastFailedDeletePipeline": "Falha ao excluir pipeline",
-      "toastDeleted": "Pipeline excluído"
+      "toastDeleted": "Pipeline excluído",
+      "winProbabilityHint": "Chance de os negócios desta etapa fecharem como ganhos — alimenta o forecast ponderado do painel CEO."
     },
     "analytics": {
       "totalDeals": "Total de Negócios",
@@ -1600,7 +1651,8 @@
       "fields": "Campos e tags",
       "deals": "Negócios e moeda",
       "members": "Membros da equipe",
-      "api": "Chaves de API"
+      "api": "Chaves de API",
+      "goals": "Metas de vendas"
     },
     "groups": {
       "account": "Conta",
@@ -1804,6 +1856,24 @@
       "uploadSuccess": "\"{title}\" adicionado a partir do PDF.",
       "uploadFailed": "Falha ao enviar o PDF.",
       "pdfOnly": "Apenas arquivos PDF são suportados."
+    },
+    "goals": {
+      "title": "Metas de vendas",
+      "description": "Metas mensais de receita para a conta e para cada membro da equipe — alimentam a meta, o forecast e o ranking do painel CEO.",
+      "accountGoal": "Meta da conta",
+      "accountGoalDesc": "A meta mensal geral mostrada no painel CEO.",
+      "monthlyTargetLabel": "Meta mensal ({currency})",
+      "memberGoals": "Cotas individuais",
+      "memberGoalsDesc": "Defina uma cota mensal por membro para alimentar o ranking de Top Vendedores.",
+      "noMembers": "Ainda não há membros na equipe.",
+      "unnamed": "Sem nome",
+      "adminOnlyHint": "Somente administradores da conta podem definir metas de vendas.",
+      "save": "Salvar",
+      "saving": "Salvando...",
+      "saveSuccess": "Metas atualizadas",
+      "saveFailed": "Não foi possível salvar as metas",
+      "loadFailed": "Não foi possível carregar as metas",
+      "currentGoalHint": "Meta atual da conta: {value}"
     }
   },
   "Leads": {

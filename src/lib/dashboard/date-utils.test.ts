@@ -3,8 +3,11 @@ import {
   DOW_SHORT_MON_FIRST,
   daysAgoStart,
   lastNDayKeys,
+  lastNMonthKeys,
   localDayKey,
   mondayIndex,
+  monthKey,
+  monthsAgoStart,
   startOfLocalDay,
 } from "./date-utils";
 
@@ -119,5 +122,80 @@ describe("mondayIndex", () => {
     expect(DOW_SHORT_MON_FIRST[mondayIndex(new Date("2026-05-24"))]).toBe(
       "Sun",
     );
+  });
+});
+
+describe("monthKey", () => {
+  it("emits YYYY-MM-01 regardless of the day of month", () => {
+    expect(monthKey(new Date(2026, 4, 18))).toBe("2026-05-01"); // May
+    expect(monthKey(new Date(2026, 4, 1))).toBe("2026-05-01");
+    expect(monthKey(new Date(2026, 4, 31))).toBe("2026-05-01");
+  });
+
+  it("zero-pads single-digit months", () => {
+    expect(monthKey(new Date(2026, 0, 15))).toBe("2026-01-01"); // Jan
+  });
+
+  it("accepts ISO strings as input", () => {
+    expect(monthKey("2026-05-18T23:00:00")).toBe("2026-05-01");
+  });
+});
+
+describe("monthsAgoStart", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 4, 18, 13, 45)); // May 18, mid-month
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("monthsAgoStart(0) is the first of the current month at midnight", () => {
+    const out = monthsAgoStart(0);
+    expect(out.getFullYear()).toBe(2026);
+    expect(out.getMonth()).toBe(4); // May
+    expect(out.getDate()).toBe(1);
+    expect(out.getHours()).toBe(0);
+  });
+
+  it("rolls back N months, clamped to the 1st so short months can't skid forward", () => {
+    const out = monthsAgoStart(2);
+    expect(out.getMonth()).toBe(2); // March
+    expect(out.getDate()).toBe(1);
+  });
+
+  it("crosses a year boundary cleanly", () => {
+    const out = monthsAgoStart(6);
+    expect(out.getFullYear()).toBe(2025);
+    expect(out.getMonth()).toBe(10); // November
+    expect(out.getDate()).toBe(1);
+  });
+});
+
+describe("lastNMonthKeys", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 4, 18)); // May 18
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("returns n consecutive chronological month keys ending this month", () => {
+    expect(lastNMonthKeys(3)).toEqual(["2026-03-01", "2026-04-01", "2026-05-01"]);
+  });
+
+  it("returns just this month for n=1", () => {
+    expect(lastNMonthKeys(1)).toEqual(["2026-05-01"]);
+  });
+
+  it("rolls back across a year boundary", () => {
+    vi.setSystemTime(new Date(2026, 1, 1)); // Feb 1
+    expect(lastNMonthKeys(4)).toEqual([
+      "2025-11-01",
+      "2025-12-01",
+      "2026-01-01",
+      "2026-02-01",
+    ]);
   });
 });

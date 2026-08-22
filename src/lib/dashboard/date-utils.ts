@@ -50,3 +50,34 @@ export function mondayIndex(d: Date): number {
 }
 
 export const DOW_SHORT_MON_FIRST = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const
+
+/** First-of-month key (YYYY-MM-01) for a date, in local time. Matches
+ *  the shape `sales_goals.period_month` is stored in, so a goal row
+ *  and a bucketed deal can be joined on this string directly. */
+export function monthKey(d: Date | string): string {
+  const date = typeof d === 'string' ? new Date(d) : d
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  return `${y}-${m}-01`
+}
+
+/** Start-of-month Date, `n` months before the current one (0 = this month). */
+export function monthsAgoStart(n: number): Date {
+  const out = startOfLocalDay()
+  out.setDate(1)
+  out.setMonth(out.getMonth() - n)
+  return out
+}
+
+/**
+ * Inclusive list of month keys spanning the last `n` months (oldest
+ * first), ending with the current month — same "seed every bucket so
+ * zero-activity periods still render" purpose as `lastNDayKeys`.
+ */
+export function lastNMonthKeys(n: number): string[] {
+  const keys: string[] = []
+  for (let i = n - 1; i >= 0; i--) {
+    keys.push(monthKey(monthsAgoStart(i)))
+  }
+  return keys
+}

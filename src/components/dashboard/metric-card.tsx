@@ -2,7 +2,7 @@ import { ArrowDown, ArrowUp, Minus } from 'lucide-react'
 import { useEffect, useState, type ComponentType } from 'react'
 import { cn } from '@/lib/utils'
 
-export type MetricCardTint = 'blue' | 'green' | 'purple' | 'amber'
+export type MetricCardTint = 'blue' | 'green' | 'purple' | 'amber' | 'rose' | 'teal'
 
 // One base hue per card, matched to Tailwind's 500-weight swatches so they
 // read as the same family as the rest of the app's status colors. Blended
@@ -13,6 +13,8 @@ const TINT_COLORS: Record<MetricCardTint, string> = {
   green: '#22c55e',
   purple: '#8b5cf6',
   amber: '#f59e0b',
+  rose: '#f43f5e',
+  teal: '#14b8a6',
 }
 
 interface MetricCardProps {

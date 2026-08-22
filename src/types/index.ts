@@ -425,6 +425,12 @@ export interface PipelineStage {
    * from a name or position.
    */
   is_qualified_stage?: boolean;
+  /** % chance a deal in this stage eventually closes won (migration
+   *  053) — weights the CEO dashboard's forecast. Backfilled with a
+   *  linear ramp by stage position; null only if the backfill somehow
+   *  missed a row (treat as "not weighted" — exclude from forecast
+   *  math rather than defaulting to 0 or 100). */
+  win_probability?: number | null;
 }
 
 export type DealStatus = 'open' | 'won' | 'lost';
@@ -456,6 +462,11 @@ export interface Deal {
   ai_summary?: string | null;
   created_at: string;
   updated_at?: string;
+  /** Stamped by a trigger the moment `status` flips to won/lost, and
+   *  cleared if the deal is re-opened (migration 053) — the source
+   *  for sales-cycle and monthly-revenue reporting, since `updated_at`
+   *  also moves on unrelated edits. Null while the deal is open. */
+  closed_at?: string | null;
   contact?: Contact;
   stage?: PipelineStage;
   assignee?: Profile;
@@ -477,6 +488,18 @@ export interface DealStageHistory {
   from_stage_id: string | null;
   to_stage_id: string;
   changed_at: string;
+}
+
+/** A monthly revenue target (migration 053). `user_id` null = the
+ *  account's overall goal; set = that member's individual quota. */
+export interface SalesGoal {
+  id: string;
+  account_id: string;
+  user_id: string | null;
+  /** First of the month, e.g. "2026-08-01". */
+  period_month: string;
+  target_value: number;
+  currency: string;
 }
 
 export type BroadcastStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
