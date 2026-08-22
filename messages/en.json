@@ -81,7 +81,11 @@
       "newTodayVsYesterday": "new today vs yesterday",
       "vsYesterday": "vs yesterday",
       "openDeals": "{count} open {count, plural, =1 {deal} other {deals}}",
-      "noChange": "No change {suffix}"
+      "noChange": "No change {suffix}",
+      "activeConversationsDesc": "Conversations with an unread or unresolved message right now.",
+      "newContactsTodayDesc": "New contacts created since midnight today.",
+      "openDealsValueDesc": "Total value of every open deal currently in your pipeline.",
+      "messagesSentTodayDesc": "Outbound messages sent by you and your team today."
     },
     "quickActions": {
       "newContact": "New Contact",
@@ -154,7 +158,12 @@
         "clients": "Clients",
         "noChangeVsLastMonth": "No change vs last month",
         "vsLastMonth": "vs last month",
-        "salesSectionTitle": "Sales"
+        "salesSectionTitle": "Sales",
+        "salesDesc": "Total value of deals won so far this calendar month.",
+        "goalDesc": "This account's revenue target for the month, and your progress toward it.",
+        "pipelineDesc": "Combined value of every open deal, and how many times it covers your monthly goal.",
+        "forecastDesc": "Projected month-end revenue, weighted by each open deal's win probability.",
+        "clientsDesc": "Total distinct clients on record, and how many are new this month."
       },
       "salesVsGoal": {
         "title": "Sales vs Goal",
@@ -197,7 +206,10 @@
         "leads": "Leads",
         "won": "Won",
         "noData": "Not enough activity yet",
-        "noDataHint": "New leads and deals moving through the pipeline will fill in this funnel."
+        "noDataHint": "New leads and deals moving through the pipeline will fill in this funnel.",
+        "ariaLabel": "Sales funnel from leads to won deals",
+        "dealCount": "{count} {count, plural, =1 {deal} other {deals}}",
+        "conversionToNext": "{pct}% moved to the next stage"
       }
     }
   },

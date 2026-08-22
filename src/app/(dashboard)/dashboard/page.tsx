@@ -48,6 +48,8 @@ import type {
 } from '@/lib/dashboard/ceo-types'
 
 import { MetricCard } from '@/components/dashboard/metric-card'
+import { AnimatedNumber } from '@/components/dashboard/animated-number'
+import { RevealSection } from '@/components/dashboard/reveal-section'
 import { SkeletonCard } from '@/components/dashboard/skeleton'
 import { QuickActions } from '@/components/dashboard/quick-actions'
 import { ConversationsChart } from '@/components/dashboard/conversations-chart'
@@ -298,9 +300,11 @@ export default function DashboardPage() {
           <>
             <MetricCard
               title={t('activeConversations')}
-              value={metrics.activeConversations.current.toLocaleString()}
+              value={<AnimatedNumber value={metrics.activeConversations.current} formatter={(n) => Math.round(n).toLocaleString()} />}
               icon={MessageSquare}
               tint="blue"
+              description={t('activeConversationsDesc')}
+              animationDelayMs={0}
               delta={{
                 sign: metrics.activeConversations.previous,
                 label: deltaLabel(
@@ -312,9 +316,11 @@ export default function DashboardPage() {
             />
             <MetricCard
               title={t('newContactsToday')}
-              value={metrics.newContactsToday.current.toLocaleString()}
+              value={<AnimatedNumber value={metrics.newContactsToday.current} formatter={(n) => Math.round(n).toLocaleString()} />}
               icon={UserPlus}
               tint="green"
+              description={t('newContactsTodayDesc')}
+              animationDelayMs={80}
               delta={{
                 sign:
                   metrics.newContactsToday.current - metrics.newContactsToday.previous,
@@ -327,16 +333,20 @@ export default function DashboardPage() {
             />
             <MetricCard
               title={t('openDealsValue')}
-              value={formatCurrency(metrics.openDealsValue, defaultCurrency)}
+              value={<AnimatedNumber value={metrics.openDealsValue} formatter={(n) => formatCurrency(n, defaultCurrency)} />}
               icon={DollarSign}
               tint="purple"
+              description={t('openDealsValueDesc')}
+              animationDelayMs={160}
               subtitle={t('openDeals', { count: metrics.openDealsCount })}
             />
             <MetricCard
               title={t('messagesSentToday')}
-              value={metrics.messagesSentToday.current.toLocaleString()}
+              value={<AnimatedNumber value={metrics.messagesSentToday.current} formatter={(n) => Math.round(n).toLocaleString()} />}
               icon={Send}
               tint="amber"
+              description={t('messagesSentTodayDesc')}
+              animationDelayMs={240}
               delta={{
                 sign:
                   metrics.messagesSentToday.current - metrics.messagesSentToday.previous,
@@ -361,36 +371,42 @@ export default function DashboardPage() {
           stretched height so their rounded borders line up. Without
           this, the pipeline card rendered at its natural (shorter)
           height while the line chart drove the row height. */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-        <div className="h-full lg:col-span-3">
-          <ConversationsChart
-            series={series}
-            loading={seriesLoading}
-            range={range}
-            onRangeChange={handleRangeChange}
-          />
+      <RevealSection delayMs={80}>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+          <div className="h-full lg:col-span-3">
+            <ConversationsChart
+              series={series}
+              loading={seriesLoading}
+              range={range}
+              onRangeChange={handleRangeChange}
+            />
+          </div>
+          <div className="h-full lg:col-span-2">
+            <PipelineDonut
+              data={pipeline}
+              loading={pipelineLoading}
+              currency={defaultCurrency}
+            />
+          </div>
         </div>
-        <div className="h-full lg:col-span-2">
-          <PipelineDonut
-            data={pipeline}
-            loading={pipelineLoading}
-            currency={defaultCurrency}
-          />
-        </div>
-      </div>
+      </RevealSection>
 
       {/* Response time */}
-      <ResponseTimeChart data={responseTime} loading={responseTimeLoading} />
+      <RevealSection delayMs={140}>
+        <ResponseTimeChart data={responseTime} loading={responseTimeLoading} />
+      </RevealSection>
 
       {/* Team + HOT leads waiting on a reply */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-        <div className="h-full lg:col-span-2">
-          <TeamCard />
+      <RevealSection delayMs={200}>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+          <div className="h-full lg:col-span-2">
+            <TeamCard />
+          </div>
+          <div className="h-full lg:col-span-3">
+            <HotUnansweredCard items={hotUnanswered} loading={hotUnansweredLoading} />
+          </div>
         </div>
-        <div className="h-full lg:col-span-3">
-          <HotUnansweredCard items={hotUnanswered} loading={hotUnansweredLoading} />
-        </div>
-      </div>
+      </RevealSection>
 
       {/* Sales section — visible only to whoever has at least one of
           the six sales-widget permissions (owner always does; see
@@ -409,9 +425,11 @@ export default function DashboardPage() {
                 <>
                   <MetricCard
                     title={tCeo('sales')}
-                    value={formatCurrency(ceoMetrics.salesThisMonth.current, defaultCurrency)}
+                    value={<AnimatedNumber value={ceoMetrics.salesThisMonth.current} formatter={(n) => formatCurrency(n, defaultCurrency)} />}
                     icon={TrendingUp}
                     tint="green"
+                    description={tCeo('salesDesc')}
+                    animationDelayMs={0}
                     delta={{
                       sign: ceoMetrics.salesThisMonth.current - ceoMetrics.salesThisMonth.previous,
                       label: ceoDeltaLabel(
@@ -423,9 +441,15 @@ export default function DashboardPage() {
                   />
                   <MetricCard
                     title={tCeo('goal')}
-                    value={ceoMetrics.goalThisMonth != null ? formatCurrency(ceoMetrics.goalThisMonth, defaultCurrency) : '—'}
+                    value={
+                      ceoMetrics.goalThisMonth != null
+                        ? <AnimatedNumber value={ceoMetrics.goalThisMonth} formatter={(n) => formatCurrency(n, defaultCurrency)} />
+                        : '—'
+                    }
                     icon={Target}
                     tint="blue"
+                    description={tCeo('goalDesc')}
+                    animationDelayMs={80}
                     subtitle={
                       ceoMetrics.goalAttainmentPct != null
                         ? tCeo('goalAttainment', { pct: ceoMetrics.goalAttainmentPct.toFixed(1) })
@@ -434,9 +458,11 @@ export default function DashboardPage() {
                   />
                   <MetricCard
                     title={tCeo('pipeline')}
-                    value={formatCurrency(ceoMetrics.pipelineTotal, defaultCurrency)}
+                    value={<AnimatedNumber value={ceoMetrics.pipelineTotal} formatter={(n) => formatCurrency(n, defaultCurrency)} />}
                     icon={Handshake}
                     tint="purple"
+                    description={tCeo('pipelineDesc')}
+                    animationDelayMs={160}
                     subtitle={
                       ceoMetrics.pipelineCoverage != null
                         ? tCeo('pipelineCoverage', { multiple: ceoMetrics.pipelineCoverage.toFixed(1) })
@@ -445,16 +471,20 @@ export default function DashboardPage() {
                   />
                   <MetricCard
                     title={tCeo('forecast')}
-                    value={formatCurrency(ceoMetrics.forecast, defaultCurrency)}
+                    value={<AnimatedNumber value={ceoMetrics.forecast} formatter={(n) => formatCurrency(n, defaultCurrency)} />}
                     icon={TrendingUp}
                     tint="amber"
+                    description={tCeo('forecastDesc')}
+                    animationDelayMs={240}
                     subtitle={ceoMetrics.forecastPct != null ? tCeo('forecastOfGoal', { pct: ceoMetrics.forecastPct.toFixed(0) }) : undefined}
                   />
                   <MetricCard
                     title={tCeo('clients')}
-                    value={ceoMetrics.totalClients.toLocaleString()}
+                    value={<AnimatedNumber value={ceoMetrics.totalClients} formatter={(n) => Math.round(n).toLocaleString()} />}
                     icon={Users2}
                     tint="teal"
+                    description={tCeo('clientsDesc')}
+                    animationDelayMs={320}
                     delta={{
                       sign: ceoMetrics.newClients.current - ceoMetrics.newClients.previous,
                       label: ceoDeltaCountLabel(ceoMetrics.newClients.current - ceoMetrics.newClients.previous, tCeo),
@@ -466,30 +496,38 @@ export default function DashboardPage() {
           )}
 
           {sales.vsGoal && (
-            <SalesVsGoalChart data={salesVsGoal} loading={salesVsGoalLoading} currency={defaultCurrency} />
+            <RevealSection delayMs={80}>
+              <SalesVsGoalChart data={salesVsGoal} loading={salesVsGoalLoading} currency={defaultCurrency} />
+            </RevealSection>
           )}
 
           {sales.funnel && (
-            <SalesFunnel data={funnel} loading={funnelLoading} currency={defaultCurrency} />
+            <RevealSection delayMs={140}>
+              <SalesFunnel data={funnel} loading={funnelLoading} currency={defaultCurrency} />
+            </RevealSection>
           )}
 
           {(sales.commercial || sales.alerts) && (
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-              {sales.commercial && (
-                <div className={sales.alerts ? 'h-full lg:col-span-2' : 'h-full'}>
-                  <CommercialMetricsCard data={commercial} loading={commercialLoading} currency={defaultCurrency} />
-                </div>
-              )}
-              {sales.alerts && (
-                <div className={sales.commercial ? 'h-full lg:col-span-3' : 'h-full'}>
-                  <AlertsCard data={alerts} loading={alertsLoading} currency={defaultCurrency} staleDays={STALE_DAYS} />
-                </div>
-              )}
-            </div>
+            <RevealSection delayMs={200}>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+                {sales.commercial && (
+                  <div className={sales.alerts ? 'h-full lg:col-span-2' : 'h-full'}>
+                    <CommercialMetricsCard data={commercial} loading={commercialLoading} currency={defaultCurrency} />
+                  </div>
+                )}
+                {sales.alerts && (
+                  <div className={sales.commercial ? 'h-full lg:col-span-3' : 'h-full'}>
+                    <AlertsCard data={alerts} loading={alertsLoading} currency={defaultCurrency} staleDays={STALE_DAYS} />
+                  </div>
+                )}
+              </div>
+            </RevealSection>
           )}
 
           {sales.topSellers && (
-            <TopSellersCard data={topSellers} loading={topSellersLoading} currency={defaultCurrency} />
+            <RevealSection delayMs={260}>
+              <TopSellersCard data={topSellers} loading={topSellersLoading} currency={defaultCurrency} />
+            </RevealSection>
           )}
         </div>
       )}

@@ -81,7 +81,11 @@
       "newTodayVsYesterday": "novos hoje vs. ontem",
       "vsYesterday": "vs. ontem",
       "openDeals": "{count} {count, plural, =1 {negócio aberto} other {negócios abertos}}",
-      "noChange": "Sem mudança {suffix}"
+      "noChange": "Sem mudança {suffix}",
+      "activeConversationsDesc": "Conversas com uma mensagem não lida ou não resolvida agora.",
+      "newContactsTodayDesc": "Novos contatos criados desde a meia-noite de hoje.",
+      "openDealsValueDesc": "Valor total de todos os negócios abertos no seu pipeline.",
+      "messagesSentTodayDesc": "Mensagens enviadas por você e sua equipe hoje."
     },
     "quickActions": {
       "newContact": "Novo Contato",
@@ -154,7 +158,12 @@
         "clients": "Clientes",
         "noChangeVsLastMonth": "Sem alteração vs. mês passado",
         "vsLastMonth": "vs. mês passado",
-        "salesSectionTitle": "Vendas"
+        "salesSectionTitle": "Vendas",
+        "salesDesc": "Valor total dos negócios ganhos neste mês até agora.",
+        "goalDesc": "A meta de receita da conta para este mês, e seu progresso em relação a ela.",
+        "pipelineDesc": "Valor combinado de todos os negócios abertos, e quantas vezes isso cobre sua meta mensal.",
+        "forecastDesc": "Receita projetada até o fim do mês, ponderada pela probabilidade de fechamento de cada negócio aberto.",
+        "clientsDesc": "Total de clientes distintos registrados, e quantos são novos este mês."
       },
       "salesVsGoal": {
         "title": "Vendas vs Meta",
@@ -197,7 +206,10 @@
         "leads": "Leads",
         "won": "Ganhas",
         "noData": "Ainda não há atividade suficiente",
-        "noDataHint": "Novos leads e negócios avançando pelo pipeline vão preencher este funil."
+        "noDataHint": "Novos leads e negócios avançando pelo pipeline vão preencher este funil.",
+        "ariaLabel": "Funil de vendas de leads a negócios ganhos",
+        "dealCount": "{count} {count, plural, =1 {negócio} other {negócios}}",
+        "conversionToNext": "{pct}% avançou para a próxima etapa"
       }
     }
   },

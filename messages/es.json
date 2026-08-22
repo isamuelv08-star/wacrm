@@ -81,7 +81,11 @@
       "newTodayVsYesterday": "nuevos hoy vs. ayer",
       "vsYesterday": "vs. ayer",
       "openDeals": "{count} {count, plural, =1 {negocio abierto} other {negocios abiertos}}",
-      "noChange": "Sin cambios {suffix}"
+      "noChange": "Sin cambios {suffix}",
+      "activeConversationsDesc": "Conversaciones con un mensaje sin leer o sin resolver en este momento.",
+      "newContactsTodayDesc": "Contactos nuevos creados desde la medianoche de hoy.",
+      "openDealsValueDesc": "Valor total de todos los negocios abiertos en tu pipeline.",
+      "messagesSentTodayDesc": "Mensajes salientes enviados por vos y tu equipo hoy."
     },
     "quickActions": {
       "newContact": "Nuevo contacto",
@@ -154,7 +158,12 @@
         "clients": "Clientes",
         "noChangeVsLastMonth": "Sin cambios vs. el mes pasado",
         "vsLastMonth": "vs. el mes pasado",
-        "salesSectionTitle": "Ventas"
+        "salesSectionTitle": "Ventas",
+        "salesDesc": "Valor total de los negocios ganados en lo que va del mes.",
+        "goalDesc": "La meta de ingresos de la cuenta para este mes, y tu avance hacia ella.",
+        "pipelineDesc": "Valor combinado de todos los negocios abiertos, y cuántas veces cubre tu meta mensual.",
+        "forecastDesc": "Ingresos proyectados a fin de mes, ponderados por la probabilidad de cierre de cada negocio abierto.",
+        "clientsDesc": "Total de clientes distintos registrados, y cuántos son nuevos este mes."
       },
       "salesVsGoal": {
         "title": "Ventas vs Meta",
@@ -197,7 +206,10 @@
         "leads": "Leads",
         "won": "Ganadas",
         "noData": "Todavía no hay suficiente actividad",
-        "noDataHint": "Los leads nuevos y los deals que avancen por el pipeline van a completar este embudo."
+        "noDataHint": "Los leads nuevos y los deals que avancen por el pipeline van a completar este embudo.",
+        "ariaLabel": "Embudo de ventas de leads a negocios ganados",
+        "dealCount": "{count} {count, plural, =1 {negocio} other {negocios}}",
+        "conversionToNext": "{pct}% avanzó a la siguiente etapa"
       }
     }
   },

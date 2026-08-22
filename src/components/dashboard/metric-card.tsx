@@ -1,6 +1,12 @@
-import { ArrowDown, ArrowUp, Minus } from 'lucide-react'
-import { useEffect, useState, type ComponentType } from 'react'
+import { ArrowDown, ArrowUp, Info, Minus } from 'lucide-react'
+import { useEffect, useState, type ComponentType, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 export type MetricCardTint = 'blue' | 'green' | 'purple' | 'amber' | 'rose' | 'teal'
 
@@ -19,8 +25,10 @@ const TINT_COLORS: Record<MetricCardTint, string> = {
 
 interface MetricCardProps {
   title: string
-  /** Pre-formatted value for display (e.g. "42" or "$1,250"). */
-  value: string
+  /** The headline number. A plain string for static values, or an
+   *  `<AnimatedNumber>` for anything with a raw numeric value behind
+   *  it — see src/components/dashboard/animated-number.tsx. */
+  value: ReactNode
   icon: ComponentType<{ className?: string }>
   /**
    * Delta-mode secondary row: arrow + delta text. Omit when the metric
@@ -36,9 +44,27 @@ interface MetricCardProps {
   subtitle?: string
   /** Per-card accent — each of the four dashboard KPIs gets its own. */
   tint: MetricCardTint
+  /** One line explaining what the metric actually measures — shown
+   *  behind a small info icon next to the title so a card with a
+   *  terse title (e.g. "Forecast") isn't left unexplained. Omit for
+   *  self-evident metrics. */
+  description?: string
+  /** Stagger the entrance transition behind sibling cards in the same
+   *  row/section, so a whole grid cascades in rather than popping
+   *  simultaneously. Index * a fixed step is the usual caller. */
+  animationDelayMs?: number
 }
 
-export function MetricCard({ title, value, icon: Icon, delta, subtitle, tint }: MetricCardProps) {
+export function MetricCard({
+  title,
+  value,
+  icon: Icon,
+  delta,
+  subtitle,
+  tint,
+  description,
+  animationDelayMs = 0,
+}: MetricCardProps) {
   const color = TINT_COLORS[tint]
 
   // Entrance transition — the card fades/slides in on mount instead of
@@ -47,7 +73,10 @@ export function MetricCard({ title, value, icon: Icon, delta, subtitle, tint }: 
   // "flip true one frame after mount" is enough (no need to key it to
   // `value` — the whole card already remounts when its skeleton swaps
   // out for real data, since the dashboard page renders skeletons and
-  // cards as different elements).
+  // cards as different elements). `animationDelayMs` staggers WHEN the
+  // CSS transition below actually starts (transition-delay), not when
+  // `mounted` flips — every card in a row flips together, the visible
+  // stagger comes purely from each one's own transition-delay.
   const [mounted, setMounted] = useState(false)
   useEffect(() => {
     const raf = requestAnimationFrame(() => setMounted(true))
@@ -65,10 +94,33 @@ export function MetricCard({ title, value, icon: Icon, delta, subtitle, tint }: 
       style={{
         backgroundImage: `linear-gradient(135deg, color-mix(in oklch, ${color} 20%, var(--card)), color-mix(in oklch, ${color} 8%, var(--card)))`,
         borderColor: `color-mix(in oklch, ${color} 25%, var(--border))`,
+        transitionDelay: mounted ? `${animationDelayMs}ms` : '0ms',
       }}
     >
       <div className="flex items-start justify-between">
-        <p className="text-sm font-medium text-muted-foreground">{title}</p>
+        <p className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+          {title}
+          {description && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      className="text-muted-foreground/60 transition-colors hover:text-foreground"
+                      aria-label={description}
+                    >
+                      <Info className="h-3 w-3" />
+                    </button>
+                  }
+                />
+                <TooltipContent side="top" className="max-w-[220px] text-center">
+                  {description}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+        </p>
         <div
           className="flex h-8 w-8 items-center justify-center rounded-lg transition-transform duration-300 group-hover:scale-110"
           style={{
@@ -95,6 +147,7 @@ export function MetricCard({ title, value, icon: Icon, delta, subtitle, tint }: 
         style={{
           background: `linear-gradient(90deg, transparent, ${color}, transparent)`,
           animation: mounted ? 'metric-glow-pulse 2.8s ease-in-out infinite' : undefined,
+          animationDelay: `${animationDelayMs}ms`,
         }}
       />
     </div>

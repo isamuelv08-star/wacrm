@@ -81,7 +81,11 @@
       "newTodayVsYesterday": "어제 대비 신규",
       "vsYesterday": "어제 대비",
       "openDeals": "진행 중인 딜 {count}건",
-      "noChange": "변동 없음 {suffix}"
+      "noChange": "변동 없음 {suffix}",
+      "activeConversationsDesc": "현재 읽지 않았거나 해결되지 않은 메시지가 있는 대화입니다.",
+      "newContactsTodayDesc": "오늘 자정 이후 생성된 신규 연락처입니다.",
+      "openDealsValueDesc": "파이프라인에 있는 모든 진행 중인 딜의 총 금액입니다.",
+      "messagesSentTodayDesc": "오늘 회원님과 팀이 발신한 메시지입니다."
     },
     "quickActions": {
       "newContact": "새 연락처",
@@ -154,7 +158,12 @@
         "clients": "고객",
         "noChangeVsLastMonth": "지난달과 동일",
         "vsLastMonth": "지난달 대비",
-        "salesSectionTitle": "영업"
+        "salesSectionTitle": "영업",
+        "salesDesc": "이번 달 현재까지 성사된 딜의 총 금액입니다.",
+        "goalDesc": "이번 달 계정의 매출 목표와 목표 대비 진행 상황입니다.",
+        "pipelineDesc": "진행 중인 모든 딜의 합산 금액과 월간 목표 대비 배수입니다.",
+        "forecastDesc": "각 진행 중인 딜의 성사 확률로 가중한 이번 달 예상 매출입니다.",
+        "clientsDesc": "등록된 전체 고유 고객 수와 이번 달 신규 고객 수입니다."
       },
       "salesVsGoal": {
         "title": "매출 vs 목표",
@@ -197,7 +206,10 @@
         "leads": "리드",
         "won": "성사",
         "noData": "아직 활동이 충분하지 않습니다",
-        "noDataHint": "새 리드와 파이프라인을 통과하는 딜이 이 퍼널을 채웁니다."
+        "noDataHint": "새 리드와 파이프라인을 통과하는 딜이 이 퍼널을 채웁니다.",
+        "ariaLabel": "리드부터 성사된 딜까지의 영업 퍼널",
+        "dealCount": "딜 {count}건",
+        "conversionToNext": "{pct}%가 다음 단계로 진행"
       }
     }
   },

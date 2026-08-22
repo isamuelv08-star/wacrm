@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useId, useState } from 'react'
 import { Filter } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import type { FunnelStep } from '@/lib/dashboard/ceo-types'
@@ -23,62 +24,200 @@ export function SalesFunnel({ data, loading, currency }: SalesFunnelProps) {
         <h2 className="text-sm font-semibold text-foreground">{t('title')}</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">{t('description')}</p>
       </header>
-
       <div className="p-5">
         {loading || !data ? (
-          <div className="space-y-2">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-14 w-full" />
-            ))}
-          </div>
+          <Skeleton className="h-[260px] w-full" />
         ) : !hasData ? (
           <EmptyState icon={Filter} title={t('noData')} hint={t('noDataHint')} />
         ) : (
-          <FunnelBars data={data} currency={currency} />
+          <FunnelChart data={data} currency={currency} />
         )}
       </div>
     </section>
   )
 }
 
-function FunnelBars({ data, currency }: { data: FunnelStep[]; currency: string }) {
+// ------------------------------------------------------------
+// A true horizontal funnel: N stages drawn as N-1 tapering trapezoid
+// bands, each one's left edge = the stage it starts from, right edge
+// = the count it narrows down to at the next stage. Colored with a
+// single gradient sweeping across the whole shape (cool → warm, i.e.
+// "the deal gets hotter as it nears close") rather than per-segment
+// flat fills, so it reads as one continuous funnel instead of N
+// disconnected bars — which was the whole point of moving off the
+// old bar-list design.
+// ------------------------------------------------------------
+const VB_W = 760
+const VB_H = 260
+const PADDING = { top: 24, right: 28, bottom: 64, left: 28 }
+const MIN_HEIGHT_FRAC = 0.14
+
+function FunnelChart({ data, currency }: { data: FunnelStep[]; currency: string }) {
   const t = useTranslations('Dashboard.ceo.funnel')
+  const uid = useId()
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null)
+  const [drawn, setDrawn] = useState(false)
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setDrawn(true))
+    return () => cancelAnimationFrame(raf)
+  }, [])
+
+  const plotW = VB_W - PADDING.left - PADDING.right
+  const plotH = VB_H - PADDING.top - PADDING.bottom
+  const centerY = PADDING.top + plotH / 2
+  const n = data.length
+  const segW = n > 1 ? plotW / (n - 1) : plotW
+
   const maxCount = Math.max(1, ...data.map((s) => s.count))
+  const heights = data.map((s) => Math.max(MIN_HEIGHT_FRAC, s.count / maxCount) * plotH)
+  const xFor = (i: number) => PADDING.left + i * segW
+  const labelFor = (s: FunnelStep) => (s.key === 'leads' ? t('leads') : s.key === 'won' ? t('won') : s.label)
 
   return (
-    <div className="flex flex-col gap-2.5">
-      {data.map((step, i) => {
-        const prev = i > 0 ? data[i - 1] : null
-        // % of the immediately preceding step that made it here — the
-        // "where does it break" signal. The first row (Leads) has
-        // nothing before it to convert from.
-        const conversionPct = prev && prev.count > 0 ? (step.count / prev.count) * 100 : null
-        const barWidth = Math.max(4, (step.count / maxCount) * 100)
-        const label = step.key === 'leads' ? t('leads') : step.key === 'won' ? t('won') : step.label
+    <div className="relative w-full">
+      <svg viewBox={`0 0 ${VB_W} ${VB_H}`} className="h-[260px] w-full" role="img" aria-label={t('ariaLabel')}>
+        <defs>
+          <linearGradient id={`funnel-fill-${uid}`} gradientUnits="userSpaceOnUse" x1={PADDING.left} y1={0} x2={VB_W - PADDING.right} y2={0}>
+            <stop offset="0%" stopColor="#3b82f6" />
+            <stop offset="45%" stopColor="#8b5cf6" />
+            <stop offset="100%" stopColor="#FF3131" />
+          </linearGradient>
+          <filter id={`funnel-glow-${uid}`} x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="6" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
 
-        return (
-          <div key={step.key} className="flex items-center gap-3">
-            <span className="w-28 shrink-0 truncate text-xs text-muted-foreground" title={label}>
-              {label}
-            </span>
-            <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted/40">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-primary/70 to-primary transition-all"
-                style={{ width: `${barWidth}%` }}
+        {/* Trapezoid bands — one per gap between consecutive stages. */}
+        {data.slice(0, -1).map((step, i) => {
+          const next = data[i + 1]
+          const x0 = xFor(i)
+          const x1 = xFor(i + 1)
+          const h0 = heights[i]
+          const h1 = heights[i + 1]
+          const path = `M ${x0} ${centerY - h0 / 2} L ${x1} ${centerY - h1 / 2} L ${x1} ${centerY + h1 / 2} L ${x0} ${centerY + h0 / 2} Z`
+          const isHovered = hoverIdx === i
+          const dimmed = hoverIdx !== null && !isHovered
+          const pct = step.count > 0 ? (next.count / step.count) * 100 : null
+          const midX = (x0 + x1) / 2
+          const showInlinePct = pct != null && Math.min(h0, h1) > 34
+
+          return (
+            <g key={step.key}>
+              <path
+                d={path}
+                fill={`url(#funnel-fill-${uid})`}
+                opacity={dimmed ? 0.3 : drawn ? 0.88 : 0}
+                filter={isHovered ? `url(#funnel-glow-${uid})` : undefined}
+                className="transition-[opacity,transform] duration-500 ease-out"
+                style={{
+                  transitionDelay: drawn ? `${i * 90}ms` : '0ms',
+                  transformBox: 'fill-box',
+                  transformOrigin: 'center',
+                  transform: isHovered ? 'scaleY(1.06)' : 'scaleY(1)',
+                }}
               />
-            </div>
-            <span className="w-16 shrink-0 text-right text-xs font-semibold tabular-nums text-foreground">
-              {step.count.toLocaleString()}
-            </span>
-            <span className="w-24 shrink-0 text-right text-[11px] tabular-nums text-muted-foreground">
-              {step.value != null ? formatCurrency(step.value, currency) : ''}
-            </span>
-            <span className="w-10 shrink-0 text-right text-[11px] tabular-nums text-muted-foreground">
-              {conversionPct != null ? `${conversionPct.toFixed(0)}%` : ''}
-            </span>
-          </div>
-        )
-      })}
+              {/* Divider between bands, brightened where they touch so the
+                  taper reads as one continuous shape rather than a stack. */}
+              {i > 0 && (
+                <line x1={x0} x2={x0} y1={centerY - h0 / 2} y2={centerY + h0 / 2} stroke="var(--card)" strokeWidth={1.5} opacity={0.6} />
+              )}
+              {showInlinePct && (
+                <text
+                  x={midX}
+                  y={centerY}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  className="pointer-events-none fill-white text-[13px] font-bold"
+                  style={{ opacity: drawn ? 1 : 0, transition: 'opacity 500ms ease-out', transitionDelay: `${i * 90 + 200}ms` }}
+                >
+                  {pct!.toFixed(0)}%
+                </text>
+              )}
+            </g>
+          )
+        })}
+
+        {/* Stage labels + counts, one under each boundary. */}
+        {data.map((step, i) => {
+          const x = xFor(i)
+          const anchor = i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'
+          const isHovered = hoverIdx === i || hoverIdx === i - 1
+          return (
+            <g
+              key={`label-${step.key}`}
+              style={{ opacity: drawn ? 1 : 0, transition: 'opacity 400ms ease-out', transitionDelay: `${i * 90 + 150}ms` }}
+            >
+              <circle cx={x} cy={centerY + Math.max(heights[i] / 2, 10) + 14} r={2.5} fill={isHovered ? '#FF3131' : 'var(--muted-foreground)'} className="transition-colors duration-300" />
+              <text x={x} y={centerY + Math.max(heights[i] / 2, 10) + 30} textAnchor={anchor} className="fill-foreground text-[12px] font-semibold">
+                {labelFor(step)}
+              </text>
+              <text x={x} y={centerY + Math.max(heights[i] / 2, 10) + 46} textAnchor={anchor} className="fill-muted-foreground text-[11px] tabular-nums">
+                {t('dealCount', { count: step.count })}
+              </text>
+            </g>
+          )
+        })}
+
+        {/* Hover targets — one per band, each spanning exactly that
+            band's own x-range (not centered on the label points),
+            and extending down through the label row below it so
+            mousing a stage's label highlights the same band as
+            mousing its shape. */}
+        {data.slice(0, -1).map((step, i) => (
+          <rect
+            key={`hit-${step.key}`}
+            x={xFor(i)}
+            y={PADDING.top}
+            width={segW}
+            height={VB_H - PADDING.top}
+            fill="transparent"
+            onMouseEnter={() => setHoverIdx(i)}
+            onMouseLeave={() => setHoverIdx((cur) => (cur === i ? null : cur))}
+            className="cursor-pointer"
+          />
+        ))}
+      </svg>
+
+      {/* Floating tooltip — richer detail than the static labels can
+          fit (value + conversion%), the "pro" hover payoff. */}
+      {hoverIdx !== null && (
+        <FunnelTooltip step={data[hoverIdx]} next={data[hoverIdx + 1] ?? null} currency={currency} x={xFor(hoverIdx) + segW / 2} />
+      )}
+    </div>
+  )
+}
+
+function FunnelTooltip({
+  step,
+  next,
+  currency,
+  x,
+}: {
+  step: FunnelStep
+  next: FunnelStep | null
+  currency: string
+  x: number
+}) {
+  const t = useTranslations('Dashboard.ceo.funnel')
+  const label = step.key === 'leads' ? t('leads') : step.key === 'won' ? t('won') : step.label
+  const pct = next && step.count > 0 ? (next.count / step.count) * 100 : null
+  const leftPct = (x / VB_W) * 100
+
+  return (
+    <div
+      className="pointer-events-none absolute top-1 z-10 -translate-x-1/2 rounded-md border border-border bg-popover px-3 py-2 text-[11px] shadow-lg"
+      style={{ left: `${leftPct}%` }}
+    >
+      <div className="font-semibold text-popover-foreground">{label}</div>
+      <div className="mt-1 flex flex-col gap-0.5 text-muted-foreground">
+        <span>{t('dealCount', { count: step.count })}</span>
+        {step.value != null && <span className="tabular-nums">{formatCurrency(step.value, currency)}</span>}
+        {pct != null && <span className="tabular-nums text-primary">{t('conversionToNext', { pct: pct.toFixed(0) })}</span>}
+      </div>
     </div>
   )
 }
