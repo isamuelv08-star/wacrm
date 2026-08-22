@@ -24,8 +24,9 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient as createAdminClient, type SupabaseClient } from '@supabase/supabase-js'
-import { requireRole } from '@/lib/auth/account'
+import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { getPublicOrigin } from '@/lib/http/request-origin'
+import { zernioClient } from '@/lib/whatsapp/zernio-client'
 
 const PLATFORMS = ['whatsapp', 'instagram'] as const
 type Platform = (typeof PLATFORMS)[number]
@@ -342,5 +343,89 @@ export async function GET(
         ? err.message
         : 'Could not start the connection. Please try again.'
     return settingsRedirect(origin, platform, { connected: false, error: message })
+  }
+}
+
+// ============================================================
+// DELETE /api/zernio/connect/[platform] — disconnect a channel that
+// was connected through Zernio.
+//
+// Best-effort revoke on Zernio's own side (accounts.deleteAccount) so
+// the SocialAccount actually stops receiving webhooks there too, not
+// just locally — but the local `client_zernio_accounts` column is
+// always cleared regardless of whether that call succeeds, since the
+// user's intent ("disconnect") should still take effect in THIS app
+// even if Zernio's API is unreachable. A failed revoke is surfaced in
+// the response so the UI can warn the admin to double-check Zernio's
+// own dashboard.
+// ============================================================
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ platform: string }> },
+) {
+  try {
+    const { platform: rawPlatform } = await params
+    if (!isPlatform(rawPlatform)) {
+      return NextResponse.json({ error: `Unsupported platform "${rawPlatform}".` }, { status: 400 })
+    }
+    const platform = rawPlatform
+
+    const ctx = await requireRole('admin')
+
+    const column = platform === 'whatsapp' ? 'whatsapp_account_id' : 'instagram_account_id'
+
+    const admin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
+
+    const { data: row, error: fetchError } = await admin
+      .from('client_zernio_accounts')
+      .select(column)
+      .eq('account_id', ctx.accountId)
+      .maybeSingle()
+
+    if (fetchError) {
+      console.error('[zernio/disconnect] lookup failed:', fetchError)
+      return NextResponse.json({ error: 'Failed to look up the connection.' }, { status: 500 })
+    }
+
+    const socialAccountId = row ? (row as Record<string, string | null>)[column] : null
+    if (!socialAccountId) {
+      return NextResponse.json({ error: 'Not connected.' }, { status: 400 })
+    }
+
+    let zernioRevoked = true
+    const apiKey = process.env.ZERNIO_API_KEY
+    if (apiKey) {
+      try {
+        const { error } = await zernioClient().accounts.deleteAccount({
+          path: { accountId: socialAccountId },
+        })
+        if (error) {
+          zernioRevoked = false
+          console.error('[zernio/disconnect] Zernio revoke failed:', error)
+        }
+      } catch (err) {
+        zernioRevoked = false
+        console.error('[zernio/disconnect] Zernio revoke threw:', err)
+      }
+    } else {
+      zernioRevoked = false
+    }
+
+    const { error: updateError } = await admin
+      .from('client_zernio_accounts')
+      .update({ [column]: null, connected_at: null, updated_at: new Date().toISOString() })
+      .eq('account_id', ctx.accountId)
+
+    if (updateError) {
+      console.error('[zernio/disconnect] clearing local state failed:', updateError)
+      return NextResponse.json({ error: 'Failed to disconnect.' }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true, zernioRevoked })
+  } catch (err) {
+    return toErrorResponse(err)
   }
 }

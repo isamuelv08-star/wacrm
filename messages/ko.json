@@ -1685,7 +1685,12 @@
       "toastConnected": "{platform} 연결이 완료되었습니다.",
       "toastFailedGeneric": "연결을 완료할 수 없습니다.",
       "apiIntegrationsTitle": "API로 연동하기",
-      "apiIntegrationsDesc": "직접 관리하고 싶으신가요? 자체 Meta Cloud API 자격 증명이나 Dualhook 같은 코엑시스턴스 제공업체로 WhatsApp을 직접 연결하세요."
+      "apiIntegrationsDesc": "직접 관리하고 싶으신가요? 자체 Meta Cloud API 자격 증명이나 Dualhook 같은 코엑시스턴스 제공업체로 WhatsApp을 직접 연결하세요.",
+      "disconnect": "연결 해제",
+      "disconnectConfirm": "{platform} 연결을 해제할까요? 다시 연결할 때까지 이 CRM으로 메시지가 들어오지 않습니다.",
+      "disconnected": "{platform} 연결이 해제되었습니다.",
+      "disconnectError": "연결을 해제할 수 없습니다. 다시 시도하세요.",
+      "disconnectPartial": "여기서는 연결이 해제되었지만 Zernio에서도 해제하려면 연결할 수 없었습니다 — Zernio 대시보드를 확인하세요."
     },
     "sections": {
       "overview": "개요",

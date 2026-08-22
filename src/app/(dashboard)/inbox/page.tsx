@@ -200,13 +200,27 @@ function InboxPageInner() {
         return;
       }
 
-      const { data } = await supabase
-        .from("whatsapp_config")
-        .select("status")
-        .eq("account_id", accountId)
-        .maybeSingle();
+      const [{ data: config }, { data: zernioAccount }] = await Promise.all([
+        supabase
+          .from("whatsapp_config")
+          .select("status")
+          .eq("account_id", accountId)
+          .maybeSingle(),
+        // A Zernio-bridged account has no whatsapp_config row at all —
+        // it's "connected" via a different table entirely (see
+        // src/lib/whatsapp/zernio-send.ts). Without this check, every
+        // Zernio-connected account showed this banner permanently even
+        // though messages were flowing fine.
+        supabase
+          .from("client_zernio_accounts")
+          .select("whatsapp_account_id")
+          .eq("account_id", accountId)
+          .maybeSingle(),
+      ]);
 
-      setWhatsappConnected(data?.status === "connected");
+      setWhatsappConnected(
+        config?.status === "connected" || !!zernioAccount?.whatsapp_account_id,
+      );
     };
 
     checkConnection();

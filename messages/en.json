@@ -1685,7 +1685,12 @@
       "toastConnected": "{platform} connected successfully.",
       "toastFailedGeneric": "The connection could not be completed.",
       "apiIntegrationsTitle": "Integrations by API",
-      "apiIntegrationsDesc": "Prefer to manage it yourself? Connect WhatsApp directly with your own Meta Cloud API credentials, or a Coexistence provider like Dualhook."
+      "apiIntegrationsDesc": "Prefer to manage it yourself? Connect WhatsApp directly with your own Meta Cloud API credentials, or a Coexistence provider like Dualhook.",
+      "disconnect": "Disconnect",
+      "disconnectConfirm": "Disconnect {platform}? Messages will stop flowing into this CRM until you reconnect.",
+      "disconnected": "{platform} disconnected.",
+      "disconnectError": "Could not disconnect. Please try again.",
+      "disconnectPartial": "Disconnected here, but Zernio could not be reached to revoke it there too — check the Zernio dashboard."
     },
     "sections": {
       "overview": "Overview",

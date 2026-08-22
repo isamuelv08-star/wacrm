@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { CheckCircle2, Loader2, ExternalLink } from 'lucide-react';
+import { CheckCircle2, Loader2, ExternalLink, Unlink } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
@@ -40,6 +41,7 @@ export function ConnectPlatformButton({
 
   const [status, setStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
   const [redirecting, setRedirecting] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
   const loadedAccountIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -76,18 +78,54 @@ export function ConnectPlatformButton({
     window.location.href = url.toString();
   }
 
+  async function handleDisconnect() {
+    if (!window.confirm(t('disconnectConfirm', { platform: label }))) return;
+    setDisconnecting(true);
+    try {
+      const res = await fetch(`/api/zernio/connect/${platform}`, { method: 'DELETE' });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(body?.error || t('disconnectError'));
+        return;
+      }
+      setStatus('disconnected');
+      toast.success(t('disconnected', { platform: label }));
+      if (body?.zernioRevoked === false) {
+        toast.warning(t('disconnectPartial'));
+      }
+    } catch (err) {
+      console.error('[ConnectPlatformButton] disconnect failed:', err);
+      toast.error(t('disconnectError'));
+    } finally {
+      setDisconnecting(false);
+    }
+  }
+
   const label = t(`platform.${platform}`);
 
   if (status === 'connected') {
     return (
-      <Button
-        variant="outline"
-        disabled
-        className="border-emerald-700/50 bg-emerald-950/30 text-emerald-300"
-      >
-        <CheckCircle2 className="size-4" />
-        {t('connected', { platform: label })}
-      </Button>
+      <div className="flex items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-700/50 bg-emerald-950/30 px-3 py-1.5 text-sm text-emerald-300">
+          <CheckCircle2 className="size-4" />
+          {t('connected', { platform: label })}
+        </span>
+        <Button
+          onClick={handleDisconnect}
+          disabled={disconnecting || !canEditSettings}
+          variant="outline"
+          size="sm"
+          className="border-border text-muted-foreground hover:bg-muted hover:text-destructive"
+          title={!canEditSettings ? t('adminOnly') : undefined}
+        >
+          {disconnecting ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <Unlink className="size-4" />
+          )}
+          {t('disconnect')}
+        </Button>
+      </div>
     );
   }
 
