@@ -173,7 +173,8 @@
         "actual": "Real",
         "goal": "Meta",
         "ariaLabel": "Ventas versus meta, por mes",
-        "tooltipGoal": "Meta: {value}"
+        "tooltipGoal": "Meta: {value}",
+        "attainment": "{pct}% de la meta"
       },
       "commercial": {
         "title": "Métricas comerciales",

@@ -54,7 +54,7 @@ import { SkeletonCard } from '@/components/dashboard/skeleton'
 import { QuickActions } from '@/components/dashboard/quick-actions'
 import { ConversationsChart } from '@/components/dashboard/conversations-chart'
 import { PipelineDonut } from '@/components/dashboard/pipeline-donut'
-import { ResponseTimeChart } from '@/components/dashboard/response-time-chart'
+import { ResponseTimeCard } from '@/components/dashboard/response-time-card'
 import { HotUnansweredCard } from '@/components/dashboard/hot-unanswered-card'
 import { TeamCard } from '@/components/dashboard/team-card'
 import { SalesVsGoalChart } from '@/components/dashboard/ceo/sales-vs-goal-chart'
@@ -364,16 +364,14 @@ export default function DashboardPage() {
       {/* Quick actions */}
       <QuickActions />
 
-      {/* Charts row */}
-      {/* items-stretch (the grid default) stretches the two columns to
-          match the tallest sibling; adding h-full on each wrapper and
-          on the inner panels makes both cards actually fill that
-          stretched height so their rounded borders line up. Without
-          this, the pipeline card rendered at its natural (shorter)
-          height while the line chart drove the row height. */}
+      {/* Charts row — Conversations, Pipeline Value, and Response Time
+          together. items-stretch (the grid default) stretches every
+          column to match the tallest sibling; h-full on each wrapper
+          and on the inner panels makes all three actually fill that
+          stretched height so their rounded borders line up. */}
       <RevealSection delayMs={80}>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-          <div className="h-full lg:col-span-3">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+          <div className="h-full lg:col-span-5">
             <ConversationsChart
               series={series}
               loading={seriesLoading}
@@ -381,19 +379,17 @@ export default function DashboardPage() {
               onRangeChange={handleRangeChange}
             />
           </div>
-          <div className="h-full lg:col-span-2">
+          <div className="h-full lg:col-span-4">
             <PipelineDonut
               data={pipeline}
               loading={pipelineLoading}
               currency={defaultCurrency}
             />
           </div>
+          <div className="h-full lg:col-span-3">
+            <ResponseTimeCard data={responseTime} loading={responseTimeLoading} />
+          </div>
         </div>
-      </RevealSection>
-
-      {/* Response time */}
-      <RevealSection delayMs={140}>
-        <ResponseTimeChart data={responseTime} loading={responseTimeLoading} />
       </RevealSection>
 
       {/* Team + HOT leads waiting on a reply */}

@@ -173,7 +173,8 @@
         "actual": "Actual",
         "goal": "Goal",
         "ariaLabel": "Sales versus goal, by month",
-        "tooltipGoal": "Goal: {value}"
+        "tooltipGoal": "Goal: {value}",
+        "attainment": "{pct}% of goal"
       },
       "commercial": {
         "title": "Commercial metrics",

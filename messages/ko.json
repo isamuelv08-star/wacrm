@@ -173,7 +173,8 @@
         "actual": "실제",
         "goal": "목표",
         "ariaLabel": "월별 매출 대 목표",
-        "tooltipGoal": "목표: {value}"
+        "tooltipGoal": "목표: {value}",
+        "attainment": "목표의 {pct}%"
       },
       "commercial": {
         "title": "영업 지표",

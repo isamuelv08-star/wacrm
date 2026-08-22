@@ -8,6 +8,7 @@ import { formatCurrency, formatCompactNumber } from '@/lib/currency'
 import { GlowSeries } from '../glow-series'
 import { EmptyState } from '../empty-state'
 import { Skeleton } from '../skeleton'
+import { cn } from '@/lib/utils'
 
 interface SalesVsGoalChartProps {
   data: SalesVsGoalPoint[] | null
@@ -19,18 +20,41 @@ const VB_W = 760
 const VB_H = 260
 const PADDING = { top: 16, right: 16, bottom: 28, left: 48 }
 const ACTUAL_COLOR = '#22c55e'
+const GOAL_COLOR = '#f59e0b'
 
 export function SalesVsGoalChart({ data, loading, currency }: SalesVsGoalChartProps) {
   const t = useTranslations('Dashboard.ceo.salesVsGoal')
   const hasData = (data ?? []).some((p) => p.actual > 0 || p.goal)
 
+  // Current month's attainment — the headline this chart exists to
+  // answer ("are we on track?") surfaced right in the header instead
+  // of making the reader trace the last two points on the plot
+  // themselves. Only the most recent point counts as "current."
+  const current = data && data.length > 0 ? data[data.length - 1] : null
+  const attainmentPct =
+    current?.goal != null && current.goal > 0 ? (current.actual / current.goal) * 100 : null
+
   return (
     <section className="flex h-full flex-col rounded-xl border border-border bg-card">
-      <header className="flex items-center justify-between border-b border-border px-5 py-4">
+      <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
         <div>
           <h2 className="text-sm font-semibold text-foreground">{t('title')}</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">{t('description')}</p>
         </div>
+        {attainmentPct != null && (
+          <span
+            className={cn(
+              'shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold tabular-nums',
+              attainmentPct >= 100
+                ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                : attainmentPct >= 70
+                  ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
+                  : 'border-rose-500/40 bg-rose-500/10 text-rose-300',
+            )}
+          >
+            {t('attainment', { pct: attainmentPct.toFixed(0) })}
+          </span>
+        )}
       </header>
 
       <div className="flex-1 p-5">
@@ -49,7 +73,7 @@ export function SalesVsGoalChart({ data, loading, currency }: SalesVsGoalChartPr
           {t('actual')}
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-1.5 w-3 rounded-full border-t-2 border-dashed border-muted-foreground" />
+          <span className="inline-block h-1 w-3 rounded-full" style={{ background: GOAL_COLOR }} />
           {t('goal')}
         </span>
       </footer>
@@ -150,7 +174,29 @@ function LineSvg({ data, currency }: { data: SalesVsGoalPoint[]; currency: strin
         <GlowSeries points={actualPoints} baselineY={baselineY} color={ACTUAL_COLOR} />
 
         {goalPath && (
-          <path d={goalPath} fill="none" stroke="var(--muted-foreground)" strokeWidth={1.5} strokeDasharray="5 4" strokeLinecap="round" />
+          <path d={goalPath} fill="none" stroke={GOAL_COLOR} strokeWidth={1.75} strokeDasharray="5 4" strokeLinecap="round" opacity={0.85} />
+        )}
+
+        {/* Current-month marker — a soft breathing glow on the most
+            recent actual point, the same "alive" cue the KPI cards use,
+            so the reader's eye lands on "where are we right now" first. */}
+        {actualPoints.length > 0 && (
+          <circle
+            cx={actualPoints[actualPoints.length - 1].x}
+            cy={actualPoints[actualPoints.length - 1].y}
+            r={5}
+            fill={ACTUAL_COLOR}
+            opacity={0.35}
+            style={{ animation: 'metric-glow-pulse 2.4s ease-in-out infinite', transformOrigin: `${actualPoints[actualPoints.length - 1].x}px ${actualPoints[actualPoints.length - 1].y}px` }}
+          />
+        )}
+        {actualPoints.length > 0 && (
+          <circle
+            cx={actualPoints[actualPoints.length - 1].x}
+            cy={actualPoints[actualPoints.length - 1].y}
+            r={3}
+            fill={ACTUAL_COLOR}
+          />
         )}
 
         {hover !== null && (
