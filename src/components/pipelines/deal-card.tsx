@@ -7,6 +7,12 @@ import { useTranslations } from "next-intl";
 import { LeadScoreBadge } from "@/components/leads/lead-score-badge";
 import { LeadStalenessBadge } from "./lead-staleness-badge";
 import type { ConversationStaleness } from "@/lib/pipelines/lead-staleness";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface DealCardProps {
   deal: Deal;
@@ -88,13 +94,28 @@ export function DealCard({
       </div>
 
       {/* AI running summary (sales mode / any AI-assisted lead with an
-          open deal) — clamped to 2 lines so a long one doesn't blow up
-          card height on a crowded column. */}
+          open deal) — a single truncated line, not the old 2-line
+          clamp, so a crowded column doesn't grow every card for a
+          summary nobody reads at a glance. Hover the icon for the
+          full text instead of it eating card space outright. */}
       {deal.ai_summary && (
-        <p className="mt-1.5 line-clamp-2 flex items-start gap-1 text-[11px] text-muted-foreground">
-          <Sparkles className="mt-0.5 h-2.5 w-2.5 shrink-0 text-primary" />
-          <span>{deal.ai_summary}</span>
-        </p>
+        <div className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span className="shrink-0 text-primary" onClick={(e) => e.stopPropagation()}>
+                    <Sparkles className="h-2.5 w-2.5" />
+                  </span>
+                }
+              />
+              <TooltipContent side="top" className="max-w-[260px] whitespace-normal text-left">
+                {deal.ai_summary}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <span className="truncate">{deal.ai_summary}</span>
+        </div>
       )}
 
       {/* Phone + score */}

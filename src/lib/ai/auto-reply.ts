@@ -12,13 +12,22 @@ import { latestUserMessage } from './query'
 import { engineSendText } from '@/lib/flows/meta-send'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 import { pickRoundRobinAgent } from '@/lib/assignment/round-robin'
-
-/** Pause between consecutive parts of a split auto-reply — long enough
- *  to read as separate texts, short enough not to stall the thread. */
-const REPLY_PART_DELAY_MS = 1200
+import { signalTyping } from '@/lib/whatsapp/typing-indicator'
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/**
+ * Pause before sending the NEXT part of a split auto-reply, scaled to
+ * that part's own length instead of a fixed delay — a two-word part
+ * arriving after the same pause as a full sentence read as robotic.
+ * ~50ms/char (≈ 240 chars/min, an unhurried but real phone typing
+ * speed) clamped so a short part still feels deliberate (never under
+ * 900ms) and a long one doesn't stall the thread (never over 3500ms).
+ */
+function typingDelayForPart(text: string): number {
+  return Math.min(3500, Math.max(900, text.length * 50))
 }
 
 interface DispatchArgs {
@@ -139,6 +148,12 @@ export async function dispatchInboundToAiReply(
         : null,
       hasOpenDeal: dealContext.hasOpenDeal,
     })
+
+    // "Typing…" while the model generates — reads as someone actually
+    // there instead of a reply that just appears the instant it's
+    // ready. Fire-and-forget: never worth delaying (or failing) the
+    // reply over a cosmetic touch.
+    void signalTyping(db, accountId, conversationId)
 
     const {
       text,
@@ -269,6 +284,13 @@ export async function dispatchInboundToAiReply(
     // person actually texts than a single wall of text arriving at once.
     const parts = splitReplyIntoMessages(text)
     for (let i = 0; i < parts.length; i++) {
+      if (i > 0) {
+        // Sending a message clears the platform's typing bubble, so
+        // it needs to be re-signaled for every part after the first —
+        // otherwise only the opening part looks "typed."
+        void signalTyping(db, accountId, conversationId)
+        await sleep(typingDelayForPart(parts[i]))
+      }
       await engineSendText({
         accountId,
         userId: configOwnerUserId,
@@ -277,7 +299,6 @@ export async function dispatchInboundToAiReply(
         text: parts[i],
         aiGenerated: true,
       })
-      if (i < parts.length - 1) await sleep(REPLY_PART_DELAY_MS)
     }
   } catch (err) {
     console.error('[ai auto-reply] dispatch failed:', err)

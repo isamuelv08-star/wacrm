@@ -48,6 +48,27 @@ export async function resolveZernioSocialAccountId(
   return (data?.whatsapp_account_id as string | null) ?? null
 }
 
+/**
+ * Best-effort "typing..." bubble for a Zernio-bridged conversation.
+ * Zernio resolves which inbound message to mark read/reference
+ * internally (no wamid needed from us, unlike the direct-Meta path).
+ * Silently no-ops on failure — this is cosmetic, never worth
+ * interrupting a reply over.
+ */
+export async function sendZernioTypingIndicator(
+  zernioSocialAccountId: string,
+  zernioConversationId: string,
+): Promise<void> {
+  try {
+    await zernioClient().messages.sendTypingIndicator({
+      path: { conversationId: zernioConversationId },
+      body: { accountId: zernioSocialAccountId },
+    })
+  } catch (err) {
+    console.warn('[zernio-send] typing indicator failed (non-fatal):', err)
+  }
+}
+
 export interface ZernioSendResult {
   waMessageId: string
   /** Set only when this call created a brand-new Zernio conversation. */

@@ -261,6 +261,44 @@ export async function sendTextMessage(
   return { messageId: data.messages[0].id }
 }
 
+export interface SendTypingIndicatorArgs {
+  phoneNumberId: string
+  accessToken: string
+  /** The customer's inbound wamid the bot is about to reply to — Meta
+   *  requires this and marks it read as a side effect (so the ✓✓
+   *  turns blue at the same moment the "typing..." bubble appears,
+   *  matching how a human agent's client behaves). */
+  messageId: string
+  apiBase?: string
+}
+
+/**
+ * Shows a "typing..." bubble on the customer's side for up to 25
+ * seconds, or until the next message actually sends — whichever comes
+ * first. Purely cosmetic (no return value worth surfacing), so
+ * callers treat a failure as non-fatal.
+ */
+export async function sendTypingIndicator(args: SendTypingIndicatorArgs): Promise<void> {
+  const { phoneNumberId, accessToken, messageId, apiBase } = args
+  const url = `${apiBase || META_API_BASE}/${phoneNumberId}/messages`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      status: 'read',
+      message_id: messageId,
+      typing_indicator: { type: 'text' },
+    }),
+  })
+  if (!response.ok) {
+    await throwMetaError(response, `Meta API error: ${response.status}`)
+  }
+}
+
 export type MediaKind = 'image' | 'video' | 'document' | 'audio'
 
 export interface SendMediaMessageArgs {
