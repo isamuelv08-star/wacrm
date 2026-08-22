@@ -4,9 +4,10 @@
 //   PATCH  — change a member's role and/or round-robin opt-in. Admin+.
 //   DELETE — remove a member.                                  Admin+.
 //
-// Delegate to SECURITY DEFINER RPCs from migrations 018 / 042:
+// Delegate to SECURITY DEFINER RPCs from migrations 018 / 042 / 054:
 //   - set_member_role(p_user_id, p_new_role)
 //   - set_member_round_robin_opt_in(p_user_id, p_opt_in)
+//   - set_member_dashboard_permissions(p_user_id, p_permissions)
 //   - remove_account_member(p_user_id)
 //
 // The RPCs do the *real* authorisation work — caller must be
@@ -20,7 +21,11 @@ import { NextResponse } from "next/server";
 import type { PostgrestError } from "@supabase/supabase-js";
 
 import { requireRole, toErrorResponse } from "@/lib/auth/account";
-import { isAccountRole } from "@/lib/auth/roles";
+import {
+  DASHBOARD_PERMISSION_KEYS,
+  isAccountRole,
+  parseDashboardPermissions,
+} from "@/lib/auth/roles";
 import {
   checkRateLimit,
   rateLimitResponse,
@@ -60,13 +65,17 @@ export async function PATCH(
     const { userId } = await params;
 
     const body = (await request.json().catch(() => null)) as
-      | { role?: unknown; receivesLeads?: unknown }
+      | { role?: unknown; receivesLeads?: unknown; dashboardPermissions?: unknown }
       | null;
-    const { role, receivesLeads } = body ?? {};
+    const { role, receivesLeads, dashboardPermissions } = body ?? {};
 
-    if (role === undefined && receivesLeads === undefined) {
+    if (
+      role === undefined &&
+      receivesLeads === undefined &&
+      dashboardPermissions === undefined
+    ) {
       return NextResponse.json(
-        { error: "Provide 'role' and/or 'receivesLeads'" },
+        { error: "Provide 'role', 'receivesLeads', and/or 'dashboardPermissions'" },
         { status: 400 },
       );
     }
@@ -109,6 +118,24 @@ export async function PATCH(
       const { error } = await ctx.supabase.rpc(
         "set_member_round_robin_opt_in",
         { p_user_id: userId, p_opt_in: receivesLeads },
+      );
+      if (error) return rpcErrorToResponse(error);
+    }
+
+    if (dashboardPermissions !== undefined) {
+      const validated = parseDashboardPermissions(dashboardPermissions);
+      if (validated === null) {
+        return NextResponse.json(
+          {
+            error: `'dashboardPermissions' must be an object with boolean values, keys limited to: ${DASHBOARD_PERMISSION_KEYS.join(", ")}`,
+          },
+          { status: 400 },
+        );
+      }
+
+      const { error } = await ctx.supabase.rpc(
+        "set_member_dashboard_permissions",
+        { p_user_id: userId, p_permissions: validated },
       );
       if (error) return rpcErrorToResponse(error);
     }

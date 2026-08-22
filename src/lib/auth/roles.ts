@@ -107,3 +107,84 @@ export function canDeleteAccount(role: AccountRole): boolean {
 export function canTransferOwnership(role: AccountRole): boolean {
   return role === "owner";
 }
+
+// ============================================================
+// Dashboard widget permissions (migration 054)
+//
+// The sales-facing dashboard widgets (revenue KPIs, forecast, the
+// funnel, commercial metrics, the top-sellers leaderboard, and
+// alerts) live on the SAME /dashboard page as the operational
+// widgets everyone sees — not a separate owner-only page — but each
+// one is independently grantable per member, since a sales manager
+// might get the leaderboard without revenue totals, or vice versa.
+//
+// `profiles.dashboard_permissions` stores only the EXPLICIT
+// overrides an admin has set (a partial record — most members have
+// an empty object). An absent key falls back to the role default via
+// `canViewDashboardSection` below, so promoting/demoting a member's
+// role automatically changes what they see for anything nobody ever
+// explicitly toggled — no data migration needed when the default
+// itself changes.
+// ============================================================
+
+export const DASHBOARD_PERMISSION_KEYS = [
+  "salesKpis",
+  "salesVsGoal",
+  "salesFunnel",
+  "commercialMetrics",
+  "topSellers",
+  "alerts",
+] as const;
+
+export type DashboardPermissionKey = (typeof DASHBOARD_PERMISSION_KEYS)[number];
+
+/** Explicit per-widget overrides for one member. Missing keys defer
+ *  to the role default (see `canViewDashboardSection`). */
+export type DashboardPermissions = Partial<Record<DashboardPermissionKey, boolean>>;
+
+/** Role default when a widget was never explicitly toggled for this
+ *  member: admins already manage account-wide settings, so sales
+ *  visibility follows naturally; agents/viewers start closed until
+ *  an admin+ opens a specific widget for them. */
+function defaultDashboardPermission(role: AccountRole): boolean {
+  return hasMinRole(role, "admin");
+}
+
+/**
+ * Whether `role` (with `explicit` overrides) can see a given
+ * dashboard widget. An explicit true/false always wins; an absent
+ * key falls back to the role default.
+ *
+ * Callers should check `isOwner` (or `role === "owner"`) FIRST and
+ * skip this entirely — an owner always sees every widget on their
+ * own account's dashboard regardless of what's stored here.
+ */
+export function canViewDashboardSection(
+  role: AccountRole,
+  explicit: DashboardPermissions | null | undefined,
+  key: DashboardPermissionKey,
+): boolean {
+  return explicit?.[key] ?? defaultDashboardPermission(role);
+}
+
+/**
+ * Validate an unknown request-body value as a `DashboardPermissions`
+ * object before it reaches the DB — rejects (returns null) anything
+ * that isn't a plain object with boolean values and keys limited to
+ * `DASHBOARD_PERMISSION_KEYS`, so a malformed/malicious payload can't
+ * smuggle arbitrary JSON into `profiles.dashboard_permissions` or
+ * `account_invitations.dashboard_permissions`. Shared by the
+ * invitations POST route and the members PATCH route.
+ */
+export function parseDashboardPermissions(value: unknown): DashboardPermissions | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return null;
+  }
+  const out: DashboardPermissions = {};
+  for (const [key, v] of Object.entries(value)) {
+    if (!(DASHBOARD_PERMISSION_KEYS as readonly string[]).includes(key)) return null;
+    if (typeof v !== "boolean") return null;
+    out[key as DashboardPermissionKey] = v;
+  }
+  return out;
+}

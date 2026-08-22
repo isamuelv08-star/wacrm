@@ -1,13 +1,29 @@
 'use client';
 
 // ============================================================
-// InviteMemberDialog
+// InviteMemberDialog — "Add member"
 //
 // Two-step modal:
-//   1. Form  — role + expiry + optional label → POST creates the invite.
-//   2. Result — the share URL, returned ONCE. Copy-to-clipboard, plus a
-//              "Send via WhatsApp" deep link that pre-fills wa.me with
-//              a friendly message containing the URL.
+//   1. Form  — role, individual sales goal, dashboard access, optional
+//              label → POST creates the member's account + a link for
+//              them to set their own password.
+//   2. Result — the share link, returned ONCE. Copy-to-clipboard, plus
+//              a "Send via WhatsApp" deep link that pre-fills wa.me
+//              with a friendly message containing it.
+//
+// Why there's still a link at all
+// --------------------------------
+// This can't be a single click that finishes the whole job: Supabase
+// Auth requires the new member to set their OWN password (there's no
+// "create a working login for someone else" short-cut without either
+// emailing them — unreliable on a self-hosted deploy with no SMTP
+// configured — or generating a password on their behalf and handing
+// it over insecurely). The link is that one unavoidable step; the
+// member row itself is created immediately (shows up in the roster
+// as a real member, not a "pending invite"), and the link never
+// meaningfully expires (see DEFAULT_INVITE_EXPIRY_DAYS) — no expiry
+// picker, no separate "pending invitations" waiting period to reason
+// about, as close to "just add them" as the auth model allows.
 //
 // The plaintext token is server-stored only as a SHA-256 hash, so once
 // the result step is dismissed the link is gone forever — the dialog
@@ -27,6 +43,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -38,6 +55,12 @@ import {
 } from '@/components/ui/select';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/use-auth';
+import {
+  canViewDashboardSection,
+  DASHBOARD_PERMISSION_KEYS,
+  type DashboardPermissionKey,
+  type DashboardPermissions,
+} from '@/lib/auth/roles';
 
 type InviteRole = 'admin' | 'agent' | 'viewer';
 
@@ -49,12 +72,6 @@ interface InviteMemberDialogProps {
   onCreated: () => void;
 }
 
-const EXPIRY_OPTIONS = [
-  { value: '1', labelKey: 'days1' },
-  { value: '7', labelKey: 'days7' },
-  { value: '30', labelKey: 'days30' },
-];
-
 // Server caps label at 80 chars (see src/app/api/account/invitations/route.ts).
 // Mirror it on the client so we short-circuit before the round-trip
 // rather than letting the user submit and bounce off a 400.
@@ -63,7 +80,6 @@ const MAX_LABEL_LEN = 80;
 interface CreatedInvite {
   url: string;
   role: InviteRole;
-  expiresInDays: number;
   /** Snapshotted at creation time so a later account rename can't
    *  retroactively change the wa.me message text on the result step. */
   accountName: string;
@@ -76,19 +92,36 @@ export function InviteMemberDialog({
 }: InviteMemberDialogProps) {
   const t = useTranslations('Settings.invite');
   const tRoles = useTranslations('Settings.roles');
-  const { account } = useAuth();
+  const { account, defaultCurrency } = useAuth();
   const [role, setRole] = useState<InviteRole>('agent');
-  const [expiry, setExpiry] = useState<string>('7');
   const [label, setLabel] = useState('');
+  // Raw text so the field can be legitimately empty (no goal set) —
+  // parsed to a number only at submit time.
+  const [individualSalesGoal, setIndividualSalesGoal] = useState('');
+  // Only the EXPLICIT overrides the inviter makes — a key absent here
+  // just falls back to the role default (computed live below via
+  // `canViewDashboardSection`), same resolution the dashboard itself
+  // uses. Sending `{}` when nothing was touched means a brand-new
+  // agent gets exactly the role default with no special-casing here.
+  const [permissionOverrides, setPermissionOverrides] = useState<DashboardPermissions>({});
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<CreatedInvite | null>(null);
 
   function reset() {
     setRole('agent');
-    setExpiry('7');
     setLabel('');
+    setIndividualSalesGoal('');
+    setPermissionOverrides({});
     setResult(null);
     setSubmitting(false);
+  }
+
+  function isPermissionChecked(key: DashboardPermissionKey): boolean {
+    return permissionOverrides[key] ?? canViewDashboardSection(role, null, key);
+  }
+
+  function togglePermission(key: DashboardPermissionKey) {
+    setPermissionOverrides((prev) => ({ ...prev, [key]: !isPermissionChecked(key) }));
   }
 
   async function handleCreate() {
@@ -103,6 +136,18 @@ export function InviteMemberDialog({
       toast.error(t('labelTooLong', { max: MAX_LABEL_LEN }));
       return;
     }
+
+    const trimmedGoal = individualSalesGoal.trim();
+    let goalValue: number | undefined;
+    if (trimmedGoal !== '') {
+      const parsed = Number(trimmedGoal);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        toast.error(t('individualGoalInvalid'));
+        return;
+      }
+      goalValue = parsed;
+    }
+
     setSubmitting(true);
     try {
       const res = await fetch('/api/account/invitations', {
@@ -110,8 +155,9 @@ export function InviteMemberDialog({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           role,
-          expiresInDays: Number(expiry),
           label: trimmedLabel || undefined,
+          dashboardPermissions: permissionOverrides,
+          individualSalesGoal: goalValue,
         }),
       });
 
@@ -121,15 +167,11 @@ export function InviteMemberDialog({
         return;
       }
 
-      const data = (await res.json()) as {
-        url: string;
-        expiresInDays: number;
-      };
+      const data = (await res.json()) as { url: string };
 
       setResult({
         url: data.url,
         role,
-        expiresInDays: data.expiresInDays,
         // Snapshot the account name into the result so the wa.me
         // share message has team context. Falls back to a generic
         // string if `account` hasn't loaded yet (shouldn't happen
@@ -165,7 +207,7 @@ export function InviteMemberDialog({
     // for users in multi-team contexts where "our wacrm account"
     // wouldn't be enough to disambiguate.
     const accountName = result?.accountName ?? 'our wacrm account';
-    const message = t('whatsappMessage', { accountName, expiresInDays: result?.expiresInDays ?? 0, url });
+    const message = t('whatsappMessage', { accountName, url });
     return `https://wa.me/?text=${encodeURIComponent(message)}`;
   }
 
@@ -191,7 +233,6 @@ export function InviteMemberDialog({
               <DialogDescription className="text-muted-foreground">
                 {t.rich('inviteCreatedDesc', {
                   role: tRoles(result.role),
-                  days: result.expiresInDays,
                   bold: (chunks: React.ReactNode) => <strong>{chunks}</strong>
                 })}
               </DialogDescription>
@@ -288,22 +329,21 @@ export function InviteMemberDialog({
               </div>
 
               <div className="space-y-2">
-                <Label className="text-muted-foreground">{t('validForLabel')}</Label>
-                <Select
-                  value={expiry}
-                  onValueChange={(v) => v && setExpiry(v)}
-                >
-                  <SelectTrigger className="w-full bg-muted border-border text-foreground">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {EXPIRY_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {t(opt.labelKey as Parameters<typeof t>[0])}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label className="text-muted-foreground">
+                  {t('individualGoalLabel', { currency: defaultCurrency })}{' '}
+                  <span className="text-xs text-muted-foreground">{t('optional')}</span>
+                </Label>
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="0"
+                  value={individualSalesGoal}
+                  onChange={(e) => setIndividualSalesGoal(e.target.value)}
+                  className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t('individualGoalHint')}
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -321,6 +361,30 @@ export function InviteMemberDialog({
                 <p className="text-xs text-muted-foreground">
                   {t('labelHint')}
                 </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">{t('dashboardPermissions.title')}</Label>
+                <p className="text-xs text-muted-foreground">{t('dashboardPermissions.hint')}</p>
+                <div className="space-y-2 rounded-md border border-border p-3">
+                  {DASHBOARD_PERMISSION_KEYS.map((key) => (
+                    <label key={key} className="flex cursor-pointer items-start gap-2.5">
+                      <Checkbox
+                        checked={isPermissionChecked(key)}
+                        onCheckedChange={() => togglePermission(key)}
+                        className="mt-0.5"
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-xs font-medium text-foreground">
+                          {t(`dashboardPermissions.${key}Label`)}
+                        </span>
+                        <span className="block text-xs text-muted-foreground">
+                          {t(`dashboardPermissions.${key}Desc`)}
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
               </div>
             </div>
 

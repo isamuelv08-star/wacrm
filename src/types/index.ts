@@ -1,4 +1,4 @@
-import type { AccountRole } from "@/lib/auth/roles";
+import type { AccountRole, DashboardPermissions } from "@/lib/auth/roles";
 import type { InteractiveMessagePayload } from "@/lib/whatsapp/interactive";
 
 export type {
@@ -45,6 +45,10 @@ export interface Profile {
    * `@/lib/auth/roles` rather than comparing this string directly.
    */
   account_role?: AccountRole;
+  /** Explicit per-widget overrides for the sales section of
+   *  /dashboard (migration 054) — see `canViewDashboardSection` in
+   *  @/lib/auth/roles for how an absent key resolves. */
+  dashboard_permissions?: DashboardPermissions;
   created_at: string;
 }
 
@@ -87,6 +91,11 @@ export interface AccountMember {
   /** Computed: COALESCE(round_robin_opt_in, role === 'agent') — whether
    *  this member is currently in the round-robin pool. */
   receives_round_robin_leads: boolean;
+  /** profiles.dashboard_permissions (migration 054) — explicit
+   *  per-widget overrides for the sales section of /dashboard. A key
+   *  absent here falls back to a role default; see
+   *  `canViewDashboardSection` in @/lib/auth/roles. */
+  dashboard_permissions: DashboardPermissions;
 }
 
 /**

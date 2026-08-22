@@ -28,6 +28,7 @@ import {
   Loader2,
   Mail,
   MailX,
+  LayoutDashboard,
   Plus,
   Trash2,
   UsersRound,
@@ -62,12 +63,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { useTranslations } from 'next-intl';
 import { RequireRole } from '@/components/auth/require-role';
 import { useAuth } from '@/hooks/use-auth';
 import { usePresence } from '@/hooks/use-presence';
-import type { AccountRole } from '@/lib/auth/roles';
+import {
+  canViewDashboardSection,
+  DASHBOARD_PERMISSION_KEYS,
+  type AccountRole,
+  type DashboardPermissionKey,
+  type DashboardPermissions,
+} from '@/lib/auth/roles';
 import { presenceLabel, summarize } from '@/lib/presence';
 import {
   PRESENCE_DOT_CLASS,
@@ -86,6 +94,7 @@ interface Member {
   joined_at: string;
   round_robin_opt_in: boolean | null;
   receives_round_robin_leads: boolean;
+  dashboard_permissions: DashboardPermissions;
 }
 
 interface Invitation {
@@ -130,6 +139,10 @@ function fmtExpiresIn(iso: string, t: (key: string, values?: Record<string, stri
 export function MembersTab() {
   const t = useTranslations('Settings.members');
   const tRoles = useTranslations('Settings.roles');
+  // The six dashboard-permission checkboxes read the SAME copy the
+  // invite dialog already defines (Settings.invite.dashboardPermissions)
+  // rather than a second, easily-drifting translated set.
+  const tPerms = useTranslations('Settings.invite.dashboardPermissions');
   const { user, canManageMembers } = useAuth();
   const { getPresence, getRow, now } = usePresence();
 
@@ -142,6 +155,14 @@ export function MembersTab() {
   const [pendingMemberAction, setPendingMemberAction] = useState<string | null>(
     null,
   );
+
+  // Dashboard-permissions editor — a small dialog, not inline, since
+  // six checkboxes wouldn't fit the roster row. `editingPermissions`
+  // holds a DRAFT copy (starts from the member's saved overrides) so
+  // Cancel discards changes without an extra round trip to reload.
+  const [editingPermissionsFor, setEditingPermissionsFor] = useState<Member | null>(null);
+  const [permissionsDraft, setPermissionsDraft] = useState<DashboardPermissions>({});
+  const [savingPermissions, setSavingPermissions] = useState(false);
 
   const loadEverything = useCallback(async () => {
     try {
@@ -285,6 +306,51 @@ export function MembersTab() {
       toast.error('Could not reach the server');
     } finally {
       setPendingMemberAction(null);
+    }
+  }
+
+  function openPermissionsEditor(member: Member) {
+    setEditingPermissionsFor(member);
+    setPermissionsDraft(member.dashboard_permissions);
+  }
+
+  function isPermissionsDraftChecked(key: DashboardPermissionKey): boolean {
+    if (!editingPermissionsFor) return false;
+    return permissionsDraft[key] ?? canViewDashboardSection(editingPermissionsFor.role, null, key);
+  }
+
+  function togglePermissionsDraft(key: DashboardPermissionKey) {
+    setPermissionsDraft((prev) => ({ ...prev, [key]: !isPermissionsDraftChecked(key) }));
+  }
+
+  async function handleSavePermissions() {
+    if (!editingPermissionsFor) return;
+    setSavingPermissions(true);
+    try {
+      const res = await fetch(`/api/account/members/${editingPermissionsFor.user_id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dashboardPermissions: permissionsDraft }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        toast.error(payload.error || t('permissionsError'));
+        return;
+      }
+      setMembers((prev) =>
+        prev.map((m) =>
+          m.user_id === editingPermissionsFor.user_id
+            ? { ...m, dashboard_permissions: permissionsDraft }
+            : m,
+        ),
+      );
+      toast.success(t('permissionsSavedToast', { name: editingPermissionsFor.full_name || t('unnamed') }));
+      setEditingPermissionsFor(null);
+    } catch (err) {
+      console.error('[MembersTab] permissions save error:', err);
+      toast.error('Could not reach the server');
+    } finally {
+      setSavingPermissions(false);
     }
   }
 
@@ -496,6 +562,30 @@ export function MembersTab() {
                       </Tooltip>
                     )}
 
+                    {/* Dashboard-permissions editor. Admin+ only; not
+                        on the owner row — an owner always sees every
+                        widget regardless of what's stored, so the
+                        button would open a dialog whose changes have
+                        no visible effect. */}
+                    {canManageMembers && !isOwnerRow && (
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              variant="outline"
+                              size="icon-sm"
+                              onClick={() => openPermissionsEditor(member)}
+                              disabled={isBusy}
+                              className="border-border text-muted-foreground hover:bg-muted"
+                            >
+                              <LayoutDashboard className="size-4" />
+                            </Button>
+                          }
+                        />
+                        <TooltipContent>{t('editDashboardAccess')}</TooltipContent>
+                      </Tooltip>
+                    )}
+
                     {/* Role display / editor. Inline Select is admin+
                         only AND not allowed on the owner row (owner
                         changes go through transfer, which lands later). */}
@@ -651,6 +741,68 @@ export function MembersTab() {
         onOpenChange={setInviteOpen}
         onCreated={loadEverything}
       />
+
+      <Dialog
+        open={editingPermissionsFor !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditingPermissionsFor(null);
+        }}
+      >
+        <DialogContent className="bg-popover border-border sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-popover-foreground">
+              {t('editDashboardAccessTitle', {
+                name: editingPermissionsFor?.full_name || t('unnamed'),
+              })}
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              {t('editDashboardAccessDesc')}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 rounded-md border border-border p-3">
+            {DASHBOARD_PERMISSION_KEYS.map((key) => (
+              <label key={key} className="flex cursor-pointer items-start gap-2.5">
+                <Checkbox
+                  checked={isPermissionsDraftChecked(key)}
+                  onCheckedChange={() => togglePermissionsDraft(key)}
+                  className="mt-0.5"
+                />
+                <span className="min-w-0">
+                  <span className="block text-xs font-medium text-foreground">
+                    {tPerms(`${key}Label`)}
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    {tPerms(`${key}Desc`)}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <DialogFooter className="bg-popover border-border">
+            <Button
+              variant="outline"
+              onClick={() => setEditingPermissionsFor(null)}
+              className="border-border text-muted-foreground hover:bg-muted"
+            >
+              {t('cancel')}
+            </Button>
+            <Button
+              onClick={handleSavePermissions}
+              disabled={savingPermissions}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+            >
+              {savingPermissions ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  {t('saving')}
+                </>
+              ) : (
+                t('save')
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={removingMember !== null}

@@ -1,6 +1,6 @@
 "use client"
 
-import { AlertTriangle, TrendingDown, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, TrendingDown, UserX, GitBranch, ShieldCheck } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import type { CeoAlerts } from '@/lib/dashboard/ceo-types'
 import { formatCurrency } from '@/lib/currency'
@@ -13,21 +13,43 @@ interface AlertsCardProps {
   staleDays: number
 }
 
+const ICONS = {
+  stalled: AlertTriangle,
+  stalledValue: AlertTriangle,
+  atRisk: UserX,
+  forecastGap: TrendingDown,
+  winRate: TrendingDown,
+  salesCycle: TrendingDown,
+  pipelineCoverage: GitBranch,
+} as const
+
 export function AlertsCard({ data, loading, currency, staleDays }: AlertsCardProps) {
   const t = useTranslations('Dashboard.ceo.alerts')
 
   const rows = data
     ? [
         data.stalledCount > 0
-          ? { key: 'stalled', text: t('stalledCount', { count: data.stalledCount, days: staleDays }) }
+          ? { key: 'stalled' as const, text: t('stalledCount', { count: data.stalledCount, days: staleDays }) }
           : null,
         data.stalledValue > 0
-          ? { key: 'stalledValue', text: t('stalledValue', { value: formatCurrency(data.stalledValue, currency) }) }
+          ? { key: 'stalledValue' as const, text: t('stalledValue', { value: formatCurrency(data.stalledValue, currency) }) }
+          : null,
+        data.atRiskCustomerCount > 0
+          ? { key: 'atRisk' as const, text: t('atRiskCustomers', { count: data.atRiskCustomerCount }) }
           : null,
         data.forecastGapPct != null
-          ? { key: 'forecastGap', text: t('forecastGap', { pct: Math.abs(data.forecastGapPct).toFixed(0) }) }
+          ? { key: 'forecastGap' as const, text: t('forecastGap', { pct: Math.abs(data.forecastGapPct).toFixed(0) }) }
           : null,
-      ].filter((r): r is { key: string; text: string } => r !== null)
+        data.winRateDeclinePts != null
+          ? { key: 'winRate' as const, text: t('winRateDeclined', { pts: data.winRateDeclinePts.toFixed(0) }) }
+          : null,
+        data.salesCycleIncreasePct != null
+          ? { key: 'salesCycle' as const, text: t('salesCycleIncreased', { pct: data.salesCycleIncreasePct.toFixed(0) }) }
+          : null,
+        data.lowPipelineCoverage != null
+          ? { key: 'pipelineCoverage' as const, text: t('lowPipelineCoverage', { multiple: data.lowPipelineCoverage.toFixed(1) }) }
+          : null,
+      ].filter((r): r is { key: keyof typeof ICONS; text: string } => r !== null)
     : []
 
   return (
@@ -51,19 +73,18 @@ export function AlertsCard({ data, loading, currency, staleDays }: AlertsCardPro
           </div>
         ) : (
           <ul className="space-y-2">
-            {rows.map((row) => (
-              <li
-                key={row.key}
-                className="flex items-center gap-2.5 rounded-lg border border-rose-500/25 bg-rose-500/[0.07] px-3 py-2.5 text-sm text-rose-300"
-              >
-                {row.key === 'forecastGap' ? (
-                  <TrendingDown className="h-4 w-4 shrink-0" />
-                ) : (
-                  <AlertTriangle className="h-4 w-4 shrink-0" />
-                )}
-                {row.text}
-              </li>
-            ))}
+            {rows.map((row) => {
+              const Icon = ICONS[row.key]
+              return (
+                <li
+                  key={row.key}
+                  className="flex items-center gap-2.5 rounded-lg border border-rose-500/25 bg-rose-500/[0.07] px-3 py-2.5 text-sm text-rose-300"
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  {row.text}
+                </li>
+              )
+            })}
           </ul>
         )}
       </div>

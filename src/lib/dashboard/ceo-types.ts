@@ -64,4 +64,38 @@ export interface CeoAlerts {
    *  ever shown) when negative, i.e. the forecast is short of goal.
    *  Null if no goal is set. */
   forecastGapPct: number | null
+  /** Open deals whose linked conversation has gone quiet (no message,
+   *  from either side, past the "gone cold" threshold) — distinct from
+   *  `stalledCount`, which tracks pipeline *stage* movement rather than
+   *  actual customer engagement. */
+  atRiskCustomerCount: number
+  /** This-window win rate minus the prior window's, in points — only
+   *  populated (and only ever shown) when it's a meaningful decline.
+   *  Null if either window lacks enough closed deals to be reliable. */
+  winRateDeclinePts: number | null
+  /** % increase in average sales cycle vs. the prior window — only
+   *  populated when the cycle has meaningfully lengthened. Null if
+   *  either window lacks enough samples. */
+  salesCycleIncreasePct: number | null
+  /** pipelineCoverage when it's below the healthy benchmark (and a
+   *  goal is set) — null otherwise, so the component can just check
+   *  for non-null rather than re-deriving the threshold. */
+  lowPipelineCoverage: number | null
+}
+
+/** One step of the sales funnel: leads (contacts) at the top, each of
+ *  the account's own pipeline stages in position order (deals that
+ *  REACHED that stage in the window, per deal_stage_history — not
+ *  just deals currently sitting there), and won deals at the bottom.
+ *  `key` is 'leads' | 'won' | a pipeline_stages.id; `label` carries
+ *  the account's own stage name already and is empty for the two
+ *  synthetic bookend steps, which the component labels itself via
+ *  translation. */
+export interface FunnelStep {
+  key: string
+  label: string
+  count: number
+  /** Null only for the 'leads' step — a contact isn't worth a dollar
+   *  figure the way a deal is. */
+  value: number | null
 }

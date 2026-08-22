@@ -153,7 +153,8 @@
         "forecastOfGoal": "{pct}% de la meta",
         "clients": "Clientes",
         "noChangeVsLastMonth": "Sin cambios vs. el mes pasado",
-        "vsLastMonth": "vs. el mes pasado"
+        "vsLastMonth": "vs. el mes pasado",
+        "salesSectionTitle": "Ventas"
       },
       "salesVsGoal": {
         "title": "Ventas vs Meta",
@@ -184,7 +185,19 @@
         "stalledCount": "{count, plural, =1 {# oportunidad estancada} other {# oportunidades estancadas}} hace {days}+ días",
         "stalledValue": "{value} en riesgo",
         "forecastGap": "El forecast está {pct}% por debajo de la meta",
-        "allGood": "Nada necesita tu atención por ahora"
+        "allGood": "Nada necesita tu atención por ahora",
+        "atRiskCustomers": "{count, plural, =1 {# cliente en riesgo} other {# clientes en riesgo}} — sin actividad hace 14+ días",
+        "winRateDeclined": "El win rate cayó {pts} puntos vs. los 90 días anteriores",
+        "salesCycleIncreased": "El ciclo de venta es {pct}% más largo que los 90 días anteriores",
+        "lowPipelineCoverage": "El pipeline es solo {multiple}x la meta — por debajo del 3x saludable"
+      },
+      "funnel": {
+        "title": "Embudo comercial",
+        "description": "Deals que llegaron a cada etapa en los últimos 90 días — dónde se rompe el proceso",
+        "leads": "Leads",
+        "won": "Ganadas",
+        "noData": "Todavía no hay suficiente actividad",
+        "noDataHint": "Los leads nuevos y los deals que avancen por el pipeline van a completar este embudo."
       }
     }
   },
@@ -1348,7 +1361,7 @@
     "members": {
       "title": "Miembros del equipo",
       "description": "Personas con acceso a esta cuenta. Los roles controlan lo que cada compañero de equipo puede hacer.",
-      "inviteMember": "Invitar miembro",
+      "inviteMember": "Agregar miembro",
       "online": "en línea",
       "away": "ausente",
       "offline": "desconectado",
@@ -1379,35 +1392,57 @@
       "removeDialogDesc": "¿Quitar a <bold>{name}</bold> de la cuenta? Se cerrará su sesión en esta cuenta y se le asignará una nueva cuenta personal en su próximo inicio de sesión. Su acceso no se elimina.",
       "cancel": "Cancelar",
       "removing": "Quitando...",
-      "removeBtn": "Quitar miembro"
+      "removeBtn": "Quitar miembro",
+      "editDashboardAccess": "Editar acceso al panel",
+      "editDashboardAccessTitle": "Acceso al panel — {name}",
+      "editDashboardAccessDesc": "Elegí qué secciones de ventas ve este miembro en /dashboard. Lo que no marques toma el valor por defecto de su rol.",
+      "permissionsError": "No se pudo actualizar el acceso al panel",
+      "permissionsSavedToast": "Se actualizó el acceso de {name}",
+      "save": "Guardar",
+      "saving": "Guardando..."
     },
     "invite": {
-      "inviteCreated": "Invitación creada",
-      "inviteCreatedDesc": "Comparte este enlace con tu nuevo compañero de equipo. Podrá registrarse (o iniciar sesión) y unirse a la cuenta como <bold>{role}</bold>. El enlace es válido por <bold>{days} {days, plural, =1 {día} other {días}}</bold>.",
+      "inviteCreated": "Miembro agregado",
+      "inviteCreatedDesc": "Compartí este enlace con tu nuevo compañero para que defina su contraseña e inicie sesión como <bold>{role}</bold>. Ya es miembro de la cuenta — esto solo le permite entrar.",
       "inviteLink": "Enlace de invitación",
       "copy": "Copiar",
       "saveLinkNow": "Guarda este enlace ahora.",
       "saveLinkHint": "Nunca almacenamos el texto plano — una vez que cierres este diálogo, la URL desaparece. Para volver a compartirla, revoca esta invitación y crea una nueva.",
       "sendViaWhatsApp": "Enviar por WhatsApp",
       "done": "Listo",
-      "dialogTitle": "Invitar a un compañero de equipo",
-      "dialogDesc": "Genera un enlace de invitación de un solo uso. Compártelo por WhatsApp, Slack o el canal que prefieras — no se requiere servicio de correo electrónico.",
+      "dialogTitle": "Agregar miembro del equipo",
+      "dialogDesc": "Crea al miembro de inmediato. Compartí el enlace que sigue para que defina su contraseña e inicie sesión — no se necesita servicio de correo.",
       "roleLabel": "Rol",
-      "validForLabel": "Enlace válido por",
-      "days1": "1 día",
-      "days7": "7 días",
-      "days30": "30 días",
       "labelTitle": "Etiqueta",
       "optional": "(opcional)",
       "labelPlaceholder": "p. ej. Sara — equipo de soporte",
       "labelHint": "Te ayuda a recordar a quién le enviaste el enlace en la lista de pendientes a continuación.",
       "cancel": "Cancelar",
       "creating": "Creando...",
-      "generateLink": "Generar enlace",
+      "generateLink": "Agregar miembro",
       "labelTooLong": "La etiqueta debe tener {max} caracteres o menos",
       "copied": "Enlace de invitación copiado",
       "clipboardBlocked": "Portapapeles bloqueado — copia el enlace manualmente",
-      "whatsappMessage": "Únete a {accountName} en wacrm usando este enlace (válido por {expiresInDays} días): {url}"
+      "whatsappMessage": "Te agregaron a {accountName} en wacrm. Definí tu contraseña e iniciá sesión acá: {url}",
+      "dashboardPermissions": {
+        "title": "Acceso al panel",
+        "hint": "Elegí qué secciones de ventas va a ver este miembro en /dashboard. Por defecto sigue el rol — los admins arrancan con acceso, agentes/visualizadores arrancan sin él.",
+        "salesKpisLabel": "KPIs de ventas",
+        "salesKpisDesc": "Ventas, meta, pipeline, forecast y clientes del mes.",
+        "salesVsGoalLabel": "Ventas vs Meta",
+        "salesVsGoalDesc": "Gráfico de ingresos mensuales contra el objetivo de la cuenta.",
+        "salesFunnelLabel": "Embudo comercial",
+        "salesFunnelDesc": "Conversión de leads a ventas cerradas, por etapa.",
+        "commercialMetricsLabel": "Métricas comerciales",
+        "commercialMetricsDesc": "Win rate, ticket promedio y ciclo de venta.",
+        "topSellersLabel": "Top vendedores",
+        "topSellersDesc": "Ranking del equipo con sus ventas contra la cuota.",
+        "alertsLabel": "Alertas",
+        "alertsDesc": "Oportunidades estancadas, clientes en riesgo y forecast por debajo de meta."
+      },
+      "individualGoalLabel": "Meta de ventas mensual individual ({currency})",
+      "individualGoalHint": "Alimenta el % de cumplimiento de este miembro en el ranking de Top Vendedores del dashboard. Dejalo vacío para definirlo después en Configuración → Metas de venta.",
+      "individualGoalInvalid": "Ingresá un número válido, no negativo"
     },
     "tagsAndFields": {
       "title": "Campos y etiquetas",

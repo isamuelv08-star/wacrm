@@ -14,6 +14,15 @@ interface TopSellersCardProps {
   currency: string
 }
 
+/** Quota-attainment color band — at a glance, who's on track vs. who
+ *  needs a conversation, not just a ranked list of numbers. */
+function attainmentTier(pct: number): { text: string; bar: string } {
+  if (pct >= 100) return { text: 'text-emerald-500', bar: 'bg-emerald-500' }
+  if (pct >= 80) return { text: 'text-amber-400', bar: 'bg-amber-400' }
+  if (pct >= 60) return { text: 'text-orange-400', bar: 'bg-orange-400' }
+  return { text: 'text-rose-400', bar: 'bg-rose-400' }
+}
+
 export function TopSellersCard({ data, loading, currency }: TopSellersCardProps) {
   const t = useTranslations('Dashboard.ceo.topSellers')
 
@@ -40,7 +49,7 @@ export function TopSellersCard({ data, loading, currency }: TopSellersCardProps)
             {data.map((seller, i) => {
               const pct = seller.attainmentPct
               const barWidth = pct != null ? Math.min(100, Math.max(4, pct)) : 0
-              const over = pct != null && pct >= 100
+              const tier = pct != null ? attainmentTier(pct) : null
               return (
                 <li key={seller.userId} className="rounded-lg border border-border bg-muted/30 px-3 py-2.5">
                   <div className="flex items-center justify-between gap-2">
@@ -51,18 +60,15 @@ export function TopSellersCard({ data, loading, currency }: TopSellersCardProps)
                       <span className="truncate text-sm font-medium text-foreground">{seller.name}</span>
                     </span>
                     <span
-                      className={cn(
-                        'shrink-0 text-sm font-semibold tabular-nums',
-                        over ? 'text-emerald-500' : 'text-foreground',
-                      )}
+                      className={cn('shrink-0 text-sm font-semibold tabular-nums', tier ? tier.text : 'text-foreground')}
                     >
                       {pct != null ? `${pct.toFixed(0)}%` : formatCurrencyShort(seller.soldThisMonth, currency)}
                     </span>
                   </div>
-                  {pct != null && (
+                  {pct != null && tier && (
                     <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
                       <div
-                        className={cn('h-full rounded-full transition-all', over ? 'bg-emerald-500' : 'bg-primary')}
+                        className={cn('h-full rounded-full transition-all', tier.bar)}
                         style={{ width: `${barWidth}%` }}
                       />
                     </div>

@@ -7,6 +7,7 @@ import {
   canManageMembers,
   canSendMessages,
   canTransferOwnership,
+  canViewDashboardSection,
   canViewOnly,
   hasMinRole,
   isAccountRole,
@@ -126,5 +127,32 @@ describe("capability predicates", () => {
     expect(canTransferOwnership("admin")).toBe(false);
     expect(canTransferOwnership("agent")).toBe(false);
     expect(canTransferOwnership("viewer")).toBe(false);
+  });
+});
+
+describe("canViewDashboardSection", () => {
+  it("defaults to visible for admin+ with no explicit override", () => {
+    expect(canViewDashboardSection("admin", null, "salesKpis")).toBe(true);
+    expect(canViewDashboardSection("admin", undefined, "salesKpis")).toBe(true);
+    expect(canViewDashboardSection("admin", {}, "salesKpis")).toBe(true);
+  });
+
+  it("defaults to hidden for agent/viewer with no explicit override", () => {
+    expect(canViewDashboardSection("agent", null, "salesKpis")).toBe(false);
+    expect(canViewDashboardSection("viewer", {}, "salesKpis")).toBe(false);
+  });
+
+  it("an explicit true grants a widget even for a role that defaults closed", () => {
+    expect(canViewDashboardSection("agent", { salesKpis: true }, "salesKpis")).toBe(true);
+  });
+
+  it("an explicit false revokes a widget even for a role that defaults open", () => {
+    expect(canViewDashboardSection("admin", { salesKpis: false }, "salesKpis")).toBe(false);
+  });
+
+  it("each widget key is resolved independently", () => {
+    const overrides = { topSellers: true };
+    expect(canViewDashboardSection("agent", overrides, "topSellers")).toBe(true);
+    expect(canViewDashboardSection("agent", overrides, "alerts")).toBe(false);
   });
 });

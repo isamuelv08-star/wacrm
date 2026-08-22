@@ -27,7 +27,11 @@ import {
   inviteExpiresAt,
   inviteUrl,
 } from "@/lib/auth/invitations";
-import { isAccountRole } from "@/lib/auth/roles";
+import {
+  DASHBOARD_PERMISSION_KEYS,
+  isAccountRole,
+  parseDashboardPermissions,
+} from "@/lib/auth/roles";
 import {
   checkRateLimit,
   rateLimitResponse,
@@ -79,7 +83,13 @@ export async function POST(request: Request) {
     if (!limit.success) return rateLimitResponse(limit);
 
     const body = (await request.json().catch(() => null)) as
-      | { role?: unknown; expiresInDays?: unknown; label?: unknown }
+      | {
+          role?: unknown;
+          expiresInDays?: unknown;
+          label?: unknown;
+          dashboardPermissions?: unknown;
+          individualSalesGoal?: unknown;
+        }
       | null;
 
     const role = body?.role;
@@ -91,6 +101,19 @@ export async function POST(request: Request) {
         { error: "'role' must be one of admin, agent, viewer" },
         { status: 400 },
       );
+    }
+
+    let dashboardPermissions: ReturnType<typeof parseDashboardPermissions> = {};
+    if (body?.dashboardPermissions !== undefined) {
+      dashboardPermissions = parseDashboardPermissions(body.dashboardPermissions);
+      if (dashboardPermissions === null) {
+        return NextResponse.json(
+          {
+            error: `'dashboardPermissions' must be an object with boolean values, keys limited to: ${DASHBOARD_PERMISSION_KEYS.join(", ")}`,
+          },
+          { status: 400 },
+        );
+      }
     }
 
     const expiresInDaysRaw = body?.expiresInDays;
@@ -114,6 +137,23 @@ export async function POST(request: Request) {
       label = trimmed === "" ? null : trimmed;
     }
 
+    // The invitee's individual monthly sales goal, set right here in
+    // the "Add member" form. Stored on the invite (there's no profile
+    // — and so no sales_goals row — until it's redeemed); redeem_invitation
+    // (migration 055) creates the actual sales_goals row for the month
+    // the member actually joins.
+    let individualSalesGoal: number | null = null;
+    if (body?.individualSalesGoal !== undefined && body?.individualSalesGoal !== null) {
+      const raw = body.individualSalesGoal;
+      if (typeof raw !== "number" || !Number.isFinite(raw) || raw < 0) {
+        return NextResponse.json(
+          { error: "'individualSalesGoal' must be a non-negative number" },
+          { status: 400 },
+        );
+      }
+      individualSalesGoal = raw;
+    }
+
     const { token, hash } = generateInviteToken();
 
     const { data, error } = await ctx.supabase
@@ -125,6 +165,8 @@ export async function POST(request: Request) {
         created_by_user_id: ctx.userId,
         label,
         expires_at: expiresAt.toISOString(),
+        dashboard_permissions: dashboardPermissions ?? {},
+        individual_sales_goal: individualSalesGoal,
       })
       .select("id, role, label, expires_at, created_at")
       .single();

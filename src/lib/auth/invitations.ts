@@ -25,11 +25,19 @@
 
 import { createHash, randomBytes } from "node:crypto";
 
-/** Default invite link lifetime if the caller doesn't specify. */
-export const DEFAULT_INVITE_EXPIRY_DAYS = 7;
+/**
+ * Default invite link lifetime. The "Add member" form doesn't expose
+ * an expiry choice anymore — every link effectively never expires in
+ * practice (10 years). `expires_at` stays NOT NULL in the DB rather
+ * than reworking every expiry check to handle NULL, so this is a
+ * long-but-finite stand-in for "no restriction" instead of a literal
+ * forever.
+ */
+export const DEFAULT_INVITE_EXPIRY_DAYS = 3650;
 
-/** Hard ceiling on user-supplied `expiresInDays` (1 year). */
-export const MAX_INVITE_EXPIRY_DAYS = 365;
+/** Hard ceiling on user-supplied `expiresInDays`. Matches the default
+ *  since nothing in the UI offers a shorter choice anymore. */
+export const MAX_INVITE_EXPIRY_DAYS = 3650;
 
 export interface GeneratedToken {
   /** Plaintext token — return to the creator ONCE, never persist. */

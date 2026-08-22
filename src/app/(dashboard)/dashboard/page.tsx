@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
@@ -10,6 +10,10 @@ import {
   UserPlus,
   DollarSign,
   Send,
+  Handshake,
+  Target,
+  TrendingUp,
+  Users2,
 } from 'lucide-react'
 
 import {
@@ -19,6 +23,14 @@ import {
   loadPipelineDonut,
   loadResponseTime,
 } from '@/lib/dashboard/queries'
+import {
+  loadCeoAlerts,
+  loadCeoMetrics,
+  loadCommercialMetrics,
+  loadSalesFunnel,
+  loadSalesVsGoal,
+  loadTopSellers,
+} from '@/lib/dashboard/ceo-queries'
 import type {
   ConversationsSeriesPoint,
   HotUnansweredItem,
@@ -26,6 +38,14 @@ import type {
   PipelineDonutData,
   ResponseTimeSummary,
 } from '@/lib/dashboard/types'
+import type {
+  CeoAlerts,
+  CeoMetrics,
+  CommercialMetrics,
+  FunnelStep,
+  SalesVsGoalPoint,
+  TopSeller,
+} from '@/lib/dashboard/ceo-types'
 
 import { MetricCard } from '@/components/dashboard/metric-card'
 import { SkeletonCard } from '@/components/dashboard/skeleton'
@@ -35,14 +55,45 @@ import { PipelineDonut } from '@/components/dashboard/pipeline-donut'
 import { ResponseTimeChart } from '@/components/dashboard/response-time-chart'
 import { HotUnansweredCard } from '@/components/dashboard/hot-unanswered-card'
 import { TeamCard } from '@/components/dashboard/team-card'
+import { SalesVsGoalChart } from '@/components/dashboard/ceo/sales-vs-goal-chart'
+import { SalesFunnel } from '@/components/dashboard/ceo/sales-funnel'
+import { CommercialMetricsCard } from '@/components/dashboard/ceo/commercial-metrics-card'
+import { TopSellersCard } from '@/components/dashboard/ceo/top-sellers-card'
+import { AlertsCard } from '@/components/dashboard/ceo/alerts-card'
 
 import { useTranslations } from 'next-intl'
 
 type RangeDays = 7 | 30 | 90
 
+// Open deals sitting untouched this long count as "stalled" in the
+// sales Alerts card.
+const STALE_DAYS = 7
+
 export default function DashboardPage() {
   const t = useTranslations('Dashboard.page')
-  const { profile, defaultCurrency } = useAuth()
+  const tCeo = useTranslations('Dashboard.ceo.page')
+  const { profile, defaultCurrency, accountId, canViewDashboardSection } = useAuth()
+
+  // One /dashboard for everyone — what used to be a separate
+  // owner-only /ceo page is now just a section of this page, gated
+  // per-widget instead of per-route (see migration 054 / Settings →
+  // Team members' per-member "dashboard access" editor). `sales`
+  // groups the six checks so the loaders/JSX below don't repeat the
+  // `canViewDashboardSection(...)` call six times each.
+  const sales = useMemo(
+    () => ({
+      kpis: canViewDashboardSection('salesKpis'),
+      vsGoal: canViewDashboardSection('salesVsGoal'),
+      funnel: canViewDashboardSection('salesFunnel'),
+      commercial: canViewDashboardSection('commercialMetrics'),
+      topSellers: canViewDashboardSection('topSellers'),
+      alerts: canViewDashboardSection('alerts'),
+    }),
+    [canViewDashboardSection],
+  )
+  const hasAnySalesAccess =
+    sales.kpis || sales.vsGoal || sales.funnel || sales.commercial || sales.topSellers || sales.alerts
+
   const [metrics, setMetrics] = useState<MetricsBundle | null>(null)
   const [metricsLoading, setMetricsLoading] = useState(true)
 
@@ -65,6 +116,20 @@ export default function DashboardPage() {
 
   const [hotUnanswered, setHotUnanswered] = useState<HotUnansweredItem[] | null>(null)
   const [hotUnansweredLoading, setHotUnansweredLoading] = useState(true)
+
+  // Sales section state — only ever fetched when `hasAnySalesAccess`.
+  const [ceoMetrics, setCeoMetrics] = useState<CeoMetrics | null>(null)
+  const [ceoMetricsLoading, setCeoMetricsLoading] = useState(true)
+  const [salesVsGoal, setSalesVsGoal] = useState<SalesVsGoalPoint[] | null>(null)
+  const [salesVsGoalLoading, setSalesVsGoalLoading] = useState(true)
+  const [funnel, setFunnel] = useState<FunnelStep[] | null>(null)
+  const [funnelLoading, setFunnelLoading] = useState(true)
+  const [commercial, setCommercial] = useState<CommercialMetrics | null>(null)
+  const [commercialLoading, setCommercialLoading] = useState(true)
+  const [topSellers, setTopSellers] = useState<TopSeller[] | null>(null)
+  const [topSellersLoading, setTopSellersLoading] = useState(true)
+  const [alerts, setAlerts] = useState<CeoAlerts | null>(null)
+  const [alertsLoading, setAlertsLoading] = useState(true)
 
   const loadAll = useCallback(() => {
     const db = createClient()
@@ -96,7 +161,52 @@ export default function DashboardPage() {
       .then((h) => setHotUnanswered(h))
       .catch((err) => console.error('[dashboard] hot-unanswered failed:', err))
       .finally(() => setHotUnansweredLoading(false))
-  }, [])
+
+    if (!hasAnySalesAccess) {
+      setCeoMetricsLoading(false)
+      setSalesVsGoalLoading(false)
+      setFunnelLoading(false)
+      setCommercialLoading(false)
+      setTopSellersLoading(false)
+      setAlertsLoading(false)
+      return
+    }
+
+    void loadCeoMetrics(db)
+      .then((m) => {
+        setCeoMetrics(m)
+        // Alerts need the full metrics bundle this same call already
+        // computed — fetch it right after instead of re-scanning
+        // open deals a second time.
+        setAlertsLoading(true)
+        void loadCeoAlerts(db, m, STALE_DAYS)
+          .then((a) => setAlerts(a))
+          .catch((err) => console.error('[dashboard] sales alerts failed:', err))
+          .finally(() => setAlertsLoading(false))
+      })
+      .catch((err) => console.error('[dashboard] sales metrics failed:', err))
+      .finally(() => setCeoMetricsLoading(false))
+
+    void loadSalesVsGoal(db, 6)
+      .then((s) => setSalesVsGoal(s))
+      .catch((err) => console.error('[dashboard] sales-vs-goal failed:', err))
+      .finally(() => setSalesVsGoalLoading(false))
+
+    void loadSalesFunnel(db)
+      .then((f) => setFunnel(f))
+      .catch((err) => console.error('[dashboard] funnel failed:', err))
+      .finally(() => setFunnelLoading(false))
+
+    void loadCommercialMetrics(db)
+      .then((c) => setCommercial(c))
+      .catch((err) => console.error('[dashboard] commercial metrics failed:', err))
+      .finally(() => setCommercialLoading(false))
+
+    void loadTopSellers(db)
+      .then((s) => setTopSellers(s))
+      .catch((err) => console.error('[dashboard] top-sellers failed:', err))
+      .finally(() => setTopSellersLoading(false))
+  }, [hasAnySalesAccess])
 
   // Re-fetch every time this route becomes the active page — not just
   // on first mount. Next's client router cache can keep this page's
@@ -120,6 +230,34 @@ export default function DashboardPage() {
     document.addEventListener('visibilitychange', onVisibility)
     return () => document.removeEventListener('visibilitychange', onVisibility)
   }, [loadAll])
+
+  // Live updates for the sales section — a deal closing or a goal
+  // being edited anywhere in the app should reflect here without a
+  // manual refresh. Same `postgres_changes` + account-scoped filter
+  // pattern as usePresence/message-thread; the payload isn't used
+  // directly, it just triggers a reload since so many KPIs derive
+  // from the same underlying deal rows. Skipped entirely for viewers
+  // with no sales access — no point subscribing to data they can't see.
+  useEffect(() => {
+    if (!accountId || !hasAnySalesAccess) return
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`dashboard-sales:${accountId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'deals', filter: `account_id=eq.${accountId}` },
+        () => loadAll(),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'sales_goals', filter: `account_id=eq.${accountId}` },
+        () => loadAll(),
+      )
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [accountId, hasAnySalesAccess, loadAll])
 
   // Range switch handler — kept in an event callback (not an effect)
   // so the setState calls stay out of the react-hooks/set-state-in-effect
@@ -166,8 +304,8 @@ export default function DashboardPage() {
               delta={{
                 sign: metrics.activeConversations.previous,
                 label: deltaLabel(
-                  metrics.activeConversations.previous, 
-                  t('newTodayVsYesterday'), 
+                  metrics.activeConversations.previous,
+                  t('newTodayVsYesterday'),
                   t('noChange', { suffix: t('newTodayVsYesterday') })
                 ),
               }}
@@ -253,6 +391,108 @@ export default function DashboardPage() {
           <HotUnansweredCard items={hotUnanswered} loading={hotUnansweredLoading} />
         </div>
       </div>
+
+      {/* Sales section — visible only to whoever has at least one of
+          the six sales-widget permissions (owner always does; see
+          Settings → Team members to grant others). Not a separate
+          page: everyone lands on the same /dashboard, this block
+          simply doesn't render for people without any sales access. */}
+      {hasAnySalesAccess && (
+        <div className="space-y-4 border-t border-border pt-5">
+          <h2 className="text-lg font-semibold text-foreground">{tCeo('salesSectionTitle')}</h2>
+
+          {sales.kpis && (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              {ceoMetricsLoading || !ceoMetrics ? (
+                Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={i} />)
+              ) : (
+                <>
+                  <MetricCard
+                    title={tCeo('sales')}
+                    value={formatCurrency(ceoMetrics.salesThisMonth.current, defaultCurrency)}
+                    icon={TrendingUp}
+                    tint="green"
+                    delta={{
+                      sign: ceoMetrics.salesThisMonth.current - ceoMetrics.salesThisMonth.previous,
+                      label: ceoDeltaLabel(
+                        ceoMetrics.salesThisMonth.current - ceoMetrics.salesThisMonth.previous,
+                        defaultCurrency,
+                        tCeo,
+                      ),
+                    }}
+                  />
+                  <MetricCard
+                    title={tCeo('goal')}
+                    value={ceoMetrics.goalThisMonth != null ? formatCurrency(ceoMetrics.goalThisMonth, defaultCurrency) : '—'}
+                    icon={Target}
+                    tint="blue"
+                    subtitle={
+                      ceoMetrics.goalAttainmentPct != null
+                        ? tCeo('goalAttainment', { pct: ceoMetrics.goalAttainmentPct.toFixed(1) })
+                        : tCeo('goalNotSet')
+                    }
+                  />
+                  <MetricCard
+                    title={tCeo('pipeline')}
+                    value={formatCurrency(ceoMetrics.pipelineTotal, defaultCurrency)}
+                    icon={Handshake}
+                    tint="purple"
+                    subtitle={
+                      ceoMetrics.pipelineCoverage != null
+                        ? tCeo('pipelineCoverage', { multiple: ceoMetrics.pipelineCoverage.toFixed(1) })
+                        : undefined
+                    }
+                  />
+                  <MetricCard
+                    title={tCeo('forecast')}
+                    value={formatCurrency(ceoMetrics.forecast, defaultCurrency)}
+                    icon={TrendingUp}
+                    tint="amber"
+                    subtitle={ceoMetrics.forecastPct != null ? tCeo('forecastOfGoal', { pct: ceoMetrics.forecastPct.toFixed(0) }) : undefined}
+                  />
+                  <MetricCard
+                    title={tCeo('clients')}
+                    value={ceoMetrics.totalClients.toLocaleString()}
+                    icon={Users2}
+                    tint="teal"
+                    delta={{
+                      sign: ceoMetrics.newClients.current - ceoMetrics.newClients.previous,
+                      label: ceoDeltaCountLabel(ceoMetrics.newClients.current - ceoMetrics.newClients.previous, tCeo),
+                    }}
+                  />
+                </>
+              )}
+            </div>
+          )}
+
+          {sales.vsGoal && (
+            <SalesVsGoalChart data={salesVsGoal} loading={salesVsGoalLoading} currency={defaultCurrency} />
+          )}
+
+          {sales.funnel && (
+            <SalesFunnel data={funnel} loading={funnelLoading} currency={defaultCurrency} />
+          )}
+
+          {(sales.commercial || sales.alerts) && (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+              {sales.commercial && (
+                <div className={sales.alerts ? 'h-full lg:col-span-2' : 'h-full'}>
+                  <CommercialMetricsCard data={commercial} loading={commercialLoading} currency={defaultCurrency} />
+                </div>
+              )}
+              {sales.alerts && (
+                <div className={sales.commercial ? 'h-full lg:col-span-3' : 'h-full'}>
+                  <AlertsCard data={alerts} loading={alertsLoading} currency={defaultCurrency} staleDays={STALE_DAYS} />
+                </div>
+              )}
+            </div>
+          )}
+
+          {sales.topSellers && (
+            <TopSellersCard data={topSellers} loading={topSellersLoading} currency={defaultCurrency} />
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -263,4 +503,20 @@ function deltaLabel(delta: number, suffix: string, noChangeLabel: string): strin
   if (delta === 0) return noChangeLabel
   const sign = delta > 0 ? '+' : ''
   return `${sign}${delta.toLocaleString()} ${suffix}`
+}
+
+function ceoDeltaLabel(
+  delta: number,
+  currency: string,
+  t: ReturnType<typeof useTranslations>,
+): string {
+  if (delta === 0) return t('noChangeVsLastMonth')
+  const sign = delta > 0 ? '+' : ''
+  return `${sign}${formatCurrency(delta, currency)} ${t('vsLastMonth')}`
+}
+
+function ceoDeltaCountLabel(delta: number, t: ReturnType<typeof useTranslations>): string {
+  if (delta === 0) return t('noChangeVsLastMonth')
+  const sign = delta > 0 ? '+' : ''
+  return `${sign}${delta.toLocaleString()} ${t('vsLastMonth')}`
 }

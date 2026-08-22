@@ -17,8 +17,11 @@ import {
   canEditSettings as canEditSettingsFor,
   canManageMembers as canManageMembersFor,
   canSendMessages as canSendMessagesFor,
+  canViewDashboardSection as canViewDashboardSectionFor,
   isAccountRole,
   type AccountRole,
+  type DashboardPermissionKey,
+  type DashboardPermissions,
 } from "@/lib/auth/roles";
 
 interface Profile {
@@ -35,6 +38,9 @@ interface Profile {
   beta_features: string[];
   account_id: string | null;
   account_role: AccountRole | null;
+  /** Explicit per-widget overrides for the sales section of
+   *  /dashboard (migration 054). */
+  dashboard_permissions: DashboardPermissions;
 }
 
 interface AccountSummary {
@@ -102,6 +108,14 @@ interface AuthContextValue {
   canEditSettings: boolean;
   /** True if the caller can send messages and edit operational data (agent+). */
   canSendMessages: boolean;
+  /**
+   * Whether the caller can see a given sales widget on /dashboard
+   * (migration 054). Owners always see every widget; everyone else
+   * resolves through their explicit overrides, falling back to a
+   * role default — see `canViewDashboardSection` in @/lib/auth/roles.
+   * Returns false while the profile is still loading (fail closed).
+   */
+  canViewDashboardSection: (key: DashboardPermissionKey) => boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -138,7 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data, error } = await supabase
         .from("profiles")
         .select(
-          "id, full_name, email, avatar_url, role, beta_features, account_id, account_role",
+          "id, full_name, email, avatar_url, role, beta_features, account_id, account_role, dashboard_permissions",
         )
         .eq("user_id", userId)
         .maybeSingle();
@@ -212,6 +226,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           beta_features: data.beta_features ?? [],
           account_id: data.account_id ?? null,
           account_role: accountRole,
+          // JSONB column, NOT NULL DEFAULT '{}' in the DB — narrow
+          // defensively in case an older cached row ever reads null.
+          dashboard_permissions: (data.dashboard_permissions as DashboardPermissions) ?? {},
         });
         setAccount(accountRow);
       } else {
@@ -320,18 +337,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // dependencies downstream.
   const derived = useMemo(() => {
     const role = profile?.account_role ?? null;
+    const isOwner = role === "owner";
+    const permissions = profile?.dashboard_permissions ?? null;
     return {
       accountRole: role,
       accountId: profile?.account_id ?? null,
-      isOwner: role === "owner",
+      isOwner,
       isAdmin: role === "admin",
       isAgent: role === "agent",
       isViewer: role === "viewer",
       canManageMembers: role ? canManageMembersFor(role) : false,
       canEditSettings: role ? canEditSettingsFor(role) : false,
       canSendMessages: role ? canSendMessagesFor(role) : false,
+      canViewDashboardSection: (key: DashboardPermissionKey): boolean => {
+        if (!role) return false;
+        return isOwner || canViewDashboardSectionFor(role, permissions, key);
+      },
     };
-  }, [profile?.account_role, profile?.account_id]);
+  }, [profile?.account_role, profile?.account_id, profile?.dashboard_permissions]);
 
   return (
     <AuthContext.Provider
@@ -383,6 +406,7 @@ export function useAuth(): AuthContextValue {
       canManageMembers: false,
       canEditSettings: false,
       canSendMessages: false,
+      canViewDashboardSection: () => false,
     };
   }
   return ctx;

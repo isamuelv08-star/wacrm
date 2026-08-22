@@ -26,6 +26,7 @@ interface ProfileRow {
   account_role: string;
   created_at: string;
   round_robin_opt_in: boolean | null;
+  dashboard_permissions: Record<string, boolean> | null;
 }
 
 export async function GET() {
@@ -37,7 +38,7 @@ export async function GET() {
     const { data, error } = await ctx.supabase
       .from("profiles")
       .select(
-        "user_id, full_name, email, avatar_url, account_role, created_at, round_robin_opt_in",
+        "user_id, full_name, email, avatar_url, account_role, created_at, round_robin_opt_in, dashboard_permissions",
       )
       .eq("account_id", ctx.accountId)
       .order("created_at", { ascending: true });
@@ -68,6 +69,7 @@ export async function GET() {
           round_robin_opt_in: row.round_robin_opt_in,
           receives_round_robin_leads:
             row.round_robin_opt_in ?? row.account_role === "agent",
+          dashboard_permissions: row.dashboard_permissions ?? {},
         },
       ];
     });
