@@ -284,6 +284,37 @@ export default function DashboardPage() {
     }
   }, [accountId, hasAnySalesAccess, loadAll])
 
+  // Live updates for the KPI row and the operational cards (Pipeline
+  // Donut, Hot Unanswered) — these only ever refreshed on mount,
+  // pathname change, or regained tab visibility, so a contact/deal
+  // created or moved elsewhere in the app (another tab, a teammate,
+  // an automation) left the numbers stale until one of those fired.
+  // `messages` is deliberately excluded — it's high-volume enough
+  // (every inbound/outbound message) that subscribing to it here
+  // would reload the whole dashboard on every chat exchange, and
+  // "messages sent today" doesn't need per-message granularity the
+  // way "a new contact showed up" does.
+  useEffect(() => {
+    if (!accountId) return
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`dashboard-activity:${accountId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'contacts', filter: `account_id=eq.${accountId}` },
+        () => loadAll(),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'conversations', filter: `account_id=eq.${accountId}` },
+        () => loadAll(),
+      )
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [accountId, loadAll])
+
   // Range switch handler — kept in an event callback (not an effect)
   // so the setState calls stay out of the react-hooks/set-state-in-effect
   // rule's way. The cached bucket check means switching back to a

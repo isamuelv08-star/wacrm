@@ -265,6 +265,26 @@ export default function PipelinesPage() {
     setDeals(await loadDeals(selectedPipelineId));
   }, [loadDeals, selectedPipelineId]);
 
+  // Live updates — this page had no realtime subscription at all, so
+  // a deal created/moved/edited by a teammate (or an automation, or
+  // the AI bot) never showed up here without a manual reload. Same
+  // postgres_changes + account-scoped filter pattern the dashboard
+  // already uses for its own sales section.
+  useEffect(() => {
+    if (!accountId) return;
+    const channel = supabase
+      .channel(`pipelines:${accountId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "deals", filter: `account_id=eq.${accountId}` },
+        () => refreshDeals(),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [accountId, supabase, refreshDeals]);
+
   const handleDealMoved = useCallback(
     async (dealId: string, newStageId: string) => {
       // Optimistic update — board already animated; just persist.

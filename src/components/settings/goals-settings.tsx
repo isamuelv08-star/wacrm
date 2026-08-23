@@ -139,15 +139,18 @@ export function GoalsSettings() {
       }
 
       for (const m of members) {
-        const raw = memberInputs[m.user_id];
+        // sales_goals.user_id is a FK to profiles.id (see migration
+        // 053), not the auth user id — profile_id, not user_id, is
+        // what has to go in that column.
+        const raw = memberInputs[m.profile_id];
         if (raw === undefined || raw.trim() === "") continue;
         const value = Number(raw);
         if (Number.isNaN(value) || value < 0) continue;
-        const existing = memberGoals[m.user_id] ?? null;
+        const existing = memberGoals[m.profile_id] ?? null;
         // Skip untouched rows — a member with no goal set and an empty
         // input shouldn't create a $0 row.
         if (!existing && value === 0) continue;
-        writes.push(upsertGoal(m.user_id, existing, value));
+        writes.push(upsertGoal(m.profile_id, existing, value));
       }
 
       const results = await Promise.all(writes);
@@ -217,16 +220,16 @@ export function GoalsSettings() {
             ) : (
               <ul className="space-y-3">
                 {members.map((m) => (
-                  <li key={m.user_id} className="flex items-center gap-3">
+                  <li key={m.profile_id} className="flex items-center gap-3">
                     <span className="min-w-0 flex-1 truncate text-sm text-foreground">
                       {m.full_name || m.email || t("unnamed")}
                     </span>
                     <Input
                       type="number"
                       min={0}
-                      value={memberInputs[m.user_id] ?? ""}
+                      value={memberInputs[m.profile_id] ?? ""}
                       onChange={(e) =>
-                        setMemberInputs((prev) => ({ ...prev, [m.user_id]: e.target.value }))
+                        setMemberInputs((prev) => ({ ...prev, [m.profile_id]: e.target.value }))
                       }
                       disabled={!canEditSettings || profileLoading || saving}
                       placeholder="0"

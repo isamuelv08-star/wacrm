@@ -253,7 +253,12 @@ export async function loadTopSellers(db: DB, rangeDays: number, limit = 5): Prom
   const daysInMonth = daysInMonthOf(now)
 
   const [membersRes, dealsRes, goalsRes] = await Promise.all([
-    db.from('profiles').select('user_id, full_name, email'),
+    // profiles.id (NOT user_id) is what deals.assigned_to and
+    // sales_goals.user_id actually reference (see migrations 002 and
+    // 053) — every leaderboard row used to key off profiles.user_id
+    // instead, so soldByUser/goalByUser below never matched any
+    // member and this leaderboard silently rendered empty.
+    db.from('profiles').select('id, full_name, email'),
     db
       .from('deals')
       .select('assigned_to, value')
@@ -270,27 +275,27 @@ export async function loadTopSellers(db: DB, rangeDays: number, limit = 5): Prom
   if (dealsRes.error) throw dealsRes.error
   if (goalsRes.error) throw goalsRes.error
 
-  const soldByUser = new Map<string, number>()
+  const soldByMember = new Map<string, number>()
   for (const d of (dealsRes.data ?? []) as { assigned_to: string; value: number | null }[]) {
-    soldByUser.set(d.assigned_to, (soldByUser.get(d.assigned_to) ?? 0) + (d.value ?? 0))
+    soldByMember.set(d.assigned_to, (soldByMember.get(d.assigned_to) ?? 0) + (d.value ?? 0))
   }
-  const goalByUser = new Map<string, number>()
+  const goalByMember = new Map<string, number>()
   for (const g of (goalsRes.data ?? []) as { user_id: string; target_value: number }[]) {
-    goalByUser.set(g.user_id, (g.target_value / daysInMonth) * rangeDays)
+    goalByMember.set(g.user_id, (g.target_value / daysInMonth) * rangeDays)
   }
 
-  const members = (membersRes.data ?? []) as { user_id: string; full_name: string | null; email: string | null }[]
+  const members = (membersRes.data ?? []) as { id: string; full_name: string | null; email: string | null }[]
 
   return members
     // Only members who actually sold something in range, or have a
     // quota set — otherwise every viewer/admin with zero deals would
     // clutter what's meant to be a sales leaderboard.
-    .filter((m) => soldByUser.has(m.user_id) || goalByUser.has(m.user_id))
+    .filter((m) => soldByMember.has(m.id) || goalByMember.has(m.id))
     .map((m) => {
-      const soldThisMonth = soldByUser.get(m.user_id) ?? 0
-      const goal = goalByUser.get(m.user_id) ?? null
+      const soldThisMonth = soldByMember.get(m.id) ?? 0
+      const goal = goalByMember.get(m.id) ?? null
       return {
-        userId: m.user_id,
+        userId: m.id,
         name: m.full_name || m.email || '—',
         soldThisMonth,
         goal,

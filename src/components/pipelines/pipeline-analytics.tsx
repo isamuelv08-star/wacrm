@@ -100,12 +100,13 @@ export function PipelineAnalytics({ pipelineId, stages, deals }: PipelineAnalyti
     }, 0);
 
     const start = periodStart(period);
-    const inPeriod = (d: Deal) => {
-      const ts = d.updated_at ?? d.created_at;
-      return ts ? new Date(ts) >= start : false;
-    };
-    const wonInPeriod = deals.filter((d) => d.status === "won" && inPeriod(d)).length;
-    const lostInPeriod = deals.filter((d) => d.status === "lost" && inPeriod(d)).length;
+    // `closed_at` (migration 053), not `updated_at` — updated_at moves
+    // on any unrelated edit (title, notes, value), which would count a
+    // deal won/lost weeks ago as "in period" just because someone
+    // fixed a typo in its notes today.
+    const closedInPeriod = (d: Deal) => (d.closed_at ? new Date(d.closed_at) >= start : false);
+    const wonInPeriod = deals.filter((d) => d.status === "won" && closedInPeriod(d)).length;
+    const lostInPeriod = deals.filter((d) => d.status === "lost" && closedInPeriod(d)).length;
     const leadsEntered = deals.filter((d) => new Date(d.created_at) >= start).length;
 
     return {

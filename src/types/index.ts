@@ -79,6 +79,14 @@ export interface Account {
  * avatar + role only.
  */
 export interface AccountMember {
+  /** profiles.id — the FK target for tables like sales_goals.user_id
+   *  and deals.assigned_to, which reference the profile row itself,
+   *  NOT the auth user (see migrations 002/053). Use this, not
+   *  `user_id`, when writing to one of those columns. */
+  profile_id: string;
+  /** profiles.user_id (auth.users.id) — the FK target for
+   *  role/permission-keyed data (profiles.account_role lives on the
+   *  profile row itself, keyed by this). */
   user_id: string;
   full_name: string;
   email: string | null;
