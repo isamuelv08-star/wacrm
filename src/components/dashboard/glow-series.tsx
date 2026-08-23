@@ -51,7 +51,13 @@ export function GlowSeries({
 
       {/* Glow layer — same curve, wider + blurred + dim, sitting behind
           the crisp line so it reads as an ambient light rather than a
-          harsh outline. */}
+          harsh outline. `non-scaling-stroke` keeps the stroke a
+          constant on-screen width regardless of the parent SVG's
+          transform — several charts using this component render with
+          preserveAspectRatio="none" so their x-axis can stretch to
+          fill an arbitrary container width, and without this the
+          non-uniform scale visibly warped the line/glow into an
+          elongated, "estirado" oval instead of a clean round stroke. */}
       <path
         d={line}
         fill="none"
@@ -60,6 +66,7 @@ export function GlowSeries({
         strokeLinecap="round"
         strokeLinejoin="round"
         opacity={0.35}
+        vectorEffect="non-scaling-stroke"
         style={{ filter: 'blur(4px)' }}
       />
 
@@ -71,6 +78,7 @@ export function GlowSeries({
         strokeWidth={strokeWidth}
         strokeLinecap="round"
         strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
       />
     </g>
   )

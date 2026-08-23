@@ -442,6 +442,18 @@ export interface PipelineStage {
    * from a name or position.
    */
   is_qualified_stage?: boolean;
+  /**
+   * Admin-designated "landing here means the deal is won/lost"
+   * markers (migration 060) — at most one of each true per pipeline
+   * (partial unique indexes, same shape as is_qualified_stage above).
+   * A DB trigger syncs deals.status when a deal is created/moved into
+   * (or, for won, already existed in when the flag was set on) a
+   * stage carrying one of these — see that migration for why this is
+   * needed: stage_id and status used to be fully independent, so a
+   * custom "Perdidos" stage never actually marked anything Lost.
+   */
+  is_won_stage?: boolean;
+  is_lost_stage?: boolean;
   /** % chance a deal in this stage eventually closes won (migration
    *  053) — weights the CEO dashboard's forecast. Backfilled with a
    *  linear ramp by stage position; null only if the backfill somehow

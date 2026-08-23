@@ -34,6 +34,8 @@ import {
   GripVertical,
   AlertTriangle,
   Star,
+  Trophy,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
@@ -118,6 +120,8 @@ export function PipelineSettings({
       color: s.color,
       position: i,
       is_qualified_stage: s.is_qualified_stage ?? false,
+      is_won_stage: s.is_won_stage ?? false,
+      is_lost_stage: s.is_lost_stage ?? false,
       win_probability: s.win_probability ?? null,
     }));
 
@@ -256,6 +260,9 @@ export function PipelineSettings({
                 <p className="text-xs text-muted-foreground">
                   {t("qualifiedStageHint")}
                 </p>
+                <p className="text-xs text-muted-foreground">
+                  {t("wonLostStageHint")}
+                </p>
                 <DndContext
                   sensors={sensors}
                   collisionDetection={closestCenter}
@@ -292,6 +299,27 @@ export function PipelineSettings({
                                 ...s,
                                 is_qualified_stage:
                                   s.id === stage.id ? !s.is_qualified_stage : false,
+                              })),
+                            );
+                          }}
+                          onToggleWon={() => {
+                            setLocalStages(
+                              localStages.map((s) => ({
+                                ...s,
+                                is_won_stage: s.id === stage.id ? !s.is_won_stage : false,
+                                // A stage can't be both — picking Won
+                                // for this one clears any Lost flag it
+                                // might have had.
+                                is_lost_stage: s.id === stage.id ? false : s.is_lost_stage,
+                              })),
+                            );
+                          }}
+                          onToggleLost={() => {
+                            setLocalStages(
+                              localStages.map((s) => ({
+                                ...s,
+                                is_lost_stage: s.id === stage.id ? !s.is_lost_stage : false,
+                                is_won_stage: s.id === stage.id ? false : s.is_won_stage,
                               })),
                             );
                           }}
@@ -391,6 +419,8 @@ function SortableStageRow({
   onProbabilityChange,
   onRemove,
   onToggleQualified,
+  onToggleWon,
+  onToggleLost,
   colors,
   t,
 }: {
@@ -400,6 +430,8 @@ function SortableStageRow({
   onProbabilityChange: (v: number | null) => void;
   onRemove: () => void;
   onToggleQualified: () => void;
+  onToggleWon: () => void;
+  onToggleLost: () => void;
   colors: string[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   t: any;
@@ -465,6 +497,34 @@ function SortableStageRow({
           className="h-3 w-3"
           fill={stage.is_qualified_stage ? "currentColor" : "none"}
         />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        onClick={onToggleWon}
+        aria-pressed={!!stage.is_won_stage}
+        title={t("markAsWonStage")}
+        className={
+          stage.is_won_stage
+            ? "text-primary hover:text-primary/80"
+            : "text-muted-foreground hover:text-primary"
+        }
+      >
+        <Trophy className="h-3 w-3" fill={stage.is_won_stage ? "currentColor" : "none"} />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        onClick={onToggleLost}
+        aria-pressed={!!stage.is_lost_stage}
+        title={t("markAsLostStage")}
+        className={
+          stage.is_lost_stage
+            ? "text-red-400 hover:text-red-300"
+            : "text-muted-foreground hover:text-red-400"
+        }
+      >
+        <XCircle className="h-3 w-3" fill={stage.is_lost_stage ? "currentColor" : "none"} />
       </Button>
       <Button
         variant="ghost"

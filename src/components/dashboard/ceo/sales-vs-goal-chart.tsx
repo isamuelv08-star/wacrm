@@ -34,13 +34,22 @@ export function SalesVsGoalChart({ data, loading, currency }: SalesVsGoalChartPr
   const t = useTranslations('Dashboard.ceo.salesVsGoal')
   const hasData = (data ?? []).some((p) => p.actual > 0 || p.goal)
 
-  // Current month's attainment — the headline this chart exists to
-  // answer ("are we on track?") surfaced right in the header instead
-  // of making the reader trace the last two points on the plot
-  // themselves. Only the most recent point counts as "current."
-  const current = data && data.length > 0 ? data[data.length - 1] : null
-  const attainmentPct =
-    current?.goal != null && current.goal > 0 ? (current.actual / current.goal) * 100 : null
+  // Attainment for the whole selected period — the headline this
+  // chart exists to answer ("are we on track?") surfaced right in the
+  // header instead of making the reader trace the plot themselves.
+  // Summed across every bucket in view, not just the last one: this
+  // used to read `data[data.length - 1]` back when each point was a
+  // full month, so "the last point" meant "this month" — now that the
+  // range can bucket into daily points, the last point is just today,
+  // and comparing today's actual against today's 1/31st goal slice
+  // produced a badge that looked wildly wrong (near 0% most days)
+  // regardless of real progress toward the period's goal.
+  const attainmentPct = useMemo(() => {
+    if (!data || data.length === 0) return null
+    const totalActual = data.reduce((sum, p) => sum + p.actual, 0)
+    const totalGoal = data.reduce((sum, p) => sum + (p.goal ?? 0), 0)
+    return totalGoal > 0 ? (totalActual / totalGoal) * 100 : null
+  }, [data])
 
   return (
     <section className="flex h-full flex-col rounded-xl border border-border bg-card">
