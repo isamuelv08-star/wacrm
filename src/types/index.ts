@@ -787,3 +787,37 @@ export interface QuickReply {
   created_at: string;
   updated_at: string;
 }
+
+// ============================================================
+// Calendar — calls, meetings, follow-ups, tasks (migration 057)
+// ============================================================
+
+export type CalendarEventType = 'call' | 'meeting' | 'follow_up' | 'task' | 'other';
+export type CalendarEventStatus = 'pending' | 'completed' | 'cancelled';
+
+export interface CalendarEvent {
+  id: string;
+  account_id: string;
+  /** profiles.id, NOT auth.users.id — matches deals.assigned_to's
+   *  convention (see migration 057's header note). */
+  created_by?: string | null;
+  assigned_to?: string | null;
+  contact_id?: string | null;
+  deal_id?: string | null;
+  type: CalendarEventType;
+  title: string;
+  notes?: string | null;
+  starts_at: string;
+  ends_at?: string | null;
+  status: CalendarEventStatus;
+  completed_at?: string | null;
+  /** NULL = no reminder configured. */
+  reminder_minutes_before?: number | null;
+  reminder_sent_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  /** Hydrated by queries that embed the relation — absent otherwise. */
+  contact?: Contact;
+  deal?: Deal;
+  assignee?: Profile;
+}

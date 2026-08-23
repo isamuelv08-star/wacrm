@@ -37,6 +37,7 @@ import {
   Phone,
   Mail,
   Building2,
+  CalendarPlus,
   Copy,
   Check,
   Loader2,
@@ -49,6 +50,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { EventFormDialog } from '@/components/calendar/event-form-dialog';
 
 interface ContactDetailViewProps {
   open: boolean;
@@ -76,6 +78,11 @@ export function ContactDetailView({
   // find-or-creates the conversation, so no inbound message is required.
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [sendingTemplate, setSendingTemplate] = useState(false);
+
+  // Quick-schedule — opens the calendar's create dialog pre-filled
+  // with this contact, so a call/follow-up can be booked without
+  // leaving the panel.
+  const [scheduleOpen, setScheduleOpen] = useState(false);
 
   // Details tab
   const [editName, setEditName] = useState('');
@@ -453,7 +460,7 @@ export function ContactDetailView({
                   </div>
                 </div>
               </div>
-              <div className="mt-3">
+              <div className="mt-3 flex gap-2">
                 <Button
                   size="sm"
                   onClick={() => setTemplatePickerOpen(true)}
@@ -466,6 +473,15 @@ export function ContactDetailView({
                     <LayoutTemplate className="size-4" />
                   )}
                   {t('sendTemplateBtn')}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setScheduleOpen(true)}
+                  className="border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <CalendarPlus className="size-4" />
+                  {t('scheduleBtn')}
                 </Button>
               </div>
             </SheetHeader>
@@ -794,6 +810,12 @@ export function ContactDetailView({
       open={templatePickerOpen}
       onOpenChange={setTemplatePickerOpen}
       onSelect={handleSendTemplate}
+    />
+    <EventFormDialog
+      open={scheduleOpen}
+      onOpenChange={setScheduleOpen}
+      defaultContactId={contact?.id ?? null}
+      onSaved={() => {}}
     />
     </>
   );

@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  CalendarPlus,
   Check,
   X,
   Trash2,
@@ -40,6 +41,7 @@ import {
   fetchContactCustomFields,
   type CustomFieldWithValue,
 } from "@/lib/contacts/custom-fields";
+import { EventFormDialog } from "@/components/calendar/event-form-dialog";
 
 interface DealFormProps {
   open: boolean;
@@ -86,6 +88,10 @@ export function DealForm({
   const [statusAction, setStatusAction] = useState<DealStatus | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Quick-schedule — opens the calendar's create dialog pre-filled
+  // with this deal's contact/deal, so a follow-up can be booked
+  // without leaving the sheet.
+  const [scheduleOpen, setScheduleOpen] = useState(false);
 
   // Reset the form fields every time the sheet opens or its input
   // props change. This is a legitimate prop-driven sync; the rule is
@@ -424,6 +430,18 @@ export function DealForm({
             </div>
 
             {deal && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setScheduleOpen(true)}
+                className="w-full border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <CalendarPlus className="h-4 w-4" />
+                {t("scheduleFollowUp")}
+              </Button>
+            )}
+
+            {deal && (
               <div className="space-y-2 rounded-lg border border-border bg-muted/50 p-3">
                 <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   {t("status")}
@@ -529,6 +547,15 @@ export function DealForm({
           </div>
         </div>
       </SheetContent>
+      {deal && (
+        <EventFormDialog
+          open={scheduleOpen}
+          onOpenChange={setScheduleOpen}
+          defaultContactId={deal.contact_id}
+          defaultDealId={deal.id}
+          onSaved={() => {}}
+        />
+      )}
     </Sheet>
   );
 }
