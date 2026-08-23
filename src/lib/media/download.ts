@@ -1,4 +1,5 @@
 import type { Message } from "@/types";
+import { clickAnchor, downloadBlob } from "@/lib/download-file";
 import { loadMediaBlob, MediaResponseError } from "./blob-cache";
 import { mediaFilename } from "./filename";
 
@@ -36,44 +37,11 @@ export async function downloadMediaMessage(message: Message): Promise<void> {
     throw error;
   }
 
-  const objectUrl = URL.createObjectURL(blob);
-  try {
-    clickAnchor({
-      href: objectUrl,
-      download: mediaFilename(message, blob.type),
-    });
-  } finally {
-    // Revoking in the same tick can cancel the download in Safari; a beat
-    // later the browser has taken its own reference to the bytes.
-    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-  }
+  downloadBlob(blob, mediaFilename(message, blob.type));
 }
 
 function openInNewTab(url: string): boolean {
   if (typeof document === "undefined") return false;
   clickAnchor({ href: url, target: "_blank" });
   return true;
-}
-
-/**
- * Programmatic anchor click. An anchor is used rather than `window.open`
- * because it isn't subject to the popup blocker, and because `download`
- * only exists on anchors.
- */
-function clickAnchor(attrs: {
-  href: string;
-  download?: string;
-  target?: string;
-}): void {
-  const a = document.createElement("a");
-  a.href = attrs.href;
-  if (attrs.download) a.download = attrs.download;
-  if (attrs.target) {
-    a.target = attrs.target;
-    a.rel = "noopener noreferrer";
-  }
-  a.style.display = "none";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
 }
