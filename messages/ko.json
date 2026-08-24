@@ -1,4 +1,16 @@
 {
+  "Common": {
+    "period": {
+      "presetThisMonth": "이번 달",
+      "presetLastMonth": "지난 달",
+      "presetThisQuarter": "이번 분기",
+      "presetThisYear": "올해",
+      "presetAllTime": "전체 기간",
+      "presetCustom": "직접 설정",
+      "from": "시작",
+      "to": "종료"
+    }
+  },
   "LoginPage": {
     "titleAccept": "로그인하여 수락하기",
     "titleWelcome": "다시 오신 것을 환영합니다",
@@ -87,15 +99,7 @@
       "activeConversationsDesc": "현재 읽지 않았거나 해결되지 않은 메시지가 있는 대화입니다.",
       "newContactsTodayDesc": "오늘 자정 이후 생성된 신규 연락처입니다.",
       "openDealsValueDesc": "파이프라인에 있는 모든 진행 중인 딜의 총 금액입니다.",
-      "messagesSentTodayDesc": "오늘 회원님과 팀이 발신한 메시지입니다.",
-      "period": {
-        "1": "1일",
-        "7": "7일",
-        "15": "15일",
-        "30": "30일",
-        "180": "6개월",
-        "365": "1년"
-      }
+      "messagesSentTodayDesc": "오늘 회원님과 팀이 발신한 메시지입니다."
     },
     "quickActions": {
       "newContact": "새 연락처",
@@ -809,14 +813,6 @@
       "weightedValue": "가중 금액",
       "weightedValueTooltip": "예상 매출: 진행 중인 각 딜의 금액 × 단계별 성사 확률. 첫 단계는 약 10%, 이후 단계는 최대 90%까지 상승하며, 성사 시 100%입니다. 실패한 딜은 제외됩니다.",
       "periodLabel": "기간",
-      "presetThisMonth": "이번 달",
-      "presetLastMonth": "지난 달",
-      "presetThisQuarter": "이번 분기",
-      "presetThisYear": "올해",
-      "presetAllTime": "전체 기간",
-      "presetCustom": "직접 설정",
-      "from": "시작",
-      "to": "종료",
       "downloadCsv": "CSV 내보내기",
       "downloadPdf": "PDF 내보내기",
       "leadsEntered": "유입된 리드",

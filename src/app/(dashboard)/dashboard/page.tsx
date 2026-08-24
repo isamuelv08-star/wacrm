@@ -23,7 +23,8 @@ import {
   loadPipelineDonut,
   loadResponseTime,
 } from '@/lib/dashboard/queries'
-import { DASHBOARD_RANGE_DAYS, type DashboardRangeDays } from '@/lib/dashboard/date-utils'
+import { rangeForPreset, formatRangeLabel, type PeriodPreset, type PeriodRange } from '@/lib/period'
+import { PeriodSelector } from '@/components/period-selector'
 import {
   loadCeoAlerts,
   loadCeoMetrics,
@@ -75,6 +76,7 @@ const STALE_DAYS = 7
 export default function DashboardPage() {
   const t = useTranslations('Dashboard.page')
   const tCeo = useTranslations('Dashboard.ceo.page')
+  const tPeriod = useTranslations('Common.period')
   const { profile, defaultCurrency, accountId, canViewDashboardSection } = useAuth()
 
   // One /dashboard for everyone — what used to be a separate
@@ -100,26 +102,44 @@ export default function DashboardPage() {
   const [metrics, setMetrics] = useState<MetricsBundle | null>(null)
   const [metricsLoading, setMetricsLoading] = useState(true)
 
-  // Global period selector — drives Response Time and the whole Sales
-  // section (goal proration, top-seller quotas, sales-vs-goal
-  // buckets). The four "Today" KPI cards above deliberately stay on
-  // their own fixed daily window regardless of this (see loadMetrics
+  // Global period selector — same calendar-based preset + custom-range
+  // picker as Pipeline Analytics (see `@/lib/period`), so "this month"
+  // / "last month" / "this quarter" / "this year" / "all time" / a
+  // custom date pick all resolve to a real `[start, end)` range instead
+  // of a rolling "last N days" window. Drives Response Time and the
+  // whole Sales section (goal proration, top-seller quotas, sales-vs-
+  // goal buckets). The four "Today" KPI cards above deliberately stay
+  // on their own fixed daily window regardless of this (see loadMetrics
   // call in loadAll) — they're explicitly labeled "Today" and read as
   // live snapshots, not a trend the viewer would want to re-window.
-  const [rangeDays, setRangeDays] = useState<DashboardRangeDays>(30)
+  const [preset, setPreset] = useState<PeriodPreset>('thisMonth')
+  // Seeded to today so flipping to "Custom" always starts from a valid
+  // (if trivial) range instead of two empty date inputs.
+  const [customStart, setCustomStart] = useState(todayIso())
+  const [customEnd, setCustomEnd] = useState(todayIso())
+
+  const periodRange: PeriodRange = useMemo(() => {
+    if (preset === 'custom' && customStart && customEnd) {
+      return rangeForPreset('custom', { start: new Date(customStart), end: new Date(customEnd) })
+    }
+    return rangeForPreset(preset === 'custom' ? 'thisMonth' : preset)
+  }, [preset, customStart, customEnd])
+
+  const periodRangeLabel = useMemo(() => formatRangeLabel(periodRange, tPeriod), [periodRange, tPeriod])
+
   // Read inside `loadAll` instead of the state value directly, so
   // `loadAll` (used for the initial load, pathname changes, and
-  // regained visibility) doesn't need `rangeDays` as a dependency —
+  // regained visibility) doesn't need `periodRange` as a dependency —
   // otherwise switching the period would recreate `loadAll` and trip
   // the pathname effect below, reloading the ENTIRE dashboard (pipeline
   // donut, hot-unanswered, funnel, commercial metrics — none of which
   // are range-dependent) on every click instead of just the widgets
-  // that actually care. `handleRangeDaysChange` further down is the
+  // that actually care. `handlePeriodChange` further down is the
   // one place that actually reacts to a period change.
-  const rangeDaysRef = useRef(rangeDays)
+  const periodRangeRef = useRef(periodRange)
   useEffect(() => {
-    rangeDaysRef.current = rangeDays
-  }, [rangeDays])
+    periodRangeRef.current = periodRange
+  }, [periodRange])
 
   const [range, setRange] = useState<RangeDays>(30)
   // Keep a cache per range so switching tabs doesn't re-fetch what we
@@ -157,7 +177,7 @@ export default function DashboardPage() {
 
   const loadAll = useCallback(() => {
     const db = createClient()
-    const currentRangeDays = rangeDaysRef.current
+    const currentRange = periodRangeRef.current
 
     // Kick everything off in parallel. Each block has its own
     // setState + finally so a slow query doesn't hold up faster
@@ -177,7 +197,7 @@ export default function DashboardPage() {
       .catch((err) => console.error('[dashboard] pipeline failed:', err))
       .finally(() => setPipelineLoading(false))
 
-    void loadResponseTime(db, currentRangeDays)
+    void loadResponseTime(db, currentRange)
       .then((r) => setResponseTime(r))
       .catch((err) => console.error('[dashboard] response time failed:', err))
       .finally(() => setResponseTimeLoading(false))
@@ -197,7 +217,7 @@ export default function DashboardPage() {
       return
     }
 
-    void loadCeoMetrics(db, currentRangeDays)
+    void loadCeoMetrics(db, currentRange)
       .then((m) => {
         setCeoMetrics(m)
         // Alerts need the full metrics bundle this same call already
@@ -212,7 +232,7 @@ export default function DashboardPage() {
       .catch((err) => console.error('[dashboard] sales metrics failed:', err))
       .finally(() => setCeoMetricsLoading(false))
 
-    void loadSalesVsGoal(db, currentRangeDays)
+    void loadSalesVsGoal(db, currentRange)
       .then((s) => setSalesVsGoal(s))
       .catch((err) => console.error('[dashboard] sales-vs-goal failed:', err))
       .finally(() => setSalesVsGoalLoading(false))
@@ -227,7 +247,7 @@ export default function DashboardPage() {
       .catch((err) => console.error('[dashboard] commercial metrics failed:', err))
       .finally(() => setCommercialLoading(false))
 
-    void loadTopSellers(db, currentRangeDays)
+    void loadTopSellers(db, currentRange)
       .then((s) => setTopSellers(s))
       .catch((err) => console.error('[dashboard] top-sellers failed:', err))
       .finally(() => setTopSellersLoading(false))
@@ -333,14 +353,18 @@ export default function DashboardPage() {
     [series],
   )
 
-  // Global period switch handler — only refetches the widgets that
-  // actually depend on it (Response Time, and the Sales section's
-  // metrics/goal chart/top sellers), not the whole dashboard. See the
-  // `rangeDaysRef` note above for why `loadAll` itself can't be reused
-  // here.
-  const handleRangeDaysChange = useCallback(
-    (r: DashboardRangeDays) => {
-      setRangeDays(r)
+  // Global period switch — only refetches the widgets that actually
+  // depend on it (Response Time, and the Sales section's metrics/goal
+  // chart/top sellers), not the whole dashboard. See the
+  // `periodRangeRef` note above for why `loadAll` itself can't be
+  // reused here. Split into `applyPeriodRange` (the actual refetch,
+  // given an already-resolved range) plus two thin event handlers so
+  // picking a preset and editing a custom date both funnel through the
+  // same fetch logic without double-fetching on mount — unlike an
+  // effect keyed on `periodRange`, these only ever run in response to
+  // an actual user interaction with the selector.
+  const applyPeriodRange = useCallback(
+    (r: PeriodRange) => {
       const db = createClient()
 
       setResponseTimeLoading(true)
@@ -379,6 +403,28 @@ export default function DashboardPage() {
     [hasAnySalesAccess],
   )
 
+  const handlePresetChange = useCallback(
+    (p: PeriodPreset) => {
+      setPreset(p)
+      // Custom needs both dates picked before there's a real range to
+      // fetch — `handleCustomChange` below fires the fetch once they
+      // are. Every other preset resolves immediately.
+      if (p === 'custom') return
+      applyPeriodRange(rangeForPreset(p))
+    },
+    [applyPeriodRange],
+  )
+
+  const handleCustomChange = useCallback(
+    (start: string, end: string) => {
+      setCustomStart(start)
+      setCustomEnd(end)
+      if (!start || !end) return
+      applyPeriodRange(rangeForPreset('custom', { start: new Date(start), end: new Date(end) }))
+    },
+    [applyPeriodRange],
+  )
+
   return (
     <div className="space-y-5">
       {/* Header — greets the signed-in user by name (falls back to a
@@ -395,22 +441,15 @@ export default function DashboardPage() {
             {t('description')}
           </p>
         </div>
-        <div className="flex items-center gap-1 rounded-lg bg-muted/60 p-1">
-          {DASHBOARD_RANGE_DAYS.map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => handleRangeDaysChange(r)}
-              className={
-                'rounded-md px-2.5 py-1 text-xs font-medium transition-colors ' +
-                (rangeDays === r
-                  ? 'bg-secondary text-secondary-foreground'
-                  : 'text-muted-foreground hover:text-foreground')
-              }
-            >
-              {t(`period.${r}`)}
-            </button>
-          ))}
+        <div className="flex flex-col items-start gap-1 sm:items-end">
+          <PeriodSelector
+            preset={preset}
+            customStart={customStart}
+            customEnd={customEnd}
+            onPresetChange={handlePresetChange}
+            onCustomChange={handleCustomChange}
+          />
+          <span className="text-xs text-muted-foreground">{periodRangeLabel}</span>
         </div>
       </div>
 
@@ -654,6 +693,11 @@ export default function DashboardPage() {
 }
 
 // ------------------------------------------------------------
+
+function todayIso(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
 function deltaLabel(delta: number, suffix: string, noChangeLabel: string): string {
   if (delta === 0) return noChangeLabel

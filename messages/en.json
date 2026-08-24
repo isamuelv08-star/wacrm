@@ -1,4 +1,16 @@
 {
+  "Common": {
+    "period": {
+      "presetThisMonth": "This month",
+      "presetLastMonth": "Last month",
+      "presetThisQuarter": "This quarter",
+      "presetThisYear": "This year",
+      "presetAllTime": "All time",
+      "presetCustom": "Custom",
+      "from": "From",
+      "to": "to"
+    }
+  },
   "LoginPage": {
     "titleAccept": "Sign in to accept",
     "titleWelcome": "Welcome back",
@@ -87,15 +99,7 @@
       "activeConversationsDesc": "Conversations with an unread or unresolved message right now.",
       "newContactsTodayDesc": "New contacts created since midnight today.",
       "openDealsValueDesc": "Total value of every open deal currently in your pipeline.",
-      "messagesSentTodayDesc": "Outbound messages sent by you and your team today.",
-      "period": {
-        "1": "1D",
-        "7": "7D",
-        "15": "15D",
-        "30": "30D",
-        "180": "6M",
-        "365": "1Y"
-      }
+      "messagesSentTodayDesc": "Outbound messages sent by you and your team today."
     },
     "quickActions": {
       "newContact": "New Contact",
@@ -809,14 +813,6 @@
       "weightedValue": "Weighted Value",
       "weightedValueTooltip": "Expected revenue: each open deal's value × its stage probability. First stage ≈ 10%, stages progress up to 90%, Won = 100%. Lost deals are excluded.",
       "periodLabel": "Period",
-      "presetThisMonth": "This month",
-      "presetLastMonth": "Last month",
-      "presetThisQuarter": "This quarter",
-      "presetThisYear": "This year",
-      "presetAllTime": "All time",
-      "presetCustom": "Custom",
-      "from": "From",
-      "to": "to",
       "downloadCsv": "Export CSV",
       "downloadPdf": "Export PDF",
       "leadsEntered": "Leads Entered",

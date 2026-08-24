@@ -3,9 +3,9 @@ import {
   monthKey,
   daysAgoStart,
   daysInMonthOf,
-  previousRangeStart,
+  previousRange,
   rangeBuckets,
-  rangeStart,
+  type DateRange,
 } from './date-utils'
 import type {
   CeoAlerts,
@@ -44,26 +44,26 @@ const AT_RISK_CONVERSATION_SILENCE_DAYS = 14
 // --- 1. Sales vs goal, over the selected range --------------------------
 
 /**
- * Buckets the selected range (daily for ≤30 days, ~30 multi-day
- * buckets for 6 months / 1 year — see `rangeBuckets`) and compares
- * actual won-deal revenue per bucket against a slice of the account's
- * CURRENT monthly goal, prorated by the bucket's own day count. There's
- * only ever one goal on the books (this month's), so a 1-year view
- * necessarily assumes "if every month kept pace with this one" rather
- * than replaying whatever the goal actually was in each past month —
- * simpler and still a meaningful trend line, but worth knowing it's a
- * projection for anything beyond the current month.
+ * Buckets the selected period (daily for ≤30 days, ~30 multi-day
+ * buckets for a quarter / year / all-time — see `rangeBuckets`) and
+ * compares actual won-deal revenue per bucket against a slice of the
+ * account's CURRENT monthly goal, prorated by the bucket's own day
+ * count. There's only ever one goal on the books (this month's), so a
+ * 1-year view necessarily assumes "if every month kept pace with this
+ * one" rather than replaying whatever the goal actually was in each
+ * past month — simpler and still a meaningful trend line, but worth
+ * knowing it's a projection for anything beyond the current month.
  */
-export async function loadSalesVsGoal(db: DB, rangeDays: number): Promise<SalesVsGoalPoint[]> {
-  const currentStart = rangeStart(rangeDays)
-  const buckets = rangeBuckets(rangeDays)
+export async function loadSalesVsGoal(db: DB, range: DateRange): Promise<SalesVsGoalPoint[]> {
+  const buckets = rangeBuckets(range)
 
   const [dealsRes, goalRow] = await Promise.all([
     db
       .from('deals')
       .select('value, closed_at')
       .eq('status', 'won')
-      .gte('closed_at', currentStart.toISOString()),
+      .gte('closed_at', range.start.toISOString())
+      .lt('closed_at', range.end.toISOString()),
     db
       .from('sales_goals')
       .select('target_value')
@@ -97,7 +97,7 @@ export async function loadSalesVsGoal(db: DB, rangeDays: number): Promise<SalesV
 // --- 2. Headline KPIs -----------------------------------------------------
 
 /**
- * `salesThisMonth`/`newClients` are genuinely windowed by `rangeDays`
+ * `salesThisMonth`/`newClients` are genuinely windowed by `range`
  * (current vs the equal-length period before it). `pipelineTotal` and
  * `forecast` stay current-state snapshots regardless of range — "how
  * much is in the pipeline right now" has no meaningful reading for
@@ -115,11 +115,12 @@ export async function loadSalesVsGoal(db: DB, rangeDays: number): Promise<SalesV
  * this file was calibrated for that cadence); dividing a snapshot by a
  * one-day sliver of the goal would produce a meaningless multiple.
  */
-export async function loadCeoMetrics(db: DB, rangeDays: number): Promise<CeoMetrics> {
+export async function loadCeoMetrics(db: DB, range: DateRange): Promise<CeoMetrics> {
   const now = new Date()
   const thisMonthKey = monthKey(now)
-  const currentStart = rangeStart(rangeDays).toISOString()
-  const previousStart = previousRangeStart(rangeDays).toISOString()
+  const currentStart = range.start.toISOString()
+  const currentEnd = range.end.toISOString()
+  const previousStart = previousRange(range).start.toISOString()
 
   type OpenDealRow = {
     value: number | null
@@ -139,7 +140,7 @@ export async function loadCeoMetrics(db: DB, rangeDays: number): Promise<CeoMetr
     contactsCurrent,
     contactsPrevious,
   ] = await Promise.all([
-    db.from('deals').select('value').eq('status', 'won').gte('closed_at', currentStart),
+    db.from('deals').select('value').eq('status', 'won').gte('closed_at', currentStart).lt('closed_at', currentEnd),
     db
       .from('deals')
       .select('value')
@@ -162,7 +163,8 @@ export async function loadCeoMetrics(db: DB, rangeDays: number): Promise<CeoMetr
       .from('deals')
       .select('contact_id')
       .not('contact_id', 'is', null)
-      .gte('created_at', currentStart),
+      .gte('created_at', currentStart)
+      .lt('created_at', currentEnd),
     db
       .from('deals')
       .select('contact_id')
@@ -197,6 +199,7 @@ export async function loadCeoMetrics(db: DB, rangeDays: number): Promise<CeoMetr
   const newClientsPrevious = distinctContacts((contactsPrevious.data ?? []) as ContactRow[])
 
   const monthlyGoal = (goalRow.data as { target_value: number } | null)?.target_value ?? null
+  const rangeDays = Math.max(1, Math.round((range.end.getTime() - range.start.getTime()) / 86_400_000))
   const goalForRange = monthlyGoal != null ? (monthlyGoal / daysInMonthOf(now)) * rangeDays : null
 
   return {
@@ -241,16 +244,18 @@ export async function loadCommercialMetrics(db: DB, windowDays = 90): Promise<Co
 // --- 4. Top sellers vs their individual goal ------------------------------
 
 /**
- * `goal` is each member's individual monthly goal prorated to
- * `rangeDays`, same linear-run-rate approach (and same caveat for
- * ranges beyond the current month) as the account-level goal in
- * `loadCeoMetrics`.
+ * `goal` is each member's individual monthly goal prorated to the
+ * selected range's day count, same linear-run-rate approach (and same
+ * caveat for ranges beyond the current month) as the account-level
+ * goal in `loadCeoMetrics`.
  */
-export async function loadTopSellers(db: DB, rangeDays: number, limit = 5): Promise<TopSeller[]> {
+export async function loadTopSellers(db: DB, range: DateRange, limit = 5): Promise<TopSeller[]> {
   const now = new Date()
   const thisMonthKey = monthKey(now)
-  const currentStart = rangeStart(rangeDays).toISOString()
+  const currentStart = range.start.toISOString()
+  const currentEnd = range.end.toISOString()
   const daysInMonth = daysInMonthOf(now)
+  const rangeDays = Math.max(1, Math.round((range.end.getTime() - range.start.getTime()) / 86_400_000))
 
   const [membersRes, dealsRes, goalsRes] = await Promise.all([
     // profiles.id (NOT user_id) is what deals.assigned_to and
@@ -264,6 +269,7 @@ export async function loadTopSellers(db: DB, rangeDays: number, limit = 5): Prom
       .select('assigned_to, value')
       .eq('status', 'won')
       .gte('closed_at', currentStart)
+      .lt('closed_at', currentEnd)
       .not('assigned_to', 'is', null),
     db
       .from('sales_goals')

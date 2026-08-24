@@ -25,9 +25,9 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { formatCurrency } from "@/lib/currency";
 import { useTranslations } from "next-intl";
-import { rangeForPreset, type PeriodPreset, type PeriodRange } from "@/lib/pipelines/period";
+import { rangeForPreset, formatRangeLabel, type PeriodPreset, type PeriodRange } from "@/lib/period";
 import { downloadDealsCsv, openPrintableReport, dealsInRange, type ReportStageRow } from "@/lib/pipelines/report";
-import { PeriodSelector } from "./period-selector";
+import { PeriodSelector } from "@/components/period-selector";
 import { toast } from "sonner";
 
 interface PipelineAnalyticsProps {
@@ -66,6 +66,7 @@ function todayIso(): string {
 
 export function PipelineAnalytics({ pipelineId, pipelineName, stages, deals }: PipelineAnalyticsProps) {
   const t = useTranslations("Pipelines.analytics");
+  const tPeriod = useTranslations("Common.period");
   const { defaultCurrency } = useAuth();
   const [preset, setPreset] = useState<PeriodPreset>("thisMonth");
   // Seeded to today so flipping to "Custom" always starts from a valid
@@ -84,7 +85,7 @@ export function PipelineAnalytics({ pipelineId, pipelineName, stages, deals }: P
     return rangeForPreset(preset === "custom" ? "thisMonth" : preset);
   }, [preset, customStart, customEnd]);
 
-  const rangeLabel = useMemo(() => formatRangeLabel(range, t), [range, t]);
+  const rangeLabel = useMemo(() => formatRangeLabel(range, tPeriod), [range, tPeriod]);
 
   const sortedStages = useMemo(
     () => [...stages].sort((a, b) => a.position - b.position),
@@ -333,25 +334,6 @@ export function PipelineAnalytics({ pipelineId, pipelineName, stages, deals }: P
       </div>
     </TooltipProvider>
   );
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function formatRangeLabel(range: PeriodRange, t: any): string {
-  switch (range.label) {
-    case "thisMonth":
-    case "lastMonth":
-      return range.start.toLocaleDateString(undefined, { month: "long", year: "numeric" });
-    case "thisQuarter":
-      return `Q${Math.floor(range.start.getMonth() / 3) + 1} ${range.start.getFullYear()}`;
-    case "thisYear":
-      return String(range.start.getFullYear());
-    case "allTime":
-      return t("presetAllTime");
-    case "custom": {
-      const inclusiveEnd = new Date(range.end.getTime() - 1);
-      return `${range.start.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${inclusiveEnd.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
-    }
-  }
 }
 
 function Metric({

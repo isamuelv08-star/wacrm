@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import type { PeriodPreset } from "@/lib/pipelines/period";
+import type { PeriodPreset } from "@/lib/period";
 import { cn } from "@/lib/utils";
 
 const PRESETS: PeriodPreset[] = ["thisMonth", "lastMonth", "thisQuarter", "thisYear", "allTime"];
@@ -31,7 +31,7 @@ export function PeriodSelector({
   onPresetChange,
   onCustomChange,
 }: PeriodSelectorProps) {
-  const t = useTranslations("Pipelines.analytics");
+  const t = useTranslations("Common.period");
 
   return (
     <div className="flex flex-wrap items-center gap-2">

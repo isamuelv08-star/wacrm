@@ -83,30 +83,29 @@ export function lastNMonthKeys(n: number): string[] {
 }
 
 // ------------------------------------------------------------
-// Global dashboard date-range selector (1/7/15/30/180/365 days).
-// Everything below supports comparing "the selected trailing window"
-// against "the equal-length window immediately before it", and
-// bucketing the selected window into a display-friendly number of
-// points for a trend chart — shared by every dashboard query that
-// needs to respond to the range instead of a fixed "today" or "this
-// month".
+// Global dashboard date-range selector — a real calendar period (see
+// `@/lib/period`'s `PeriodRange`), same abstraction the Pipeline
+// Analytics period selector uses. Everything below supports comparing
+// "the selected period" against "the equal-length period immediately
+// before it", and bucketing the selected period into a
+// display-friendly number of points for a trend chart — shared by
+// every dashboard query that needs to respond to the range instead of
+// a fixed "today" or "this month".
 // ------------------------------------------------------------
 
-export const DASHBOARD_RANGE_DAYS = [1, 7, 15, 30, 180, 365] as const
-export type DashboardRangeDays = (typeof DASHBOARD_RANGE_DAYS)[number]
-
-export function isDashboardRangeDays(value: number): value is DashboardRangeDays {
-  return (DASHBOARD_RANGE_DAYS as readonly number[]).includes(value)
+export interface DateRange {
+  start: Date
+  /** Exclusive. */
+  end: Date
 }
 
-/** Start of the selected trailing window — e.g. rangeDays=1 is "today". */
-export function rangeStart(rangeDays: number): Date {
-  return daysAgoStart(rangeDays - 1)
-}
-
-/** Start of the PRIOR window of equal length, immediately before `rangeStart`. */
-export function previousRangeStart(rangeDays: number): Date {
-  return daysAgoStart(rangeDays * 2 - 1)
+/** The PRIOR period of equal length, immediately before `range`. */
+export function previousRange(range: DateRange): DateRange {
+  const durationMs = range.end.getTime() - range.start.getTime()
+  return {
+    start: new Date(range.start.getTime() - durationMs),
+    end: new Date(range.start.getTime()),
+  }
 }
 
 export interface RangeBucket {
@@ -118,24 +117,23 @@ export interface RangeBucket {
 }
 
 /**
- * Splits the selected trailing window into up to `maxBuckets` even
- * buckets (each spanning one or more whole days), oldest first. A
- * range of 30 days or fewer gets one bucket per day (matches
- * `lastNDayKeys`'s granularity); longer ranges (6 months, 1 year)
- * collapse into ~`maxBuckets` multi-day buckets so a trend chart or
- * sparkline never has to plot hundreds of points.
+ * Splits the selected period into up to `maxBuckets` even buckets,
+ * oldest first. A period spanning 30 days or fewer gets one bucket per
+ * day (matches `lastNDayKeys`'s granularity); longer periods (a
+ * quarter, a year, all-time) collapse into ~`maxBuckets` multi-day
+ * buckets so a trend chart or sparkline never has to plot hundreds of
+ * points.
  */
-export function rangeBuckets(rangeDaysValue: number, maxBuckets = 30): RangeBucket[] {
-  const bucketCount = Math.max(1, Math.min(rangeDaysValue, maxBuckets))
-  const start = rangeStart(rangeDaysValue)
+export function rangeBuckets(range: DateRange, maxBuckets = 30): RangeBucket[] {
+  const durationMs = range.end.getTime() - range.start.getTime()
+  const totalDays = Math.max(1, Math.round(durationMs / 86_400_000))
+  const bucketCount = Math.max(1, Math.min(totalDays, maxBuckets))
   const buckets: RangeBucket[] = []
   for (let i = 0; i < bucketCount; i++) {
-    const startOffset = Math.floor((i * rangeDaysValue) / bucketCount)
-    const endOffset = Math.floor(((i + 1) * rangeDaysValue) / bucketCount)
-    const bStart = new Date(start)
-    bStart.setDate(bStart.getDate() + startOffset)
-    const bEnd = new Date(start)
-    bEnd.setDate(bEnd.getDate() + endOffset)
+    const startOffsetMs = Math.floor((i * durationMs) / bucketCount)
+    const endOffsetMs = Math.floor(((i + 1) * durationMs) / bucketCount)
+    const bStart = new Date(range.start.getTime() + startOffsetMs)
+    const bEnd = new Date(range.start.getTime() + endOffsetMs)
     buckets.push({ start: bStart, end: bEnd, label: shortDayLabel(bStart) })
   }
   return buckets

@@ -3,9 +3,9 @@ import {
   daysAgoStart,
   lastNDayKeys,
   localDayKey,
-  previousRangeStart,
+  previousRange,
   rangeBuckets,
-  rangeStart,
+  type DateRange,
 } from './date-utils'
 import type {
   ConversationsSeriesPoint,
@@ -40,8 +40,8 @@ type DB = SupabaseClient
  * windowed.
  */
 export async function loadMetrics(db: DB, rangeDays: number): Promise<MetricsBundle> {
-  const currentStart = rangeStart(rangeDays).toISOString()
-  const previousStart = previousRangeStart(rangeDays).toISOString()
+  const currentStart = daysAgoStart(rangeDays - 1).toISOString()
+  const previousStart = daysAgoStart(rangeDays * 2 - 1).toISOString()
 
   const [
     openConvCur,
@@ -179,16 +179,17 @@ export async function loadPipelineDonut(db: DB): Promise<PipelineDonutData> {
 
 // --- 4. Response time over the selected range --------------------------
 
-export async function loadResponseTime(db: DB, rangeDays: number): Promise<ResponseTimeSummary> {
-  // Pull messages spanning both the selected window AND the equal-
-  // length window before it in one shot, then walk per conversation
+export async function loadResponseTime(db: DB, range: DateRange): Promise<ResponseTimeSummary> {
+  // Pull messages spanning both the selected period AND the equal-
+  // length period before it in one shot, then walk per conversation
   // to find each "first inbound" → "first subsequent outbound" pair.
-  const currentStart = rangeStart(rangeDays)
-  const previousStart = previousRangeStart(rangeDays)
+  const currentStart = range.start
+  const previousStart = previousRange(range).start
   const { data, error } = await db
     .from('messages')
     .select('conversation_id, sender_type, created_at')
     .gte('created_at', previousStart.toISOString())
+    .lt('created_at', range.end.toISOString())
     .order('conversation_id', { ascending: true })
     .order('created_at', { ascending: true })
   if (error) throw error
@@ -242,10 +243,10 @@ export async function loadResponseTime(db: DB, rangeDays: number): Promise<Respo
   const avg = (arr: number[]) =>
     arr.length === 0 ? null : arr.reduce((a, b) => a + b, 0) / arr.length
 
-  // Bucket the CURRENT window into up to 30 display points (1/bucket
-  // for a range that short, multi-day buckets for 6-month/1-year
-  // ranges — see rangeBuckets' doc comment).
-  const buckets: ResponseTimeBucket[] = rangeBuckets(rangeDays).map((b) => {
+  // Bucket the CURRENT period into up to 30 display points (1/bucket
+  // for a short period, multi-day buckets for a quarter/year/all-time
+  // period — see rangeBuckets' doc comment).
+  const buckets: ResponseTimeBucket[] = rangeBuckets(range).map((b) => {
     const inBucket = withDiff
       .filter((s) => s.customerAt >= b.start && s.customerAt < b.end)
       .map((s) => s.diffMin)

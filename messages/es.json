@@ -1,4 +1,16 @@
 {
+  "Common": {
+    "period": {
+      "presetThisMonth": "Este mes",
+      "presetLastMonth": "Mes pasado",
+      "presetThisQuarter": "Este trimestre",
+      "presetThisYear": "Este año",
+      "presetAllTime": "Todo el tiempo",
+      "presetCustom": "Personalizado",
+      "from": "Desde",
+      "to": "hasta"
+    }
+  },
   "LoginPage": {
     "titleAccept": "Inicia sesión para aceptar",
     "titleWelcome": "Bienvenido de nuevo",
@@ -87,15 +99,7 @@
       "activeConversationsDesc": "Conversaciones con un mensaje sin leer o sin resolver en este momento.",
       "newContactsTodayDesc": "Contactos nuevos creados desde la medianoche de hoy.",
       "openDealsValueDesc": "Valor total de todos los negocios abiertos en tu pipeline.",
-      "messagesSentTodayDesc": "Mensajes salientes enviados por vos y tu equipo hoy.",
-      "period": {
-        "1": "1D",
-        "7": "7D",
-        "15": "15D",
-        "30": "30D",
-        "180": "6M",
-        "365": "1A"
-      }
+      "messagesSentTodayDesc": "Mensajes salientes enviados por vos y tu equipo hoy."
     },
     "quickActions": {
       "newContact": "Nuevo contacto",
@@ -809,14 +813,6 @@
       "weightedValue": "Valor ponderado",
       "weightedValueTooltip": "Ingresos esperados: el valor de cada negocio abierto × la probabilidad de su etapa. La primera etapa ≈ 10 %, las etapas avanzan hasta 90 %, Ganado = 100 %. Se excluyen los negocios perdidos.",
       "periodLabel": "Período",
-      "presetThisMonth": "Este mes",
-      "presetLastMonth": "Mes pasado",
-      "presetThisQuarter": "Este trimestre",
-      "presetThisYear": "Este año",
-      "presetAllTime": "Todo el tiempo",
-      "presetCustom": "Personalizado",
-      "from": "Desde",
-      "to": "hasta",
       "downloadCsv": "Exportar CSV",
       "downloadPdf": "Exportar PDF",
       "leadsEntered": "Leads ingresados",

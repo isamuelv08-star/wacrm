@@ -1,9 +1,9 @@
-// Date-range presets for the Pipeline Analytics period selector. Pure
-// date math, no component dependencies — mirrors the shape of
-// src/lib/dashboard/date-utils.ts, but this domain needed a real
-// arbitrary range (a month, a quarter, a custom pick) rather than a
-// rolling "last N days" window, so it's its own small module instead
-// of overloading that one.
+// Shared date-range presets — a real calendar period (a month, a
+// quarter, a custom pick) rather than a rolling "last N days" window.
+// Used by both the Pipeline Analytics period selector and the
+// dashboard's global period selector, so component code that needs a
+// concrete [start, end) range plus a display preset lives here once
+// instead of two near-identical copies drifting apart.
 
 export type PeriodPreset = "thisMonth" | "lastMonth" | "thisQuarter" | "thisYear" | "allTime" | "custom";
 
@@ -73,6 +73,30 @@ export function rangeForPreset(preset: PeriodPreset, custom?: { start: Date; end
       const end = new Date(startOfDay(custom.end));
       end.setDate(end.getDate() + 1);
       return { start, end, label: "custom" };
+    }
+  }
+}
+
+/**
+ * Human-readable display label for a resolved range — "August 2026",
+ * "Q3 2026", a custom "Aug 1 – Aug 15, 2026" span, etc. `t` only needs
+ * the `presetAllTime` key (the one preset with no natural date-derived
+ * label), so any translator over the `Common.period` namespace works.
+ */
+export function formatRangeLabel(range: PeriodRange, t: (key: string) => string): string {
+  switch (range.label) {
+    case "thisMonth":
+    case "lastMonth":
+      return range.start.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+    case "thisQuarter":
+      return `Q${Math.floor(range.start.getMonth() / 3) + 1} ${range.start.getFullYear()}`;
+    case "thisYear":
+      return String(range.start.getFullYear());
+    case "allTime":
+      return t("presetAllTime");
+    case "custom": {
+      const inclusiveEnd = new Date(range.end.getTime() - 1);
+      return `${range.start.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${inclusiveEnd.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
     }
   }
 }

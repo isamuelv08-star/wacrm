@@ -1,6 +1,6 @@
 import type { Deal, PipelineStage } from "@/types";
 import { downloadBlob } from "@/lib/download-file";
-import type { PeriodRange } from "./period";
+import type { PeriodRange } from "@/lib/period";
 
 // ============================================================
 // Pipeline report export — CSV (deal-by-deal detail) and a
