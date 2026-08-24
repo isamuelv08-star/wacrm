@@ -79,7 +79,7 @@ export function DayAgenda({
         )}
       </header>
 
-      <div className="flex-1 overflow-y-auto p-3">
+      <div className="themed-scrollbar flex-1 overflow-y-auto p-3">
         {loading ? (
           <div className="space-y-2">
             {Array.from({ length: 2 }).map((_, i) => (

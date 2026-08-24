@@ -465,7 +465,7 @@ export function ImportModal({
           />
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+        <div className="themed-scrollbar min-h-0 flex-1 overflow-y-auto px-6 py-4">
           {preview.length > 0 && !result && (
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">

@@ -234,7 +234,7 @@ export function EventFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto bg-popover border-border text-popover-foreground sm:max-w-lg">
+      <DialogContent className="themed-scrollbar max-h-[85vh] overflow-y-auto bg-popover border-border text-popover-foreground sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-popover-foreground">
             {event ? t('editEvent') : t('newEvent')}

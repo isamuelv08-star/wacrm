@@ -764,7 +764,7 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
       </header>
 
       {/* Canvas */}
-      <div className="relative flex-1 overflow-y-auto">
+      <div className="themed-scrollbar relative flex-1 overflow-y-auto">
         <div className="absolute inset-0 bg-[radial-gradient(circle,var(--border)_1px,transparent_1px)] [background-size:20px_20px] pointer-events-none" />
         <div className="relative mx-auto flex max-w-2xl flex-col items-center gap-0 px-4 py-10">
           <ResourcesProvider>

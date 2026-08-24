@@ -522,7 +522,7 @@ export function ContactDetailView({
               </TabsList>
 
               {/* Details Tab */}
-              <TabsContent value="details" className="flex-1 overflow-y-auto px-4 py-3">
+              <TabsContent value="details" className="themed-scrollbar flex-1 overflow-y-auto px-4 py-3">
                 <div className="space-y-3">
                   <div className="space-y-1.5">
                     <Label className="text-muted-foreground text-xs">{t('name')}</Label>
@@ -575,7 +575,7 @@ export function ContactDetailView({
               </TabsContent>
 
               {/* Tags Tab */}
-              <TabsContent value="tags" className="flex-1 overflow-y-auto px-4 py-3">
+              <TabsContent value="tags" className="themed-scrollbar flex-1 overflow-y-auto px-4 py-3">
                 <div className="space-y-3">
                   <p className="text-xs text-muted-foreground">
                     {t('tagsTab.clickTagDesc')}
@@ -637,7 +637,7 @@ export function ContactDetailView({
                   </Button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto space-y-2">
+                <div className="themed-scrollbar flex-1 overflow-y-auto space-y-2">
                   {loadingNotes ? (
                     <div className="flex items-center justify-center py-8">
                       <Loader2 className="size-5 animate-spin text-muted-foreground" />
@@ -679,7 +679,7 @@ export function ContactDetailView({
               </TabsContent>
 
               {/* Custom Fields Tab */}
-              <TabsContent value="custom" className="flex-1 overflow-y-auto px-4 py-3">
+              <TabsContent value="custom" className="themed-scrollbar flex-1 overflow-y-auto px-4 py-3">
                 {loadingCustom ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="size-5 animate-spin text-muted-foreground" />
@@ -746,7 +746,7 @@ export function ContactDetailView({
               </TabsContent>
 
               {/* Deals Tab */}
-              <TabsContent value="deals" className="flex-1 overflow-y-auto px-4 py-3">
+              <TabsContent value="deals" className="themed-scrollbar flex-1 overflow-y-auto px-4 py-3">
                 {loadingDeals ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="size-5 animate-spin text-primary" />

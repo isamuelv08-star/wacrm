@@ -111,7 +111,7 @@ export function WhatsAppApiConnectCard() {
       </div>
 
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto bg-popover border-border sm:max-w-3xl">
+        <DialogContent className="themed-scrollbar max-h-[85vh] overflow-y-auto bg-popover border-border sm:max-w-3xl">
           <WhatsAppConfig />
         </DialogContent>
       </Dialog>

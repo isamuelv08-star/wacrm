@@ -104,7 +104,7 @@ export function AiPlayground({ onGoToSetup }: { onGoToSetup?: () => void }) {
       </div>
 
       {/* Transcript */}
-      <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-4">
+      <div ref={scrollRef} className="themed-scrollbar flex-1 space-y-4 overflow-y-auto p-4">
         {turns.length === 0 && (
           <div className="flex h-full flex-col items-center justify-center text-center text-sm text-muted-foreground">
             <Bot className="mb-2 h-8 w-8 text-muted-foreground/60" />

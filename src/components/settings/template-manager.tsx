@@ -638,7 +638,7 @@ export function TemplateManager() {
           }
         }}
       >
-        <DialogContent className="bg-popover border-border sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="themed-scrollbar bg-popover border-border sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-popover-foreground">
               {editingId ? t('dialogEditTitle') : t('dialogNewTitle')}

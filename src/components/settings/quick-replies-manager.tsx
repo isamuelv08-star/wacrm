@@ -190,7 +190,7 @@ export function QuickRepliesManager() {
             <DialogTitle>{draft?.id ? t("editTitle") : t("newTitle")}</DialogTitle>
           </DialogHeader>
           {draft && (
-            <div className="max-h-[70vh] space-y-3 overflow-y-auto">
+            <div className="themed-scrollbar max-h-[70vh] space-y-3 overflow-y-auto">
               <div>
                 <label className="mb-1 block text-xs text-muted-foreground">{t("nameLabel")}</label>
                 <Input

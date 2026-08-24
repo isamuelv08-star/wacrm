@@ -144,7 +144,7 @@ export function FlowEditorShell({ initialFlow, initialNodes }: Props) {
           {effectiveView === "canvas" ? (
             <FlowCanvas />
           ) : (
-            <div className="absolute inset-0 overflow-y-auto">
+            <div className="themed-scrollbar absolute inset-0 overflow-y-auto">
               <FlowBuilder />
             </div>
           )}

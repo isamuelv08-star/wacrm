@@ -282,7 +282,7 @@ export function DealForm({
             </SheetTitle>
           </SheetHeader>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="themed-scrollbar flex-1 overflow-y-auto p-4 space-y-4">
             <div className="grid gap-2">
               <Label className="text-muted-foreground">{t("title")}</Label>
               <Input

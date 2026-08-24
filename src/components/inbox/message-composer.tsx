@@ -778,7 +778,7 @@ export function MessageComposer({
           <DialogHeader>
             <DialogTitle>{t("interactiveMessage")}</DialogTitle>
           </DialogHeader>
-          <div className="max-h-[70vh] overflow-y-auto">
+          <div className="themed-scrollbar max-h-[70vh] overflow-y-auto">
             <InteractiveBuilder
               value={interactivePayload}
               onChange={setInteractivePayload}

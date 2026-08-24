@@ -437,7 +437,7 @@ export default function ContactsPage() {
                   {t('noTagsYet')}
                 </p>
               ) : (
-                <div className="max-h-64 overflow-y-auto py-1">
+                <div className="themed-scrollbar max-h-64 overflow-y-auto py-1">
                   {allTags.map((tag) => (
                     <label
                       key={tag.id}

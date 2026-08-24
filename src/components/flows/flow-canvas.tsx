@@ -652,7 +652,7 @@ function NodeEditSheet({
           </code>
         </SheetHeader>
 
-        <div className="flex flex-1 flex-col gap-3 overflow-y-auto px-5 py-4">
+        <div className="themed-scrollbar flex flex-1 flex-col gap-3 overflow-y-auto px-5 py-4">
           <NodeConfigForm
             node={node}
             allNodes={allNodes}

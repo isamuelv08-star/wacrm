@@ -292,7 +292,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             mobile drawer that inherited `collapsed=true` from a prior
             desktop session is harmless. */}
         <TooltipProvider>
-          <nav className="flex-1 overflow-y-auto px-3 py-4">
+          <nav className="themed-scrollbar flex-1 overflow-y-auto px-3 py-4">
             <ul className="flex flex-col gap-1">
               {navItems.map((item) => {
                 const isActive =

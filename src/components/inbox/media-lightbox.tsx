@@ -205,7 +205,7 @@ export function MediaLightbox({
         </div>
 
         {item.caption && (
-          <p className="max-h-24 overflow-y-auto whitespace-pre-wrap break-words text-sm">
+          <p className="themed-scrollbar max-h-24 overflow-y-auto whitespace-pre-wrap break-words text-sm">
             {item.caption}
           </p>
         )}
@@ -255,7 +255,7 @@ function LightboxImage({
     // the left half becomes unreachable (scrollWidth stops at the right
     // overflow). Auto margins on a block child collapse to 0 once it's
     // wider, so the whole image stays scrollable.
-    <div className={cn("w-full", MEDIA_MAX_HEIGHT, zoomed && "overflow-auto")}>
+    <div className={cn("w-full", MEDIA_MAX_HEIGHT, zoomed && "themed-scrollbar overflow-auto")}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src}
