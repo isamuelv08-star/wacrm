@@ -21,11 +21,19 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  // Powers absolute URLs for OG images and next-sitemap-style routes
+  // (sitemap.ts, robots.ts). Falls back to relative resolution when
+  // NEXT_PUBLIC_SITE_URL isn't set (e.g. no fixed domain yet).
+  metadataBase: process.env.NEXT_PUBLIC_SITE_URL
+    ? new URL(process.env.NEXT_PUBLIC_SITE_URL)
+    : undefined,
   title: {
     default: "ScalingCRM",
     template: "%s — ScalingCRM",
   },
   description: "Self-hostable CRM template for WhatsApp.",
+  // Dashboard/app pages stay out of search results by default; the
+  // marketing landing page at "/" opts back in via its own metadata.
   robots: {
     index: false,
     follow: false,
