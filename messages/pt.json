@@ -139,6 +139,27 @@
       "tooltipAvg": "{minutes}min méd.",
       "tooltipNoSamples": "Sem dados"
     },
+    "activityFeed": {
+      "title": "Atividade recente",
+      "viewAll": "Ver tudo",
+      "noActivity": "Ainda não há atividade recente",
+      "noActivityHint": "Novas mensagens, contatos, negócios, transmissões e automações aparecerão aqui.",
+      "show": "Mostrar",
+      "showingOf": "Mostrando {visible} de {totalLoaded}{plus}",
+      "timeS": "há {sec}s",
+      "timeM": "há {min}m",
+      "timeH": "há {hr}h",
+      "timeD": "há {day}d",
+      "items": {
+        "newMessage": "Mensagem de {name}: {snippet}",
+        "newMessageNoText": "Nova mensagem de {name}",
+        "newContact": "Novo contato: {name}",
+        "newDeal": "Novo negócio: {title} ({value})",
+        "newBroadcast": "Transmissão criada: {name}",
+        "automationRun": "Automação executada: {name} — {contact}",
+        "automationRunNoContact": "Automação executada: {name}"
+      }
+    },
     "emptyState": {
       "title": "Ainda não há dados suficientes"
     },

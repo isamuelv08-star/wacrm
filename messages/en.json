@@ -139,6 +139,27 @@
       "tooltipAvg": "{minutes}m avg",
       "tooltipNoSamples": "No samples"
     },
+    "activityFeed": {
+      "title": "Recent activity",
+      "viewAll": "View all",
+      "noActivity": "No recent activity yet",
+      "noActivityHint": "New messages, contacts, deals, broadcasts, and automation runs will show up here.",
+      "show": "Show",
+      "showingOf": "Showing {visible} of {totalLoaded}{plus}",
+      "timeS": "{sec}s ago",
+      "timeM": "{min}m ago",
+      "timeH": "{hr}h ago",
+      "timeD": "{day}d ago",
+      "items": {
+        "newMessage": "Message from {name}: {snippet}",
+        "newMessageNoText": "New message from {name}",
+        "newContact": "New contact: {name}",
+        "newDeal": "New deal: {title} ({value})",
+        "newBroadcast": "Broadcast created: {name}",
+        "automationRun": "Automation ran: {name} — {contact}",
+        "automationRunNoContact": "Automation ran: {name}"
+      }
+    },
     "emptyState": {
       "title": "Not enough data yet"
     },

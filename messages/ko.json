@@ -139,6 +139,27 @@
       "tooltipAvg": "평균 {minutes}분",
       "tooltipNoSamples": "데이터 없음"
     },
+    "activityFeed": {
+      "title": "최근 활동",
+      "viewAll": "전체 보기",
+      "noActivity": "아직 최근 활동이 없습니다",
+      "noActivityHint": "새 메시지, 연락처, 거래, 브로드캐스트, 자동화 실행이 여기에 표시됩니다.",
+      "show": "표시",
+      "showingOf": "{totalLoaded}개 중 {visible}개 표시{plus}",
+      "timeS": "{sec}초 전",
+      "timeM": "{min}분 전",
+      "timeH": "{hr}시간 전",
+      "timeD": "{day}일 전",
+      "items": {
+        "newMessage": "{name}님의 메시지: {snippet}",
+        "newMessageNoText": "{name}님의 새 메시지",
+        "newContact": "새 연락처: {name}",
+        "newDeal": "새 거래: {title} ({value})",
+        "newBroadcast": "브로드캐스트 생성됨: {name}",
+        "automationRun": "자동화 실행됨: {name} — {contact}",
+        "automationRunNoContact": "자동화 실행됨: {name}"
+      }
+    },
     "emptyState": {
       "title": "아직 데이터가 충분하지 않습니다"
     },
