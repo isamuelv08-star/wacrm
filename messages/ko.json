@@ -1985,7 +1985,7 @@
       "promptPlaceholder": "예: 저희는 커피 장비 매장 Acme입니다. 따뜻하고 간결하게 응대해주세요. 가격이나 배송일은 절대 언급하지 말고 사람에게 인계하세요.",
       "qualificationCriteria": "리드 심사 기준",
       "qualificationCriteriaPlaceholder": "예: 예산이 있고 이번 주 내 구매 의사가 있으면 HOT. 관심은 있지만 시급성이 없으면 WARM. 가격만 묻고 확정하지 않거나 첫 답변 이후 연락이 끊기면 COLD.",
-      "qualificationCriteriaHint": "선택 사항, 자유 텍스트 — HOT/WARM/COLD를 가르는 당신만의 기준입니다. 설정하면 자동 응답 어시스턴트가 대화마다 이 기준으로 점수를 매기고 연락처에 자동 반영합니다. HOT으로 판정된 리드의 딜은 파이프라인 설정에서 \"심사 완료\"로 지정한 단계로 자동 이동합니다. 비워두면 채점 기능이 꺼지고 어시스턴트는 기존과 동일하게 동작합니다.",
+      "qualificationCriteriaHint": "선택 사항, 자유 텍스트 — HOT/WARM/COLD를 가르는 당신만의 기준입니다. 설정하면 자동 응답 켜짐 여부와 상관없이 들어오는 메시지마다 이 기준으로 점수를 매기고 연락처에 자동 반영합니다 — 사람이 직접 답장을 쓰는 경우에도 동작합니다. HOT으로 판정된 리드의 딜은 파이프라인 설정에서 \"심사 완료\"로 지정한 단계로 자동 이동합니다. 비워두면 채점 기능이 꺼집니다.",
       "enableAssistant": "AI 어시스턴트 활성화",
       "enableAssistantDesc": "마스터 스위치입니다. 인박스의 \"AI로 초안 작성\" 버튼을 켭니다.",
       "autoReply": "수신 메시지 자동 응답",
@@ -2066,7 +2066,18 @@
     "hot": "핫",
     "warm": "웜",
     "cold": "콜드",
-    "unscored": "평가 안 됨"
+    "unscored": "평가 안 됨",
+    "overrideTitle": "점수 수정",
+    "overrideReasonPlaceholder": "사유 (선택)",
+    "overrideSave": "저장",
+    "overrideSaving": "저장 중…",
+    "overrideError": "점수를 업데이트하지 못했습니다",
+    "scoreHistory": "점수 기록",
+    "historyEmpty": "아직 기록이 없습니다",
+    "historyLoadError": "기록을 불러오지 못했습니다",
+    "sourceAi": "AI",
+    "sourceManual": "수동",
+    "staleTooltip": "{days}일 동안 재평가되지 않음"
   },
   "Interactive": {
     "kindButtons": "답장 버튼",

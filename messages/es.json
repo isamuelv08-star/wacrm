@@ -1985,7 +1985,7 @@
       "promptPlaceholder": "p. ej. Somos Acme, una tienda de equipos de café. Sé cordial y conciso. Nunca cites precios ni fechas de entrega — transfiere esos casos a un humano.",
       "qualificationCriteria": "Criterios de calificación de leads",
       "qualificationCriteriaPlaceholder": "p. ej. Califica como Caliente si el lead menciona un presupuesto disponible y urgencia por comprar esta semana. Tibio si muestra interés real pero sin urgencia clara. Frío si solo pregunta por el precio sin comprometerse a nada, o deja de responder después de la primera respuesta.",
-      "qualificationCriteriaHint": "Texto libre opcional — tus propias reglas sobre qué hace que un lead sea Caliente / Tibio / Frío. Cuando se configura, el asistente de respuesta automática califica cada conversación según estas reglas y actualiza el contacto automáticamente; el negocio de un lead Caliente también se mueve a la etapa del pipeline que hayas marcado como \"calificado\" en los ajustes de Pipeline. Déjalo en blanco para desactivar la calificación — el asistente se comporta exactamente igual que antes.",
+      "qualificationCriteriaHint": "Texto libre opcional — tus propias reglas sobre qué hace que un lead sea Caliente / Tibio / Frío. Cuando se configura, cada mensaje entrante se califica según estas reglas y el contacto se actualiza automáticamente — esto corre tanto si la respuesta automática está activada como si no, así que funciona incluso cuando un humano redacta las respuestas. El negocio de un lead Caliente también se mueve a la etapa del pipeline que hayas marcado como \"calificado\" en los ajustes de Pipeline. Déjalo en blanco para desactivar la calificación.",
       "enableAssistant": "Habilitar asistente de IA",
       "enableAssistantDesc": "Interruptor principal. Activa el botón “Redactar con IA” en la bandeja de entrada.",
       "autoReply": "Respuesta automática a mensajes entrantes",
@@ -2066,7 +2066,18 @@
     "hot": "Caliente",
     "warm": "Tibio",
     "cold": "Frío",
-    "unscored": "Sin calificar"
+    "unscored": "Sin calificar",
+    "overrideTitle": "Corregir calificación",
+    "overrideReasonPlaceholder": "Razón (opcional)",
+    "overrideSave": "Guardar",
+    "overrideSaving": "Guardando…",
+    "overrideError": "No se pudo actualizar la calificación",
+    "scoreHistory": "Historial de calificación",
+    "historyEmpty": "Todavía no hay historial",
+    "historyLoadError": "No se pudo cargar el historial",
+    "sourceAi": "IA",
+    "sourceManual": "Manual",
+    "staleTooltip": "Sin reevaluar hace {days, plural, one {# día} other {# días}}"
   },
   "Interactive": {
     "kindButtons": "Botones de respuesta",

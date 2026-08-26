@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { generateReply, parseGeneration } from './generate'
+import { generateReply, generateClassification, parseGeneration } from './generate'
 import { AiError, type AiConfig } from './types'
 
 function config(overrides: Partial<AiConfig> = {}): AiConfig {
@@ -47,6 +47,7 @@ describe('parseGeneration', () => {
       text: 'Hello there',
       handoff: false,
       score: null,
+      scoreReason: null,
       handoffSummary: null,
       stageMove: null,
       dealWon: false,
@@ -61,6 +62,7 @@ describe('parseGeneration', () => {
       text: '',
       handoff: true,
       score: null,
+      scoreReason: null,
       handoffSummary: null,
       stageMove: null,
       dealWon: false,
@@ -72,6 +74,7 @@ describe('parseGeneration', () => {
       text: 'Let me get a human',
       handoff: true,
       score: null,
+      scoreReason: null,
       handoffSummary: null,
       stageMove: null,
       dealWon: false,
@@ -87,6 +90,7 @@ describe('parseGeneration', () => {
       text: 'Hi',
       handoff: false,
       score: null,
+      scoreReason: null,
       handoffSummary: null,
       stageMove: null,
       dealWon: false,
@@ -101,6 +105,7 @@ describe('parseGeneration', () => {
       text: 'Sounds great!',
       handoff: false,
       score: 'hot',
+      scoreReason: null,
       handoffSummary: null,
       stageMove: null,
       dealWon: false,
@@ -112,6 +117,7 @@ describe('parseGeneration', () => {
       text: 'Ok, noted.',
       handoff: false,
       score: 'warm',
+      scoreReason: null,
       handoffSummary: null,
       stageMove: null,
       dealWon: false,
@@ -134,6 +140,7 @@ describe('parseGeneration', () => {
       text: 'Let me get someone.',
       handoff: true,
       score: 'warm',
+      scoreReason: null,
       handoffSummary: null,
       stageMove: null,
       dealWon: false,
@@ -145,6 +152,27 @@ describe('parseGeneration', () => {
 
   it('returns null score when the tag is absent', () => {
     expect(parseGeneration('Just a normal reply.').score).toBeNull()
+  })
+
+  it('detects + strips the score-reason sentinel alongside the score', () => {
+    const result = parseGeneration(
+      'Great, noted! [[SCORE:HOT]][[SCORE_REASON: Confirmed budget and wants to buy this week.]]',
+    )
+    expect(result.score).toBe('hot')
+    expect(result.scoreReason).toBe('Confirmed budget and wants to buy this week.')
+    expect(result.text).toBe('Great, noted!')
+  })
+
+  it('ignores a reason tag with no accompanying score', () => {
+    const result = parseGeneration('Ok. [[SCORE_REASON: should not apply without a score]]')
+    expect(result.score).toBeNull()
+    expect(result.scoreReason).toBeNull()
+  })
+
+  it('never leaks the score-reason tag into the customer-facing text', () => {
+    const result = parseGeneration('Thanks! [[SCORE:WARM]][[SCORE_REASON: interested, no urgency]]')
+    expect(result.text).not.toContain('SCORE_REASON')
+    expect(result.text).not.toContain('interested, no urgency')
   })
 
   it('detects + strips the handoff-summary sentinel, only when handoff is present', () => {
@@ -191,6 +219,7 @@ describe('generateReply — OpenAI', () => {
       text: 'Sure — happy to help!',
       handoff: false,
       score: null,
+      scoreReason: null,
       handoffSummary: null,
       stageMove: null,
       dealWon: false,
@@ -256,6 +285,7 @@ describe('generateReply — Anthropic', () => {
       text: 'Hi there!',
       handoff: false,
       score: null,
+      scoreReason: null,
       handoffSummary: null,
       stageMove: null,
       dealWon: false,
@@ -303,5 +333,69 @@ describe('generateReply — Anthropic', () => {
     const body = JSON.parse(fetchMock.mock.calls[0][1].body)
     expect(body.messages[0].role).toBe('user')
     expect(body.messages).toHaveLength(1)
+  })
+})
+
+describe('generateClassification', () => {
+  async function classify(content: string) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        okResponse({ choices: [{ message: { content } }] }),
+      ),
+    )
+    return generateClassification({
+      config: config(),
+      systemPrompt: 'classify sys',
+      messages: [{ role: 'user', content: 'I need this by Friday, budget is ready' }],
+    })
+  }
+
+  it('parses a clean JSON verdict', async () => {
+    const res = await classify('{"score":"hot","reason":"Budget and deadline confirmed."}')
+    expect(res.score).toBe('hot')
+    expect(res.reason).toBe('Budget and deadline confirmed.')
+  })
+
+  it('tolerates a ```json code fence around the JSON', async () => {
+    const res = await classify('```json\n{"score":"warm","reason":"Interested, no urgency."}\n```')
+    expect(res.score).toBe('warm')
+    expect(res.reason).toBe('Interested, no urgency.')
+  })
+
+  it('returns null score + reason for an explicit null verdict', async () => {
+    const res = await classify('{"score":null,"reason":null}')
+    expect(res.score).toBeNull()
+    expect(res.reason).toBeNull()
+  })
+
+  it('swallows malformed JSON as "nothing to score"', async () => {
+    const res = await classify('Sure, this lead seems hot to me!')
+    expect(res.score).toBeNull()
+    expect(res.reason).toBeNull()
+  })
+
+  it('swallows an invalid score value as "nothing to score"', async () => {
+    const res = await classify('{"score":"scorching","reason":"very interested"}')
+    expect(res.score).toBeNull()
+    expect(res.reason).toBeNull()
+  })
+
+  it('passes usage straight through', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        okResponse({
+          choices: [{ message: { content: '{"score":"cold","reason":"Just browsing."}' } }],
+          usage: { prompt_tokens: 20, completion_tokens: 4, total_tokens: 24 },
+        }),
+      ),
+    )
+    const res = await generateClassification({
+      config: config(),
+      systemPrompt: 'classify sys',
+      messages: [{ role: 'user', content: 'just curious about pricing' }],
+    })
+    expect(res.usage).toEqual({ promptTokens: 20, completionTokens: 4, totalTokens: 24 })
   })
 })

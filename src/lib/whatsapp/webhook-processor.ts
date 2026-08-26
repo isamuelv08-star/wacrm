@@ -9,6 +9,7 @@ import { reopenClosedConversation } from '@/lib/conversations/reopen'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
+import { classifyLeadIfNeeded } from '@/lib/ai/lead-classify'
 import { pickRoundRobinAgent } from '@/lib/assignment/round-robin'
 import { transcribeAndStoreAudioMessage } from '@/lib/ai/transcribe'
 import { describeAndStoreImageMessage } from '@/lib/ai/vision'
@@ -1000,6 +1001,18 @@ export async function processMessage(
   // owns its eligibility gates + try/catch and never throws.
   if (!flowConsumed && !interactiveReplyId && (inboundText.trim() || hasImageDescription)) {
     await dispatchInboundToAiReply({
+      accountId,
+      conversationId: conversation.id,
+      contactId: contactRecord.id,
+      configOwnerUserId,
+    })
+
+    // Standalone lead classification — covers accounts where auto-reply
+    // is OFF (a human writes replies) so qualification_criteria isn't
+    // silently inert there. No-ops internally when auto-reply already
+    // scored this same turn above; owns its own eligibility gates +
+    // try/catch and never throws.
+    await classifyLeadIfNeeded({
       accountId,
       conversationId: conversation.id,
       contactId: contactRecord.id,

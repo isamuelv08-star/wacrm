@@ -1985,7 +1985,7 @@
       "promptPlaceholder": "ex.: Somos a Acme, uma loja de equipamentos de café. Seja caloroso e conciso. Nunca informe preços ou prazos de entrega — transfira para um humano nesses casos.",
       "qualificationCriteria": "Critérios de qualificação de leads",
       "qualificationCriteriaPlaceholder": "ex.: Pontue como QUENTE se o lead mencionar orçamento disponível e urgência para comprar esta semana. MORNO se demonstrar interesse real, mas sem urgência clara. FRIO se apenas perguntar o preço sem se comprometer, ou ficar em silêncio após a primeira resposta.",
-      "qualificationCriteriaHint": "Opcional, texto livre — suas próprias regras para o que torna um lead QUENTE / MORNO / FRIO. Quando definido, o assistente de resposta automática pontua cada conversa com base nessas regras e atualiza o contato automaticamente; o negócio de um lead QUENTE também é movido para a etapa do pipeline que você marcou como \"qualificada\" nas configurações de Pipeline. Deixe em branco para desativar a pontuação — o assistente se comporta exatamente como antes.",
+      "qualificationCriteriaHint": "Opcional, texto livre — suas próprias regras para o que torna um lead QUENTE / MORNO / FRIO. Quando definido, cada mensagem recebida é pontuada com base nessas regras e o contato é atualizado automaticamente — isso roda esteja a resposta automática ligada ou não, então funciona mesmo quando um humano escreve as respostas. O negócio de um lead QUENTE também é movido para a etapa do pipeline que você marcou como \"qualificada\" nas configurações de Pipeline. Deixe em branco para desativar a pontuação.",
       "enableAssistant": "Ativar assistente de IA",
       "enableAssistantDesc": "Chave geral. Ativa o botão “Redigir com IA” na caixa de entrada.",
       "autoReply": "Responder automaticamente a mensagens recebidas",
@@ -2066,7 +2066,18 @@
     "hot": "Quente",
     "warm": "Morno",
     "cold": "Frio",
-    "unscored": "Não pontuado"
+    "unscored": "Não pontuado",
+    "overrideTitle": "Corrigir pontuação",
+    "overrideReasonPlaceholder": "Motivo (opcional)",
+    "overrideSave": "Salvar",
+    "overrideSaving": "Salvando…",
+    "overrideError": "Não foi possível atualizar a pontuação",
+    "scoreHistory": "Histórico de pontuação",
+    "historyEmpty": "Ainda não há histórico",
+    "historyLoadError": "Não foi possível carregar o histórico",
+    "sourceAi": "IA",
+    "sourceManual": "Manual",
+    "staleTooltip": "Sem reavaliação há {days, plural, one {# dia} other {# dias}}"
   },
   "Interactive": {
     "kindButtons": "Botões de resposta",

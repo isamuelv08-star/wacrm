@@ -604,7 +604,11 @@ export default function ContactsPage() {
                   <TableCell className="text-foreground font-medium">
                     <span className="flex items-center gap-1.5">
                       {contact.name || <span className="text-muted-foreground italic">{t('unnamed')}</span>}
-                      <LeadScoreBadge score={contact.lead_score} />
+                      <LeadScoreBadge
+                        score={contact.lead_score}
+                        reason={contact.lead_score_reason}
+                        updatedAt={contact.lead_score_updated_at}
+                      />
                     </span>
                   </TableCell>
                   <TableCell className="text-muted-foreground font-mono text-xs">

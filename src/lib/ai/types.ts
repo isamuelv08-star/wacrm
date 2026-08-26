@@ -97,6 +97,12 @@ export interface GenerateResult {
    */
   score: LeadScore | null
   /**
+   * The short explanation the model emitted via `[[SCORE_REASON:...]]`
+   * alongside `score`, or null when it scored with no reason (or didn't
+   * score at all this turn). Never present in `text`.
+   */
+  scoreReason: string | null
+  /**
    * The internal handoff note the model emitted via
    * `[[HANDOFF_SUMMARY:...]]` when it handed off, or null when it
    * didn't hand off, or handed off without complying with the format

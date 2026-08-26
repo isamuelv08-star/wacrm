@@ -146,6 +146,15 @@ export interface Contact {
    * or a contact the bot hasn't assessed yet.
    */
   lead_score?: 'hot' | 'warm' | 'cold' | null;
+  /** Short explanation for the current `lead_score`, AI- or
+   *  manually-set (migration 061). Shown as a tooltip on the badge. */
+  lead_score_reason?: string | null;
+  /** Who set the current `lead_score` last (migration 061). */
+  lead_score_source?: 'ai' | 'manual' | null;
+  /** When the current `lead_score` was last (re)assessed (migration
+   *  061) — powers the badge's "hasn't been reassessed in a while"
+   *  staleness indicator. */
+  lead_score_updated_at?: string | null;
   /** Hydrated by queries that embed `contact_tags(tags(*))` (e.g. the
    *  Inbox conversation list, for tag filtering). Absent otherwise. */
   tags?: Tag[];

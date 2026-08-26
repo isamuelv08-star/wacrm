@@ -591,7 +591,11 @@ function ConversationItem({
             <span className="truncate text-sm font-medium text-foreground">
               {displayName}
             </span>
-            <LeadScoreBadge score={contact?.lead_score} />
+            <LeadScoreBadge
+              score={contact?.lead_score}
+              reason={contact?.lead_score_reason}
+              updatedAt={contact?.lead_score_updated_at}
+            />
           </span>
           <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo}</span>
         </div>

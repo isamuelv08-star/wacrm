@@ -51,6 +51,8 @@ import {
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { EventFormDialog } from '@/components/calendar/event-form-dialog';
+import { LeadScoreBadge } from '@/components/leads/lead-score-badge';
+import { LeadScoreHistory } from '@/components/leads/lead-score-history';
 
 interface ContactDetailViewProps {
   open: boolean;
@@ -66,6 +68,7 @@ export function ContactDetailView({
   onUpdated,
 }: ContactDetailViewProps) {
   const t = useTranslations('Contacts.detailView');
+  const tLeads = useTranslations('Leads');
   const supabase = createClient();
   const { accountId, defaultCurrency } = useAuth();
 
@@ -413,9 +416,26 @@ export function ContactDetailView({
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <SheetTitle className="text-popover-foreground truncate">
-                    {contact.name || t('unnamed')}
-                  </SheetTitle>
+                  <div className="flex items-center gap-2">
+                    <SheetTitle className="text-popover-foreground truncate">
+                      {contact.name || t('unnamed')}
+                    </SheetTitle>
+                    <LeadScoreBadge
+                      score={contact.lead_score}
+                      reason={contact.lead_score_reason}
+                      updatedAt={contact.lead_score_updated_at}
+                      editable
+                      contactId={contact.id}
+                      onScoreChange={({ score, reason }) => {
+                        setContact((prev) =>
+                          prev
+                            ? { ...prev, lead_score: score, lead_score_reason: reason }
+                            : prev,
+                        );
+                        onUpdated();
+                      }}
+                    />
+                  </div>
                   <SheetDescription className="text-muted-foreground text-xs mt-0.5">
                     {t('contactDetailsDesc')}
                   </SheetDescription>
@@ -571,6 +591,15 @@ export function ContactDetailView({
                     )}
                     {t('saveChangesBtn')}
                   </Button>
+
+                  {contact.lead_score && (
+                    <div className="space-y-1.5 pt-2">
+                      <Label className="text-muted-foreground text-xs">
+                        {tLeads('scoreHistory')}
+                      </Label>
+                      <LeadScoreHistory contactId={contact.id} />
+                    </div>
+                  )}
                 </div>
               </TabsContent>
 

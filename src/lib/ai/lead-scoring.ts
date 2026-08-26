@@ -2,12 +2,19 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { LeadScore } from './types'
 
 // ============================================================
-// Apply a lead score the AI auto-reply bot emitted via the
-// `[[SCORE:...]]` sentinel (see defaults.ts / generate.ts).
+// Apply a lead score — either the AI emitted via the `[[SCORE:...]]`
+// sentinel / the standalone classifier's JSON verdict (see defaults.ts
+// / generate.ts / lead-classify.ts), or a human agent's manual
+// override (source: 'manual').
 //
 // Two independent effects, both best-effort — a failure here must
 // never take down the customer-facing reply that already sent:
-//   1. Always persist the score onto `contacts.lead_score`.
+//   1. Always persist the score (+ reason/source) onto `contacts`.
+//      `lead_score_updated_at` and the `lead_score_history` audit row
+//      are maintained by the `on_lead_score_change` DB trigger
+//      (migration 061) — never set them from application code, so
+//      every write path (this function, or any future one) stays
+//      correct for free.
 //   2. Only for HOT: advance the contact's deal to the qualified
 //      stage via `ensureDealInQualifiedStage` below.
 //
@@ -22,14 +29,26 @@ export async function applyLeadScore(
     contactId: string
     configOwnerUserId: string
     score: LeadScore
+    /** Short explanation for this score, shown as a tooltip on the
+     *  badge. Null when the caller has none (e.g. a manual override
+     *  with no reason typed in). */
+    reason?: string | null
+    /** Who set this score — defaults to 'ai' (every existing caller is
+     *  the AI bot); a manual-override endpoint passes 'manual'. */
+    source?: 'ai' | 'manual'
   },
 ): Promise<void> {
-  const { accountId, contactId, configOwnerUserId, score } = args
+  const { accountId, contactId, configOwnerUserId, score, reason = null, source = 'ai' } = args
 
   try {
     const { error: scoreErr } = await db
       .from('contacts')
-      .update({ lead_score: score, updated_at: new Date().toISOString() })
+      .update({
+        lead_score: score,
+        lead_score_reason: reason,
+        lead_score_source: source,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', contactId)
       .eq('account_id', accountId)
     if (scoreErr) {

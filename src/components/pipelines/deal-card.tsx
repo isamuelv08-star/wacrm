@@ -131,7 +131,11 @@ export function DealCard({
             </span>
           )}
         </span>
-        <LeadScoreBadge score={deal.contact?.lead_score} />
+        <LeadScoreBadge
+          score={deal.contact?.lead_score}
+          reason={deal.contact?.lead_score_reason}
+          updatedAt={deal.contact?.lead_score_updated_at}
+        />
       </div>
 
       {/* Company */}

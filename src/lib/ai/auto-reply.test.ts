@@ -352,4 +352,22 @@ describe('dispatchInboundToAiReply — lead scoring', () => {
     await dispatchInboundToAiReply(ARGS)
     expect(h.applyLeadScore).not.toHaveBeenCalled()
   })
+
+  it('passes the model\'s score reason through, tagged as source "ai"', async () => {
+    h.generateReply.mockResolvedValue({
+      text: 'Sounds great!',
+      handoff: false,
+      score: 'hot',
+      scoreReason: 'Confirmed budget and wants to buy this week.',
+    })
+    await dispatchInboundToAiReply(ARGS)
+    expect(h.applyLeadScore).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        score: 'hot',
+        reason: 'Confirmed budget and wants to buy this week.',
+        source: 'ai',
+      }),
+    )
+  })
 })

@@ -167,6 +167,12 @@ export const RATE_LIMITS = {
    *  capping a stampede; excess inbounds simply don't get an auto-reply
    *  (they still land in the inbox for a human). */
   aiAutoReplyAccount: { limit: 30, windowMs: 60_000 },
+  /** Standalone lead-classification call, per account
+   *  (src/lib/ai/lead-classify.ts) — runs whenever auto-reply is OFF,
+   *  independent of aiAutoReplyAccount above. Same 30/min budget and
+   *  same rationale: bounds a burst of inbound across many threads
+   *  against the account's own BYO provider key. */
+  aiClassifyAccount: { limit: 30, windowMs: 60_000 },
 } as const;
 
 /** Test-only helper. Clears the in-memory state so unit tests don't

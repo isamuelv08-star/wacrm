@@ -10,6 +10,7 @@ import {
   HANDOFF_SENTINEL,
   HANDOFF_SUMMARY_PATTERN,
   SCORE_SENTINEL_PATTERN,
+  SCORE_REASON_PATTERN,
   STAGE_SENTINEL_PATTERN,
   DEAL_WON_SENTINEL,
   DEAL_LOST_SENTINEL,
@@ -73,6 +74,97 @@ export async function generateReply(args: GenerateArgs): Promise<GenerateResult>
  * `usage` is passed straight through (null when the provider didn't
  * report it).
  */
+export interface ClassificationArgs {
+  config: AiConfig
+  /** Built by `buildClassificationPrompt` (defaults.ts). */
+  systemPrompt: string
+  messages: ChatMessage[]
+}
+
+export interface ClassificationResult {
+  score: LeadScore | null
+  reason: string | null
+  usage: AiUsage | null
+}
+
+const VALID_SCORES: readonly LeadScore[] = ['hot', 'warm', 'cold']
+
+/**
+ * Generate a standalone lead-classification verdict (no customer-facing
+ * text at all — see `buildClassificationPrompt`). Reuses the same
+ * provider adapters as `generateReply` (they only ever return raw
+ * `{text, usage}`, so nothing provider-side changes), but parses the
+ * response as strict JSON instead of scanning free text for a sentinel:
+ * this call's entire output IS the verdict, so there's nothing else to
+ * interleave it with.
+ *
+ * Never throws on a malformed response — a model that ignores the
+ * format is treated the same as "nothing to score yet" (`score: null`),
+ * logged so it's visible without taking down the caller.
+ */
+export async function generateClassification(
+  args: ClassificationArgs,
+): Promise<ClassificationResult> {
+  const { config, systemPrompt, messages } = args
+  const timeoutMs = aiRequestTimeoutMs()
+  const providerArgs = {
+    apiKey: config.apiKey,
+    model: config.model,
+    systemPrompt,
+    messages,
+    timeoutMs,
+  }
+
+  let result: { text: string; usage: AiUsage | null }
+  switch (config.provider) {
+    case 'openai':
+      result = await generateOpenAi(providerArgs)
+      break
+    case 'anthropic':
+      result = await generateAnthropic(providerArgs)
+      break
+    case 'openrouter':
+      result = await generateOpenRouter(providerArgs)
+      break
+    default:
+      throw new AiError(`Unsupported AI provider: ${config.provider}`, {
+        code: 'unsupported_provider',
+        status: 400,
+      })
+  }
+
+  return { ...parseClassification(result.text), usage: result.usage }
+}
+
+/** Strip a ```json ... ``` (or bare ```) fence if the model wrapped its
+ *  JSON in one despite being asked not to — cheap to tolerate, since a
+ *  fenced-but-otherwise-valid response is still an unambiguous verdict. */
+function stripCodeFence(raw: string): string {
+  const trimmed = raw.trim()
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)
+  return fenced ? fenced[1].trim() : trimmed
+}
+
+function parseClassification(raw: string): Omit<ClassificationResult, 'usage'> {
+  try {
+    const parsed: unknown = JSON.parse(stripCodeFence(raw))
+    if (typeof parsed !== 'object' || parsed === null) {
+      throw new Error('not an object')
+    }
+    const { score, reason } = parsed as { score?: unknown; reason?: unknown }
+    if (score !== null && !VALID_SCORES.includes(score as LeadScore)) {
+      throw new Error(`invalid score: ${JSON.stringify(score)}`)
+    }
+    return {
+      score: score === null ? null : (score as LeadScore),
+      reason: typeof reason === 'string' && reason.trim() ? reason.trim() : null,
+    }
+  } catch (err) {
+    console.error('[ai lead-classify] failed to parse classification response:', err)
+    return { score: null, reason: null }
+  }
+}
+
 export function parseGeneration(
   raw: string,
   usage: AiUsage | null = null,
@@ -82,6 +174,8 @@ export function parseGeneration(
   const score = scoreMatch
     ? (scoreMatch[1].toLowerCase() as LeadScore)
     : null
+  const scoreReasonMatch = raw.match(SCORE_REASON_PATTERN)
+  const scoreReason = score && scoreReasonMatch ? scoreReasonMatch[1].trim() || null : null
   const summaryMatch = raw.match(HANDOFF_SUMMARY_PATTERN)
   const handoffSummary =
     handoff && summaryMatch ? summaryMatch[1].trim() || null : null
@@ -101,6 +195,7 @@ export function parseGeneration(
     .split(DEAL_LOST_SENTINEL)
     .join('')
     .replace(SCORE_SENTINEL_PATTERN, '')
+    .replace(SCORE_REASON_PATTERN, '')
     .replace(HANDOFF_SUMMARY_PATTERN, '')
     .replace(STAGE_SENTINEL_PATTERN, '')
     .replace(SUMMARY_SENTINEL_PATTERN, '')
@@ -109,6 +204,7 @@ export function parseGeneration(
     text,
     handoff,
     score,
+    scoreReason,
     handoffSummary,
     stageMove,
     dealWon,

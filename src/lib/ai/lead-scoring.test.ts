@@ -48,6 +48,28 @@ describe('applyLeadScore', () => {
     expect(contactUpdate?.payload).toMatchObject({ lead_score: 'warm' })
   })
 
+  it('defaults reason to null and source to "ai" when omitted', async () => {
+    const { db, calls } = makeDb({})
+    await applyLeadScore(db, { ...ARGS, score: 'warm' })
+    const contactUpdate = calls.find((c) => c.table === 'contacts' && c.type === 'update')
+    expect(contactUpdate?.payload).toMatchObject({ lead_score_reason: null, lead_score_source: 'ai' })
+  })
+
+  it('persists an explicit reason and a manual source', async () => {
+    const { db, calls } = makeDb({})
+    await applyLeadScore(db, {
+      ...ARGS,
+      score: 'hot',
+      reason: 'Corrected by agent after reviewing the call.',
+      source: 'manual',
+    })
+    const contactUpdate = calls.find((c) => c.table === 'contacts' && c.type === 'update')
+    expect(contactUpdate?.payload).toMatchObject({
+      lead_score_reason: 'Corrected by agent after reviewing the call.',
+      lead_score_source: 'manual',
+    })
+  })
+
   it('does not touch deals for a non-hot score', async () => {
     const { db, calls } = makeDb({})
     await applyLeadScore(db, { ...ARGS, score: 'cold' })

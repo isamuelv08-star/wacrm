@@ -1985,7 +1985,7 @@
       "promptPlaceholder": "e.g. We are Acme, a coffee-equipment store. Be warm and concise. Never quote prices or delivery dates — hand off to a human for those.",
       "qualificationCriteria": "Lead qualification criteria",
       "qualificationCriteriaPlaceholder": "e.g. Score HOT if the lead mentions an available budget and urgency to buy this week. WARM if they show real interest but no clear urgency. COLD if they only ask about price without committing to anything, or go quiet after the first reply.",
-      "qualificationCriteriaHint": "Optional, free text — your own rules for what makes a lead HOT / WARM / COLD. When set, the auto-reply assistant scores each conversation against these rules and updates the contact automatically; a HOT lead's deal also moves to whichever pipeline stage you've marked as \"qualified\" in Pipeline settings. Leave blank to turn scoring off — the assistant otherwise behaves exactly as before.",
+      "qualificationCriteriaHint": "Optional, free text — your own rules for what makes a lead HOT / WARM / COLD. When set, every inbound message is scored against these rules and the contact is updated automatically — this runs whether or not auto-reply is on, so it works even if a human is writing the replies. A HOT lead's deal also moves to whichever pipeline stage you've marked as \"qualified\" in Pipeline settings. Leave blank to turn scoring off.",
       "enableAssistant": "Enable AI assistant",
       "enableAssistantDesc": "Master switch. Turns on the “Draft with AI” button in the inbox.",
       "autoReply": "Auto-reply to inbound messages",
@@ -2066,7 +2066,18 @@
     "hot": "Hot",
     "warm": "Warm",
     "cold": "Cold",
-    "unscored": "Not scored"
+    "unscored": "Not scored",
+    "overrideTitle": "Correct score",
+    "overrideReasonPlaceholder": "Reason (optional)",
+    "overrideSave": "Save",
+    "overrideSaving": "Saving…",
+    "overrideError": "Couldn't update the score",
+    "scoreHistory": "Score history",
+    "historyEmpty": "No history yet",
+    "historyLoadError": "Couldn't load score history",
+    "sourceAi": "AI",
+    "sourceManual": "Manual",
+    "staleTooltip": "Not reassessed in {days, plural, one {# day} other {# days}}"
   },
   "Interactive": {
     "kindButtons": "Reply buttons",

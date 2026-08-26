@@ -104,6 +104,18 @@ export function ContactSidebar({
     setCompanyDraft(contact?.company ?? "");
   }, [contact?.id, contact?.email, contact?.company]);
 
+  // Manual lead-score override (migration 061) — same "local draft the
+  // caller updates on a successful save" posture as email/company above,
+  // since `contact` itself isn't re-fetched after the popover's write.
+  const [scoreOverride, setScoreOverride] = useState<{
+    score: "hot" | "warm" | "cold";
+    reason: string | null;
+  } | null>(null);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setScoreOverride(null);
+  }, [contact?.id]);
+
   const saveContactField = useCallback(
     async (field: "email" | "company", value: string, previous: string | undefined) => {
       if (!contact) return;
@@ -393,7 +405,14 @@ export function ContactSidebar({
               {displayName}
             </h3>
             <div className="mt-1.5 flex flex-wrap items-center justify-center gap-1">
-              <LeadScoreBadge score={contact.lead_score} />
+              <LeadScoreBadge
+                score={scoreOverride?.score ?? contact.lead_score}
+                reason={scoreOverride ? scoreOverride.reason : contact.lead_score_reason}
+                updatedAt={contact.lead_score_updated_at}
+                editable
+                contactId={contact.id}
+                onScoreChange={setScoreOverride}
+              />
               {statusLabel && (
                 <span
                   className="inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold"

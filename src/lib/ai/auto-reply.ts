@@ -159,6 +159,7 @@ export async function dispatchInboundToAiReply(
       text,
       handoff,
       score,
+      scoreReason,
       handoffSummary,
       stageMove,
       dealWon,
@@ -190,7 +191,14 @@ export async function dispatchInboundToAiReply(
     // human AND clearly has budget + urgency"). applyLeadScore owns
     // its own try/catch and never throws.
     if (score) {
-      await applyLeadScore(db, { accountId, contactId, configOwnerUserId, score })
+      await applyLeadScore(db, {
+        accountId,
+        contactId,
+        configOwnerUserId,
+        score,
+        reason: scoreReason,
+        source: 'ai',
+      })
     }
 
     // Same "independent of handoff/reply outcome" posture as the score
