@@ -200,13 +200,13 @@
       },
       "salesVsGoal": {
         "title": "Ventas vs Meta",
-        "description": "Ingresos contra la meta de la cuenta, en el período seleccionado",
+        "description": "Ingresos acumulados vs. el ritmo necesario para llegar a la meta de este mes",
         "noData": "Todavía no hay suficientes datos",
         "noDataHint": "Cerrá deals y definí una meta mensual para completar este gráfico.",
-        "actual": "Real",
-        "goal": "Meta",
-        "ariaLabel": "Ventas versus meta, en el período seleccionado",
-        "tooltipGoal": "Meta: {value}",
+        "actual": "Real (acumulado)",
+        "goal": "Ritmo hacia la meta",
+        "ariaLabel": "Ventas acumuladas versus el ritmo hacia la meta, en el período seleccionado",
+        "tooltipGoal": "Meta a la fecha: {value}",
         "attainment": "{pct}% de la meta"
       },
       "commercial": {

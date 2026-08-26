@@ -200,13 +200,13 @@
       },
       "salesVsGoal": {
         "title": "Sales vs Goal",
-        "description": "Revenue against the account's target, over the selected period",
+        "description": "Cumulative revenue vs. the pace needed to hit this month's goal",
         "noData": "Not enough data yet",
         "noDataHint": "Close deals and set a monthly goal to fill in this chart.",
-        "actual": "Actual",
-        "goal": "Goal",
-        "ariaLabel": "Sales versus goal, over the selected period",
-        "tooltipGoal": "Goal: {value}",
+        "actual": "Actual (cumulative)",
+        "goal": "Target pace",
+        "ariaLabel": "Cumulative sales versus target pace, over the selected period",
+        "tooltipGoal": "Target to date: {value}",
         "attainment": "{pct}% of goal"
       },
       "commercial": {

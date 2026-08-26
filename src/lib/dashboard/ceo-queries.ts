@@ -46,13 +46,28 @@ const AT_RISK_CONVERSATION_SILENCE_DAYS = 14
 /**
  * Buckets the selected period (daily for ≤30 days, ~30 multi-day
  * buckets for a quarter / year / all-time — see `rangeBuckets`) and
- * compares actual won-deal revenue per bucket against a slice of the
- * account's CURRENT monthly goal, prorated by the bucket's own day
- * count. There's only ever one goal on the books (this month's), so a
- * 1-year view necessarily assumes "if every month kept pace with this
- * one" rather than replaying whatever the goal actually was in each
- * past month — simpler and still a meaningful trend line, but worth
- * knowing it's a projection for anything beyond the current month.
+ * returns two RUNNING TOTALS: cumulative actual won-deal revenue, and
+ * a cumulative target trajectory toward the account's monthly goal.
+ *
+ * Cumulative rather than per-bucket — this used to divide the monthly
+ * goal into a flat per-day slice and plot THAT as "the goal" for every
+ * bucket, so the chart showed a number like "$4,839" that matched
+ * nothing the account actually configured (the real, single number
+ * they typed into Settings is the full monthly goal, e.g. $150,000).
+ * The cumulative framing puts that exact configured number back on the
+ * chart: the goal line is 0 at the period's start and reaches the full
+ * (range-scaled) target by its end, so the reader can see actual
+ * revenue-to-date against where it needs to be — the standard "pacing
+ * toward a target" chart, and one where hovering the last point on a
+ * full-month view shows precisely the number from Settings.
+ *
+ * There's only ever one goal on the books (this month's), so a range
+ * longer than one month necessarily assumes "if every month kept pace
+ * with this one" (the target trajectory is a straight line from 0 to
+ * monthlyGoal × however many months the range spans) rather than
+ * replaying whatever the goal actually was in each past month —
+ * simpler and still a meaningful trend line, but worth knowing it's a
+ * projection for anything beyond the current month.
  */
 export async function loadSalesVsGoal(db: DB, range: DateRange): Promise<SalesVsGoalPoint[]> {
   const buckets = rangeBuckets(range)
@@ -78,18 +93,24 @@ export async function loadSalesVsGoal(db: DB, range: DateRange): Promise<SalesVs
   const monthlyGoal = (goalRow.data as { target_value: number } | null)?.target_value ?? null
   const goalPerDay = monthlyGoal != null ? monthlyGoal / daysInMonthOf(new Date()) : null
 
+  let cumulativeActual = 0
+  let cumulativeGoal = 0
   return buckets.map((b) => {
-    const actual = rows
+    const bucketActual = rows
       .filter((d) => {
         const t = new Date(d.closed_at).getTime()
         return t >= b.start.getTime() && t < b.end.getTime()
       })
       .reduce((s, d) => s + (d.value ?? 0), 0)
+    cumulativeActual += bucketActual
+
     const bucketDays = Math.max(1, Math.round((b.end.getTime() - b.start.getTime()) / 86_400_000))
+    if (goalPerDay != null) cumulativeGoal += goalPerDay * bucketDays
+
     return {
       label: b.label,
-      actual,
-      goal: goalPerDay != null ? goalPerDay * bucketDays : null,
+      actual: cumulativeActual,
+      goal: goalPerDay != null ? cumulativeGoal : null,
     }
   })
 }

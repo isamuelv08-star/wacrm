@@ -8,9 +8,14 @@ import type { MetricDelta } from './types'
 export interface SalesVsGoalPoint {
   /** Short display label for this bucket's start day (e.g. "Aug 12"). */
   label: string
-  /** Sum of won deals whose closed_at falls in this bucket. */
+  /** Cumulative sum of won deals from the period's start through the
+   *  end of this bucket — a running total, not this bucket's own
+   *  revenue. The last point's value is the period's full actual. */
   actual: number
-  /** The account-level goal, prorated to this bucket's day count. Null if never set. */
+  /** Cumulative target-to-date from the period's start through the end
+   *  of this bucket — 0 at the period's start, reaching the full
+   *  (range-scaled) account-level goal by its last point. Null if no
+   *  goal was ever set. */
   goal: number | null
 }
 

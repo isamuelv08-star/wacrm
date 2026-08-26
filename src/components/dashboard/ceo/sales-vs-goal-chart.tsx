@@ -41,18 +41,14 @@ export function SalesVsGoalChart({ data, loading, currency }: SalesVsGoalChartPr
   // Attainment for the whole selected period — the headline this
   // chart exists to answer ("are we on track?") surfaced right in the
   // header instead of making the reader trace the plot themselves.
-  // Summed across every bucket in view, not just the last one: this
-  // used to read `data[data.length - 1]` back when each point was a
-  // full month, so "the last point" meant "this month" — now that the
-  // range can bucket into daily points, the last point is just today,
-  // and comparing today's actual against today's 1/31st goal slice
-  // produced a badge that looked wildly wrong (near 0% most days)
-  // regardless of real progress toward the period's goal.
+  // `actual`/`goal` are now cumulative running totals (see
+  // loadSalesVsGoal's doc comment), so the LAST point already holds
+  // the period's full actual-vs-target — no need to sum across
+  // buckets (summing cumulative values would wildly overcount).
   const attainmentPct = useMemo(() => {
     if (!data || data.length === 0) return null
-    const totalActual = data.reduce((sum, p) => sum + p.actual, 0)
-    const totalGoal = data.reduce((sum, p) => sum + (p.goal ?? 0), 0)
-    return totalGoal > 0 ? (totalActual / totalGoal) * 100 : null
+    const last = data[data.length - 1]
+    return last.goal && last.goal > 0 ? (last.actual / last.goal) * 100 : null
   }, [data])
 
   return (
@@ -204,6 +200,22 @@ function LineSvg({ data, currency }: { data: SalesVsGoalPoint[]; currency: strin
 
         {goalPath && (
           <path d={goalPath} fill="none" stroke={GOAL_COLOR} strokeWidth={1.75} strokeDasharray="5 4" strokeLinecap="round" opacity={0.85} />
+        )}
+
+        {/* Label the target line's own endpoint with the actual
+            configured number (the account's real monthly goal from
+            Settings, range-scaled) — the whole point of the cumulative
+            redesign is that this number is now traceable on the chart
+            itself, not a divided-by-days figure nobody typed in. */}
+        {goalPoints.length > 0 && data[data.length - 1].goal != null && (
+          <text
+            x={goalPoints[goalPoints.length - 1].x - 6}
+            y={goalPoints[goalPoints.length - 1].y - 8}
+            textAnchor="end"
+            className="fill-muted-foreground text-[10px] font-medium tabular-nums"
+          >
+            {formatCompactNumber(data[data.length - 1].goal as number)}
+          </text>
         )}
 
         {/* Current-month marker — a soft breathing glow on the most

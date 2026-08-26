@@ -200,13 +200,13 @@
       },
       "salesVsGoal": {
         "title": "매출 vs 목표",
-        "description": "선택한 기간 동안의 계정 목표 대비 매출",
+        "description": "이번 달 목표 달성에 필요한 속도 대비 누적 매출",
         "noData": "아직 데이터가 충분하지 않습니다",
         "noDataHint": "딜을 성사시키고 월간 목표를 설정하면 이 차트가 채워집니다.",
-        "actual": "실제",
-        "goal": "목표",
-        "ariaLabel": "선택한 기간의 매출 대 목표",
-        "tooltipGoal": "목표: {value}",
+        "actual": "실제 (누적)",
+        "goal": "목표 페이스",
+        "ariaLabel": "선택한 기간의 누적 매출 대 목표 페이스",
+        "tooltipGoal": "현재까지 목표: {value}",
         "attainment": "목표의 {pct}%"
       },
       "commercial": {
