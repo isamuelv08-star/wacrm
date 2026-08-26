@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 
 import {
+  loadActivityFeed,
   loadConversationsSeries,
   loadHotUnanswered,
   loadMetrics,
@@ -34,6 +35,7 @@ import {
   loadTopSellers,
 } from '@/lib/dashboard/ceo-queries'
 import type {
+  ActivityItem,
   ConversationsSeriesPoint,
   HotUnansweredItem,
   MetricsBundle,
@@ -58,6 +60,7 @@ import { ConversationsChart } from '@/components/dashboard/conversations-chart'
 import { PipelineDonut } from '@/components/dashboard/pipeline-donut'
 import { ResponseTimeCard } from '@/components/dashboard/response-time-card'
 import { HotUnansweredCard } from '@/components/dashboard/hot-unanswered-card'
+import { ActivityFeed } from '@/components/dashboard/activity-feed'
 import { TeamCard } from '@/components/dashboard/team-card'
 import { SalesVsGoalChart } from '@/components/dashboard/ceo/sales-vs-goal-chart'
 import { SalesFunnel } from '@/components/dashboard/ceo/sales-funnel'
@@ -151,6 +154,13 @@ export default function DashboardPage() {
     90: null,
   })
   const [seriesLoading, setSeriesLoading] = useState(true)
+  // Same ref-read trick as `periodRangeRef` above: `loadAll` needs to
+  // know which tab is currently visible without depending on `range`
+  // directly, which would recreate it and re-trip the pathname effect.
+  const rangeRef = useRef(range)
+  useEffect(() => {
+    rangeRef.current = range
+  }, [range])
 
   const [pipeline, setPipeline] = useState<PipelineDonutData | null>(null)
   const [pipelineLoading, setPipelineLoading] = useState(true)
@@ -160,6 +170,9 @@ export default function DashboardPage() {
 
   const [hotUnanswered, setHotUnanswered] = useState<HotUnansweredItem[] | null>(null)
   const [hotUnansweredLoading, setHotUnansweredLoading] = useState(true)
+
+  const [activity, setActivity] = useState<ActivityItem[] | null>(null)
+  const [activityLoading, setActivityLoading] = useState(true)
 
   // Sales section state — only ever fetched when `hasAnySalesAccess`.
   const [ceoMetrics, setCeoMetrics] = useState<CeoMetrics | null>(null)
@@ -187,8 +200,17 @@ export default function DashboardPage() {
       .catch((err) => console.error('[dashboard] metrics failed:', err))
       .finally(() => setMetricsLoading(false))
 
-    void loadConversationsSeries(db, 30)
-      .then((s) => setSeries((prev) => ({ ...prev, 30: s })))
+    // Refresh whichever tab (7/30/90) is actually being viewed — was
+    // hardcoded to 30 regardless of `range`, so switching to 7 or 90
+    // days and then having loadAll re-run (pathname change, regained
+    // visibility, a sales realtime event) silently kept showing that
+    // tab's stale cache forever. Invalidate the other two cached
+    // buckets at the same time so switching to them re-fetches fresh
+    // data instead of serving what could now be stale, without paying
+    // to refresh all three simultaneously.
+    const viewedRange = rangeRef.current
+    void loadConversationsSeries(db, viewedRange)
+      .then((s) => setSeries({ 7: null, 30: null, 90: null, [viewedRange]: s }))
       .catch((err) => console.error('[dashboard] series failed:', err))
       .finally(() => setSeriesLoading(false))
 
@@ -206,6 +228,13 @@ export default function DashboardPage() {
       .then((h) => setHotUnanswered(h))
       .catch((err) => console.error('[dashboard] hot-unanswered failed:', err))
       .finally(() => setHotUnansweredLoading(false))
+
+    // Compact card (third slot alongside Team + HOT leads waiting) — a
+    // small, fixed count is plenty for an at-a-glance card.
+    void loadActivityFeed(db, 6)
+      .then((a) => setActivity(a))
+      .catch((err) => console.error('[dashboard] activity feed failed:', err))
+      .finally(() => setActivityLoading(false))
 
     if (!hasAnySalesAccess) {
       setCeoMetricsLoading(false)
@@ -553,14 +582,20 @@ export default function DashboardPage() {
         </div>
       </RevealSection>
 
-      {/* Team + HOT leads waiting on a reply */}
+      {/* Team, HOT leads waiting on a reply, and recent activity — three
+          equal-width cards sharing the same header/list shape so the
+          row reads as one deliberate set rather than a mismatched pair
+          plus an afterthought. */}
       <RevealSection delayMs={200}>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-          <div className="h-full lg:col-span-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="h-full">
             <TeamCard />
           </div>
-          <div className="h-full lg:col-span-3">
+          <div className="h-full">
             <HotUnansweredCard items={hotUnanswered} loading={hotUnansweredLoading} />
+          </div>
+          <div className="h-full">
+            <ActivityFeed items={activity} loading={activityLoading} />
           </div>
         </div>
       </RevealSection>
