@@ -17,7 +17,6 @@ import {
 } from 'lucide-react'
 
 import {
-  loadActivityFeed,
   loadConversationsSeries,
   loadHotUnanswered,
   loadMetrics,
@@ -35,7 +34,6 @@ import {
   loadTopSellers,
 } from '@/lib/dashboard/ceo-queries'
 import type {
-  ActivityItem,
   ConversationsSeriesPoint,
   HotUnansweredItem,
   MetricsBundle,
@@ -60,7 +58,6 @@ import { ConversationsChart } from '@/components/dashboard/conversations-chart'
 import { PipelineDonut } from '@/components/dashboard/pipeline-donut'
 import { ResponseTimeCard } from '@/components/dashboard/response-time-card'
 import { HotUnansweredCard } from '@/components/dashboard/hot-unanswered-card'
-import { ActivityFeed } from '@/components/dashboard/activity-feed'
 import { TeamCard } from '@/components/dashboard/team-card'
 import { SalesVsGoalChart } from '@/components/dashboard/ceo/sales-vs-goal-chart'
 import { SalesFunnel } from '@/components/dashboard/ceo/sales-funnel'
@@ -164,9 +161,6 @@ export default function DashboardPage() {
   const [hotUnanswered, setHotUnanswered] = useState<HotUnansweredItem[] | null>(null)
   const [hotUnansweredLoading, setHotUnansweredLoading] = useState(true)
 
-  const [activity, setActivity] = useState<ActivityItem[] | null>(null)
-  const [activityLoading, setActivityLoading] = useState(true)
-
   // Sales section state — only ever fetched when `hasAnySalesAccess`.
   const [ceoMetrics, setCeoMetrics] = useState<CeoMetrics | null>(null)
   const [ceoMetricsLoading, setCeoMetricsLoading] = useState(true)
@@ -212,11 +206,6 @@ export default function DashboardPage() {
       .then((h) => setHotUnanswered(h))
       .catch((err) => console.error('[dashboard] hot-unanswered failed:', err))
       .finally(() => setHotUnansweredLoading(false))
-
-    void loadActivityFeed(db)
-      .then((a) => setActivity(a))
-      .catch((err) => console.error('[dashboard] activity feed failed:', err))
-      .finally(() => setActivityLoading(false))
 
     if (!hasAnySalesAccess) {
       setCeoMetricsLoading(false)
@@ -574,12 +563,6 @@ export default function DashboardPage() {
             <HotUnansweredCard items={hotUnanswered} loading={hotUnansweredLoading} />
           </div>
         </div>
-      </RevealSection>
-
-      {/* Recent activity across messages, contacts, deals, broadcasts,
-          and automation runs — merged and sorted newest-first. */}
-      <RevealSection delayMs={260}>
-        <ActivityFeed items={activity} loading={activityLoading} />
       </RevealSection>
 
       {/* Sales section — visible only to whoever has at least one of
