@@ -17,7 +17,11 @@ interface SalesVsGoalChartProps {
 }
 
 const VB_W = 760
-const VB_H = 260
+// Shorter than the old full-width 260 — this chart now shares a row
+// with Commercial metrics' compact stat card instead of spanning the
+// whole width, so a shorter, denser plot reads as "paired with its
+// neighbor" rather than towering over it.
+const VB_H = 220
 const PADDING = { top: 16, right: 16, bottom: 28, left: 48 }
 const ACTUAL_COLOR = '#22c55e'
 // The goal is a reference threshold, not a second identity competing
@@ -76,7 +80,7 @@ export function SalesVsGoalChart({ data, loading, currency }: SalesVsGoalChartPr
 
       <div className="flex-1 p-5">
         {loading || !data ? (
-          <Skeleton className="h-[260px] w-full" />
+          <Skeleton className="h-[220px] w-full" />
         ) : !hasData ? (
           <EmptyState icon={TrendingUp} title={t('noData')} hint={t('noDataHint')} />
         ) : (
@@ -172,7 +176,7 @@ function LineSvg({ data, currency }: { data: SalesVsGoalPoint[]; currency: strin
         ref={svgRef}
         viewBox={`0 0 ${VB_W} ${VB_H}`}
         preserveAspectRatio="none"
-        className="h-[260px] w-full"
+        className="h-[220px] w-full"
         role="img"
         aria-label={t('ariaLabel')}
       >

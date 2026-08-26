@@ -687,9 +687,26 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {sales.vsGoal && (
+          {/* Sales vs Goal + Commercial metrics — the trend line paired
+              with the numbers that explain it (win rate, avg ticket,
+              cycle length), instead of each sitting in its own
+              full-width row. The chart keeps the wider 3/5 share; the
+              stat list only ever needs enough room for three rows of
+              text. */}
+          {(sales.vsGoal || sales.commercial) && (
             <RevealSection delayMs={80}>
-              <SalesVsGoalChart data={salesVsGoal} loading={salesVsGoalLoading} currency={defaultCurrency} />
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+                {sales.vsGoal && (
+                  <div className={sales.commercial ? 'h-full lg:col-span-3' : 'h-full'}>
+                    <SalesVsGoalChart data={salesVsGoal} loading={salesVsGoalLoading} currency={defaultCurrency} />
+                  </div>
+                )}
+                {sales.commercial && (
+                  <div className={sales.vsGoal ? 'h-full lg:col-span-2' : 'h-full'}>
+                    <CommercialMetricsCard data={commercial} loading={commercialLoading} currency={defaultCurrency} />
+                  </div>
+                )}
+              </div>
             </RevealSection>
           )}
 
@@ -699,26 +716,24 @@ export default function DashboardPage() {
             </RevealSection>
           )}
 
-          {(sales.commercial || sales.alerts) && (
+          {/* Alerts + Top sellers — what needs attention paired with
+              who's closing, an even 50/50 split since both are plain
+              vertical lists with no chart geometry to favor either
+              side. */}
+          {(sales.alerts || sales.topSellers) && (
             <RevealSection delayMs={200}>
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-                {sales.commercial && (
-                  <div className={sales.alerts ? 'h-full lg:col-span-2' : 'h-full'}>
-                    <CommercialMetricsCard data={commercial} loading={commercialLoading} currency={defaultCurrency} />
-                  </div>
-                )}
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 {sales.alerts && (
-                  <div className={sales.commercial ? 'h-full lg:col-span-3' : 'h-full'}>
+                  <div className="h-full">
                     <AlertsCard data={alerts} loading={alertsLoading} currency={defaultCurrency} staleDays={STALE_DAYS} />
                   </div>
                 )}
+                {sales.topSellers && (
+                  <div className="h-full">
+                    <TopSellersCard data={topSellers} loading={topSellersLoading} currency={defaultCurrency} />
+                  </div>
+                )}
               </div>
-            </RevealSection>
-          )}
-
-          {sales.topSellers && (
-            <RevealSection delayMs={260}>
-              <TopSellersCard data={topSellers} loading={topSellersLoading} currency={defaultCurrency} />
             </RevealSection>
           )}
         </div>

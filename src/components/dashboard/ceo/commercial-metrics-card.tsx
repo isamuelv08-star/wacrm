@@ -22,7 +22,12 @@ export function CommercialMetricsCard({ data, loading, currency }: CommercialMet
         <p className="mt-0.5 text-xs text-muted-foreground">{t('description')}</p>
       </header>
 
-      <div className="grid flex-1 grid-cols-1 gap-3 p-5">
+      {/* content-center: when this card sits next to a taller sibling
+          (Sales vs Goal's chart) and the grid stretches it to match,
+          the three stat rows distribute the extra height evenly above
+          and below instead of clumping at the top with dead space
+          under them. */}
+      <div className="grid flex-1 content-center grid-cols-1 gap-3 p-5">
         {loading || !data ? (
           Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)
         ) : (
