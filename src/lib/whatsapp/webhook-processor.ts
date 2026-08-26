@@ -681,6 +681,31 @@ export async function processMessage(
   if (!convResult) return
   const conversation = convResult.conversation
 
+  // Idempotency guard against Meta webhook redelivery (migration 062)
+  // — Meta's delivery is documented "at least once", not exactly-once,
+  // and a slow ack (or Meta's own retry logic) can redeliver the same
+  // event. `message.id` alone isn't a safe dedup key (migration 009 —
+  // Meta ids repeat across different WhatsApp numbers), so scope the
+  // check to this conversation. Skips ALL downstream work for a
+  // redelivered event — insert, unread_count, flows, automations, AI
+  // auto-reply/lead-scoring, notifications — none of which are safe to
+  // repeat. The insert below still has a race-safe fallback via the
+  // same unique index, for two redeliveries landing concurrently.
+  if (message.id) {
+    const { data: existingDelivery } = await supabaseAdmin()
+      .from('messages')
+      .select('id')
+      .eq('conversation_id', conversation.id)
+      .eq('message_id', message.id)
+      .maybeSingle()
+    if (existingDelivery) {
+      console.warn(
+        '[webhook] duplicate delivery ignored:', message.id, 'conversation', conversation.id,
+      )
+      return
+    }
+  }
+
   // Emit conversation.created as soon as the thread is opened — BEFORE
   // the reaction short-circuit below — so a conversation first opened by
   // a reaction still fires the event, and a subscriber always sees the
@@ -800,6 +825,18 @@ export async function processMessage(
     .single()
 
   if (msgError || !insertedMessage) {
+    // Race-safe fallback for the idempotency check above: two
+    // redeliveries of the same event landed concurrently and both
+    // passed the pre-check, so the unique index (migration 062) caught
+    // it here instead. Same outcome as the pre-check — skip all
+    // downstream work for this duplicate rather than logging it as a
+    // real error.
+    if (isUniqueViolation(msgError)) {
+      console.warn(
+        '[webhook] duplicate delivery caught on insert:', message.id, 'conversation', conversation.id,
+      )
+      return
+    }
     console.error('Error inserting message:', msgError)
     return
   }
@@ -990,16 +1027,23 @@ export async function processMessage(
     }).catch((err) => console.error('[automations] dispatch failed:', err))
   }
 
-  // AI auto-reply. Runs only for plain-text inbound (or an image the
-  // vision pass above could describe) the deterministic flow runner did
-  // NOT consume (flows win over the LLM), and only when the account has
-  // enabled it. `hasImageDescription` lets a captionless photo through
-  // this gate even though `inboundText` is empty for it — the bot reacts
-  // to the description via `buildConversationContext`, same as it reacts
-  // to a caption or a transcribed voice note. Awaited inside `after()`
-  // (same reason as the webhook dispatch below); `dispatchInboundToAiReply`
-  // owns its eligibility gates + try/catch and never throws.
-  if (!flowConsumed && !interactiveReplyId && (inboundText.trim() || hasImageDescription)) {
+  // AI auto-reply. Runs only for plain-text inbound (or media the bot
+  // has *some* read on) the deterministic flow runner did NOT consume
+  // (flows win over the LLM), and only when the account has enabled
+  // it. `hasImageDescription` lets a captionless photo through even
+  // though `inboundText` is empty for it — the bot reacts to the
+  // description via `buildConversationContext`. Every video and audio
+  // message widens the gate the same way, whether or not it has a
+  // caption/transcript: `buildConversationContext` now always shows
+  // the model *something* for these (a caption, a transcript, or a
+  // plain "[Customer sent a video]" / "...voice message" marker — see
+  // context.ts's resolveContent), so a captionless video or an
+  // untranscribed voice note is no longer silently skipped the way it
+  // used to be. Awaited inside `after()` (same reason as the webhook
+  // dispatch below); `dispatchInboundToAiReply` owns its eligibility
+  // gates + try/catch and never throws.
+  const hasMediaForAi = hasImageDescription || contentType === 'video' || contentType === 'audio'
+  if (!flowConsumed && !interactiveReplyId && (inboundText.trim() || hasMediaForAi)) {
     await dispatchInboundToAiReply({
       accountId,
       conversationId: conversation.id,

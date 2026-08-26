@@ -103,4 +103,46 @@ describe('buildConversationContext', () => {
     )
     expect(out).toEqual([])
   })
+
+  it('includes a captioned video, tagged so the model knows it was a video', async () => {
+    const out = await buildConversationContext(
+      fakeDb([
+        { sender_type: 'customer', content_type: 'video', content_text: 'is this in stock?' },
+      ]),
+      'conv-1',
+    )
+    expect(out).toEqual([{ role: 'user', content: '[Video] is this in stock?' }])
+  })
+
+  it('falls back to a plain marker for a captionless video', async () => {
+    const out = await buildConversationContext(
+      fakeDb([{ sender_type: 'customer', content_type: 'video', content_text: null }]),
+      'conv-1',
+    )
+    expect(out).toEqual([{ role: 'user', content: '[Customer sent a video]' }])
+  })
+
+  it('falls back to a plain marker for a voice note with no transcript', async () => {
+    const out = await buildConversationContext(
+      fakeDb([{ sender_type: 'customer', content_type: 'audio', content_text: null }]),
+      'conv-1',
+    )
+    expect(out).toEqual([
+      { role: 'user', content: '[Customer sent a voice message; no transcript available]' },
+    ])
+  })
+
+  it('never drops a video or an untranscribed voice note from context', async () => {
+    // Unlike text/image, these must never disappear entirely — the
+    // whole point of the marker fallback is that the model still
+    // knows *something* arrived even without understanding it.
+    const out = await buildConversationContext(
+      fakeDb([
+        { sender_type: 'customer', content_type: 'video', content_text: null },
+        { sender_type: 'customer', content_type: 'audio', content_text: null },
+      ]),
+      'conv-1',
+    )
+    expect(out).toHaveLength(2)
+  })
 })
