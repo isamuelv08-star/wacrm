@@ -360,6 +360,7 @@ export interface DispatchInboundResult {
     | "handed_off"
     | "fallback_fired"
     | "duplicate_inbound_ignored"
+    | "agent_assigned"
     | "no_match";
 }
 

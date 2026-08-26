@@ -837,6 +837,33 @@ export async function dispatchInboundToFlows(
 ): Promise<DispatchInboundResult> {
   const db = supabaseAdmin();
   try {
+    // A human agent owning this thread overrides the bot entirely —
+    // same posture as dispatchInboundToAiReply's identical check
+    // (src/lib/ai/auto-reply.ts). This used to be missing here: an
+    // agent could assign themselves to a conversation whose contact
+    // was mid-flow (or who later typed a fresh trigger keyword) and
+    // the runner would keep advancing/starting runs regardless,
+    // sending its own automated messages into the same thread the
+    // agent was now handling by hand. Checked before even looking for
+    // an active run, so it stops BOTH "advance an existing run" and
+    // "start a new one from a trigger match."
+    const { data: conv, error: convErr } = await db
+      .from("conversations")
+      .select("assigned_agent_id")
+      .eq("id", input.conversationId)
+      .maybeSingle();
+    if (convErr || !conv) {
+      // Fail closed, same posture as dispatchInboundToAiReply's
+      // identical lookup: better to occasionally miss firing a flow
+      // than to risk the bot talking over a human on a lookup we
+      // couldn't actually verify.
+      console.error("[flows] conversation lookup failed:", convErr?.message);
+      return { consumed: false, outcome: "no_match" };
+    }
+    if (conv.assigned_agent_id) {
+      return { consumed: false, outcome: "agent_assigned" };
+    }
+
     const activeRun = await loadActiveRunForContact(
       db,
       input.accountId,

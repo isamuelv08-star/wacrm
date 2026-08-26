@@ -94,10 +94,21 @@ export async function runEventReminderScan(
       if (!recipientProfile) continue // assignee's profile was removed
 
       const contactName = event.contacts?.name || event.contacts?.phone
-      const startLabel = new Date(event.starts_at).toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-      })
+      // A relative "in N minutes" label rather than an absolute clock
+      // time: this cron runs on the server (UTC on Vercel), and there
+      // is no per-account/user timezone stored anywhere in this app —
+      // `toLocaleTimeString()` here used to format against the SERVER's
+      // timezone, so every recipient not in UTC saw a wrong wall-clock
+      // time in the notification (e.g. a 9:30am local event read "at
+      // 14:30"). Minutes-until-start needs no timezone at all and is
+      // computed from the actual remaining time at send, not the
+      // configured `reminder_minutes_before` — the cron's own polling
+      // cadence means it may fire a few minutes after the window
+      // opened, so the exact configured value could already overstate
+      // how much time is actually left.
+      const minutesLeft = Math.max(0, Math.round(msUntilStart / 60_000))
+      const timingLabel =
+        minutesLeft <= 1 ? 'now' : `in ${minutesLeft} minutes`
 
       const { error: insertErr } = await db.from('notifications').insert({
         account_id: event.account_id,
@@ -106,8 +117,8 @@ export async function runEventReminderScan(
         contact_id: event.contact_id,
         title: event.title,
         body: contactName
-          ? `${event.title} with ${contactName} at ${startLabel}`
-          : `${event.title} at ${startLabel}`,
+          ? `${event.title} with ${contactName} starting ${timingLabel}`
+          : `${event.title} starting ${timingLabel}`,
       })
       if (insertErr) {
         console.error('[event-reminders] notification insert failed:', insertErr.message)

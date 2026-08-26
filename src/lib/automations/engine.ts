@@ -562,6 +562,24 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
     case 'create_deal': {
       const cfg = step.step_config as CreateDealStepConfig
       if (!cfg.pipeline_id || !cfg.stage_id) throw new Error('create_deal needs pipeline + stage')
+      // Defense in depth: this runs on the service-role client, which
+      // bypasses RLS, so an insert would otherwise trust whatever
+      // pipeline_id/stage_id happen to be in the stored step config
+      // without checking they're actually this account's own — the
+      // builder UI should only ever offer the account's own pipelines,
+      // but a stale/hand-edited config (or a future config source that
+      // doesn't share that guarantee) shouldn't be able to attach a
+      // deal to another account's pipeline stage.
+      const { data: stageCheck } = await db
+        .from('pipeline_stages')
+        .select('id, pipelines!inner(account_id)')
+        .eq('id', cfg.stage_id)
+        .eq('pipeline_id', cfg.pipeline_id)
+        .eq('pipelines.account_id', args.automation.account_id)
+        .maybeSingle()
+      if (!stageCheck) {
+        throw new Error('create_deal: pipeline/stage does not belong to this account')
+      }
       // Match the account's configured default currency rather than
       // the static `deals.currency` DB default — keeps automation-
       // created deals consistent with the one-currency-per-account
