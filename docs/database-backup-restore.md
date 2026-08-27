@@ -123,8 +123,14 @@ never on production.
 1. **Create a temporary Supabase project**: supabase.com dashboard →
    New project → any name (e.g. `wacrm-restore-test`) → any region. It
    has its own free tier; you'll delete it when done.
-2. **Get its direct connection string** the same way as step 1 above.
-3. **Download the backup** you want to test (swap in the real object
+2. **Enable the `vector` extension** on the new project: **Database →
+   Extensions** → search `vector` → enable. Without this, the restore
+   errors out on `ai_knowledge_chunks` (`type "public.vector" does not
+   exist`) and that table is silently skipped for the rest of the run.
+   (`uuid-ossp`, the only other extension this app uses, is enabled by
+   default on every new Supabase project — nothing to do there.)
+4. **Get its direct connection string** the same way as step 1 above.
+5. **Download the backup** you want to test (swap in the real object
    key):
 
    ```bash
@@ -137,9 +143,9 @@ never on production.
    (Needs `aws-cli` installed locally, and `AWS_ACCESS_KEY_ID` /
    `AWS_SECRET_ACCESS_KEY` env vars set to the same R2 API token from
    setup step 2. Or just download it by hand from the R2 bucket browser
-   in the Cloudflare dashboard.)
+   in the Cloudflare dashboard — no `aws-cli` needed either way.)
 
-4. **Restore into the temp project**:
+6. **Restore into the temp project**:
 
    ```bash
    pg_restore \
@@ -157,11 +163,34 @@ never on production.
    them. `--clean --if-exists`: drops each object before recreating it,
    so the command is safe to re-run.
 
-5. **Verify real data is there**: open the temp project's Table Editor
-   (or `psql` in) and spot-check a few tables — row counts on
-   `contacts`/`deals`/`messages` roughly matching what you'd expect,
-   and a couple of specific rows you recognize.
-6. **Delete the temp project** (Project Settings → General → Delete
+   **Expect this to exit with an error code and a wall of `pg_restore:
+   error` lines — that alone does not mean the restore failed.** Every
+   table in this schema that has a column referencing `auth.users(id)`
+   (`contacts.user_id`, `deals.user_id`, `accounts.owner_user_id`, …)
+   will fail to re-add that one foreign key constraint, because the
+   dump deliberately excludes the `auth` schema (see [Why
+   `--schema=public` only](#why---schemapublic-only)) and a fresh
+   project's `auth.users` has different rows than production's. This is
+   expected and harmless: `pg_restore` loads each table's actual data
+   *before* it tries to re-add constraints, so the real rows are already
+   in place by the time these specific errors show up. Confirm this
+   with the next step rather than assuming a failed exit code means a
+   failed restore.
+
+7. **Verify real data is there** — don't just eyeball it, count it:
+
+   ```bash
+   psql "<temp-project-connection-string>" -c "
+     SELECT 'contacts' AS t, count(*) FROM public.contacts
+     UNION ALL SELECT 'deals', count(*) FROM public.deals
+     UNION ALL SELECT 'conversations', count(*) FROM public.conversations
+     UNION ALL SELECT 'messages', count(*) FROM public.messages;"
+   ```
+
+   Row counts should roughly match what you'd expect from production.
+   Also open the temp project's Table Editor and spot-check a couple of
+   specific rows you recognize.
+8. **Delete the temp project** (Project Settings → General → Delete
    project) once you've confirmed it. Do this every few months as a
    standing drill, not just once.
 
@@ -215,7 +244,9 @@ the restore target.
 ### 4. Restore into a fresh temporary Supabase project
 
 Same as the [testing steps above](#testing-a-real-restore-do-this-before-you-trust-the-system):
-create a new throwaway project, get its direct connection string, and:
+create a new throwaway project, **enable the `vector` extension on it**
+(Database → Extensions — otherwise `ai_knowledge_chunks` fails to
+restore), get its direct connection string, and:
 
 ```bash
 pg_restore \
@@ -226,6 +257,12 @@ pg_restore \
   --if-exists \
   ./emergency-restore.dump
 ```
+
+This will exit with an error and print a long list of `pg_restore:
+error` lines about foreign keys to `auth.users` — that's expected (see
+the callout in the testing section above) and does not mean the data
+failed to load. Verify with the row-count query from step 7 of the
+testing section before assuming anything is wrong.
 
 ### 5. Extract exactly what was lost — nothing else
 
