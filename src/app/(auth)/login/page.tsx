@@ -9,9 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { UsersRound } from "lucide-react";
-import { ScalingSignaturePanel } from "@/components/auth/scaling-signature-panel";
+import { SaleslidSignaturePanel } from "@/components/auth/saleslid-signature-panel";
 
-// Scoped light-panel palette (Porcelain/Ink/Scaling Red — see the
+// Scoped light-panel palette (Porcelain/Ink/Saleslid Red — see the
 // approved design plan). Plain inline custom properties, NOT
 // `<style jsx>`: verified via a raw SSR fetch that styled-jsx's
 // scoping class lands on every element in this Next.js version but
@@ -131,11 +131,11 @@ function LoginPageInner() {
             className="h-6 w-6 object-contain"
           />
           <span className="font-heading text-sm font-semibold tracking-wide text-white">
-            ScalingCRM
+            Saleslid
           </span>
         </div>
 
-        {/* Form panel — scoped light palette (Porcelain/Ink/Scaling
+        {/* Form panel — scoped light palette (Porcelain/Ink/Saleslid
             Red) via CSS custom properties, so the existing Button/
             Input/Label components (which already consume --primary,
             --ring, --border, etc.) pick up the new colors with zero
@@ -247,10 +247,10 @@ function LoginPageInner() {
           </div>
         </div>
 
-        {/* Signature panel — desktop only, see ScalingSignaturePanel's
+        {/* Signature panel — desktop only, see SaleslidSignaturePanel's
             own doc comment for the design rationale. */}
         <div className="hidden lg:block lg:w-[54%]">
-          <ScalingSignaturePanel />
+          <SaleslidSignaturePanel />
         </div>
       </div>
     </div>

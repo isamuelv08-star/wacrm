@@ -28,8 +28,8 @@ export const metadata: Metadata = {
     ? new URL(process.env.NEXT_PUBLIC_SITE_URL)
     : undefined,
   title: {
-    default: "ScalingCRM",
-    template: "%s — ScalingCRM",
+    default: "Saleslid",
+    template: "%s — Saleslid",
   },
   description: "Self-hostable CRM template for WhatsApp.",
   // Dashboard/app pages stay out of search results by default; the

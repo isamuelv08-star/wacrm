@@ -27,7 +27,7 @@
     "createAccount": "계정 만들기"
   },
   "Sidebar": {
-    "title": "ScalingCRM",
+    "title": "Saleslid",
     "dashboard": "대시보드",
     "inbox": "인박스",
     "notifications": "알림",
@@ -2180,7 +2180,7 @@
     "titleInvite": "계정 만들고 참여하기",
     "title": "계정 만들기",
     "descInvite": "이메일을 인증한 다음 초대를 수락해 팀에 참여하세요.",
-    "desc": "ScalingCRM 시작하기",
+    "desc": "Saleslid 시작하기",
     "fullNameLabel": "이름",
     "fullNamePlaceholder": "홍길동",
     "emailLabel": "이메일",
@@ -2293,7 +2293,7 @@
       "cancel": "취소",
       "creating": "만드는 중…",
       "createClient": "고객 만들기",
-      "whatsappMessage": "ScalingCRM에 오신 것을 환영합니다! 여기에서 {account} 계정을 활성화하세요 (링크는 {days}일 후 만료됩니다): {url}",
+      "whatsappMessage": "Saleslid에 오신 것을 환영합니다! 여기에서 {account} 계정을 활성화하세요 (링크는 {days}일 후 만료됩니다): {url}",
       "defaultAccountName": "회원님의 계정"
     }
   },

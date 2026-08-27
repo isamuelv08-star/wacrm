@@ -59,7 +59,7 @@ type PlatformFilter = ConversationPlatform | "all";
 // Session-only (not localStorage) per the platform filter's own persistence
 // scope — it should survive navigating around the inbox but not outlive the
 // browsing session, unlike the contact-panel open/closed preference.
-const PLATFORM_FILTER_STORAGE_KEY = "scalingcrm:inbox:platform-filter";
+const PLATFORM_FILTER_STORAGE_KEY = "saleslid:inbox:platform-filter";
 
 const PLATFORM_TAB_ORDER: PlatformFilter[] = ["whatsapp", "instagram", "all"];
 

@@ -39,7 +39,7 @@ import {
 
 // Desktop collapse preference — device-scoped like the inbox contact-panel
 // toggle, so it survives reloads but isn't tied to a specific account.
-const SIDEBAR_COLLAPSED_STORAGE_KEY = "scalingcrm:sidebar-collapsed";
+const SIDEBAR_COLLAPSED_STORAGE_KEY = "saleslid:sidebar-collapsed";
 
 // Per-role chip metadata used in the sidebar's account strip + the
 // Members tab roster. Keeping this near both consumers in a single

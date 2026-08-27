@@ -27,7 +27,7 @@
     "createAccount": "Crear cuenta"
   },
   "Sidebar": {
-    "title": "ScalingCRM",
+    "title": "Saleslid",
     "dashboard": "Panel",
     "inbox": "Bandeja de entrada",
     "notifications": "Notificaciones",
@@ -2180,7 +2180,7 @@
     "titleInvite": "Crear cuenta y unirte",
     "title": "Crear cuenta",
     "descInvite": "Verificá tu email y después aceptá la invitación para unirte a tu equipo.",
-    "desc": "Empezá con ScalingCRM",
+    "desc": "Empezá con Saleslid",
     "fullNameLabel": "Nombre completo",
     "fullNamePlaceholder": "Juan Pérez",
     "emailLabel": "Correo electrónico",
@@ -2293,7 +2293,7 @@
       "cancel": "Cancelar",
       "creating": "Creando…",
       "createClient": "Crear cliente",
-      "whatsappMessage": "¡Bienvenido a ScalingCRM! Activa tu cuenta de {account} aquí (el link vence en {days} días): {url}",
+      "whatsappMessage": "¡Bienvenido a Saleslid! Activa tu cuenta de {account} aquí (el link vence en {days} días): {url}",
       "defaultAccountName": "tu cuenta"
     }
   },

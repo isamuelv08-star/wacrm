@@ -70,7 +70,7 @@ export const THEMES: ReadonlyArray<ThemeMeta> = [
   {
     id: "flame",
     name: "Flame",
-    tagline: "The default — bold, energetic, unmistakably ScalingCRM.",
+    tagline: "The default — bold, energetic, unmistakably Saleslid.",
     swatch: "oklch(0.647 0.238 27)",
   },
   {

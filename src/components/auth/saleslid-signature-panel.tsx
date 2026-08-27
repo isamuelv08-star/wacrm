@@ -1,6 +1,6 @@
 /**
  * Purely decorative brand panel for the login screen's right half —
- * see the approved design plan (paleta "Scaling Red" #FF3131 +
+ * see the approved design plan (paleta "Saleslid Red" #FF3131 +
  * "Signal/Steel Navy", elemento firma "Franjas de escalamiento").
  *
  * The bars are the SAME diagonal-cut geometry as the real logo mark
@@ -15,7 +15,7 @@
  * beyond decoration; the actual account context lives in the form
  * panel next to it.
  */
-export function ScalingSignaturePanel() {
+export function SaleslidSignaturePanel() {
   return (
     <div
       aria-hidden
@@ -24,7 +24,7 @@ export function ScalingSignaturePanel() {
     >
       {/* Diagonal bars — same "/" slant as the logo mark, varied width
           and spacing so it doesn't read as a uniform striped pattern.
-          Two Steel Navy bars establish the rhythm; one Scaling Red bar
+          Two Steel Navy bars establish the rhythm; one Saleslid Red bar
           carries the brand color's "similar weight" mandate from the
           design plan — not a minor accent, real occupied space. */}
       <span
@@ -37,7 +37,7 @@ export function ScalingSignaturePanel() {
       <span
         className="absolute inset-y-[-10%] left-[18%] w-[16%]"
         style={{
-          backgroundColor: "#FF3131" /* Scaling Red */,
+          backgroundColor: "#FF3131" /* Saleslid Red */,
           clipPath: "polygon(55% 0%, 78% 0%, 40% 100%, 17% 100%)",
         }}
       />
