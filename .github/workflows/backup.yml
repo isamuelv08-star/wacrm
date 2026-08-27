@@ -1,0 +1,111 @@
+name: Database Backup
+
+# Daily off-server backup of the production Supabase database.
+#
+# Deliberately NOT an endpoint on the app (unlike the other crons in
+# this repo — see docs/database-backup-restore.md for the reasoning):
+# a pg_dump of a real production database has no business sharing CPU
+# and network with the same container serving live customer traffic.
+# This runs entirely on GitHub's own runners — zero load on the
+# Easypanel deployment, no Dockerfile changes, no new app dependency.
+#
+# `pg_dump` itself is read-only against the source database, so
+# running this (including a manual workflow_dispatch test run) can
+# never corrupt or modify production data — see docs/database-backup-restore.md.
+
+on:
+  schedule:
+    # 08:00 UTC ≈ 03:00 Ecuador time (UTC-5, no DST) — adjust the hour
+    # if the account's primary timezone changes.
+    - cron: '0 8 * * *'
+  # Manual trigger — for the initial test run after setting up secrets,
+  # and for an on-demand backup right before a risky operation.
+  workflow_dispatch: {}
+
+concurrency:
+  # Never run two backups at once (a manual trigger racing the
+  # schedule) — R2 object keys are timestamped anyway, but there is no
+  # reason to ever pay for two simultaneous dumps of the same database.
+  group: database-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: Dump database and upload to R2
+    runs-on: ubuntu-latest
+    # The official postgres image ships a `pg_dump` version-matched to
+    # a real Postgres server, and gives us apk to install the AWS CLI
+    # for the R2 (S3-compatible) upload — no manual apt-get juggling of
+    # a client version that might not match Supabase's server version.
+    container:
+      image: postgres:17-alpine
+    steps:
+      - name: Install AWS CLI (for the R2 upload — R2 is S3-compatible)
+        run: apk add --no-cache aws-cli
+
+      - name: Dump database
+        env:
+          # Direct connection string (NOT the pooler) — see
+          # docs/database-backup-restore.md for exactly where to find
+          # this in the Supabase dashboard. Stored only as a GitHub
+          # Actions secret; never touches the app's own env vars.
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "::error::SUPABASE_DB_URL secret is not set — see docs/database-backup-restore.md"
+            exit 1
+          fi
+
+          TIMESTAMP="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
+          echo "TIMESTAMP=${TIMESTAMP}" >> "$GITHUB_ENV"
+          FILENAME="wacrm-backup-${TIMESTAMP}.dump"
+          echo "FILENAME=${FILENAME}" >> "$GITHUB_ENV"
+
+          # -Fc: custom format — compressed, and restorable selectively
+          # with pg_restore (single table, data-only, list-based) rather
+          # than only as one giant SQL replay. --schema=public: this
+          # app's own tables all live in `public` (confirmed: no
+          # migration creates another schema); Supabase's own
+          # auth/storage/realtime schemas are deliberately excluded —
+          # those are Supabase-managed, and blindly restoring them onto
+          # a different project would fight with what Supabase already
+          # provisions there. See docs/database-backup-restore.md.
+          pg_dump "$DATABASE_URL" \
+            --format=custom \
+            --schema=public \
+            --no-owner \
+            --no-privileges \
+            --file="$FILENAME"
+
+          # Sanity check — an empty or near-empty dump means something
+          # went wrong upstream (wrong connection string, empty schema
+          # filter, etc.). Fail loudly rather than silently uploading
+          # a useless file and reporting success.
+          SIZE=$(stat -c%s "$FILENAME")
+          echo "Dump size: ${SIZE} bytes"
+          if [ "$SIZE" -lt 1024 ]; then
+            echo "::error::Dump is suspiciously small (${SIZE} bytes) — aborting without uploading."
+            exit 1
+          fi
+
+      - name: Upload to Cloudflare R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+        run: |
+          set -euo pipefail
+          aws s3 cp \
+            "$FILENAME" \
+            "s3://${{ secrets.R2_BUCKET_NAME }}/daily/${FILENAME}" \
+            --endpoint-url "https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com"
+          echo "Uploaded daily/${FILENAME} to R2."
+
+      # Retention (default 30 days) is enforced by an R2 bucket
+      # Lifecycle Rule on the `daily/` prefix, configured once in the
+      # Cloudflare dashboard — not scripted here. See
+      # docs/database-backup-restore.md for the exact setup steps. A
+      # dashboard rule can't silently regress the way an easy-to-forget
+      # cleanup script step could, and it needs no maintenance.

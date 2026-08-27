@@ -71,3 +71,10 @@ docker run -d --env-file .env.local -e PORT=3000 -p 3000:3000 wacrm
   threshold of a few minutes is still meaningful, without hammering
   the DB. Set an account's `hot_lead_alert_minutes` to `0` to opt it
   out of the scan entirely.
+- Database backups are the one exception to "point an external
+  scheduler at this deployment" — they run as a GitHub Actions
+  workflow instead (`.github/workflows/backup.yml`), deliberately
+  outside this container so a daily `pg_dump` never competes with live
+  traffic for CPU/network on the same box. See
+  `docs/database-backup-restore.md` for setup and the emergency
+  restore runbook.

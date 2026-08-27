@@ -1,0 +1,284 @@
+# Database backup & emergency restore
+
+Daily off-server backups of the production Supabase database, and the
+exact steps to recover from one in a real incident — not a theoretical
+exercise. Read the "Emergency restore" section once, calmly, before you
+ever need it; you should not be reading it for the first time during
+an actual incident.
+
+## How the backup works
+
+`.github/workflows/backup.yml` runs once a day (default: 08:00 UTC ≈
+03:00 Ecuador time) on GitHub's own runners — **not** on the Easypanel
+server that runs the app. It:
+
+1. Runs `pg_dump` against the production database's **direct**
+   connection string (custom format, `--schema=public` only — see
+   [Why `--schema=public` only](#why---schemapublic-only) below).
+2. Uploads the dump to a Cloudflare R2 bucket, under the `daily/`
+   prefix, named `wacrm-backup-<UTC timestamp>.dump`.
+3. Relies on an R2 **Lifecycle Rule** (configured once, in the
+   Cloudflare dashboard — not in code) to delete objects older than 30
+   days. See [One-time R2 setup](#one-time-r2-setup).
+
+`pg_dump` only *reads* the source database — running the workflow,
+including a manual test run, can never modify or corrupt production
+data. There is nothing here to be cautious about on the *backup* side;
+all the risk in this system is on the *restore* side, which is why the
+rest of this document is so explicit about it.
+
+### Why `--schema=public` only
+
+This app's own tables (contacts, deals, messages, …) all live in the
+`public` schema — no migration in `supabase/migrations/` creates
+another one. Supabase's own `auth`, `storage`, `realtime`, etc. schemas
+are deliberately **excluded** from the dump: those are managed by
+Supabase itself on every project, and blindly restoring them onto a
+different (e.g. temporary recovery) project would fight with what
+Supabase already provisions there. You are backing up *your business
+data*, not Supabase's internal plumbing — Supabase's own infrastructure
+already has its own durability story for that.
+
+## One-time setup
+
+You only need to do this once. After it's done, the workflow runs
+itself.
+
+### 1. Get the direct Postgres connection string
+
+Supabase dashboard → your project → **Project Settings → Database →
+Connection string**. Select the **"Direct connection"** tab (NOT
+"Transaction pooler" / "Session pooler" — pgbouncer's pooling modes can
+interfere with `pg_dump`'s session-level assumptions). Copy the URI and
+replace `[YOUR-PASSWORD]` with your actual database password (reset it
+from that same page if you don't have it saved — resetting it does
+**not** affect the app's `SUPABASE_SERVICE_ROLE_KEY` or anon key, it's
+a separate credential).
+
+It looks like:
+
+```
+postgresql://postgres:YOUR-PASSWORD@db.xxxxxxxxxxxx.supabase.co:5432/postgres
+```
+
+### 2. Create the R2 bucket
+
+1. Cloudflare dashboard → **R2** → **Create bucket**. Name it (e.g.
+   `wacrm-backups`). Any location hint is fine.
+2. **R2 → Manage API tokens → Create API token** — scope it to this
+   one bucket, with **Object Read & Write** permission. Save the
+   **Access Key ID** and **Secret Access Key** it shows you — R2 only
+   shows the secret once.
+3. Note your **Account ID** (shown on the R2 overview page, or in the
+   right sidebar of the main Cloudflare dashboard).
+4. **Bucket → Settings → Lifecycle rules → Add rule**: apply to
+   objects with prefix `daily/`, action "Delete", age **30 days**.
+   This is what enforces retention — there is no deletion code in the
+   workflow, so this step is not optional.
+
+### 3. Add the GitHub Actions secrets
+
+Repo → **Settings → Secrets and variables → Actions → New repository
+secret**. Add all five:
+
+| Secret name | Value |
+|---|---|
+| `SUPABASE_DB_URL` | The direct connection string from step 1 |
+| `R2_ACCOUNT_ID` | Your Cloudflare account ID |
+| `R2_ACCESS_KEY_ID` | From the R2 API token |
+| `R2_SECRET_ACCESS_KEY` | From the R2 API token |
+| `R2_BUCKET_NAME` | The bucket name from step 2 (e.g. `wacrm-backups`) |
+
+These are **GitHub secrets, not Easypanel environment variables** —
+this backup system never touches the app's own deployment or `.env`.
+There is nothing to add in Easypanel for this feature.
+
+### 4. Run it once, manually
+
+Repo → **Actions** tab → **Database Backup** (left sidebar) → **Run
+workflow** → confirm. This is the same "safe to run any time" workflow
+described above — it only reads production, then writes to R2. Confirm
+it goes green, then check the R2 bucket for the new `daily/wacrm-backup-…dump`
+object.
+
+## Testing a real restore (do this before you trust the system)
+
+A backup that has never been restored is not a backup you can trust.
+Do this once, right after setup, on a **throwaway** Supabase project —
+never on production.
+
+1. **Create a temporary Supabase project**: supabase.com dashboard →
+   New project → any name (e.g. `wacrm-restore-test`) → any region. It
+   has its own free tier; you'll delete it when done.
+2. **Get its direct connection string** the same way as step 1 above.
+3. **Download the backup** you want to test (swap in the real object
+   key):
+
+   ```bash
+   aws s3 cp \
+     "s3://wacrm-backups/daily/wacrm-backup-2026-08-27T08-00-00Z.dump" \
+     ./restore-test.dump \
+     --endpoint-url "https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com"
+   ```
+
+   (Needs `aws-cli` installed locally, and `AWS_ACCESS_KEY_ID` /
+   `AWS_SECRET_ACCESS_KEY` env vars set to the same R2 API token from
+   setup step 2. Or just download it by hand from the R2 bucket browser
+   in the Cloudflare dashboard.)
+
+4. **Restore into the temp project**:
+
+   ```bash
+   pg_restore \
+     --dbname="postgresql://postgres:TEMP-PROJECT-PASSWORD@db.xxxxxxxxxxxx.supabase.co:5432/postgres" \
+     --no-owner \
+     --no-privileges \
+     --clean \
+     --if-exists \
+     ./restore-test.dump
+   ```
+
+   `--no-owner --no-privileges`: the dump's role names won't exist on
+   the new project, so restoring ownership/grants verbatim would just
+   produce noisy errors — the data and schema restore fine without
+   them. `--clean --if-exists`: drops each object before recreating it,
+   so the command is safe to re-run.
+
+5. **Verify real data is there**: open the temp project's Table Editor
+   (or `psql` in) and spot-check a few tables — row counts on
+   `contacts`/`deals`/`messages` roughly matching what you'd expect,
+   and a couple of specific rows you recognize.
+6. **Delete the temp project** (Project Settings → General → Delete
+   project) once you've confirmed it. Do this every few months as a
+   standing drill, not just once.
+
+## Emergency restore (real incident)
+
+Follow this in order. Don't skip the "why" callouts under pressure —
+they're the parts that prevent a second mistake on top of the first.
+
+### 1. Identify which backup to use
+
+You want the **most recent backup from *before* the moment the problem
+was introduced or discovered** — not necessarily the newest one
+available (if bad data has been in production for a while, the newest
+backup might already contain it).
+
+List what's available, newest first:
+
+```bash
+aws s3 ls "s3://wacrm-backups/daily/" \
+  --endpoint-url "https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com" \
+  | sort -r
+```
+
+Object names are ISO-8601 timestamps (`wacrm-backup-2026-08-27T08-00-00Z.dump`),
+so they sort chronologically as plain text. Pick the one dated before
+the incident.
+
+### 2. Download it
+
+```bash
+aws s3 cp \
+  "s3://wacrm-backups/daily/<the-file-you-picked>.dump" \
+  ./emergency-restore.dump \
+  --endpoint-url "https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com"
+```
+
+### 3. Do NOT restore it onto production
+
+**Restoring straight over the live database would overwrite every
+real row created or changed since that backup was taken** — every
+message, deal, and contact from customers between the backup time and
+now would be destroyed to "fix" a smaller problem. This is true even
+with `--data-only` or single-table restores if you're not extremely
+careful about direction.
+
+The correct process is always: **restore the backup into a separate,
+temporary project, extract only the specific rows you actually need,
+then insert *those* back into production.** Production itself is never
+the restore target.
+
+### 4. Restore into a fresh temporary Supabase project
+
+Same as the [testing steps above](#testing-a-real-restore-do-this-before-you-trust-the-system):
+create a new throwaway project, get its direct connection string, and:
+
+```bash
+pg_restore \
+  --dbname="<temp-project-direct-connection-string>" \
+  --no-owner \
+  --no-privileges \
+  --clean \
+  --if-exists \
+  ./emergency-restore.dump
+```
+
+### 5. Extract exactly what was lost — nothing else
+
+Work out precisely which rows are missing/wrong (which contact, which
+deal, which message thread) and pull only those. Two ways to do it,
+depending on how much you need:
+
+**A handful of specific rows** — query them out as `INSERT`
+statements you can review before running:
+
+```bash
+psql "<temp-project-connection-string>" -c "\copy (
+  SELECT * FROM contacts WHERE id = '<the-missing-contact-id>'
+) TO STDOUT" > missing_contact.csv
+```
+
+then load that CSV into production the same way, once you've
+eyeballed it:
+
+```bash
+psql "<production-direct-connection-string>" -c "\copy contacts FROM STDIN CSV" < missing_contact.csv
+```
+
+**A whole table's worth of missing rows** (e.g. every deal created in
+a bad window) — filter by the column that identifies them (usually
+`created_at`), same `\copy ... TO` / `\copy ... FROM` pair, scoped to
+that `WHERE` clause.
+
+Either way: **always target the smallest set of rows that actually
+need restoring.** If a row already exists in production (e.g. a
+contact that wasn't touched by the incident), re-inserting it will
+either error on the primary key or, worse, silently duplicate data —
+add `ON CONFLICT (id) DO NOTHING` to the production-side `INSERT` if
+there's any chance of overlap:
+
+```sql
+-- If loading via a generated INSERT instead of \copy, wrap it like this:
+INSERT INTO contacts (id, account_id, phone, name, created_at, ...)
+VALUES (...)
+ON CONFLICT (id) DO NOTHING;
+```
+
+### 6. Clean up
+
+Delete the temporary Supabase project once you've confirmed production
+looks right (next section). Don't leave it running with a copy of real
+customer data sitting in it.
+
+### 7. Verification checklist
+
+Go through all of these before considering the incident closed:
+
+- [ ] The specific row(s)/record(s) that were lost are now visible in
+      production (Table Editor, or a targeted `SELECT`) with the
+      expected values.
+- [ ] No **duplicate** rows were introduced (spot-check row counts on
+      the affected table before/after, or re-run the same `SELECT`
+      that found the problem — it should now come back clean).
+- [ ] Foreign-key relationships still make sense — e.g. a restored
+      `deals` row still points at a `contact_id` that actually exists;
+      a restored `messages` row's `conversation_id` still resolves.
+- [ ] The app itself, in the browser, shows the recovered data where a
+      real user would look for it (the contact's page, the pipeline
+      board, the inbox thread) — not just correct in a raw query.
+- [ ] The temporary Supabase project used for the restore has been
+      deleted.
+- [ ] A note of what happened and what was restored is written down
+      somewhere (even just a comment on the relevant support/incident
+      thread) for future reference.
