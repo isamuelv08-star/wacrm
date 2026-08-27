@@ -1,34 +1,14 @@
 import type { MetadataRoute } from "next";
 
+// The public marketing site (the only thing worth crawling) now
+// lives at salelid.com, a separate project — everything on this
+// domain requires auth and carries no SEO value, so this disallows
+// crawling entirely instead of listing routes one by one.
 export default function robots(): MetadataRoute.Robots {
-  const base = (process.env.NEXT_PUBLIC_SITE_URL || "https://wacrm.tech").replace(
-    /\/+$/,
-    "",
-  );
-
   return {
     rules: {
       userAgent: "*",
-      allow: "/",
-      // App/dashboard routes require auth and carry no SEO value —
-      // keep crawlers out of them and off the API entirely.
-      disallow: [
-        "/dashboard",
-        "/inbox",
-        "/contacts",
-        "/pipelines",
-        "/broadcasts",
-        "/automations",
-        "/flows",
-        "/calendar",
-        "/agents",
-        "/notifications",
-        "/settings",
-        "/agency",
-        "/join",
-        "/api",
-      ],
+      disallow: "/",
     },
-    sitemap: `${base}/sitemap.xml`,
   };
 }
