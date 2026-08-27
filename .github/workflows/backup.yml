@@ -43,17 +43,6 @@ jobs:
       - name: Install AWS CLI (for the R2 upload — R2 is S3-compatible)
         run: apk add --no-cache aws-cli
 
-      - name: Debug — is the secret reaching this job at all?
-        # Prints only a boolean (never the value) — this is GitHub's own
-        # expression evaluator checking the secret, decoupled from the
-        # bash script below. If this prints "false", the secret genuinely
-        # isn't scoped to this workflow/job (wrong secret store, an
-        # Environment requirement, etc). Remove this step once the
-        # underlying issue is found — it's here only to bisect the
-        # persistent "secret is not set" failures.
-        run: |
-          echo "SUPABASE_DB_URL reaches this job: ${{ secrets.SUPABASE_DB_URL != '' }}"
-
       - name: Dump database
         env:
           # Direct connection string (NOT the pooler) — see
