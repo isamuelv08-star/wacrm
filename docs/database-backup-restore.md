@@ -44,22 +44,35 @@ already has its own durability story for that.
 You only need to do this once. After it's done, the workflow runs
 itself.
 
-### 1. Get the direct Postgres connection string
+### 1. Get the Postgres connection string
 
-Supabase dashboard → your project → **Project Settings → Database →
-Connection string**. Select the **"Direct connection"** tab (NOT
-"Transaction pooler" / "Session pooler" — pgbouncer's pooling modes can
-interfere with `pg_dump`'s session-level assumptions). Copy the URI and
-replace `[YOUR-PASSWORD]` with your actual database password (reset it
-from that same page if you don't have it saved — resetting it does
-**not** affect the app's `SUPABASE_SERVICE_ROLE_KEY` or anon key, it's
-a separate credential).
+Supabase dashboard → your project → the green **"Connect"** button (top
+of the dashboard) → **Connection Method**.
+
+Normally "Direct connection" is preferred for a long-lived process, but
+**use "Session pooler" instead for this workflow**: GitHub-hosted
+runners don't have IPv6 egress, and Supabase's direct connection is
+IPv6 by default (see the "Direct connections use IPv6 by default"
+notice in that same panel) — a direct connection from a GitHub Actions
+job will simply time out. Session pooler supports IPv4 and, unlike
+"Transaction pooler", still holds one dedicated backend connection per
+client for the duration, so `pg_dump`'s session-level assumptions don't
+break the way they would over a transaction-mode pooler.
+
+Select the **"Session pooler"** tab, copy the URI, and replace
+`[YOUR-PASSWORD]` with your actual database password (reset it from
+**Database → Settings** if you don't have it saved — resetting it does
+**not** affect the app's `SUPABASE_SERVICE_ROLE_KEY` or anon key, it's a
+separate credential).
 
 It looks like:
 
 ```
-postgresql://postgres:YOUR-PASSWORD@db.xxxxxxxxxxxx.supabase.co:5432/postgres
+postgresql://postgres.xxxxxxxxxxxx:YOUR-PASSWORD@aws-0-<region>.pooler.supabase.com:5432/postgres
 ```
+
+(Note the username is `postgres.<project-ref>`, not just `postgres` —
+that's how the pooler knows which project to route to.)
 
 ### 2. Create the R2 bucket
 
