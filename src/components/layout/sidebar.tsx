@@ -245,7 +245,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         >
           <Link href="/dashboard" className="flex items-center gap-2">
             <img
-              src="/scaling-logo-mark.png"
+              src="/logo-mark.png"
               alt=""
               className="h-8 w-8 shrink-0 object-contain"
             />

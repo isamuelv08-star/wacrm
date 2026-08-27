@@ -126,7 +126,7 @@ function LoginPageInner() {
           style={{ backgroundColor: "#0A1120" }}
         >
           <img
-            src="/scaling-logo-mark.png"
+            src="/logo-mark.png"
             alt=""
             className="h-6 w-6 object-contain"
           />
@@ -155,7 +155,7 @@ function LoginPageInner() {
                 </span>
               ) : (
                 <img
-                  src="/scaling-logo-mark.png"
+                  src="/logo-mark.png"
                   alt=""
                   className="h-8 w-8 object-contain"
                 />

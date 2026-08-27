@@ -136,7 +136,7 @@ function SignupPageInner() {
               <UsersRound className="h-6 w-6 text-primary" />
             ) : (
               <img
-                src="/scaling-logo-mark.png"
+                src="/logo-mark.png"
                 alt=""
                 className="h-7 w-7 object-contain"
               />

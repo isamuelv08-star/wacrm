@@ -4,7 +4,7 @@
  * "Signal/Steel Navy", elemento firma "Franjas de escalamiento").
  *
  * The bars are the SAME diagonal-cut geometry as the real logo mark
- * (public/scaling-logo-mark.png — 4 diagonal parallelogram bars),
+ * (public/logo-mark.png — 4 diagonal parallelogram bars),
  * scaled up into an environmental composition rather than a repeated
  * copy of the logo itself. Hard clip-path edges on purpose — the mark
  * has clean geometric cuts, not soft gradients, so the panel should
@@ -59,7 +59,7 @@ export function ScalingSignaturePanel() {
       {/* Logo mark + product line, anchored bottom-left over the bars. */}
       <div className="relative z-10 p-10 xl:p-14">
         <img
-          src="/scaling-logo-mark.png"
+          src="/logo-mark.png"
           alt=""
           className="h-9 w-9 object-contain"
         />
