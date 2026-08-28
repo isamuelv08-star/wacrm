@@ -139,24 +139,16 @@
       "tooltipAvg": "{minutes}m avg",
       "tooltipNoSamples": "No samples"
     },
-    "activityFeed": {
-      "title": "Recent activity",
-      "description": "Latest events across your account",
-      "noActivity": "No recent activity yet",
-      "noActivityHint": "New messages, contacts, deals, broadcasts, and automation runs will show up here.",
-      "timeS": "{sec}s ago",
-      "timeM": "{min}m ago",
-      "timeH": "{hr}h ago",
-      "timeD": "{day}d ago",
-      "items": {
-        "newMessage": "Message from {name}: {snippet}",
-        "newMessageNoText": "New message from {name}",
-        "newContact": "New contact: {name}",
-        "newDeal": "New deal: {title} ({value})",
-        "newBroadcast": "Broadcast created: {name}",
-        "automationRun": "Automation ran: {name} — {contact}",
-        "automationRunNoContact": "Automation ran: {name}"
-      }
+    "leadsQualifiedToday": {
+      "title": "Leads qualified today",
+      "description": "AI qualification, at a glance",
+      "totalToday": "{count, plural, one {# lead qualified today} other {# leads qualified today}}",
+      "hot": "{count, plural, one {# hot lead} other {# hot leads}}",
+      "hotHint": "Ready to close — reach out now",
+      "warm": "{count, plural, one {# warm lead} other {# warm leads}}",
+      "warmHint": "Interested, needs follow-up",
+      "cold": "{count, plural, one {# cold lead} other {# cold leads}}",
+      "coldHint": "No urgency to respond"
     },
     "emptyState": {
       "title": "Not enough data yet"

@@ -9,12 +9,16 @@ import type { LeadScore } from './types'
 //
 // Two independent effects, both best-effort — a failure here must
 // never take down the customer-facing reply that already sent:
-//   1. Always persist the score (+ reason/source) onto `contacts`.
+//   1. Always persist the score (+ reason/source) onto `contacts`,
+//      and stamp `lead_score_assessed_at` unconditionally (migration
+//      064) — every call is a real assessment, value-changed or not,
+//      which is what a "leads qualified today" dashboard count needs.
 //      `lead_score_updated_at` and the `lead_score_history` audit row
-//      are maintained by the `on_lead_score_change` DB trigger
-//      (migration 061) — never set them from application code, so
-//      every write path (this function, or any future one) stays
-//      correct for free.
+//      are maintained separately by the `on_lead_score_change` DB
+//      trigger (migration 061), which only fires on a real value
+//      change — never set those from application code, so every
+//      write path (this function, or any future one) stays correct
+//      for free.
 //   2. Only for HOT: advance the contact's deal to the qualified
 //      stage via `ensureDealInQualifiedStage` below.
 //
@@ -47,6 +51,7 @@ export async function applyLeadScore(
         lead_score: score,
         lead_score_reason: reason,
         lead_score_source: source,
+        lead_score_assessed_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq('id', contactId)

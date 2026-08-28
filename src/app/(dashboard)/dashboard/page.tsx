@@ -17,9 +17,9 @@ import {
 } from 'lucide-react'
 
 import {
-  loadActivityFeed,
   loadConversationsSeries,
   loadHotUnanswered,
+  loadLeadsQualifiedToday,
   loadMetrics,
   loadPipelineDonut,
   loadResponseTime,
@@ -35,9 +35,9 @@ import {
   loadTopSellers,
 } from '@/lib/dashboard/ceo-queries'
 import type {
-  ActivityItem,
   ConversationsSeriesPoint,
   HotUnansweredItem,
+  LeadsQualifiedToday,
   MetricsBundle,
   PipelineDonutData,
   ResponseTimeSummary,
@@ -60,7 +60,7 @@ import { ConversationsChart } from '@/components/dashboard/conversations-chart'
 import { PipelineDonut } from '@/components/dashboard/pipeline-donut'
 import { ResponseTimeCard } from '@/components/dashboard/response-time-card'
 import { HotUnansweredCard } from '@/components/dashboard/hot-unanswered-card'
-import { ActivityFeed } from '@/components/dashboard/activity-feed'
+import { LeadsQualifiedTodayCard } from '@/components/dashboard/leads-qualified-today-card'
 import { TeamCard } from '@/components/dashboard/team-card'
 import { SalesVsGoalChart } from '@/components/dashboard/ceo/sales-vs-goal-chart'
 import { SalesFunnel } from '@/components/dashboard/ceo/sales-funnel'
@@ -171,8 +171,8 @@ export default function DashboardPage() {
   const [hotUnanswered, setHotUnanswered] = useState<HotUnansweredItem[] | null>(null)
   const [hotUnansweredLoading, setHotUnansweredLoading] = useState(true)
 
-  const [activity, setActivity] = useState<ActivityItem[] | null>(null)
-  const [activityLoading, setActivityLoading] = useState(true)
+  const [leadsQualifiedToday, setLeadsQualifiedToday] = useState<LeadsQualifiedToday | null>(null)
+  const [leadsQualifiedTodayLoading, setLeadsQualifiedTodayLoading] = useState(true)
 
   // Sales section state — only ever fetched when `hasAnySalesAccess`.
   const [ceoMetrics, setCeoMetrics] = useState<CeoMetrics | null>(null)
@@ -229,12 +229,11 @@ export default function DashboardPage() {
       .catch((err) => console.error('[dashboard] hot-unanswered failed:', err))
       .finally(() => setHotUnansweredLoading(false))
 
-    // Compact card (third slot alongside Team + HOT leads waiting) — a
-    // small, fixed count is plenty for an at-a-glance card.
-    void loadActivityFeed(db, 6)
-      .then((a) => setActivity(a))
-      .catch((err) => console.error('[dashboard] activity feed failed:', err))
-      .finally(() => setActivityLoading(false))
+    // Compact card (third slot alongside Team + HOT leads waiting).
+    void loadLeadsQualifiedToday(db)
+      .then((d) => setLeadsQualifiedToday(d))
+      .catch((err) => console.error('[dashboard] leads qualified today failed:', err))
+      .finally(() => setLeadsQualifiedTodayLoading(false))
 
     if (!hasAnySalesAccess) {
       setCeoMetricsLoading(false)
@@ -582,10 +581,13 @@ export default function DashboardPage() {
         </div>
       </RevealSection>
 
-      {/* Team, HOT leads waiting on a reply, and recent activity — three
-          equal-width cards sharing the same header/list shape so the
-          row reads as one deliberate set rather than a mismatched pair
-          plus an afterthought. */}
+      {/* Team, HOT leads waiting on a reply, and today's AI qualification
+          breakdown — three equal-width cards sharing the same header/list
+          shape so the row reads as one deliberate set. The third slot
+          used to be a generic "recent activity" changelog; it's the AI
+          qualification summary now, since that's the product's actual
+          flagship promise and deserves dashboard-level visibility, not
+          just a badge in the Inbox. */}
       <RevealSection delayMs={200}>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <div className="h-full">
@@ -595,7 +597,7 @@ export default function DashboardPage() {
             <HotUnansweredCard items={hotUnanswered} loading={hotUnansweredLoading} />
           </div>
           <div className="h-full">
-            <ActivityFeed items={activity} loading={activityLoading} />
+            <LeadsQualifiedTodayCard data={leadsQualifiedToday} loading={leadsQualifiedTodayLoading} />
           </div>
         </div>
       </RevealSection>

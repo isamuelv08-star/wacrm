@@ -21,7 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { LeadScoreBadge } from "@/components/leads/lead-score-badge";
+import { LeadScoreBadge, LEAD_SCORE_STYLES, type Score } from "@/components/leads/lead-score-badge";
 import { PlatformIcon, AvatarRing } from "./platform-accent";
 import {
   getConversationPlatform,
@@ -55,13 +55,18 @@ const STATUS_COLORS: Record<ConversationStatus, string> = {
 
 type InboxFilter = ConversationStatus | "all" | "unread";
 type PlatformFilter = ConversationPlatform | "all";
+type LeadScoreFilter = Score | "unscored" | "all";
 
 // Session-only (not localStorage) per the platform filter's own persistence
 // scope — it should survive navigating around the inbox but not outlive the
 // browsing session, unlike the contact-panel open/closed preference.
 const PLATFORM_FILTER_STORAGE_KEY = "saleslid:inbox:platform-filter";
+const LEAD_SCORE_FILTER_STORAGE_KEY = "saleslid:inbox:lead-score-filter";
 
 const PLATFORM_TAB_ORDER: PlatformFilter[] = ["whatsapp", "instagram", "all"];
+// Hottest first — a salesperson opening the inbox should see HOT leads
+// as the leftmost, most natural first click.
+const LEAD_SCORE_TAB_ORDER: LeadScoreFilter[] = ["hot", "warm", "cold", "unscored", "all"];
 
 export function ConversationList({
   activeConversationId,
@@ -71,7 +76,8 @@ export function ConversationList({
   resyncToken = 0,
 }: ConversationListProps) {
   const t = useTranslations("Inbox.conversationList");
-  
+  const tLeads = useTranslations("Leads");
+
   const FILTER_OPTIONS: { label: string; value: InboxFilter }[] = useMemo(() => [
     { label: t("filterAll"), value: "all" },
     { label: t("filterUnread"), value: "unread" },
@@ -101,6 +107,27 @@ export function ConversationList({
     setPlatformFilter(value);
     try {
       sessionStorage.setItem(PLATFORM_FILTER_STORAGE_KEY, value);
+    } catch {
+      // Persistence is best-effort; ignore storage failures.
+    }
+  }, []);
+  // Lead-score tab (Hot / Warm / Cold / Not scored / All) — same
+  // session-scoped restore-after-mount pattern as the platform tab above.
+  const [leadScoreFilter, setLeadScoreFilter] = useState<LeadScoreFilter>("all");
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem(LEAD_SCORE_FILTER_STORAGE_KEY);
+      if (stored && (LEAD_SCORE_TAB_ORDER as string[]).includes(stored)) {
+        setLeadScoreFilter(stored as LeadScoreFilter);
+      }
+    } catch {
+      // sessionStorage can throw in private-browsing / sandboxed contexts.
+    }
+  }, []);
+  const handleLeadScoreFilterChange = useCallback((value: LeadScoreFilter) => {
+    setLeadScoreFilter(value);
+    try {
+      sessionStorage.setItem(LEAD_SCORE_FILTER_STORAGE_KEY, value);
     } catch {
       // Persistence is best-effort; ignore storage failures.
     }
@@ -197,7 +224,10 @@ export function ConversationList({
     return m;
   }, [tags]);
 
-  const filtered = useMemo(() => {
+  // Everything except the lead-score tab itself — this is what the
+  // per-tab counts are computed against, so "HOT (12)" means "12 within
+  // your other active filters", not 12 out of the whole inbox.
+  const preLeadScoreFiltered = useMemo(() => {
     let result = conversations;
 
     if (platformFilter !== "all") {
@@ -234,6 +264,36 @@ export function ConversationList({
 
     return result;
   }, [conversations, platformFilter, filter, search, selectedTagIds, selectedCompany]);
+
+  // One conversation per contact's `lead_score` — a contact with several
+  // conversations (e.g. WhatsApp + Instagram) always lands in the same
+  // bucket in both, since the score belongs to the contact, not the thread.
+  const leadScoreCounts = useMemo(() => {
+    const counts: Record<LeadScoreFilter, number> = {
+      hot: 0,
+      warm: 0,
+      cold: 0,
+      unscored: 0,
+      all: preLeadScoreFiltered.length,
+    };
+    for (const c of preLeadScoreFiltered) {
+      const score = c.contact?.lead_score;
+      if (score === "hot" || score === "warm" || score === "cold") {
+        counts[score]++;
+      } else {
+        counts.unscored++;
+      }
+    }
+    return counts;
+  }, [preLeadScoreFiltered]);
+
+  const filtered = useMemo(() => {
+    if (leadScoreFilter === "all") return preLeadScoreFiltered;
+    if (leadScoreFilter === "unscored") {
+      return preLeadScoreFiltered.filter((c) => !c.contact?.lead_score);
+    }
+    return preLeadScoreFiltered.filter((c) => c.contact?.lead_score === leadScoreFilter);
+  }, [preLeadScoreFiltered, leadScoreFilter]);
 
   const toggleTag = useCallback((id: string) => {
     setSelectedTagIds((prev) =>
@@ -310,6 +370,53 @@ export function ConversationList({
             >
               <Icon className="h-3.5 w-3.5" />
               {label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Lead-score tabs — Hot / Warm / Cold / Not scored / All, hottest
+          first. Counts are scoped to whatever the platform/status/tag/
+          company/search filters above already narrowed down to, so the
+          numbers stay internally consistent with each other. */}
+      <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-3 py-2.5">
+        {LEAD_SCORE_TAB_ORDER.map((tab) => {
+          const isActive = leadScoreFilter === tab;
+          const count = leadScoreCounts[tab];
+          if (tab === "all" || tab === "unscored") {
+            const label = tab === "all" ? t("platformAll") : tLeads("unscored");
+            return (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => handleLeadScoreFilterChange(tab)}
+                className={cn(
+                  "flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-all",
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground",
+                )}
+              >
+                {label}
+                <span className={cn("tabular-nums", !isActive && "opacity-60")}>{count}</span>
+              </button>
+            );
+          }
+          const { icon: Icon, className: scoreClassName } = LEAD_SCORE_STYLES[tab];
+          return (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => handleLeadScoreFilterChange(tab)}
+              className={cn(
+                "flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-transparent transition-all",
+                isActive ? scoreClassName : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground",
+                isActive && "ring-current",
+              )}
+            >
+              <Icon className="h-3 w-3" />
+              {tLeads(tab)}
+              <span className={cn("tabular-nums", !isActive && "opacity-60")}>{count}</span>
             </button>
           );
         })}

@@ -19,9 +19,12 @@ import {
 } from "@/components/ui/tooltip";
 import { setLeadScore } from "@/lib/contacts/lead-score-api";
 
-type Score = "hot" | "warm" | "cold";
+export type Score = "hot" | "warm" | "cold";
 
-const STYLES: Record<Score, { icon: typeof Flame; className: string }> = {
+/** Shared hot/warm/cold icon + color vocabulary — reused by the Inbox's
+ *  lead-score filter tabs and the Dashboard's "qualified today" card so
+ *  every surface reads the same categories the same way. */
+export const LEAD_SCORE_STYLES: Record<Score, { icon: typeof Flame; className: string }> = {
   hot: {
     icon: Flame,
     className: "bg-red-500/15 text-red-500",
@@ -89,7 +92,7 @@ export function LeadScoreBadge({
 
   if (!score) return null;
 
-  const { icon: Icon, className: styleClassName } = STYLES[score];
+  const { icon: Icon, className: styleClassName } = LEAD_SCORE_STYLES[score];
   const stale = !!updatedAt && now.getTime() - new Date(updatedAt).getTime() > STALE_THRESHOLD_MS;
 
   const badge = (
@@ -160,7 +163,7 @@ export function LeadScoreBadge({
         {reason && <p className="text-xs text-muted-foreground">{reason}</p>}
         <div className="flex gap-1.5">
           {SCORE_ORDER.map((s) => {
-            const { icon: SIcon, className: sClassName } = STYLES[s];
+            const { icon: SIcon, className: sClassName } = LEAD_SCORE_STYLES[s];
             return (
               <button
                 key={s}

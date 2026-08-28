@@ -139,24 +139,16 @@
       "tooltipAvg": "평균 {minutes}분",
       "tooltipNoSamples": "데이터 없음"
     },
-    "activityFeed": {
-      "title": "최근 활동",
-      "description": "계정의 최근 이벤트",
-      "noActivity": "아직 최근 활동이 없습니다",
-      "noActivityHint": "새 메시지, 연락처, 거래, 브로드캐스트, 자동화 실행이 여기에 표시됩니다.",
-      "timeS": "{sec}초 전",
-      "timeM": "{min}분 전",
-      "timeH": "{hr}시간 전",
-      "timeD": "{day}일 전",
-      "items": {
-        "newMessage": "{name}님의 메시지: {snippet}",
-        "newMessageNoText": "{name}님의 새 메시지",
-        "newContact": "새 연락처: {name}",
-        "newDeal": "새 거래: {title} ({value})",
-        "newBroadcast": "브로드캐스트 생성됨: {name}",
-        "automationRun": "자동화 실행됨: {name} — {contact}",
-        "automationRunNoContact": "자동화 실행됨: {name}"
-      }
+    "leadsQualifiedToday": {
+      "title": "오늘 분류된 리드",
+      "description": "AI 분류, 한눈에 보기",
+      "totalToday": "오늘 리드 {count}건 분류됨",
+      "hot": "HOT 리드 {count}건",
+      "hotHint": "지금 바로 연락하세요 — 마감 준비 완료",
+      "warm": "WARM 리드 {count}건",
+      "warmHint": "관심 있음, 후속 조치 필요",
+      "cold": "COLD 리드 {count}건",
+      "coldHint": "지금 급하게 응답할 필요 없음"
     },
     "emptyState": {
       "title": "아직 데이터가 충분하지 않습니다"

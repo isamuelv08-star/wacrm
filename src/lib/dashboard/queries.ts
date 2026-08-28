@@ -1,5 +1,4 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { formatCurrency } from '@/lib/currency'
 import {
   daysAgoStart,
   lastNDayKeys,
@@ -9,9 +8,9 @@ import {
   type DateRange,
 } from './date-utils'
 import type {
-  ActivityItem,
   ConversationsSeriesPoint,
   HotUnansweredItem,
+  LeadsQualifiedToday,
   MetricsBundle,
   PipelineDonutData,
   PipelineStageSlice,
@@ -322,138 +321,42 @@ export async function loadHotUnanswered(db: DB, limit = 6): Promise<HotUnanswere
     .slice(0, limit)
 }
 
-// --- 6. Recent activity feed --------------------------------------------
 
-/** Supabase returns a to-one join as either a bare object or a
- *  one-element array depending on the query shape — normalize both. */
-function one<T>(rel: T | T[] | null | undefined): T | null {
-  if (!rel) return null
-  return Array.isArray(rel) ? (rel[0] ?? null) : rel
-}
-
-// How many rows to pull PER KIND before merging and trimming to the
-// caller's overall `limit` — generous enough that a quiet source
-// (e.g. broadcasts) never gets crowded out of the merged, time-sorted
-// result by a noisy one (e.g. messages), while keeping each query cheap.
-const ACTIVITY_KIND_LIMIT = 15
+// --- 6. Leads qualified today --------------------------------------------
 
 /**
- * Most recent activity across the account: inbound customer messages,
- * new contacts, new deals, broadcasts, and automation runs — merged
- * and sorted newest-first. Each item carries raw data (`subject` /
- * `detail`); the component composes the localized sentence.
+ * Today's lead-qualification breakdown, local-day boundary
+ * (see `daysAgoStart`). Counts every contact the AI (or a manual
+ * override) actually assessed today, via `lead_score_assessed_at`
+ * (migration 064) — deliberately NOT `lead_score_updated_at`, which
+ * only moves on a real value change and would silently miss every
+ * lead the AI correctly re-confirmed in the same bucket it was
+ * already in (exactly the steady HOT leads worth showing off).
  */
-export async function loadActivityFeed(db: DB, limit = 50): Promise<ActivityItem[]> {
-  type ContactRef = { name: string | null; phone: string }
+export async function loadLeadsQualifiedToday(db: DB): Promise<LeadsQualifiedToday> {
+  const todayStart = daysAgoStart(0).toISOString()
 
-  const [messagesRes, contactsRes, dealsRes, broadcastsRes, automationRes] = await Promise.all([
-    db
-      .from('messages')
-      .select(
-        'id, conversation_id, content_text, created_at, conversations!inner(contacts!inner(name, phone))',
-      )
-      .eq('sender_type', 'customer')
-      .order('created_at', { ascending: false })
-      .limit(ACTIVITY_KIND_LIMIT),
+  const [hot, warm, cold] = await Promise.all([
     db
       .from('contacts')
-      .select('id, name, phone, created_at')
-      .order('created_at', { ascending: false })
-      .limit(ACTIVITY_KIND_LIMIT),
+      .select('id', { count: 'exact', head: true })
+      .eq('lead_score', 'hot')
+      .gte('lead_score_assessed_at', todayStart),
     db
-      .from('deals')
-      .select('id, title, value, currency, created_at')
-      .order('created_at', { ascending: false })
-      .limit(ACTIVITY_KIND_LIMIT),
+      .from('contacts')
+      .select('id', { count: 'exact', head: true })
+      .eq('lead_score', 'warm')
+      .gte('lead_score_assessed_at', todayStart),
     db
-      .from('broadcasts')
-      .select('id, name, created_at')
-      .order('created_at', { ascending: false })
-      .limit(ACTIVITY_KIND_LIMIT),
-    db
-      .from('automation_logs')
-      .select('id, created_at, automations!inner(name), contacts(name, phone)')
-      .order('created_at', { ascending: false })
-      .limit(ACTIVITY_KIND_LIMIT),
+      .from('contacts')
+      .select('id', { count: 'exact', head: true })
+      .eq('lead_score', 'cold')
+      .gte('lead_score_assessed_at', todayStart),
   ])
 
-  const items: ActivityItem[] = []
-
-  type MessageRow = {
-    id: string
-    conversation_id: string
-    content_text: string | null
-    created_at: string
-    conversations: { contacts: ContactRef | ContactRef[] } | { contacts: ContactRef | ContactRef[] }[]
+  return {
+    hot: hot.count ?? 0,
+    warm: warm.count ?? 0,
+    cold: cold.count ?? 0,
   }
-  for (const row of (messagesRes.data ?? []) as MessageRow[]) {
-    const conversation = one(row.conversations)
-    const contact = conversation ? one(conversation.contacts) : null
-    items.push({
-      id: `message-${row.id}`,
-      kind: 'message',
-      at: row.created_at,
-      href: `/inbox?c=${row.conversation_id}`,
-      subject: contact?.name || contact?.phone || '—',
-      detail: row.content_text?.slice(0, 80) || undefined,
-    })
-  }
-
-  type ContactRow = { id: string; name: string | null; phone: string; created_at: string }
-  for (const row of (contactsRes.data ?? []) as ContactRow[]) {
-    items.push({
-      id: `contact-${row.id}`,
-      kind: 'contact',
-      at: row.created_at,
-      href: '/contacts',
-      subject: row.name || row.phone,
-    })
-  }
-
-  type DealRow = { id: string; title: string; value: number; currency: string | null; created_at: string }
-  for (const row of (dealsRes.data ?? []) as DealRow[]) {
-    items.push({
-      id: `deal-${row.id}`,
-      kind: 'deal',
-      at: row.created_at,
-      href: '/pipelines',
-      subject: row.title,
-      detail: formatCurrency(row.value, row.currency ?? undefined),
-    })
-  }
-
-  type BroadcastRow = { id: string; name: string; created_at: string }
-  for (const row of (broadcastsRes.data ?? []) as BroadcastRow[]) {
-    items.push({
-      id: `broadcast-${row.id}`,
-      kind: 'broadcast',
-      at: row.created_at,
-      href: '/broadcasts',
-      subject: row.name,
-    })
-  }
-
-  type AutomationLogRow = {
-    id: string
-    created_at: string
-    automations: { name: string } | { name: string }[]
-    contacts: ContactRef | ContactRef[] | null
-  }
-  for (const row of (automationRes.data ?? []) as AutomationLogRow[]) {
-    const automation = one(row.automations)
-    const contact = one(row.contacts)
-    items.push({
-      id: `automation-${row.id}`,
-      kind: 'automation',
-      at: row.created_at,
-      href: '/automations',
-      subject: automation?.name ?? '—',
-      detail: contact?.name || contact?.phone || undefined,
-    })
-  }
-
-  return items
-    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
-    .slice(0, limit)
 }
-

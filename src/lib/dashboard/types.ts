@@ -50,23 +50,13 @@ export interface ResponseTimeSummary {
   previousAvg: number | null
 }
 
-export type ActivityKind = "message" | "contact" | "deal" | "broadcast" | "automation";
-
-/** One row in the dashboard's "recent activity" feed. `subject` /
- *  `detail` are raw data (a contact's name, a deal's formatted value,
- *  …) — the component composes them into a localized sentence via
- *  `Dashboard.activityFeed.items.*`, so this type stays translation-
- *  free like every other query result here. */
-export interface ActivityItem {
-  id: string;
-  kind: ActivityKind;
-  /** ISO timestamp. */
-  at: string;
-  href?: string;
-  /** Primary label: contact name, deal title, broadcast/automation name. */
-  subject: string;
-  /** Optional secondary detail: message snippet, formatted deal value, related contact. */
-  detail?: string;
+/** Today's lead-qualification breakdown for the dashboard's "Leads
+ *  qualified today" card — counts contacts the AI (or a manual
+ *  override) actually assessed since local midnight, by lead_score. */
+export interface LeadsQualifiedToday {
+  hot: number
+  warm: number
+  cold: number
 }
 
 /** A HOT-scored lead whose conversation has gone unanswered past the

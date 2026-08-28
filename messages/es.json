@@ -139,24 +139,16 @@
       "tooltipAvg": "{minutes}m prom.",
       "tooltipNoSamples": "Sin datos"
     },
-    "activityFeed": {
-      "title": "Actividad reciente",
-      "description": "Últimos eventos de tu cuenta",
-      "noActivity": "Aún no hay actividad reciente",
-      "noActivityHint": "Los nuevos mensajes, contactos, tratos, difusiones y automatizaciones aparecerán aquí.",
-      "timeS": "hace {sec}s",
-      "timeM": "hace {min}m",
-      "timeH": "hace {hr}h",
-      "timeD": "hace {day}d",
-      "items": {
-        "newMessage": "Mensaje de {name}: {snippet}",
-        "newMessageNoText": "Nuevo mensaje de {name}",
-        "newContact": "Nuevo contacto: {name}",
-        "newDeal": "Nuevo trato: {title} ({value})",
-        "newBroadcast": "Difusión creada: {name}",
-        "automationRun": "Automatización ejecutada: {name} — {contact}",
-        "automationRunNoContact": "Automatización ejecutada: {name}"
-      }
+    "leadsQualifiedToday": {
+      "title": "Leads calificados hoy",
+      "description": "Calificación de la IA, de un vistazo",
+      "totalToday": "{count, plural, one {# lead calificado hoy} other {# leads calificados hoy}}",
+      "hot": "{count, plural, one {# lead hot} other {# leads hot}}",
+      "hotHint": "Listos para cerrar — contactalos ahora",
+      "warm": "{count, plural, one {# lead warm} other {# leads warm}}",
+      "warmHint": "Interesados, hay que hacer seguimiento",
+      "cold": "{count, plural, one {# lead cold} other {# leads cold}}",
+      "coldHint": "Sin urgencia por responder"
     },
     "emptyState": {
       "title": "Aún no hay suficientes datos"
