@@ -260,10 +260,6 @@
       "platformWhatsapp": "WhatsApp",
       "platformInstagram": "Instagram",
       "platformAll": "Todas",
-      "liveTitle": "Bandeja de entrada",
-      "liveSubtitleAi": "WhatsApp · IA analizando en vivo",
-      "liveSubtitlePlain": "WhatsApp",
-      "newCount": "{count, plural, one {# nuevo} other {# nuevos}}",
       "analyzing": "IA analizando"
     },
     "messageThread": {

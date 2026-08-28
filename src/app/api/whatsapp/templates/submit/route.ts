@@ -56,7 +56,7 @@ function buildUpsertRow(
     submission_error: extras.submissionError,
     // Clear stale rejection_reason whenever we re-submit; the
     // webhook will set it again if Meta still rejects.
-    rejection_reason: extras.submissionError ? null : null,
+    rejection_reason: null,
     last_submitted_at: new Date().toISOString(),
   }
 }

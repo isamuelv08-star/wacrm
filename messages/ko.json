@@ -260,10 +260,6 @@
       "platformWhatsapp": "WhatsApp",
       "platformInstagram": "Instagram",
       "platformAll": "전체",
-      "liveTitle": "받은메시지함",
-      "liveSubtitleAi": "WhatsApp · AI 실시간 분석 중",
-      "liveSubtitlePlain": "WhatsApp",
-      "newCount": "신규 {count}건",
       "analyzing": "AI 분석 중"
     },
     "messageThread": {

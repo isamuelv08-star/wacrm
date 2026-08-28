@@ -40,7 +40,7 @@ export async function generateOpenRouter(args: ProviderArgs): Promise<ProviderRe
         ...(process.env.NEXT_PUBLIC_SITE_URL
           ? { 'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL }
           : {}),
-        'X-Title': 'wacrm',
+        'X-Title': 'Saleslid',
       },
       body: JSON.stringify({
         model,

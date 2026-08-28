@@ -398,46 +398,11 @@ export function ConversationList({
 
   const activeFilter = FILTER_OPTIONS.find((o) => o.value === filter);
 
-  // Total unread across the whole account (not just the current tab/
-  // filter) for the header badge — derived straight from
-  // `conversations`, which already carries everything realtime keeps
-  // fresh, so it needs no query of its own.
-  const unreadTotal = useMemo(
-    () => conversations.reduce((sum, c) => sum + (c.unread_count > 0 ? 1 : 0), 0),
-    [conversations],
-  );
-
   return (
     // w-full on mobile so the list occupies the whole viewport when it's
     // the single pane showing; fixed 320px on desktop where it shares the
     // row with the thread + contact sidebar.
     <div className="relative flex h-full w-full flex-col border-r border-border bg-card">
-      {/* Live header — a pulsing dot signals "connected, actively
-          working" instead of a static title. The subtitle is honest
-          about whether AI qualification is actually running for this
-          account (it only ever does when qualification criteria is
-          configured — see the ai_configs fetch above), rather than
-          always claiming activity that might not be happening. */}
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2 shrink-0">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-            </span>
-            <h2 className="truncate text-sm font-semibold text-foreground">{t("liveTitle")}</h2>
-          </div>
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">
-            {hasQualificationCriteria ? t("liveSubtitleAi") : t("liveSubtitlePlain")}
-          </p>
-        </div>
-        {unreadTotal > 0 && (
-          <span className="flex shrink-0 items-center justify-center rounded-full bg-primary px-2.5 py-1 text-xs font-bold text-primary-foreground shadow-sm">
-            {t("newCount", { count: unreadTotal })}
-          </span>
-        )}
-      </div>
-
       {/* Platform tabs — WhatsApp / Instagram / Todas as a filled pill
           segmented control. The active pill is solid-filled with that
           platform's own accent (Instagram's gradient, WhatsApp's green);
