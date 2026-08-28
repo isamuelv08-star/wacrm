@@ -9,7 +9,7 @@ import {
 } from "@/lib/inbox/conversations";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus, Tag } from "@/types";
-import { Search, ChevronDown, X, Inbox, MessageCircle, Camera, Star } from "lucide-react";
+import { Search, ChevronDown, X, Inbox, MessageCircle, Camera } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
@@ -22,12 +22,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { LeadScoreBadge, LEAD_SCORE_STYLES, type Score } from "@/components/leads/lead-score-badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { PlatformIcon, AvatarRing } from "./platform-accent";
 import {
   getConversationPlatform,
@@ -95,6 +89,23 @@ function isAnalyzing(conv: Conversation, hasCriteria: boolean, now: number): boo
   if (now - lastMessageAt > ANALYZING_WINDOW_MS) return false;
   const assessedAt = conv.contact?.lead_score_assessed_at;
   return !assessedAt || new Date(assessedAt).getTime() < lastMessageAt;
+}
+
+// Trims the AI's reason down to a short, row-friendly snippet — the
+// stored text is a full short phrase (the model is told to keep it
+// under 20 words), fine for a tooltip or the contact detail view, but
+// too much to sit permanently on every inbox row. Cuts at a word
+// boundary rather than a hard character count so it never ends
+// mid-word. The full text is still what's stored and shown everywhere
+// else (contact detail, score history) — this is a display-only trim
+// for this one dense, always-visible context.
+const ROW_REASON_MAX_CHARS = 24;
+function shortenReason(reason: string): string {
+  const trimmed = reason.trim();
+  if (trimmed.length <= ROW_REASON_MAX_CHARS) return trimmed;
+  const cut = trimmed.slice(0, ROW_REASON_MAX_CHARS);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${(lastSpace > 10 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
 }
 
 export function ConversationList({
@@ -830,17 +841,14 @@ function ConversationItem({
         </div>
 
         {/* AI line — either the transient "analyzing" state, or the
-            settled score badge. Nothing renders when neither applies
-            (unscored contact, account without qualification criteria
-            configured).
-
-            The reason itself isn't printed inline anymore (that read as
-            cluttered with a full sentence on every row) — same pattern
-            Pipelines already uses for "why is this qualified": a small
-            star next to the badge, reason on hover only. The badge's
-            own built-in tooltip is left to just the staleness note
-            (`reason` passed as null here) so there's one tooltip per
-            icon, not two competing ones on the same row. */}
+            settled score badge + a short (word-trimmed, ~3-word) reason
+            snippet, always visible rather than hover-only so it reads
+            the same on a tablet as on desktop. Small and muted enough
+            to stay a secondary label, not compete with the message
+            preview above it. The badge itself keeps its own hover
+            tooltip (full reason + staleness note) as a bonus for mouse
+            users. Nothing renders when neither state applies (unscored
+            contact, account without qualification criteria configured). */}
         {analyzing ? (
           <p className="mt-1 flex items-center gap-1 text-[11px] font-medium text-violet-500">
             <span className="flex gap-0.5" aria-hidden>
@@ -854,24 +862,13 @@ function ConversationItem({
           <div className="mt-1 flex min-w-0 items-center gap-1">
             <LeadScoreBadge
               score={contact.lead_score}
-              reason={null}
+              reason={contact.lead_score_reason}
               updatedAt={contact.lead_score_updated_at}
             />
             {contact.lead_score_reason && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <span className="inline-flex shrink-0 cursor-default items-center">
-                        <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                      </span>
-                    }
-                  />
-                  <TooltipContent side="top" className="max-w-[220px] whitespace-normal text-left">
-                    {contact.lead_score_reason}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <span className="truncate text-[10px] font-medium text-muted-foreground">
+                {shortenReason(contact.lead_score_reason)}
+              </span>
             )}
           </div>
         ) : null}
