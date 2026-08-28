@@ -2299,5 +2299,34 @@
   },
   "DashboardShell": {
     "loading": "Cargando..."
+  },
+  "Onboarding": {
+    "skipSetup": "Saltar configuración",
+    "back": "Atrás",
+    "next": "Siguiente",
+    "finish": "Ir al panel",
+    "whatsapp": {
+      "title": "Conectá tu WhatsApp",
+      "description": "Tu bandeja de entrada, difusiones y respuestas con IA dependen de esta conexión — nada funciona hasta que la configures."
+    },
+    "pipeline": {
+      "title": "Tu pipeline de ventas",
+      "description": "Ya creamos un pipeline por defecto para vos — personalizalo cuando quieras desde Pipelines.",
+      "stagesLabel": "Etapas por defecto"
+    },
+    "ai": {
+      "title": "Calificación de leads con IA",
+      "description": "Opcional — califica automáticamente cada conversación como HOT, WARM o COLD. Podés configurarlo después desde Configuración si preferís saltarlo por ahora."
+    },
+    "invite": {
+      "title": "Invitá a tu equipo",
+      "description": "Opcional — sumá compañeros para compartir la bandeja y el pipeline. Siempre podés hacerlo después desde Configuración.",
+      "cta": "Invitar a un miembro"
+    },
+    "done": {
+      "title": "Todo listo",
+      "description": "Tu cuenta está lista para usar.",
+      "body": "Podés volver a cualquier paso que hayas saltado desde Configuración cuando quieras."
+    }
   }
 }

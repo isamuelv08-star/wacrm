@@ -2299,5 +2299,34 @@
   },
   "DashboardShell": {
     "loading": "Loading..."
+  },
+  "Onboarding": {
+    "skipSetup": "Skip setup",
+    "back": "Back",
+    "next": "Next",
+    "finish": "Go to dashboard",
+    "whatsapp": {
+      "title": "Connect WhatsApp",
+      "description": "Your inbox, broadcasts, and AI replies all run through this connection — nothing works until it's set up."
+    },
+    "pipeline": {
+      "title": "Your sales pipeline",
+      "description": "We've already created a default pipeline for you — customize it anytime from Pipelines.",
+      "stagesLabel": "Default stages"
+    },
+    "ai": {
+      "title": "AI lead qualification",
+      "description": "Optional — automatically score every conversation as HOT, WARM, or COLD. You can set this up later from Settings if you'd rather skip it for now."
+    },
+    "invite": {
+      "title": "Invite your team",
+      "description": "Optional — bring in teammates to share the inbox and pipeline. You can always do this later from Settings.",
+      "cta": "Invite a teammate"
+    },
+    "done": {
+      "title": "You're all set",
+      "description": "Your account is ready to go.",
+      "body": "You can revisit anything you skipped from Settings at any time."
+    }
   }
 }

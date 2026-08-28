@@ -15,7 +15,7 @@ import { NewNotificationToastListener } from "@/components/notifications/new-not
 
 function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const t = useTranslations("DashboardShell");
-  const { user, loading } = useAuth();
+  const { user, loading, profileLoading, account } = useAuth();
   const router = useRouter();
 
   // Sidebar drawer state — only used on mobile. On lg+ the sidebar is
@@ -29,6 +29,16 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
     }
   }, [user, loading, router]);
 
+  // First-run onboarding gate (migration 063). Account-scoped, not
+  // per-user — a teammate invited after the owner finishes it never
+  // sees this. Gated on `profileLoading` so we don't redirect during
+  // the brief window before the account row has loaded.
+  useEffect(() => {
+    if (!loading && user && !profileLoading && account && !account.onboarding_completed_at) {
+      router.push("/onboarding");
+    }
+  }, [loading, user, profileLoading, account, router]);
+
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
@@ -41,6 +51,10 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   }
 
   if (!user) return null;
+
+  // Avoid a one-frame flash of dashboard chrome while the onboarding
+  // redirect above is in flight.
+  if (!profileLoading && account && !account.onboarding_completed_at) return null;
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
