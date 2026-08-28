@@ -351,6 +351,25 @@ function InboxPageInner() {
     [activeConversation, hydrateConversation]
   );
 
+  // Live lead-score updates (and any other contact field change) —
+  // patches the `contact` embedded on every matching conversation row,
+  // plus `activeContact` if it's the one currently open in the sidebar.
+  // A contact can have more than one conversation (WhatsApp + Instagram,
+  // say); all of them share the same score, so all get patched.
+  const handleContactEvent = useCallback(
+    (event: { eventType: string; new: Contact; old: Partial<Contact> }) => {
+      const contact = event.new;
+      if (!contact?.id) return;
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.contact?.id === contact.id ? { ...c, contact: { ...c.contact, ...contact } } : c,
+        ),
+      );
+      setActiveContact((prev) => (prev?.id === contact.id ? { ...prev, ...contact } : prev));
+    },
+    [],
+  );
+
   // Subscribe to realtime. The `isConnected` flag below feeds the
   // reconnect resync: realtime is best-effort and events sent while the
   // WS was disconnected (laptop sleep, network blip, background-tab
@@ -359,6 +378,7 @@ function InboxPageInner() {
     channelName: "inbox-realtime",
     onMessageEvent: handleMessageEvent,
     onConversationEvent: handleConversationEvent,
+    onContactEvent: handleContactEvent,
     enabled: true,
   });
 

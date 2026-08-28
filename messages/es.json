@@ -259,7 +259,14 @@
       "unknown": "Desconocido",
       "platformWhatsapp": "WhatsApp",
       "platformInstagram": "Instagram",
-      "platformAll": "Todas"
+      "platformAll": "Todas",
+      "liveTitle": "Bandeja de entrada",
+      "liveSubtitleAi": "WhatsApp · IA analizando en vivo",
+      "liveSubtitlePlain": "WhatsApp",
+      "newCount": "{count, plural, one {# nuevo} other {# nuevos}}",
+      "analyzing": "IA analizando",
+      "liveBadgeLabel": "IA EN VIVO",
+      "liveBadgeCount": "{count, plural, one {# conversación clasificada hoy} other {# conversaciones clasificadas hoy}}"
     },
     "messageThread": {
       "backToConversations": "Volver a conversaciones",

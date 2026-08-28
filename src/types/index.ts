@@ -155,6 +155,11 @@ export interface Contact {
    *  061) — powers the badge's "hasn't been reassessed in a while"
    *  staleness indicator. */
   lead_score_updated_at?: string | null;
+  /** Stamped on EVERY AI/manual scoring pass, value-changed or not
+   *  (migration 064) — unlike `lead_score_updated_at` above, which only
+   *  moves on a real value change. Powers "leads qualified today" counts
+   *  and the Inbox's live "AI is analyzing" inference. */
+  lead_score_assessed_at?: string | null;
   /** Hydrated by queries that embed `contact_tags(tags(*))` (e.g. the
    *  Inbox conversation list, for tag filtering). Absent otherwise. */
   tags?: Tag[];

@@ -9,7 +9,7 @@ import {
 } from "@/lib/inbox/conversations";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus, Tag } from "@/types";
-import { Search, ChevronDown, X, Inbox, MessageCircle, Camera } from "lucide-react";
+import { Search, ChevronDown, X, Inbox, MessageCircle, Camera, Sparkles } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
@@ -68,6 +68,29 @@ const PLATFORM_TAB_ORDER: PlatformFilter[] = ["whatsapp", "instagram", "all"];
 // as the leftmost, most natural first click.
 const LEAD_SCORE_TAB_ORDER: LeadScoreFilter[] = ["hot", "warm", "cold", "unscored", "all"];
 
+// How long after a customer's message we still consider the AI
+// "actively analyzing" this conversation, if the score hasn't caught
+// up with it yet. There's no real backend "in progress" flag — this
+// is a client-side inference (recent message + stale score), so the
+// window is capped rather than left open-ended: an account with no
+// qualification criteria configured, a rate-limited turn, or a
+// no-verdict response would otherwise show this indicator forever
+// instead of it quietly clearing.
+const ANALYZING_WINDOW_MS = 20_000;
+
+/** True when the AI is plausibly still scoring this turn — a message
+ *  landed within the last `ANALYZING_WINDOW_MS` and the contact's
+ *  score hasn't been (re)assessed since. Only meaningful for accounts
+ *  that actually have qualification criteria configured; otherwise
+ *  scoring never runs at all and this always reads false. */
+function isAnalyzing(conv: Conversation, hasCriteria: boolean, now: number): boolean {
+  if (!hasCriteria || !conv.last_message_at) return false;
+  const lastMessageAt = new Date(conv.last_message_at).getTime();
+  if (now - lastMessageAt > ANALYZING_WINDOW_MS) return false;
+  const assessedAt = conv.contact?.lead_score_assessed_at;
+  return !assessedAt || new Date(assessedAt).getTime() < lastMessageAt;
+}
+
 export function ConversationList({
   activeConversationId,
   onSelect,
@@ -89,6 +112,40 @@ export function ConversationList({
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<InboxFilter>("all");
   const [loading, setLoading] = useState(true);
+
+  // Whether this account has qualification criteria configured at all
+  // (migration 038) — scoring only ever runs when it does, so the
+  // "AI analyzing" header subtitle and per-row indicator stay
+  // completely quiet otherwise instead of implying activity that isn't
+  // happening. RLS on ai_configs explicitly allows any account member
+  // (viewer+) to read this, unlike the admin-gated /api/ai/config
+  // route used by the Settings form — queried directly here for that
+  // reason, not through that route.
+  const [hasQualificationCriteria, setHasQualificationCriteria] = useState(false);
+  useEffect(() => {
+    const supabase = createClient();
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("ai_configs")
+        .select("qualification_criteria")
+        .maybeSingle();
+      if (!cancelled) setHasQualificationCriteria(!!data?.qualification_criteria?.trim());
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Ticks so the "analyzing" window (see `isAnalyzing` above) actually
+  // expires on its own even with no new realtime events to trigger a
+  // re-render — e.g. a turn that never gets a verdict (no criteria hit,
+  // rate-limited, model returned null).
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 3000);
+    return () => clearInterval(id);
+  }, []);
   // Platform tab (WhatsApp / Instagram / Todas). Session-scoped — restored
   // from sessionStorage after mount (not read in the initializer, so SSR
   // and first client render agree and there's no hydration mismatch).
@@ -324,11 +381,55 @@ export function ConversationList({
 
   const activeFilter = FILTER_OPTIONS.find((o) => o.value === filter);
 
+  // Total unread across the whole account (not just the current tab/
+  // filter) for the header badge, and today's qualified-conversation
+  // count for the floating "AI live" badge — both derived straight from
+  // `conversations`, which already carries everything realtime keeps
+  // fresh, so neither needs a query of its own.
+  const unreadTotal = useMemo(
+    () => conversations.reduce((sum, c) => sum + (c.unread_count > 0 ? 1 : 0), 0),
+    [conversations],
+  );
+  const qualifiedTodayCount = useMemo(() => {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    return conversations.filter((c) => {
+      const assessedAt = c.contact?.lead_score_assessed_at;
+      return !!assessedAt && new Date(assessedAt) >= startOfToday;
+    }).length;
+  }, [conversations]);
+
   return (
     // w-full on mobile so the list occupies the whole viewport when it's
     // the single pane showing; fixed 320px on desktop where it shares the
     // row with the thread + contact sidebar.
-    <div className="flex h-full w-full flex-col border-r border-border bg-card lg:w-80">
+    <div className="relative flex h-full w-full flex-col border-r border-border bg-card lg:w-80">
+      {/* Live header — a pulsing dot signals "connected, actively
+          working" instead of a static title. The subtitle is honest
+          about whether AI qualification is actually running for this
+          account (it only ever does when qualification criteria is
+          configured — see the ai_configs fetch above), rather than
+          always claiming activity that might not be happening. */}
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+            </span>
+            <h2 className="truncate text-sm font-semibold text-foreground">{t("liveTitle")}</h2>
+          </div>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+            {hasQualificationCriteria ? t("liveSubtitleAi") : t("liveSubtitlePlain")}
+          </p>
+        </div>
+        {unreadTotal > 0 && (
+          <span className="flex shrink-0 items-center justify-center rounded-full bg-primary px-2.5 py-1 text-xs font-bold text-primary-foreground shadow-sm">
+            {t("newCount", { count: unreadTotal })}
+          </span>
+        )}
+      </div>
+
       {/* Platform tabs — WhatsApp / Instagram / Todas as a filled pill
           segmented control. The active pill is solid-filled with that
           platform's own accent (Instagram's gradient, WhatsApp's green);
@@ -620,11 +721,29 @@ export function ConversationList({
                 onSelect={handleSelect}
                 t={t}
                 showPlatformBadge={platformFilter === "all"}
+                analyzing={isAnalyzing(conv, hasQualificationCriteria, now)}
               />
             ))}
           </div>
         )}
       </ScrollArea>
+
+      {/* Floating "AI live" chip — only shown when this account actually
+          runs qualification, so it never claims activity that isn't
+          happening. `pointer-events-none` so it never blocks a click on
+          whatever conversation row happens to sit behind it. */}
+      {hasQualificationCriteria && (
+        <div className="pointer-events-none absolute bottom-3 right-3 z-10">
+          <div className="flex items-center gap-1.5 rounded-full border border-border bg-card/95 px-3 py-1.5 text-xs font-semibold shadow-lg backdrop-blur">
+            <Sparkles className="h-3.5 w-3.5 shrink-0 text-primary" />
+            <span className="text-primary">{t("liveBadgeLabel")}</span>
+            <span className="text-muted-foreground">·</span>
+            <span className="truncate text-muted-foreground">
+              {t("liveBadgeCount", { count: qualifiedTodayCount })}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -635,6 +754,10 @@ interface ConversationItemProps {
   onSelect: (conversation: Conversation) => void;
   t: ReturnType<typeof useTranslations>;
   showPlatformBadge: boolean;
+  /** True while the AI is plausibly still scoring this turn — see
+   *  `isAnalyzing` above. Transient by nature, so it gets its own look
+   *  rather than reusing the (settled) score badge's styling. */
+  analyzing: boolean;
 }
 
 function ConversationItem({
@@ -643,6 +766,7 @@ function ConversationItem({
   onSelect,
   t,
   showPlatformBadge,
+  analyzing,
 }: ConversationItemProps) {
   const contact = conversation.contact;
   const displayName = contact?.name || contact?.phone || t("unknown");
@@ -664,7 +788,11 @@ function ConversationItem({
       onClick={handleClick}
       className={cn(
         "flex w-full items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/50",
-        isActive && "border-l-2 border-primary bg-muted/70"
+        isActive && "border-l-2 border-primary bg-muted/70",
+        // A conversation the AI is actively working on right now is a
+        // transient state, not a settled one — give it its own subtle
+        // treatment so it never reads as just another scored row.
+        analyzing && !isActive && "border-l-2 border-violet-500/40 bg-violet-500/[0.04]",
       )}
     >
       {/* Avatar — Instagram conversations get the gradient "story ring";
@@ -694,16 +822,7 @@ function ConversationItem({
       {/* Content */}
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="flex min-w-0 items-center gap-1.5">
-            <span className="truncate text-sm font-medium text-foreground">
-              {displayName}
-            </span>
-            <LeadScoreBadge
-              score={contact?.lead_score}
-              reason={contact?.lead_score_reason}
-              updatedAt={contact?.lead_score_updated_at}
-            />
-          </span>
+          <span className="truncate text-sm font-medium text-foreground">{displayName}</span>
           <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo}</span>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">
@@ -712,7 +831,7 @@ function ConversationItem({
           </p>
           <div className="flex shrink-0 items-center gap-1.5">
             {conversation.unread_count > 0 && (
-              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold text-white">
                 {conversation.unread_count}
               </span>
             )}
@@ -725,6 +844,34 @@ function ConversationItem({
             />
           </div>
         </div>
+
+        {/* AI line — either the transient "analyzing" state, or the
+            settled score badge + short reason. Nothing renders when
+            neither applies (unscored contact, account without
+            qualification criteria configured). */}
+        {analyzing ? (
+          <p className="mt-1 flex items-center gap-1 text-[11px] font-medium text-violet-500">
+            <span className="flex gap-0.5" aria-hidden>
+              <span className="h-1 w-1 animate-bounce rounded-full bg-violet-500 [animation-delay:-0.3s]" />
+              <span className="h-1 w-1 animate-bounce rounded-full bg-violet-500 [animation-delay:-0.15s]" />
+              <span className="h-1 w-1 animate-bounce rounded-full bg-violet-500" />
+            </span>
+            {t("analyzing")}
+          </p>
+        ) : contact?.lead_score ? (
+          <div className="mt-1 flex min-w-0 items-center gap-1.5">
+            <LeadScoreBadge
+              score={contact.lead_score}
+              reason={contact.lead_score_reason}
+              updatedAt={contact.lead_score_updated_at}
+            />
+            {contact.lead_score_reason && (
+              <span className="truncate text-[11px] text-muted-foreground">
+                {contact.lead_score_reason}
+              </span>
+            )}
+          </div>
+        ) : null}
       </div>
     </button>
   );
