@@ -9,7 +9,7 @@ import {
 } from "@/lib/inbox/conversations";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus, Tag } from "@/types";
-import { Search, ChevronDown, X, Inbox, MessageCircle, Camera, Sparkles } from "lucide-react";
+import { Search, ChevronDown, X, Inbox, MessageCircle, Camera, Star } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { LeadScoreBadge, LEAD_SCORE_STYLES, type Score } from "@/components/leads/lead-score-badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { PlatformIcon, AvatarRing } from "./platform-accent";
 import {
   getConversationPlatform,
@@ -382,28 +388,19 @@ export function ConversationList({
   const activeFilter = FILTER_OPTIONS.find((o) => o.value === filter);
 
   // Total unread across the whole account (not just the current tab/
-  // filter) for the header badge, and today's qualified-conversation
-  // count for the floating "AI live" badge — both derived straight from
+  // filter) for the header badge — derived straight from
   // `conversations`, which already carries everything realtime keeps
-  // fresh, so neither needs a query of its own.
+  // fresh, so it needs no query of its own.
   const unreadTotal = useMemo(
     () => conversations.reduce((sum, c) => sum + (c.unread_count > 0 ? 1 : 0), 0),
     [conversations],
   );
-  const qualifiedTodayCount = useMemo(() => {
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-    return conversations.filter((c) => {
-      const assessedAt = c.contact?.lead_score_assessed_at;
-      return !!assessedAt && new Date(assessedAt) >= startOfToday;
-    }).length;
-  }, [conversations]);
 
   return (
     // w-full on mobile so the list occupies the whole viewport when it's
     // the single pane showing; fixed 320px on desktop where it shares the
     // row with the thread + contact sidebar.
-    <div className="relative flex h-full w-full flex-col border-r border-border bg-card lg:w-80">
+    <div className="relative flex h-full w-full flex-col border-r border-border bg-card">
       {/* Live header — a pulsing dot signals "connected, actively
           working" instead of a static title. The subtitle is honest
           about whether AI qualification is actually running for this
@@ -479,8 +476,12 @@ export function ConversationList({
       {/* Lead-score tabs — Hot / Warm / Cold / Not scored / All, hottest
           first. Counts are scoped to whatever the platform/status/tag/
           company/search filters above already narrowed down to, so the
-          numbers stay internally consistent with each other. */}
-      <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-3 py-2.5">
+          numbers stay internally consistent with each other.
+          Single row, no wrap: `shrink-0` on every pill plus horizontal
+          scroll (scrollbar hidden — this is a compact tab strip, not a
+          scroll area anyone needs a visible track for) instead of
+          letting it fall to a second line at narrower widths. */}
+      <div className="flex items-center gap-1 overflow-x-auto border-b border-border px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {LEAD_SCORE_TAB_ORDER.map((tab) => {
           const isActive = leadScoreFilter === tab;
           const count = leadScoreCounts[tab];
@@ -492,7 +493,7 @@ export function ConversationList({
                 type="button"
                 onClick={() => handleLeadScoreFilterChange(tab)}
                 className={cn(
-                  "flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-all",
+                  "flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold transition-all",
                   isActive
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -510,7 +511,7 @@ export function ConversationList({
               type="button"
               onClick={() => handleLeadScoreFilterChange(tab)}
               className={cn(
-                "flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-transparent transition-all",
+                "flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold ring-1 ring-transparent transition-all",
                 isActive ? scoreClassName : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground",
                 isActive && "ring-current",
               )}
@@ -727,23 +728,6 @@ export function ConversationList({
           </div>
         )}
       </ScrollArea>
-
-      {/* Floating "AI live" chip — only shown when this account actually
-          runs qualification, so it never claims activity that isn't
-          happening. `pointer-events-none` so it never blocks a click on
-          whatever conversation row happens to sit behind it. */}
-      {hasQualificationCriteria && (
-        <div className="pointer-events-none absolute bottom-3 right-3 z-10">
-          <div className="flex items-center gap-1.5 rounded-full border border-border bg-card/95 px-3 py-1.5 text-xs font-semibold shadow-lg backdrop-blur">
-            <Sparkles className="h-3.5 w-3.5 shrink-0 text-primary" />
-            <span className="text-primary">{t("liveBadgeLabel")}</span>
-            <span className="text-muted-foreground">·</span>
-            <span className="truncate text-muted-foreground">
-              {t("liveBadgeCount", { count: qualifiedTodayCount })}
-            </span>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -846,9 +830,17 @@ function ConversationItem({
         </div>
 
         {/* AI line — either the transient "analyzing" state, or the
-            settled score badge + short reason. Nothing renders when
-            neither applies (unscored contact, account without
-            qualification criteria configured). */}
+            settled score badge. Nothing renders when neither applies
+            (unscored contact, account without qualification criteria
+            configured).
+
+            The reason itself isn't printed inline anymore (that read as
+            cluttered with a full sentence on every row) — same pattern
+            Pipelines already uses for "why is this qualified": a small
+            star next to the badge, reason on hover only. The badge's
+            own built-in tooltip is left to just the staleness note
+            (`reason` passed as null here) so there's one tooltip per
+            icon, not two competing ones on the same row. */}
         {analyzing ? (
           <p className="mt-1 flex items-center gap-1 text-[11px] font-medium text-violet-500">
             <span className="flex gap-0.5" aria-hidden>
@@ -859,16 +851,27 @@ function ConversationItem({
             {t("analyzing")}
           </p>
         ) : contact?.lead_score ? (
-          <div className="mt-1 flex min-w-0 items-center gap-1.5">
+          <div className="mt-1 flex min-w-0 items-center gap-1">
             <LeadScoreBadge
               score={contact.lead_score}
-              reason={contact.lead_score_reason}
+              reason={null}
               updatedAt={contact.lead_score_updated_at}
             />
             {contact.lead_score_reason && (
-              <span className="truncate text-[11px] text-muted-foreground">
-                {contact.lead_score_reason}
-              </span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <span className="inline-flex shrink-0 cursor-default items-center">
+                        <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                      </span>
+                    }
+                  />
+                  <TooltipContent side="top" className="max-w-[220px] whitespace-normal text-left">
+                    {contact.lead_score_reason}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
           </div>
         ) : null}

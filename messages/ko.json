@@ -264,9 +264,7 @@
       "liveSubtitleAi": "WhatsApp · AI 실시간 분석 중",
       "liveSubtitlePlain": "WhatsApp",
       "newCount": "신규 {count}건",
-      "analyzing": "AI 분석 중",
-      "liveBadgeLabel": "AI 실시간",
-      "liveBadgeCount": "오늘 {count}건 분류됨"
+      "analyzing": "AI 분석 중"
     },
     "messageThread": {
       "backToConversations": "대화 목록으로 돌아가기",

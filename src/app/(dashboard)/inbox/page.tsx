@@ -633,10 +633,19 @@ function InboxPageInner() {
       <div className="flex flex-1 overflow-hidden">
         {/* Left panel: Conversation list.
             Hidden on mobile when a conversation is selected so the
-            thread can occupy the full width. Always visible on lg+. */}
+            thread can occupy the full width. Always visible on lg+.
+
+            `lg:grow lg:basis-80` (not the old `lg:flex-none`): this panel
+            used to sit at a hard 320px no matter what, so collapsing the
+            main nav Sidebar or the contact-info panel only ever widened
+            the thread in the middle — the list stayed cramped even with
+            plenty of freed-up screen space. Giving it a real (if smaller)
+            grow factor alongside the thread's `lg:grow-[3]` below means
+            both panels actually redistribute whenever a sibling's width
+            changes, with no cross-component state needed — pure flexbox. */}
         <div
           className={cn(
-            "flex h-full flex-1 lg:flex-none",
+            "flex h-full flex-1 lg:grow lg:basis-80 lg:shrink lg:max-w-md",
             hasActiveConv ? "hidden lg:flex" : "flex",
           )}
         >
@@ -661,7 +670,7 @@ function InboxPageInner() {
             on the right. Issue #165. */}
         <div
           className={cn(
-            "flex h-full min-w-0 flex-1 lg:flex",
+            "flex h-full min-w-0 flex-1 lg:flex lg:grow-[3]",
             hasActiveConv ? "flex" : "hidden lg:flex",
           )}
         >

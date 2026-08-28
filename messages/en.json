@@ -264,9 +264,7 @@
       "liveSubtitleAi": "WhatsApp · AI analyzing live",
       "liveSubtitlePlain": "WhatsApp",
       "newCount": "{count, plural, one {# new} other {# new}}",
-      "analyzing": "AI analyzing",
-      "liveBadgeLabel": "AI LIVE",
-      "liveBadgeCount": "{count, plural, one {# conversation qualified today} other {# conversations qualified today}}"
+      "analyzing": "AI analyzing"
     },
     "messageThread": {
       "backToConversations": "Back to conversations",
