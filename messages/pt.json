@@ -12,19 +12,21 @@
     }
   },
   "LoginPage": {
+    "heroHeadline": "O próximo «quero comprar» <highlight>já está na sua caixa de entrada.</highlight>",
+    "heroTagline": "IA que prioriza suas vendas no WhatsApp: HOT, WARM ou COLD, sem você mexer um dedo.",
     "titleAccept": "Entrar para aceitar",
-    "titleWelcome": "Bem-vindo de volta",
+    "titleWelcome": "Que bom te ver de novo.",
     "descAccept": "Entre e vamos te levar até o convite.",
-    "descWelcome": "Entre na sua conta",
+    "descWelcome": "Entre e veja quem quer comprar de você hoje.",
     "emailLabel": "Email",
-    "emailPlaceholder": "voce@exemplo.com",
+    "emailPlaceholder": "voce@email.com",
     "passwordLabel": "Senha",
     "forgotPassword": "Esqueceu a senha?",
-    "passwordPlaceholder": "Digite sua senha",
+    "passwordPlaceholder": "••••••••",
     "signingIn": "Entrando...",
     "signIn": "Entrar",
-    "noAccount": "Não tem uma conta?",
-    "createAccount": "Criar conta"
+    "noAccount": "Ainda não tem uma conta?",
+    "createAccount": "Crie uma grátis"
   },
   "Sidebar": {
     "title": "Saleslid",
@@ -2174,14 +2176,16 @@
     }
   },
   "SignupPage": {
-    "titleInvite": "Criar conta e entrar",
-    "title": "Criar conta",
+    "heroHeadline": "Seu próximo cliente <highlight>já está te escrevendo.</highlight>",
+    "heroTagline": "Comece grátis e deixe a IA priorizar cada conversa do WhatsApp por você.",
+    "titleInvite": "Crie sua conta e entre",
+    "title": "Crie sua conta.",
     "descInvite": "Verifique seu email e depois aceite o convite para entrar na sua equipe.",
-    "desc": "Comece com o Saleslid",
+    "desc": "Comece a vender mais rápido, hoje.",
     "fullNameLabel": "Nome completo",
     "fullNamePlaceholder": "João Silva",
     "emailLabel": "Email",
-    "emailPlaceholder": "voce@exemplo.com",
+    "emailPlaceholder": "voce@email.com",
     "passwordLabel": "Senha",
     "passwordPlaceholder": "Pelo menos 6 caracteres",
     "confirmPasswordLabel": "Confirmar senha",

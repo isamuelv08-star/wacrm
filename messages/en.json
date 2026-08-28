@@ -12,19 +12,21 @@
     }
   },
   "LoginPage": {
+    "heroHeadline": "Your next “I want to buy” <highlight>is already in your inbox.</highlight>",
+    "heroTagline": "AI that prioritizes your WhatsApp sales — HOT, WARM, or COLD — without you lifting a finger.",
     "titleAccept": "Sign in to accept",
-    "titleWelcome": "Welcome back",
+    "titleWelcome": "Good to see you again.",
     "descAccept": "Sign in and we'll take you to the invitation.",
-    "descWelcome": "Sign in to your account",
+    "descWelcome": "Sign in and see who's ready to buy today.",
     "emailLabel": "Email",
-    "emailPlaceholder": "you@example.com",
+    "emailPlaceholder": "you@email.com",
     "passwordLabel": "Password",
     "forgotPassword": "Forgot password?",
-    "passwordPlaceholder": "Enter your password",
+    "passwordPlaceholder": "••••••••",
     "signingIn": "Signing in...",
     "signIn": "Sign in",
-    "noAccount": "Don't have an account?",
-    "createAccount": "Create account"
+    "noAccount": "Don't have an account yet?",
+    "createAccount": "Create one for free"
   },
   "Sidebar": {
     "title": "Saleslid",
@@ -2174,14 +2176,16 @@
     }
   },
   "SignupPage": {
-    "titleInvite": "Create account & join",
-    "title": "Create account",
+    "heroHeadline": "Your next customer <highlight>is already messaging you.</highlight>",
+    "heroTagline": "Start free and let AI prioritize every WhatsApp conversation for you.",
+    "titleInvite": "Create your account & join",
+    "title": "Create your account.",
     "descInvite": "Verify your email, then accept the invitation to join your team.",
-    "desc": "Get started with Saleslid",
+    "desc": "Start selling faster, today.",
     "fullNameLabel": "Full name",
     "fullNamePlaceholder": "John Doe",
     "emailLabel": "Email",
-    "emailPlaceholder": "you@example.com",
+    "emailPlaceholder": "you@email.com",
     "passwordLabel": "Password",
     "passwordPlaceholder": "At least 6 characters",
     "confirmPasswordLabel": "Confirm password",

@@ -12,19 +12,21 @@
     }
   },
   "LoginPage": {
+    "heroHeadline": "다음 “구매할게요”는 <highlight>이미 받은편지함에 있습니다.</highlight>",
+    "heroTagline": "손 하나 까딱하지 않아도 왓츠앱 판매를 HOT, WARM, COLD로 우선순위 매기는 AI.",
     "titleAccept": "로그인하여 수락하기",
-    "titleWelcome": "다시 오신 것을 환영합니다",
+    "titleWelcome": "다시 오셨네요, 반갑습니다.",
     "descAccept": "로그인하시면 초대 페이지로 이동합니다.",
-    "descWelcome": "계정에 로그인하세요",
+    "descWelcome": "로그인하고 오늘 누가 구매하려는지 확인하세요.",
     "emailLabel": "이메일",
-    "emailPlaceholder": "you@example.com",
+    "emailPlaceholder": "you@email.com",
     "passwordLabel": "비밀번호",
     "forgotPassword": "비밀번호를 잊으셨나요?",
-    "passwordPlaceholder": "비밀번호를 입력하세요",
+    "passwordPlaceholder": "••••••••",
     "signingIn": "로그인 중...",
     "signIn": "로그인",
-    "noAccount": "계정이 없으신가요?",
-    "createAccount": "계정 만들기"
+    "noAccount": "아직 계정이 없으신가요?",
+    "createAccount": "무료로 만들기"
   },
   "Sidebar": {
     "title": "Saleslid",
@@ -2174,14 +2176,16 @@
     }
   },
   "SignupPage": {
-    "titleInvite": "계정 만들고 참여하기",
-    "title": "계정 만들기",
+    "heroHeadline": "다음 고객이 <highlight>이미 메시지를 보내고 있습니다.</highlight>",
+    "heroTagline": "무료로 시작하고 AI가 모든 왓츠앱 대화의 우선순위를 매기게 하세요.",
+    "titleInvite": "계정을 만들고 참여하기",
+    "title": "계정을 만드세요.",
     "descInvite": "이메일을 인증한 다음 초대를 수락해 팀에 참여하세요.",
-    "desc": "Saleslid 시작하기",
+    "desc": "오늘부터 더 빠르게 판매를 시작하세요.",
     "fullNameLabel": "이름",
     "fullNamePlaceholder": "홍길동",
     "emailLabel": "이메일",
-    "emailPlaceholder": "you@example.com",
+    "emailPlaceholder": "you@email.com",
     "passwordLabel": "비밀번호",
     "passwordPlaceholder": "6자 이상",
     "confirmPasswordLabel": "비밀번호 확인",

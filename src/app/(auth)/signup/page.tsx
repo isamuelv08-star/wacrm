@@ -8,14 +8,8 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { CheckCircle, UsersRound } from "lucide-react";
+import { CheckCircle } from "lucide-react";
+import { AuthSplitShell, AUTH_ACCENT } from "@/components/auth/auth-split-shell";
 
 // `useSearchParams` opts the component out of static prerendering
 // unless wrapped in Suspense — same pattern as /login.
@@ -91,156 +85,162 @@ function SignupPageInner() {
     setLoading(false);
   };
 
+  const heroHeadline = t.rich("heroHeadline", {
+    highlight: (chunks) => <span style={{ color: AUTH_ACCENT }}>{chunks}</span>,
+  });
+  const heroTagline = t("heroTagline");
+
   if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4">
-        <Card className="w-full max-w-md border-border bg-card">
-          <CardHeader className="items-center text-center">
-            <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-              <CheckCircle className="h-6 w-6 text-primary" />
-            </div>
-            <CardTitle className="text-xl text-foreground">
-              {t("checkEmailTitle")}
-            </CardTitle>
-            <CardDescription className="text-muted-foreground">
-              {t("checkEmailDesc", { email })}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link
-              href={
-                inviteToken
-                  ? `/login?invite=${encodeURIComponent(inviteToken)}`
-                  : "/login"
-              }
-            >
-              <Button
-                variant="outline"
-                className="w-full border-border text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                {t("backToSignIn")}
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
+      <AuthSplitShell headline={heroHeadline} tagline={heroTagline}>
+        <div
+          className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl"
+          style={{ backgroundColor: "color-mix(in oklch, #D60000 15%, transparent)" }}
+        >
+          <CheckCircle className="h-6 w-6" style={{ color: AUTH_ACCENT }} />
+        </div>
+        <h2 className="font-heading text-2xl font-bold text-foreground">
+          {t("checkEmailTitle")}
+        </h2>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          {t("checkEmailDesc", { email })}
+        </p>
+        <Link
+          href={
+            inviteToken
+              ? `/login?invite=${encodeURIComponent(inviteToken)}`
+              : "/login"
+          }
+        >
+          <Button
+            variant="outline"
+            className="mt-6 w-full border-border text-foreground hover:bg-muted"
+          >
+            {t("backToSignIn")}
+          </Button>
+        </Link>
+      </AuthSplitShell>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-md border-border bg-card">
-        <CardHeader className="items-center text-center">
-          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-            {inviteToken ? (
-              <UsersRound className="h-6 w-6 text-primary" />
-            ) : (
-              <img
-                src="/logo-mark.png"
-                alt=""
-                className="h-7 w-7 object-contain"
-              />
-            )}
+    <AuthSplitShell headline={heroHeadline} tagline={heroTagline}>
+      <h2 className="font-heading text-2xl font-bold text-foreground">
+        {inviteToken ? t("titleInvite") : t("title")}
+      </h2>
+      <p className="mt-1.5 text-sm text-muted-foreground">
+        {inviteToken ? t("descInvite") : t("desc")}
+      </p>
+
+      <form onSubmit={handleSignup} className="mt-8 flex flex-col gap-4">
+        {error && (
+          <div
+            role="alert"
+            className="rounded-lg border px-4 py-3 text-sm"
+            style={{
+              borderColor: "color-mix(in oklch, #D60000 30%, transparent)",
+              backgroundColor: "color-mix(in oklch, #D60000 10%, transparent)",
+              color: "#FF6B6B",
+            }}
+          >
+            {error}
           </div>
-          <CardTitle className="text-xl text-foreground">
-            {inviteToken ? t("titleInvite") : t("title")}
-          </CardTitle>
-          <CardDescription className="text-muted-foreground">
-            {inviteToken ? t("descInvite") : t("desc")}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSignup} className="flex flex-col gap-4">
-            {error && (
-              <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-                {error}
-              </div>
-            )}
+        )}
 
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="fullName" className="text-muted-foreground">
-                {t("fullNameLabel")}
-              </Label>
-              <Input
-                id="fullName"
-                type="text"
-                placeholder={t("fullNamePlaceholder")}
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                required
-                className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
-              />
-            </div>
+        <div className="flex flex-col gap-2">
+          <Label
+            htmlFor="fullName"
+            className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase"
+          >
+            {t("fullNameLabel")}
+          </Label>
+          <Input
+            id="fullName"
+            type="text"
+            placeholder={t("fullNamePlaceholder")}
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            required
+            className="h-11 border-border bg-[#12141C] text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
+          />
+        </div>
 
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="email" className="text-muted-foreground">
-                {t("emailLabel")}
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder={t("emailPlaceholder")}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
-              />
-            </div>
+        <div className="flex flex-col gap-2">
+          <Label
+            htmlFor="email"
+            className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase"
+          >
+            {t("emailLabel")}
+          </Label>
+          <Input
+            id="email"
+            type="email"
+            placeholder={t("emailPlaceholder")}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            className="h-11 border-border bg-[#12141C] text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
+          />
+        </div>
 
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="password" className="text-muted-foreground">
-                {t("passwordLabel")}
-              </Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder={t("passwordPlaceholder")}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
-              />
-            </div>
+        <div className="flex flex-col gap-2">
+          <Label
+            htmlFor="password"
+            className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase"
+          >
+            {t("passwordLabel")}
+          </Label>
+          <Input
+            id="password"
+            type="password"
+            placeholder={t("passwordPlaceholder")}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            className="h-11 border-border bg-[#12141C] text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
+          />
+        </div>
 
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="confirmPassword" className="text-muted-foreground">
-                {t("confirmPasswordLabel")}
-              </Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                placeholder={t("confirmPasswordPlaceholder")}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
-              />
-            </div>
+        <div className="flex flex-col gap-2">
+          <Label
+            htmlFor="confirmPassword"
+            className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase"
+          >
+            {t("confirmPasswordLabel")}
+          </Label>
+          <Input
+            id="confirmPassword"
+            type="password"
+            placeholder={t("confirmPasswordPlaceholder")}
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+            className="h-11 border-border bg-[#12141C] text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
+          />
+        </div>
 
-            <Button
-              type="submit"
-              disabled={loading}
-              className="mt-2 h-10 w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-            >
-              {loading ? t("creatingAccount") : t("createAccount")}
-            </Button>
-          </form>
+        <Button
+          type="submit"
+          disabled={loading}
+          className="mt-2 h-11 w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+        >
+          {loading ? t("creatingAccount") : t("createAccount")}
+        </Button>
+      </form>
 
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            {t("haveAccount")}{" "}
-            <Link
-              href={
-                inviteToken
-                  ? `/login?invite=${encodeURIComponent(inviteToken)}`
-                  : "/login"
-              }
-              className="text-primary hover:text-primary/80"
-            >
-              {t("signIn")}
-            </Link>
-          </p>
-        </CardContent>
-      </Card>
-    </div>
+      <p className="mt-6 text-center text-sm text-muted-foreground">
+        {t("haveAccount")}{" "}
+        <Link
+          href={
+            inviteToken
+              ? `/login?invite=${encodeURIComponent(inviteToken)}`
+              : "/login"
+          }
+          className="font-semibold text-white hover:underline"
+        >
+          {t("signIn")}
+        </Link>
+      </p>
+    </AuthSplitShell>
   );
 }
