@@ -15,8 +15,10 @@ import {
   DEAL_WON_SENTINEL,
   DEAL_LOST_SENTINEL,
   SUMMARY_SENTINEL_PATTERN,
+  SCHEDULE_SENTINEL_PATTERN,
   aiRequestTimeoutMs,
 } from './defaults'
+import type { CalendarEventType } from '@/types'
 import { generateOpenAi } from './providers/openai'
 import { generateAnthropic } from './providers/anthropic'
 import { generateOpenRouter } from './providers/openrouter'
@@ -187,6 +189,15 @@ export function parseGeneration(
   const crmSummaryMatch = raw.match(SUMMARY_SENTINEL_PATTERN)
   const summary = crmSummaryMatch ? crmSummaryMatch[1].trim() || null : null
 
+  const scheduleMatch = raw.match(SCHEDULE_SENTINEL_PATTERN)
+  const schedule = scheduleMatch
+    ? {
+        localDateTime: scheduleMatch[1].trim(),
+        type: scheduleMatch[2].toLowerCase() as CalendarEventType,
+        title: scheduleMatch[3].trim(),
+      }
+    : null
+
   const text = raw
     .split(HANDOFF_SENTINEL)
     .join('')
@@ -199,6 +210,7 @@ export function parseGeneration(
     .replace(HANDOFF_SUMMARY_PATTERN, '')
     .replace(STAGE_SENTINEL_PATTERN, '')
     .replace(SUMMARY_SENTINEL_PATTERN, '')
+    .replace(SCHEDULE_SENTINEL_PATTERN, '')
     .trim()
   return {
     text,
@@ -210,6 +222,7 @@ export function parseGeneration(
     dealWon,
     dealLost,
     summary,
+    schedule,
     usage,
   }
 }

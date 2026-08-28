@@ -13,7 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { WhatsAppConfig } from "@/components/settings/whatsapp-config";
+import { WhatsAppChannelOptions } from "@/components/settings/whatsapp-channel-options";
 import { AiConfig } from "@/components/settings/ai-config";
 import { InviteMemberDialog } from "@/components/settings/invite-member-dialog";
 
@@ -95,7 +95,7 @@ export function OnboardingWizard() {
           <CardDescription>{t(`${step}.description`)}</CardDescription>
         </CardHeader>
         <CardContent>
-          {step === "whatsapp" && <WhatsAppConfig />}
+          {step === "whatsapp" && <WhatsAppChannelOptions />}
 
           {step === "pipeline" && (
             <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm">

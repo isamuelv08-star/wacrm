@@ -7,6 +7,8 @@ import { buildSystemPrompt, splitReplyIntoMessages } from './defaults'
 import { buildHandoffSummary } from './handoff'
 import { applyLeadScore, ensureDealInQualifiedStage } from './lead-scoring'
 import { applySalesActions, loadDealStageContext } from './sales-actions'
+import { applyScheduledEvent } from './scheduling-actions'
+import { describeNowInZone } from './timezone'
 import { logAiUsage } from './usage'
 import { latestUserMessage } from './query'
 import { engineSendText } from '@/lib/flows/meta-send'
@@ -138,6 +140,19 @@ export async function dispatchInboundToAiReply(
     // lookups; a no-op cost when there's no open deal either way.
     const dealContext = await loadDealStageContext(db, { accountId, contactId })
 
+    // Only fetched when scheduling is actually on — an extra query on
+    // every single auto-reply for accounts that never enabled it would
+    // be pure waste.
+    let accountTimezone = 'UTC'
+    if (config.aiSchedulingEnabled) {
+      const { data: acct } = await db
+        .from('accounts')
+        .select('timezone')
+        .eq('id', accountId)
+        .maybeSingle()
+      accountTimezone = acct?.timezone ?? 'UTC'
+    }
+
     const systemPrompt = buildSystemPrompt({
       userPrompt: config.systemPrompt,
       mode: 'auto_reply',
@@ -147,6 +162,9 @@ export async function dispatchInboundToAiReply(
         ? { enabled: true, stages: dealContext.stages }
         : null,
       hasOpenDeal: dealContext.hasOpenDeal,
+      scheduling: config.aiSchedulingEnabled
+        ? { enabled: true, nowLabel: describeNowInZone(accountTimezone) }
+        : null,
     })
 
     // "Typing…" while the model generates — reads as someone actually
@@ -165,6 +183,7 @@ export async function dispatchInboundToAiReply(
       dealWon,
       dealLost,
       summary,
+      schedule,
       usage,
     } = await generateReply({
       config,
@@ -214,6 +233,24 @@ export async function dispatchInboundToAiReply(
         dealWon,
         dealLost,
         summary,
+      })
+    }
+
+    // Same "independent of handoff/reply outcome" posture as the two
+    // blocks above — a handoff and a fresh appointment/callback commitment
+    // can land in the same turn ("I'll have someone call you tomorrow at
+    // 10 to sort out delivery"). applyScheduledEvent owns its own
+    // try/catch and never throws.
+    if (config.aiSchedulingEnabled && schedule) {
+      await applyScheduledEvent(db, {
+        accountId,
+        contactId,
+        configOwnerUserId,
+        handoffAgentId: config.handoffAgentId,
+        timezone: accountTimezone,
+        localDateTime: schedule.localDateTime,
+        type: schedule.type,
+        title: schedule.title,
       })
     }
 

@@ -25,6 +25,7 @@ import {
   rateLimitResponse,
   RATE_LIMITS,
 } from "@/lib/rate-limit";
+import { isValidTimezone } from "@/lib/automations/schedule";
 
 export async function GET() {
   try {
@@ -61,6 +62,7 @@ export async function PATCH(request: Request) {
     const body = (await request.json().catch(() => null)) as {
       name?: unknown;
       hot_lead_alert_minutes?: unknown;
+      timezone?: unknown;
     } | null;
 
     const update: Record<string, unknown> = {};
@@ -107,6 +109,17 @@ export async function PATCH(request: Request) {
       update.hot_lead_alert_minutes = raw;
     }
 
+    if (body && "timezone" in body) {
+      const raw = body.timezone;
+      if (typeof raw !== "string" || !isValidTimezone(raw)) {
+        return NextResponse.json(
+          { error: "'timezone' must be a recognized IANA zone name" },
+          { status: 400 },
+        );
+      }
+      update.timezone = raw;
+    }
+
     if (Object.keys(update).length === 0) {
       return NextResponse.json(
         { error: "Nothing to update" },
@@ -121,7 +134,7 @@ export async function PATCH(request: Request) {
       .from("accounts")
       .update(update)
       .eq("id", ctx.accountId)
-      .select("id, name, hot_lead_alert_minutes")
+      .select("id, name, hot_lead_alert_minutes, timezone")
       .single();
 
     if (error) {

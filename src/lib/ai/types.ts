@@ -6,6 +6,8 @@
 // whether the account is on OpenAI or Anthropic.
 // ============================================================
 
+import type { CalendarEventType } from '@/types'
+
 export type AiProvider = 'openai' | 'anthropic' | 'openrouter'
 
 /** Mirrors the `contacts.lead_score` CHECK constraint (migration 038). */
@@ -38,6 +40,14 @@ export interface AiConfig {
    * qualifying it. See `buildSystemPrompt`'s `salesMode` param.
    */
   salesModeEnabled: boolean
+  /**
+   * Opt-in extension of auto-reply (migration 065): when true, the bot
+   * is taught the [[SCHEDULE:...]] sentinel protocol and files a
+   * `calendar_events` row for any concrete future commitment it makes
+   * or confirms this turn. See `buildSystemPrompt`'s `scheduling` param
+   * and `scheduling-actions.ts`.
+   */
+  aiSchedulingEnabled: boolean
   /** Caps how many times the bot answers one thread before going quiet.
    *  `null` means no cap — the bot keeps answering (migration 047); the
    *  account-wide rate limiter in `lib/rate-limit.ts` is the separate
@@ -128,6 +138,14 @@ export interface GenerateResult {
    * comply). Shown on the lead's pipeline deal card.
    */
   summary: string | null
+  /**
+   * A concrete future commitment the model made or confirmed this turn
+   * via [[SCHEDULE:...]] (scheduling opt-in only), or null when it
+   * didn't emit one. `localDateTime` is still in the account's local
+   * wall-clock form here — `scheduling-actions.ts` converts it to UTC.
+   * Never present in `text`, never shown to the customer.
+   */
+  schedule: { localDateTime: string; type: CalendarEventType; title: string } | null
   /** Provider token usage for this call, or null when unavailable. */
   usage: AiUsage | null
 }

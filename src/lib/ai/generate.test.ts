@@ -12,6 +12,7 @@ function config(overrides: Partial<AiConfig> = {}): AiConfig {
     isActive: true,
     autoReplyEnabled: false,
     salesModeEnabled: false,
+    aiSchedulingEnabled: false,
     autoReplyMaxPerConversation: 3,
     handoffAgentId: null,
     embeddingsApiKey: null,
@@ -53,6 +54,7 @@ describe('parseGeneration', () => {
       dealWon: false,
       dealLost: false,
       summary: null,
+      schedule: null,
       usage: null,
     })
   })
@@ -68,6 +70,7 @@ describe('parseGeneration', () => {
       dealWon: false,
       dealLost: false,
       summary: null,
+      schedule: null,
       usage: null,
     })
     expect(parseGeneration('Let me get a human [[HANDOFF]]')).toEqual({
@@ -80,6 +83,7 @@ describe('parseGeneration', () => {
       dealWon: false,
       dealLost: false,
       summary: null,
+      schedule: null,
       usage: null,
     })
   })
@@ -96,6 +100,7 @@ describe('parseGeneration', () => {
       dealWon: false,
       dealLost: false,
       summary: null,
+      schedule: null,
       usage,
     })
   })
@@ -111,6 +116,7 @@ describe('parseGeneration', () => {
       dealWon: false,
       dealLost: false,
       summary: null,
+      schedule: null,
       usage: null,
     })
     expect(parseGeneration('Ok, noted. [[score:warm]]')).toEqual({
@@ -123,6 +129,7 @@ describe('parseGeneration', () => {
       dealWon: false,
       dealLost: false,
       summary: null,
+      schedule: null,
       usage: null,
     })
   })
@@ -146,6 +153,7 @@ describe('parseGeneration', () => {
       dealWon: false,
       dealLost: false,
       summary: null,
+      schedule: null,
       usage: null,
     })
   })
@@ -197,6 +205,29 @@ describe('parseGeneration', () => {
     expect(result.text).not.toContain('HANDOFF_SUMMARY')
     expect(result.text).not.toContain('internal note')
   })
+
+  it('detects + strips the schedule sentinel', () => {
+    const result = parseGeneration(
+      "Sure, I'll have someone call you then! [[SCHEDULE: 2026-08-29T10:00|call|Follow-up call about the order]]",
+    )
+    expect(result.text).toBe("Sure, I'll have someone call you then!")
+    expect(result.schedule).toEqual({
+      localDateTime: '2026-08-29T10:00',
+      type: 'call',
+      title: 'Follow-up call about the order',
+    })
+  })
+
+  it('returns null schedule when the tag is absent', () => {
+    expect(parseGeneration('Just a normal reply.').schedule).toBeNull()
+  })
+
+  it('lowercases the schedule type', () => {
+    const result = parseGeneration(
+      '[[SCHEDULE: 2026-08-29T10:00|MEETING|Demo call]]',
+    )
+    expect(result.schedule?.type).toBe('meeting')
+  })
 })
 
 describe('generateReply — OpenAI', () => {
@@ -225,6 +256,7 @@ describe('generateReply — OpenAI', () => {
       dealWon: false,
       dealLost: false,
       summary: null,
+      schedule: null,
       usage: { promptTokens: 42, completionTokens: 8, totalTokens: 50 },
     })
     const [url, opts] = fetchMock.mock.calls[0]
@@ -291,6 +323,7 @@ describe('generateReply — Anthropic', () => {
       dealWon: false,
       dealLost: false,
       summary: null,
+      schedule: null,
       usage: { promptTokens: 30, completionTokens: 6, totalTokens: 36 },
     })
     const [url, opts] = fetchMock.mock.calls[0]

@@ -72,6 +72,7 @@ export async function POST(request: Request) {
         isActive: true,
         autoReplyEnabled: false,
         salesModeEnabled: false,
+        aiSchedulingEnabled: false,
         autoReplyMaxPerConversation: 3,
         handoffAgentId: null,
         embeddingsApiKey: null,

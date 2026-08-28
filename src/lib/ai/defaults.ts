@@ -82,6 +82,29 @@ export const DEAL_LOST_SENTINEL = '[[DEAL_LOST]]'
  */
 export const SUMMARY_SENTINEL_PATTERN = /\[\[SUMMARY:\s*([\s\S]*?)\]\]/i
 
+/**
+ * Scheduling sentinel (opt-in per account via `ai_configs.ai_scheduling_enabled`,
+ * migration 065). Same contract as every other sentinel here: appended
+ * to the raw reply, parsed + stripped by `parseGeneration`, never
+ * shown to the customer.
+ *
+ * The model is deliberately never asked to do timezone math — it's
+ * shown "right now" as a plain local wall-clock reading (see
+ * `describeNowInZone`, src/lib/ai/timezone.ts) and echoes back another
+ * local wall-clock reading in the same zone; converting that to an
+ * absolute UTC instant happens in code (`localDateTimeToUtcIso`), not
+ * in the model. `type` is restricted to the three shapes a
+ * conversational commitment can actually take — `meeting` (a
+ * customer-facing appointment/demo/visit), `call` (specifically a
+ * phone call), `follow_up` (a looser "someone will reach out")  — a
+ * fixed enum here (unlike [[STAGE:...]]'s account-specific list)
+ * because these three are business-agnostic and don't vary per
+ * account. See `scheduling-actions.ts` for how it becomes a
+ * `calendar_events` row.
+ */
+export const SCHEDULE_SENTINEL_PATTERN =
+  /\[\[SCHEDULE:\s*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?)\s*\|\s*(call|meeting|follow_up)\s*\|\s*([^\]]+?)\s*\]\]/i
+
 /** Cap on generated reply length — keeps WhatsApp replies short and
  *  bounds token spend on the caller's own key. */
 export const MAX_OUTPUT_TOKENS = 1024
@@ -147,8 +170,18 @@ export function buildSystemPrompt(args: {
    * with an open deal, not just ones the bot is actively selling to.
    */
   hasOpenDeal?: boolean
+  /**
+   * Opt-in extension of auto-reply (`ai_configs.ai_scheduling_enabled`,
+   * migration 065): when `enabled`, teaches the [[SCHEDULE:...]]
+   * protocol so the model files a `calendar_events` row for any
+   * concrete future commitment it makes or confirms this turn.
+   * `nowLabel` is the account's current local time (see
+   * `describeNowInZone`) — the fixed point the model computes
+   * relative phrases like "tomorrow at 10" against.
+   */
+  scheduling?: { enabled: boolean; nowLabel: string } | null
 }): string {
-  const { userPrompt, mode, knowledge, qualificationCriteria, salesMode, hasOpenDeal } = args
+  const { userPrompt, mode, knowledge, qualificationCriteria, salesMode, hasOpenDeal, scheduling } = args
   const parts: string[] = [
     'You are a customer-messaging assistant for a business that uses a WhatsApp CRM. ' +
       'You are shown the recent WhatsApp conversation between the business (assistant) and a customer (user). ' +
@@ -195,6 +228,12 @@ export function buildSystemPrompt(args: {
   if (mode === 'auto_reply' && hasOpenDeal) {
     parts.push(
       'This lead has an open deal on the pipeline board. After everything else, append one more tag on its own: [[SUMMARY: <one short sentence, in the same language as the conversation, on where things stand with this lead — for a teammate glancing at the pipeline board, not the customer>]]. Include it every turn there is an open deal, even if the update is small. Never shown to the customer.',
+    )
+  }
+
+  if (mode === 'auto_reply' && scheduling?.enabled) {
+    parts.push(
+      `Right now it is ${scheduling.nowLabel}. Whenever this reply makes or confirms a concrete future commitment to contact or meet this customer at a specific date/time — someone will call or message them at a stated time, or an appointment/demo/visit is being scheduled or confirmed — append one more tag at the very end of your output: [[SCHEDULE: <local date-time as YYYY-MM-DDTHH:mm, in the local time shown above, no timezone offset>|<call|meeting|follow_up>|<short title, same language as the conversation>]]. Compute the date-time yourself from what you just told the customer, relative to right now (e.g. "tomorrow at 10" said on a Friday means the following Saturday's date at 10:00). Use "meeting" for a customer-facing appointment/demo/visit scheduled or confirmed this turn, "call" when it's specifically a phone call, and "follow_up" for a looser commitment like "someone will reach out to you" with no fixed meeting. Only emit this tag when you stated or confirmed an actual date/time this turn — never guess one, and never emit it just because scheduling came up in general terms. This tag is stripped before delivery and never shown to the customer.`,
     )
   }
 

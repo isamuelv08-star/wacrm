@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Sparkles, CheckCircle2, Trash2, Eye, EyeOff, Flame, Handshake } from 'lucide-react';
+import { Loader2, Sparkles, CheckCircle2, Trash2, Eye, EyeOff, Flame, Handshake, CalendarClock } from 'lucide-react';
+import { listTimezones } from '@/lib/timezone-list';
 import { useAuth } from '@/hooks/use-auth';
 import { canEditSettings } from '@/lib/auth/roles';
 import { Button } from '@/components/ui/button';
@@ -33,6 +34,11 @@ import { fetchAccountMembers, memberLabel } from '@/lib/account/members';
 import { useTranslations } from 'next-intl';
 
 const MASKED_KEY = '••••••••••••••••';
+
+// Same list on every render/instance — Intl's timezone data doesn't
+// change at runtime, so compute it once at module scope rather than
+// re-deriving it (or holding it in state) per component instance.
+const TIMEZONE_OPTIONS = listTimezones();
 
 // Radix Select can't use an empty-string item value, so the "leave
 // unassigned" choice gets a sentinel that maps to null in the payload.
@@ -82,6 +88,7 @@ export function AiConfig() {
   const [isActive, setIsActive] = useState(false);
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(false);
   const [salesModeEnabled, setSalesModeEnabled] = useState(false);
+  const [aiSchedulingEnabled, setAiSchedulingEnabled] = useState(false);
   // null = "never stop responding" (migration 047).
   const [maxPerConversation, setMaxPerConversation] = useState<number | null>(3);
   // Empty string = leave unassigned (shared queue).
@@ -95,6 +102,13 @@ export function AiConfig() {
   // an extra PATCH when this field wasn't touched.
   const [hotLeadAlertMinutes, setHotLeadAlertMinutes] = useState(15);
   const loadedHotLeadAlertMinutesRef = useRef(15);
+
+  // Account timezone (migration 065) — needed for AI scheduling to
+  // convert a relative phrase like "tomorrow at 10" into the right
+  // absolute time. Same "lives on `accounts`, fetched/saved through
+  // /api/account" posture as hotLeadAlertMinutes above.
+  const [timezone, setTimezone] = useState('UTC');
+  const loadedTimezoneRef = useRef('UTC');
 
   // Guard keyed on the account (not a bare boolean) so an in-place
   // account switch — ownership transfer, multi-account membership —
@@ -120,6 +134,7 @@ export function AiConfig() {
         setIsActive(data.is_active);
         setAutoReplyEnabled(data.auto_reply_enabled);
         setSalesModeEnabled(Boolean(data.sales_mode_enabled));
+        setAiSchedulingEnabled(Boolean(data.ai_scheduling_enabled));
         // The stored value is a number, or null ("never stop") — only an
         // absent key (older/partial payload) should fall back to the
         // column's own default, so this checks for undefined, not ??.
@@ -153,6 +168,10 @@ export function AiConfig() {
       if (res.ok && typeof data?.account?.hot_lead_alert_minutes === 'number') {
         setHotLeadAlertMinutes(data.account.hot_lead_alert_minutes);
         loadedHotLeadAlertMinutesRef.current = data.account.hot_lead_alert_minutes;
+      }
+      if (res.ok && typeof data?.account?.timezone === 'string') {
+        setTimezone(data.account.timezone);
+        loadedTimezoneRef.current = data.account.timezone;
       }
     } catch {
       // Best-effort — the field just falls back to its default and the
@@ -204,6 +223,7 @@ export function AiConfig() {
     is_active: isActive,
     auto_reply_enabled: autoReplyEnabled,
     sales_mode_enabled: salesModeEnabled,
+    ai_scheduling_enabled: aiSchedulingEnabled,
     auto_reply_max_per_conversation: maxPerConversation,
     handoff_agent_id: handoffAgentId || null,
   });
@@ -241,17 +261,25 @@ export function AiConfig() {
     }
     setSaving(true);
     try {
-      const [configResult, hotLeadResult] = await Promise.all([
+      const accountUpdate: Record<string, unknown> = {};
+      if (hotLeadAlertMinutes !== loadedHotLeadAlertMinutesRef.current) {
+        accountUpdate.hot_lead_alert_minutes = hotLeadAlertMinutes;
+      }
+      if (timezone !== loadedTimezoneRef.current) {
+        accountUpdate.timezone = timezone;
+      }
+
+      const [configResult, accountResult] = await Promise.all([
         fetch('/api/ai/config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(buildBody()),
         }).then(async (res) => ({ res, data: await res.json() })),
-        hotLeadAlertMinutes !== loadedHotLeadAlertMinutesRef.current
+        Object.keys(accountUpdate).length > 0
           ? fetch('/api/account', {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ hot_lead_alert_minutes: hotLeadAlertMinutes }),
+              body: JSON.stringify(accountUpdate),
             }).then(async (res) => ({ res, data: await res.json() }))
           : null,
       ]);
@@ -262,15 +290,16 @@ export function AiConfig() {
         toast.error(configResult.data.error ?? t('saveFailed'));
       }
 
-      if (hotLeadResult) {
-        if (hotLeadResult.res.ok) {
+      if (accountResult) {
+        if (accountResult.res.ok) {
           loadedHotLeadAlertMinutesRef.current = hotLeadAlertMinutes;
+          loadedTimezoneRef.current = timezone;
         } else {
-          toast.error(hotLeadResult.data.error ?? t('hotLeadAlertsSaveFailed'));
+          toast.error(accountResult.data.error ?? t('hotLeadAlertsSaveFailed'));
         }
       }
 
-      if (configResult.res.ok && (!hotLeadResult || hotLeadResult.res.ok)) {
+      if (configResult.res.ok && (!accountResult || accountResult.res.ok)) {
         toast.success(t('saveSuccess'));
       }
     } catch {
@@ -292,6 +321,8 @@ export function AiConfig() {
         setKeyEdited(false);
         setIsActive(false);
         setAutoReplyEnabled(false);
+        setSalesModeEnabled(false);
+        setAiSchedulingEnabled(false);
         setSystemPrompt('');
         setHandoffAgentId('');
       } else {
@@ -576,6 +607,45 @@ export function AiConfig() {
                 disabled={disabled || !autoReplyEnabled}
               />
             </div>
+
+            <div className="flex items-center justify-between gap-4 rounded-md border border-border p-3">
+              <div>
+                <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                  <CalendarClock className="h-3.5 w-3.5 text-primary" />
+                  {t('aiScheduling')}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t('aiSchedulingDesc')}
+                </p>
+              </div>
+              <Switch
+                checked={aiSchedulingEnabled}
+                onCheckedChange={setAiSchedulingEnabled}
+                disabled={disabled || !autoReplyEnabled}
+              />
+            </div>
+
+            {aiSchedulingEnabled && (
+              <div className="space-y-2">
+                <Label htmlFor="ai-timezone">{t('timezoneLabel')}</Label>
+                <select
+                  id="ai-timezone"
+                  value={timezone}
+                  onChange={(e) => setTimezone(e.target.value)}
+                  disabled={disabled}
+                  className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-60 sm:max-w-xs"
+                >
+                  {TIMEZONE_OPTIONS.map((tz) => (
+                    <option key={tz} value={tz}>
+                      {tz}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  {t('timezoneHint')}
+                </p>
+              </div>
+            )}
 
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-4">

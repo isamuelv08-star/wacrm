@@ -40,6 +40,7 @@ function aiConfig(overrides: Partial<AiConfig> = {}): AiConfig {
     isActive: true,
     autoReplyEnabled: false,
     salesModeEnabled: false,
+    aiSchedulingEnabled: false,
     autoReplyMaxPerConversation: 3,
     handoffAgentId: null,
     embeddingsApiKey: null,

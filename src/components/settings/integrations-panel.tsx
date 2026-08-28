@@ -8,7 +8,7 @@ import { useTranslations } from 'next-intl';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { SettingsPanelHead } from './settings-panel-head';
 import { ConnectPlatformButton } from './connect-platform-button';
-import { WhatsAppApiConnectCard } from './whatsapp-api-connect-card';
+import { WhatsAppChannelOptions } from './whatsapp-channel-options';
 import { useAuth } from '@/hooks/use-auth';
 
 /**
@@ -17,7 +17,10 @@ import { useAuth } from '@/hooks/use-auth';
  * credentials), or your own Meta Cloud API credentials / a
  * Coexistence provider like Dualhook (the "WhatsApp (API)" card,
  * whose full form now opens in a dialog instead of always sitting
- * inline on the page).
+ * inline on the page). The two WhatsApp options are grouped together
+ * via <WhatsAppChannelOptions> — shared with the onboarding wizard so
+ * both surfaces offer the same choice instead of onboarding hardcoding
+ * just the API form.
  *
  * Also picks up the `zernio_*` query params that /api/zernio/callback
  * redirects back with and surfaces them as a toast, then strips them
@@ -63,15 +66,9 @@ export function IntegrationsPanel() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-4">
-            <div>
-              <p className="text-sm font-medium text-foreground">{t('platform.whatsapp')}</p>
-              <p className="text-xs text-muted-foreground">{t('whatsappHint')}</p>
-            </div>
-            {accountId ? (
-              <ConnectPlatformButton platform="whatsapp" profileId={accountId} />
-            ) : null}
-          </div>
+          {/* Both ways to connect WhatsApp, grouped together. */}
+          <WhatsAppChannelOptions />
+
           <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-4">
             <div>
               <p className="text-sm font-medium text-foreground">{t('platform.instagram')}</p>
@@ -81,13 +78,6 @@ export function IntegrationsPanel() {
               <ConnectPlatformButton platform="instagram" profileId={accountId} />
             ) : null}
           </div>
-
-          {/* Manual Cloud API connection — same horizontal-card shape
-              as the Zernio channels above, so the two ways to connect
-              WhatsApp read as one consistent list. The full
-              credentials form opens in a dialog on "Connect" rather
-              than always sitting inline on the page. */}
-          <WhatsAppApiConnectCard />
         </CardContent>
       </Card>
     </section>
