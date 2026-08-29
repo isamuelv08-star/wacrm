@@ -2211,6 +2211,12 @@
     "checkEmailTitle": "이메일을 확인하세요",
     "checkEmailDesc": "{email}로 비밀번호 재설정 링크를 보냈습니다. 받은편지함을 확인하세요."
   },
+  "AuthErrors": {
+    "userAlreadyRegistered": "이 이메일로 이미 계정이 있습니다. 로그인을 시도해보세요.",
+    "invalidCredentials": "이메일 또는 비밀번호가 올바르지 않습니다.",
+    "emailNotConfirmed": "로그인하기 전에 이메일을 확인해주세요 — 받은편지함에서 인증 링크를 확인하세요.",
+    "rateLimited": "시도 횟수가 너무 많습니다. 잠시 후 다시 시도해주세요."
+  },
   "Join": {
     "verifying": "초대 확인 중…",
     "roleOwner": "소유자",

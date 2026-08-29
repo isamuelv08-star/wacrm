@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
+import { translateAuthError } from "@/lib/supabase/auth-errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +24,7 @@ export default function SignupPage() {
 
 function SignupPageInner() {
   const t = useTranslations("SignupPage");
+  const tErrors = useTranslations("AuthErrors");
   const searchParams = useSearchParams();
   // When the user lands here from `/join/<token>` we carry the
   // invite token in the query so it survives the signup → email
@@ -76,7 +78,7 @@ function SignupPageInner() {
     });
 
     if (error) {
-      setError(error.message);
+      setError(translateAuthError(error.message, tErrors));
       setLoading(false);
       return;
     }

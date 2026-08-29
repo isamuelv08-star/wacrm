@@ -2211,6 +2211,12 @@
     "checkEmailTitle": "Check your email",
     "checkEmailDesc": "We've sent a password reset link to {email}. Please check your inbox."
   },
+  "AuthErrors": {
+    "userAlreadyRegistered": "An account with this email already exists. Try signing in instead.",
+    "invalidCredentials": "Incorrect email or password.",
+    "emailNotConfirmed": "Confirm your email before signing in — check your inbox for the verification link.",
+    "rateLimited": "Too many attempts. Wait a moment and try again."
+  },
   "Join": {
     "verifying": "Verifying invitation…",
     "roleOwner": "Owner",

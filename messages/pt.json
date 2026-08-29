@@ -2211,6 +2211,12 @@
     "checkEmailTitle": "Verifique seu email",
     "checkEmailDesc": "Enviamos um link de redefinição de senha para {email}. Verifique sua caixa de entrada."
   },
+  "AuthErrors": {
+    "userAlreadyRegistered": "Já existe uma conta com este e-mail. Tente entrar em vez disso.",
+    "invalidCredentials": "E-mail ou senha incorretos.",
+    "emailNotConfirmed": "Confirme seu e-mail antes de entrar — verifique sua caixa de entrada.",
+    "rateLimited": "Muitas tentativas. Aguarde um momento e tente novamente."
+  },
   "Join": {
     "verifying": "Verificando convite…",
     "roleOwner": "Proprietário",
