@@ -33,6 +33,14 @@ import type { WhatsAppConfig as WhatsAppConfigType } from '@/types';
 
 const MASKED_TOKEN = '••••••••••••••••';
 
+// This component never selects access_token/verify_token from Supabase
+// (see fetchConfig below) — it only ever shows a masked placeholder or
+// a value the user just typed. Drop those two from the row type instead
+// of widening the select to match WhatsAppConfig, so a future field added
+// to the query can't silently start round-tripping ciphertext to every
+// account member's browser.
+type SafeWhatsAppConfig = Omit<WhatsAppConfigType, 'access_token' | 'verify_token'>;
+
 type ConnectionStatus = 'connected' | 'disconnected' | 'unknown';
 type ResetReason = 'token_corrupted' | 'meta_api_error' | null;
 
@@ -51,7 +59,7 @@ export function WhatsAppConfig() {
   const [testing, setTesting] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [showToken, setShowToken] = useState(false);
-  const [config, setConfig] = useState<WhatsAppConfigType | null>(null);
+  const [config, setConfig] = useState<SafeWhatsAppConfig | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('unknown');
   const [resetReason, setResetReason] = useState<ResetReason>(null);
   const [statusMessage, setStatusMessage] = useState<string>('');
@@ -112,9 +120,18 @@ export function WhatsAppConfig() {
       // account sees the same saved configuration. UNIQUE(account_id)
       // on the table guarantees the .maybeSingle() return type
       // remains accurate.
+      //
+      // Column list is explicit (not `select('*')`) so the encrypted
+      // access_token/verify_token never reach the browser — this
+      // component only ever shows a masked placeholder for the token,
+      // it never reads the real value client-side. Any member down to
+      // `viewer` can read this row, so keep it that way even though
+      // the columns are ciphertext today.
       const { data, error } = await supabase
         .from('whatsapp_config')
-        .select('*')
+        .select(
+          'id, user_id, phone_number_id, waba_id, status, connected_at, registered_at, subscribed_apps_at, last_registration_error, send_api_base',
+        )
         .eq('account_id', acctId)
         .maybeSingle();
 

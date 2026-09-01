@@ -77,7 +77,9 @@ export async function GET(
     } catch {
       return NextResponse.json({ error: 'Invalid media token' }, { status: 400 })
     }
-    if (!parsed.hostname.endsWith('zernio.com')) {
+    const isZernioHost =
+      parsed.hostname === 'zernio.com' || parsed.hostname.endsWith('.zernio.com')
+    if (!isZernioHost || parsed.protocol !== 'https:') {
       return NextResponse.json({ error: 'Invalid media token' }, { status: 400 })
     }
 
