@@ -71,6 +71,11 @@ docker run -d --env-file .env.local -e PORT=3000 -p 3000:3000 wacrm
   threshold of a few minutes is still meaningful, without hammering
   the DB. Set an account's `hot_lead_alert_minutes` to `0` to opt it
   out of the scan entirely.
+- Same story for AI auto-reply auto-resume (migration 068): point the
+  scheduler at `GET /api/cron/ai-auto-resume` too, same `x-cron-secret`
+  header and `AUTOMATION_CRON_SECRET`, every 5 minutes. Off by default —
+  it only does anything for an account that set
+  `auto_resume_after_minutes` in Settings → AI Assistant.
 - Database backups are the one exception to "point an external
   scheduler at this deployment" — they run as a GitHub Actions
   workflow instead (`.github/workflows/backup.yml`), deliberately

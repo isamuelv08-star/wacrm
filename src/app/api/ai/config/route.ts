@@ -30,7 +30,7 @@ export async function GET() {
       // `api_key` is selected only to derive `has_key` — it is stripped
       // out below and never returned to the client.
       .select(
-        'provider, model, system_prompt, qualification_criteria, is_active, auto_reply_enabled, sales_mode_enabled, ai_scheduling_enabled, auto_reply_max_per_conversation, handoff_agent_id, api_key, embeddings_api_key, transcription_api_key',
+        'provider, model, system_prompt, qualification_criteria, is_active, auto_reply_enabled, sales_mode_enabled, ai_scheduling_enabled, auto_reply_max_per_conversation, auto_resume_after_minutes, handoff_agent_id, api_key, embeddings_api_key, transcription_api_key',
       )
       .eq('account_id', accountId)
       .maybeSingle()
@@ -110,6 +110,19 @@ export async function POST(request: Request) {
       maxPer = Number.isFinite(parsed)
         ? Math.min(1000, Math.max(1, Math.floor(parsed)))
         : 3
+    }
+
+    // Opt-in auto-resume (migration 068): null (default) means "off" —
+    // a handoff stays sticky until a human acts, unchanged behavior.
+    // Same clamp-or-default posture as maxPer above.
+    let autoResumeAfterMinutes: number | null
+    if (body.auto_resume_after_minutes === null || body.auto_resume_after_minutes === undefined) {
+      autoResumeAfterMinutes = null
+    } else {
+      const parsedResume = Number(body.auto_resume_after_minutes)
+      autoResumeAfterMinutes = Number.isFinite(parsedResume)
+        ? Math.min(1440, Math.max(1, Math.floor(parsedResume)))
+        : null
     }
 
     // Handoff routing target for auto-reply. A non-empty string must be a
@@ -240,6 +253,7 @@ export async function POST(request: Request) {
       sales_mode_enabled: salesModeEnabled,
       ai_scheduling_enabled: aiSchedulingEnabled,
       auto_reply_max_per_conversation: maxPer,
+      auto_resume_after_minutes: autoResumeAfterMinutes,
     }
     // Only touch the handoff target when the form actually sent the field,
     // so a partial save (e.g. flipping a toggle) doesn't wipe it.

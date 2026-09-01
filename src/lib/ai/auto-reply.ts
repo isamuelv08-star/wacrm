@@ -278,6 +278,11 @@ export async function dispatchInboundToAiReply(
       const update: Record<string, unknown> = {
         ai_autoreply_disabled: true,
         ai_handoff_summary: summary,
+        // Marks this as an AI-initiated pause — the sole signal the
+        // opt-in auto-resume scan (lib/ai/auto-resume.ts) trusts. Any
+        // explicit human action through the inbox toggle clears it, so
+        // auto-resume can never override a human who actually engaged.
+        ai_paused_at: new Date().toISOString(),
       }
       // Only set the assignee when the thread isn't already owned —
       // never stomp an existing human assignment. A fixed

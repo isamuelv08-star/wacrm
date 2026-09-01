@@ -91,6 +91,10 @@ export function AiConfig() {
   const [aiSchedulingEnabled, setAiSchedulingEnabled] = useState(false);
   // null = "never stop responding" (migration 047).
   const [maxPerConversation, setMaxPerConversation] = useState<number | null>(3);
+  // null (default) = auto-resume is off — a handoff stays paused until a
+  // human acts (migration 068). A number = minutes to wait with no human
+  // reply before the bot picks the thread back up on its own.
+  const [autoResumeAfterMinutes, setAutoResumeAfterMinutes] = useState<number | null>(null);
   // Empty string = leave unassigned (shared queue).
   const [handoffAgentId, setHandoffAgentId] = useState('');
   const [members, setMembers] = useState<AccountMember[]>([]);
@@ -142,6 +146,11 @@ export function AiConfig() {
           data.auto_reply_max_per_conversation === undefined
             ? 3
             : data.auto_reply_max_per_conversation,
+        );
+        setAutoResumeAfterMinutes(
+          data.auto_resume_after_minutes === undefined
+            ? null
+            : data.auto_resume_after_minutes,
         );
         setHandoffAgentId(data.handoff_agent_id ?? '');
         setHasStoredKey(Boolean(data.has_key));
@@ -225,6 +234,7 @@ export function AiConfig() {
     sales_mode_enabled: salesModeEnabled,
     ai_scheduling_enabled: aiSchedulingEnabled,
     auto_reply_max_per_conversation: maxPerConversation,
+    auto_resume_after_minutes: autoResumeAfterMinutes,
     handoff_agent_id: handoffAgentId || null,
   });
 
@@ -692,6 +702,59 @@ export function AiConfig() {
                 >
                   {t('maxAutoRepliesUnlimited')}
                 </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <Label htmlFor="ai-auto-resume">{t('autoResume')}</Label>
+                  <p className="text-xs text-muted-foreground">
+                    {t('autoResumeDesc')}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    id="ai-auto-resume"
+                    type="number"
+                    min={1}
+                    max={1440}
+                    value={autoResumeAfterMinutes ?? ''}
+                    onChange={(e) =>
+                      setAutoResumeAfterMinutes(
+                        Math.min(1440, Math.max(1, Number(e.target.value) || 1)),
+                      )
+                    }
+                    disabled={disabled || !autoReplyEnabled || autoResumeAfterMinutes === null}
+                    className="w-20"
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    {t('autoResumeMinutes')}
+                  </span>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant={autoResumeAfterMinutes === null ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setAutoResumeAfterMinutes(null)}
+                  disabled={disabled || !autoReplyEnabled}
+                >
+                  {t('autoResumeOff')}
+                </Button>
+                {[15, 30, 60].map((preset) => (
+                  <Button
+                    key={preset}
+                    type="button"
+                    variant={autoResumeAfterMinutes === preset ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setAutoResumeAfterMinutes(preset)}
+                    disabled={disabled || !autoReplyEnabled}
+                  >
+                    {preset}
+                  </Button>
+                ))}
               </div>
             </div>
 

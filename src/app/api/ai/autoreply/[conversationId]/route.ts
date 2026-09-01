@@ -62,7 +62,15 @@ export async function POST(request: Request, { params }: Params) {
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 })
     }
 
-    const update: Record<string, unknown> = { ai_autoreply_disabled: paused }
+    // Any explicit human action here — take over OR resume — clears
+    // ai_paused_at. That column is written ONLY by the AI's own handoff
+    // path and is the sole signal the opt-in auto-resume cron (migration
+    // 068, lib/ai/auto-resume.ts) trusts; a human acting through this
+    // route means there's nothing left for that cron to "notice."
+    const update: Record<string, unknown> = {
+      ai_autoreply_disabled: paused,
+      ai_paused_at: null,
+    }
 
     if (paused) {
       if (assignToMe) update.assigned_agent_id = userId
