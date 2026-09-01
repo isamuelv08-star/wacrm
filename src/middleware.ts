@@ -1,6 +1,33 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// Set on the dedicated agency-panel deployment only (a second EasyPanel
+// service on its own subdomain, e.g. agencia.tudominio.com) — NOT on the
+// main app. When true, this instance serves nothing but the super-admin
+// panel: every other route (the client-facing CRM, signup, etc.) redirects
+// away instead of rendering, so a stray link or a bookmark from the main
+// app can't land a regular user on a half-working page here. This is a
+// presentation/tidiness measure, not the security boundary — /agency and
+// /api/agency/* still gate on requireSuperAdmin() (src/lib/auth/agency.ts)
+// regardless of which deployment serves the request, so this flag being
+// unset (or even misconfigured) never grants access to anything.
+const AGENCY_STANDALONE = process.env.AGENCY_STANDALONE_MODE === 'true'
+
+// Exact paths and prefixes this instance is willing to serve. '/login' is
+// included because the super admin still authenticates through the normal
+// Supabase email/password flow — there's no separate credential system for
+// this panel, just a separate URL to reach it from and a stricter route
+// allow-list once you're on it.
+const AGENCY_STANDALONE_EXACT_PATHS = new Set(['/login', '/agency'])
+const AGENCY_STANDALONE_PATH_PREFIXES = ['/api/agency', '/api/locale']
+
+function isAgencyStandaloneAllowedPath(pathname: string): boolean {
+  return (
+    AGENCY_STANDALONE_EXACT_PATHS.has(pathname) ||
+    AGENCY_STANDALONE_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+  )
+}
+
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -40,6 +67,30 @@ export async function middleware(request: NextRequest) {
       response.cookies.set(cookie)
     })
     return response
+  }
+
+  // Agency-standalone deployment: collapse the entire app down to just
+  // '/login' + '/agency' (+ their supporting API routes). Everything else
+  // — including '/dashboard', which the login page's post-auth
+  // `window.location.href` always targets — redirects to '/agency' once
+  // signed in, or to '/login' otherwise. Checked before the normal
+  // auth-page / protected-page rules below so those never run on this
+  // deployment.
+  if (AGENCY_STANDALONE) {
+    const pathname = request.nextUrl.pathname
+    if (!isAgencyStandaloneAllowedPath(pathname)) {
+      const url = request.nextUrl.clone()
+      url.pathname = user ? '/agency' : '/login'
+      url.search = ''
+      return withRefreshedCookies(NextResponse.redirect(url))
+    }
+    if (user && pathname === '/login') {
+      const url = request.nextUrl.clone()
+      url.pathname = '/agency'
+      url.search = ''
+      return withRefreshedCookies(NextResponse.redirect(url))
+    }
+    return supabaseResponse
   }
 
   // Auth pages - redirect to dashboard if already logged in.
