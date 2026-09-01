@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { requireSuperAdmin } from "@/lib/auth/agency";
 import { loadAgencyOverview } from "@/lib/agency/overview";
 import { AgencyAccountCard } from "@/components/agency/agency-account-card";
+import { AccountDetailSheet } from "@/components/agency/account-detail-sheet";
 import { CreateClientDialog } from "@/components/agency/create-client-dialog";
 
 export const metadata = {
@@ -54,7 +55,13 @@ export default async function AgencyPage() {
         ) : (
           <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {accounts.map((account) => (
-              <AgencyAccountCard key={account.accountId} account={account} />
+              <AccountDetailSheet
+                key={account.accountId}
+                accountId={account.accountId}
+                accountName={account.accountName}
+              >
+                <AgencyAccountCard account={account} />
+              </AccountDetailSheet>
             ))}
           </div>
         )}

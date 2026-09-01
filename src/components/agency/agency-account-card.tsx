@@ -6,12 +6,15 @@ import {
   Flame,
   DollarSign,
   UserPlus,
-  TriangleAlert,
+  Clock,
 } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/currency";
-import type { AgencyAccountOverview } from "@/lib/agency/overview";
+import type {
+  AgencyAccountOverview,
+  WhatsAppConnectionMethod,
+} from "@/lib/agency/overview";
 
 function formatDate(iso: string, locale: string): string {
   return new Date(iso).toLocaleDateString(locale, {
@@ -31,42 +34,63 @@ export async function AgencyAccountCard({ account }: { account: AgencyAccountOve
       ? t("staleNoActivity")
       : t("staleDays", { count: staleness.daysSinceActivity });
   const connected = account.whatsappStatus === "connected";
+  const methodLabel = connectionMethodLabel(account.whatsappConnectionMethod, t);
 
   return (
     <div
       className={cn(
-        "rounded-2xl border p-5 shadow-sm",
-        account.hasAlert ? "border-primary/40 bg-primary/[0.04]" : "border-border bg-card",
+        "rounded-2xl border bg-card p-5 shadow-sm transition-colors",
+        // Semantic severity, not the brand accent — a disconnected
+        // channel means leads stop reaching the client regardless of
+        // which color theme the panel happens to be set to.
+        !connected && "border-red-500/25 bg-red-500/[0.03]",
+        connected && stale && "border-amber-500/25 bg-amber-500/[0.03]",
       )}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="truncate text-base font-semibold text-foreground">
-            {account.accountName}
-          </h3>
+          <div className="flex items-center gap-1.5">
+            <h3 className="truncate text-base font-semibold text-foreground">
+              {account.accountName}
+            </h3>
+            {account.neverUsed && (
+              <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                {t("neverUsed")}
+              </span>
+            )}
+          </div>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {t("clientSince", { date: formatDate(account.accountCreatedAt, locale) })}
+            {" · "}
+            {t("memberCount", { count: account.memberCount })}
           </p>
         </div>
-        {/* Connected reads as a quiet, informational green — disconnected
-            is a real alert (a client not receiving leads), so it gets a
-            solid brand-red fill instead of a neutral gray badge. */}
+        {/* Connected reads as a quiet, informational green (with the
+            connection method as a sub-label — Meta / Coexistencia /
+            Zernio all count); disconnected is a real alert, solid red.
+            Neither is tied to the panel's brand accent color, so this
+            always reads the same regardless of theme. */}
         <span
           className={cn(
-            "inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold",
+            "inline-flex shrink-0 flex-col items-end gap-0.5 rounded-xl px-2.5 py-1 text-right text-[11px] font-semibold",
             connected
-              ? "bg-emerald-500/12 text-emerald-500"
-              : "bg-primary text-primary-foreground shadow-sm shadow-primary/30",
+              ? "bg-emerald-500/12 text-emerald-600 dark:text-emerald-400"
+              : "bg-red-500/12 text-red-600 dark:text-red-400",
           )}
         >
-          {connected ? <CircleCheck className="h-3 w-3" /> : <CircleAlert className="h-3 w-3" />}
-          {connected ? t("whatsappConnected") : t("whatsappDisconnected")}
+          <span className="inline-flex items-center gap-1">
+            {connected ? <CircleCheck className="h-3 w-3" /> : <CircleAlert className="h-3 w-3" />}
+            {connected ? t("whatsappConnected") : t("whatsappDisconnected")}
+          </span>
+          {connected && methodLabel && (
+            <span className="text-[10px] font-medium opacity-70">{methodLabel}</span>
+          )}
         </span>
       </div>
 
       {stale && (
-        <div className="mt-3 flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/8 px-3 py-2 text-xs font-medium text-primary">
-          <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
+        <div className="mt-3 flex items-center gap-1.5 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-600 dark:text-amber-400">
+          <Clock className="h-3.5 w-3.5 shrink-0" />
           {stale} {t("staleSuffix")}
         </div>
       )}
@@ -86,7 +110,6 @@ export async function AgencyAccountCard({ account }: { account: AgencyAccountOve
           icon={DollarSign}
           label={t("openPipeline")}
           value={formatCurrency(account.openPipelineValue, account.defaultCurrency)}
-          valueClassName="text-primary"
         />
       </div>
 
@@ -100,38 +123,53 @@ export async function AgencyAccountCard({ account }: { account: AgencyAccountOve
   );
 }
 
+function connectionMethodLabel(
+  method: WhatsAppConnectionMethod,
+  t: Awaited<ReturnType<typeof getTranslations<"Agency.card">>>,
+): string | null {
+  switch (method) {
+    case "meta":
+      return t("connectionMeta");
+    case "coexistence":
+      return t("connectionCoexistence");
+    case "zernio":
+      return t("connectionZernio");
+    default:
+      return null;
+  }
+}
+
 /**
  * Leads HOT / Pipeline abierto — the two hero tiles. `emphasize` tints
- * the tile itself in brand red (only meaningful for HOT leads: "0" is
- * good news, not something to flag); `valueClassName` lets the number
- * alone carry brand color without implying an alert (Pipeline abierto
- * — money isn't a warning, it's just on-brand, same convention
- * deal-card.tsx already uses for deal value).
+ * the HOT tile in the same red/flame vocabulary as LeadScoreBadge's
+ * "hot" style elsewhere in the app ("0" is good news, not something to
+ * flag). Pipeline value always stays neutral — money isn't a warning.
+ * Deliberately not tied to `--primary`: that token is the panel's
+ * pickable accent color, and severity here needs to read the same
+ * regardless of which accent is active.
  */
 function HeroMetric({
   icon: Icon,
   label,
   value,
   emphasize,
-  valueClassName,
 }: {
   icon: typeof MessageSquare;
   label: string;
   value: string | number;
   emphasize?: boolean;
-  valueClassName?: string;
 }) {
   return (
     <div
       className={cn(
         "rounded-xl border p-3.5",
-        emphasize ? "border-primary/15 bg-primary/[0.06]" : "border-transparent bg-muted/40",
+        emphasize ? "border-red-500/15 bg-red-500/[0.06]" : "border-transparent bg-muted/40",
       )}
     >
       <div
         className={cn(
           "flex items-center gap-1.5 text-[11px] font-medium",
-          emphasize ? "text-primary/80" : "text-muted-foreground",
+          emphasize ? "text-red-600/80 dark:text-red-400/80" : "text-muted-foreground",
         )}
       >
         <Icon className="h-3.5 w-3.5" />
@@ -140,7 +178,7 @@ function HeroMetric({
       <p
         className={cn(
           "mt-1.5 text-2xl font-bold",
-          valueClassName ?? (emphasize ? "text-primary" : "text-foreground"),
+          emphasize ? "text-red-600 dark:text-red-400" : "text-foreground",
         )}
       >
         {value}

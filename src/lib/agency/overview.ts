@@ -7,12 +7,28 @@ import { supabaseAdmin } from './admin-client'
  *  for why this isn't per-account configurable yet. */
 export const AGENCY_INACTIVITY_DAYS = 3
 
+export type WhatsAppConnectionMethod = 'meta' | 'coexistence' | 'zernio' | null
+
 export interface AgencyAccountOverview {
   accountId: string
   accountName: string
   accountCreatedAt: string
   defaultCurrency: string
+  ownerUserId: string
+  memberCount: number
+  /** True when the account has zero contacts, zero conversations, and
+   *  was never connected to WhatsApp by any path — never actually used,
+   *  as opposed to "stale" (used once, gone quiet). Flags likely
+   *  orphaned/test accounts — see migration 067's header — so the panel
+   *  can surface them for cleanup instead of counting them as a real
+   *  client. */
+  neverUsed: boolean
   whatsappStatus: 'connected' | 'disconnected' | null
+  /** How the account is connected — null when disconnected. Distinguishes
+   *  direct Meta Cloud API, a Coexistence provider (send_api_base set),
+   *  and Zernio (its own table, client_zernio_accounts — see migration
+   *  066's header for why the panel used to miss these entirely). */
+  whatsappConnectionMethod: WhatsAppConnectionMethod
   activeConversations: number
   messagesToday: number
   newLeadsToday: number
@@ -35,7 +51,11 @@ interface AgencyOverviewRow {
   account_name: string
   account_created_at: string
   default_currency: string
+  owner_user_id: string
+  member_count: number
+  never_used: boolean
   whatsapp_status: 'connected' | 'disconnected' | null
+  whatsapp_connection_method: WhatsAppConnectionMethod
   active_conversations: number
   messages_today: number
   new_leads_today: number
@@ -90,7 +110,11 @@ export async function loadAgencyOverview(): Promise<AgencyAccountOverview[]> {
       accountName: row.account_name,
       accountCreatedAt: row.account_created_at,
       defaultCurrency: row.default_currency,
+      ownerUserId: row.owner_user_id,
+      memberCount: row.member_count,
+      neverUsed: row.never_used,
       whatsappStatus: row.whatsapp_status,
+      whatsappConnectionMethod: row.whatsapp_connection_method,
       activeConversations: row.active_conversations,
       messagesToday: row.messages_today,
       newLeadsToday: row.new_leads_today,
