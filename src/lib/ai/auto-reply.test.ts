@@ -89,6 +89,7 @@ function aiConfig(overrides: Partial<AiConfig> = {}): AiConfig {
     aiSchedulingEnabled: false,
     autoReplyMaxPerConversation: 3,
     handoffAgentId: null,
+    leadAutoAssignEnabled: false,
     embeddingsApiKey: null,
     transcriptionApiKey: null,
     ...overrides,
@@ -284,7 +285,13 @@ describe('dispatchInboundToAiReply — handoff', () => {
     await dispatchInboundToAiReply(ARGS)
     expect(h.ensureDealInQualifiedStage).toHaveBeenCalledWith(
       expect.anything(),
-      { accountId: 'acct-1', contactId: 'contact-1', configOwnerUserId: 'user-1' },
+      {
+        accountId: 'acct-1',
+        contactId: 'contact-1',
+        configOwnerUserId: 'user-1',
+        preferredAgentUserId: null,
+        leadAutoAssignEnabled: false,
+      },
     )
   })
 

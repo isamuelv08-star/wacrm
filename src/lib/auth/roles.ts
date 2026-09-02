@@ -133,6 +133,7 @@ export const DASHBOARD_PERMISSION_KEYS = [
   "salesFunnel",
   "commercialMetrics",
   "topSellers",
+  "leadsByRep",
   "alerts",
 ] as const;
 

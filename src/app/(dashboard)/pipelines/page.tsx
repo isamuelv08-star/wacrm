@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Pipeline, PipelineStage, Deal } from "@/types";
 import type { ConversationStaleness } from "@/lib/pipelines/lead-staleness";
@@ -51,7 +51,7 @@ export default function PipelinesPage() {
   const supabase = createClient();
   const canEditSettings = useCan("edit-settings");
   const canCreateDeals = useCan("send-messages");
-  const { accountId } = useAuth();
+  const { accountId, user } = useAuth();
 
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>("");
@@ -65,6 +65,16 @@ export default function PipelinesPage() {
   const [conversationStaleness, setConversationStaleness] = useState<
     Map<string, ConversationStaleness>
   >(new Map());
+
+  // "Todos / Mis leads / Sin asignar" — client-side only, over
+  // `deal.assignee` (already joined via `assignee:profiles!deals_assigned_to_fkey(*)`
+  // below), so it needs no extra fetch.
+  const [assigneeFilter, setAssigneeFilter] = useState<"all" | "mine" | "unassigned">("all");
+  const visibleDeals = useMemo(() => {
+    if (assigneeFilter === "mine") return deals.filter((d) => d.assignee?.user_id === user?.id);
+    if (assigneeFilter === "unassigned") return deals.filter((d) => !d.assigned_to);
+    return deals;
+  }, [deals, assigneeFilter, user?.id]);
 
   // Dialog / sheet state
   const [newPipelineOpen, setNewPipelineOpen] = useState(false);
@@ -435,6 +445,25 @@ export default function PipelinesPage() {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* Todos / Mis leads / Sin asignar — same "small pill group"
+              idiom as the AI settings presets (ai-config.tsx). */}
+          <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-0.5">
+            {(["all", "mine", "unassigned"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setAssigneeFilter(v)}
+                className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                  assigneeFilter === v
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {t(`assigneeFilter_${v}`)}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -487,11 +516,11 @@ export default function PipelinesPage() {
             pipelineId={selectedPipelineId}
             pipelineName={selectedPipeline?.name ?? ""}
             stages={stages}
-            deals={deals}
+            deals={visibleDeals}
           />
           <PipelineBoard
             stages={stages}
-            deals={deals}
+            deals={visibleDeals}
             onDealMoved={handleDealMoved}
             onAddDeal={handleAddDeal}
             onEditDeal={handleEditDeal}

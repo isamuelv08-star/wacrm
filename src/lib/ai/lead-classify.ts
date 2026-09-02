@@ -78,6 +78,18 @@ export async function classifyLeadIfNeeded(args: ClassifyArgs): Promise<void> {
 
     if (!score) return // model had nothing new/confident to assess this turn
 
+    // This path only ever runs with auto-reply off (line 43 above), so
+    // a human — not the bot — is the one actually talking to this
+    // lead; if the thread already has one, credit them as the deal
+    // owner too instead of drawing a fresh round-robin pick. Best-
+    // effort: a lookup failure just means no preferred agent, not a
+    // blocked classification.
+    const { data: conv } = await db
+      .from('conversations')
+      .select('assigned_agent_id')
+      .eq('id', conversationId)
+      .maybeSingle()
+
     await applyLeadScore(db, {
       accountId,
       contactId,
@@ -85,6 +97,8 @@ export async function classifyLeadIfNeeded(args: ClassifyArgs): Promise<void> {
       score,
       reason,
       source: 'ai',
+      preferredAgentUserId: conv?.assigned_agent_id ?? null,
+      leadAutoAssignEnabled: config.leadAutoAssignEnabled,
     })
   } catch (err) {
     console.error('[ai lead-classify] dispatch failed:', err)

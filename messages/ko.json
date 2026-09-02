@@ -217,6 +217,14 @@
         "noData": "이 기간에는 아직 판매가 없습니다",
         "noDataHint": "팀원에게 배정된 판매가 여기에 표시됩니다."
       },
+      "leadsByRep": {
+        "title": "담당자별 리드",
+        "description": "현재 각 팀원에게 배정된 열린 대화와 거래",
+        "noData": "아직 배정된 리드가 없습니다",
+        "noDataHint": "수동 배정, 라운드 로빈, 또는 AI 자동 배정으로 지정된 리드가 여기에 표시됩니다.",
+        "conversationsTitle": "배정된 열린 대화",
+        "dealsTitle": "배정된 열린 거래"
+      },
       "alerts": {
         "title": "알림",
         "stalledCount": "{days}일 이상 정체된 기회 {count}건",
@@ -248,6 +256,7 @@
     "conversationList": {
       "searchPlaceholder": "대화 검색...",
       "filterAll": "전체",
+      "filterMine": "나에게 배정됨",
       "filterUnread": "읽지 않음",
       "filterOpen": "열림",
       "filterPending": "대기 중",
@@ -703,6 +712,9 @@
   "Pipelines": {
     "page": {
       "selectPipeline": "파이프라인 선택",
+      "assigneeFilter_all": "전체",
+      "assigneeFilter_mine": "내 리드",
+      "assigneeFilter_unassigned": "미배정",
       "noPipelinesYet": "아직 파이프라인이 없습니다",
       "managePipelines": "파이프라인 관리",
       "addPipeline": "파이프라인 추가",
@@ -1573,6 +1585,8 @@
         "commercialMetricsDesc": "Win rate, 평균 거래 금액, 영업 주기.",
         "topSellersLabel": "Top 영업사원",
         "topSellersDesc": "할당량 대비 팀의 매출 순위.",
+        "leadsByRepLabel": "담당자별 리드",
+        "leadsByRepDesc": "각 팀원에게 배정된 열린 대화와 거래.",
         "alertsLabel": "알림",
         "alertsDesc": "정체된 딜, 위험 고객, 목표 미달 예측."
       },
@@ -1996,6 +2010,8 @@
       "autoResumeDesc": "봇이 대화를 사람에게 인계했는데 이 시간 동안 아무도 응답하지 않으면, 고객을 계속 기다리게 하는 대신 자동으로 봇에게 다시 넘깁니다. 기본값은 꺼짐이며, 인계된 대화는 누군가 조치할 때까지 일시중지 상태로 유지됩니다.",
       "autoResumeMinutes": "분",
       "autoResumeOff": "꺼짐",
+      "leadAutoAssign": "자격을 갖춘 리드 자동 배정",
+      "leadAutoAssignDesc": "리드가 자격 심사 단계에 도달하는 즉시(핫 점수 또는 인계로) — 새 대화에 사용하는 것과 동일한 균등 순환 방식으로 — 시간에 관계없이 팀의 다음 담당자에게 배정됩니다. 봇을 방해하지 않습니다: 영업 모드가 켜져 있으면 계속 대화하고 거래를 성사시킵니다.",
       "handoffTo": "인계 대상",
       "handoffToDesc": "봇이 도움을 줄 수 없거나 응답 한도에 도달하면 일시 중지하고 무슨 일이 있었는지 짧은 메모와 함께 이 대상에게 대화를 넘깁니다.",
       "handoffQueue": "미배정 대기열 (모든 상담원이 처리 가능)",

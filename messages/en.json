@@ -217,6 +217,14 @@
         "noData": "No sales yet in this period",
         "noDataHint": "Sales attributed to a team member will show up here."
       },
+      "leadsByRep": {
+        "title": "Leads by rep",
+        "description": "Open conversations and deals each team member currently has assigned",
+        "noData": "No leads assigned yet",
+        "noDataHint": "Leads assigned by hand, by round-robin, or by the AI's auto-assign will show up here.",
+        "conversationsTitle": "Assigned open conversations",
+        "dealsTitle": "Assigned open deals"
+      },
       "alerts": {
         "title": "Alerts",
         "stalledCount": "{count, plural, =1 {# opportunity} other {# opportunities}} stalled for {days}+ days",
@@ -248,6 +256,7 @@
     "conversationList": {
       "searchPlaceholder": "Search conversations...",
       "filterAll": "All",
+      "filterMine": "Assigned to me",
       "filterUnread": "Unread",
       "filterOpen": "Open",
       "filterPending": "Pending",
@@ -703,6 +712,9 @@
   "Pipelines": {
     "page": {
       "selectPipeline": "Select Pipeline",
+      "assigneeFilter_all": "All",
+      "assigneeFilter_mine": "My leads",
+      "assigneeFilter_unassigned": "Unassigned",
       "noPipelinesYet": "No pipelines yet",
       "managePipelines": "Manage Pipelines",
       "addPipeline": "Add Pipeline",
@@ -1573,6 +1585,8 @@
         "commercialMetricsDesc": "Win rate, average ticket, and sales cycle.",
         "topSellersLabel": "Top Sellers",
         "topSellersDesc": "Leaderboard of the team's revenue against their quotas.",
+        "leadsByRepLabel": "Leads by rep",
+        "leadsByRepDesc": "Open conversations and deals assigned to each team member.",
         "alertsLabel": "Alerts",
         "alertsDesc": "Stalled deals, at-risk customers, and forecast shortfalls."
       },
@@ -1996,6 +2010,8 @@
       "autoResumeDesc": "When the bot hands a conversation to a human and nobody replies within this time, automatically give it back to the bot instead of leaving the customer waiting. Off by default — a handoff stays paused until someone acts on it.",
       "autoResumeMinutes": "min",
       "autoResumeOff": "Off",
+      "leadAutoAssign": "Auto-assign qualified leads",
+      "leadAutoAssignDesc": "The moment a lead reaches the qualified stage (a Hot score, or a handoff), it's handed to the next rep on the team in turn — the same even rotation new conversations use — any time of day. Doesn't interrupt the bot: if Sales mode is on, it keeps chatting and closing the deal either way.",
       "handoffTo": "Hand off to",
       "handoffToDesc": "When the bot can’t help — or hits the reply cap — it pauses and routes the chat here, with a short note on what happened.",
       "handoffQueue": "Unassigned queue (any agent can pick it up)",

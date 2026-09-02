@@ -165,6 +165,10 @@ export async function POST(request: Request) {
         templateMessageParams: template_message_params,
         interactivePayload: interactive_payload,
         replyToMessageId: reply_to_message_id,
+        // A dashboard user sending a message is a person actually
+        // working this lead — claim it for them if nobody owns it yet.
+        // The public /api/v1/messages route intentionally omits this.
+        claimForUserId: userId,
       })
 
       return NextResponse.json({

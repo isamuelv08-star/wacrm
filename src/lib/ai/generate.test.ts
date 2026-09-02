@@ -15,6 +15,7 @@ function config(overrides: Partial<AiConfig> = {}): AiConfig {
     aiSchedulingEnabled: false,
     autoReplyMaxPerConversation: 3,
     handoffAgentId: null,
+    leadAutoAssignEnabled: false,
     embeddingsApiKey: null,
     transcriptionApiKey: null,
     ...overrides,

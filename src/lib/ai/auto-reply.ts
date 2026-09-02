@@ -217,6 +217,8 @@ export async function dispatchInboundToAiReply(
         score,
         reason: scoreReason,
         source: 'ai',
+        preferredAgentUserId: conv.assigned_agent_id,
+        leadAutoAssignEnabled: config.leadAutoAssignEnabled,
       })
     }
 
@@ -290,9 +292,9 @@ export async function dispatchInboundToAiReply(
       // otherwise fall back to the same round-robin pool/cursor new
       // leads use, so a handoff is never left in the shared queue
       // just because the account didn't pin a specific agent.
+      let targetAgentId: string | null = null
       if (!conv.assigned_agent_id) {
-        const targetAgentId =
-          config.handoffAgentId ?? (await pickRoundRobinAgent(db, accountId))
+        targetAgentId = config.handoffAgentId ?? (await pickRoundRobinAgent(db, accountId))
         if (targetAgentId) update.assigned_agent_id = targetAgentId
       }
       await db.from('conversations').update(update).eq('id', conversationId)
@@ -301,8 +303,18 @@ export async function dispatchInboundToAiReply(
       // move the deal to the account's qualified pipeline stage
       // regardless of whether the model also scored this lead HOT this
       // turn (the score branch above already calls this for HOT; the
-      // call is idempotent, so doing it again here is harmless).
-      await ensureDealInQualifiedStage(db, { accountId, contactId, configOwnerUserId })
+      // call is idempotent, so doing it again here is harmless). Credit
+      // whoever the conversation just landed with (fresh handoff pick,
+      // or an existing handler) as the deal owner too, ahead of drawing
+      // a separate round-robin pick — see ensureDealInQualifiedStage's
+      // doc comment.
+      await ensureDealInQualifiedStage(db, {
+        accountId,
+        contactId,
+        configOwnerUserId,
+        preferredAgentUserId: targetAgentId ?? conv.assigned_agent_id,
+        leadAutoAssignEnabled: config.leadAutoAssignEnabled,
+      })
 
       return
     }

@@ -14,12 +14,13 @@ interface AiConfigRow {
   ai_scheduling_enabled: boolean
   auto_reply_max_per_conversation: number | null
   handoff_agent_id: string | null
+  lead_auto_assign_enabled: boolean
   embeddings_api_key: string | null
   transcription_api_key: string | null
 }
 
 const CONFIG_COLUMNS =
-  'provider, model, api_key, system_prompt, qualification_criteria, is_active, auto_reply_enabled, sales_mode_enabled, ai_scheduling_enabled, auto_reply_max_per_conversation, handoff_agent_id, embeddings_api_key, transcription_api_key'
+  'provider, model, api_key, system_prompt, qualification_criteria, is_active, auto_reply_enabled, sales_mode_enabled, ai_scheduling_enabled, auto_reply_max_per_conversation, handoff_agent_id, lead_auto_assign_enabled, embeddings_api_key, transcription_api_key'
 
 /**
  * Load and decrypt the account's AI config for *use* (draft or
@@ -100,6 +101,7 @@ export async function loadAiConfig(
     aiSchedulingEnabled: row.ai_scheduling_enabled,
     autoReplyMaxPerConversation: row.auto_reply_max_per_conversation,
     handoffAgentId: row.handoff_agent_id,
+    leadAutoAssignEnabled: row.lead_auto_assign_enabled,
     embeddingsApiKey,
     transcriptionApiKey,
   }

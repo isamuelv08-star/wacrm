@@ -30,6 +30,7 @@ import {
   loadCeoAlerts,
   loadCeoMetrics,
   loadCommercialMetrics,
+  loadLeadsByRep,
   loadSalesFunnel,
   loadSalesVsGoal,
   loadTopSellers,
@@ -47,6 +48,7 @@ import type {
   CeoMetrics,
   CommercialMetrics,
   FunnelStep,
+  LeadsByRep,
   SalesVsGoalPoint,
   TopSeller,
 } from '@/lib/dashboard/ceo-types'
@@ -66,6 +68,7 @@ import { SalesVsGoalChart } from '@/components/dashboard/ceo/sales-vs-goal-chart
 import { SalesFunnel } from '@/components/dashboard/ceo/sales-funnel'
 import { CommercialMetricsCard } from '@/components/dashboard/ceo/commercial-metrics-card'
 import { TopSellersCard } from '@/components/dashboard/ceo/top-sellers-card'
+import { LeadsByRepCard } from '@/components/dashboard/ceo/leads-by-rep-card'
 import { AlertsCard } from '@/components/dashboard/ceo/alerts-card'
 
 import { useTranslations } from 'next-intl'
@@ -95,12 +98,14 @@ export default function DashboardPage() {
       funnel: canViewDashboardSection('salesFunnel'),
       commercial: canViewDashboardSection('commercialMetrics'),
       topSellers: canViewDashboardSection('topSellers'),
+      leadsByRep: canViewDashboardSection('leadsByRep'),
       alerts: canViewDashboardSection('alerts'),
     }),
     [canViewDashboardSection],
   )
   const hasAnySalesAccess =
-    sales.kpis || sales.vsGoal || sales.funnel || sales.commercial || sales.topSellers || sales.alerts
+    sales.kpis || sales.vsGoal || sales.funnel || sales.commercial || sales.topSellers ||
+    sales.leadsByRep || sales.alerts
 
   const [metrics, setMetrics] = useState<MetricsBundle | null>(null)
   const [metricsLoading, setMetricsLoading] = useState(true)
@@ -185,6 +190,8 @@ export default function DashboardPage() {
   const [commercialLoading, setCommercialLoading] = useState(true)
   const [topSellers, setTopSellers] = useState<TopSeller[] | null>(null)
   const [topSellersLoading, setTopSellersLoading] = useState(true)
+  const [leadsByRep, setLeadsByRep] = useState<LeadsByRep[] | null>(null)
+  const [leadsByRepLoading, setLeadsByRepLoading] = useState(true)
   const [alerts, setAlerts] = useState<CeoAlerts | null>(null)
   const [alertsLoading, setAlertsLoading] = useState(true)
 
@@ -241,6 +248,7 @@ export default function DashboardPage() {
       setFunnelLoading(false)
       setCommercialLoading(false)
       setTopSellersLoading(false)
+      setLeadsByRepLoading(false)
       setAlertsLoading(false)
       return
     }
@@ -279,6 +287,14 @@ export default function DashboardPage() {
       .then((s) => setTopSellers(s))
       .catch((err) => console.error('[dashboard] top-sellers failed:', err))
       .finally(() => setTopSellersLoading(false))
+
+    // Not range-dependent (a live "who owns what" snapshot, unlike the
+    // $-vs-quota ranking above) — mirrors loadSalesFunnel/loadCommercialMetrics,
+    // so it's only refetched here, not in applyPeriodRange below.
+    void loadLeadsByRep(db)
+      .then((r) => setLeadsByRep(r))
+      .catch((err) => console.error('[dashboard] leads-by-rep failed:', err))
+      .finally(() => setLeadsByRepLoading(false))
   }, [hasAnySalesAccess])
 
   // Re-fetch every time this route becomes the active page — not just
@@ -736,6 +752,12 @@ export default function DashboardPage() {
                   </div>
                 )}
               </div>
+            </RevealSection>
+          )}
+
+          {sales.leadsByRep && (
+            <RevealSection delayMs={220}>
+              <LeadsByRepCard data={leadsByRep} loading={leadsByRepLoading} />
             </RevealSection>
           )}
         </div>

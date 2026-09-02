@@ -12,6 +12,7 @@ import type { Conversation, ConversationStatus, Tag } from "@/types";
 import { Search, ChevronDown, X, Inbox, MessageCircle, Camera } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useTranslations } from "next-intl";
+import { useAuth } from "@/hooks/use-auth";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -53,7 +54,7 @@ const STATUS_COLORS: Record<ConversationStatus, string> = {
 
 
 
-type InboxFilter = ConversationStatus | "all" | "unread";
+type InboxFilter = ConversationStatus | "all" | "unread" | "mine";
 type PlatformFilter = ConversationPlatform | "all";
 type LeadScoreFilter = Score | "unscored" | "all";
 
@@ -117,9 +118,11 @@ export function ConversationList({
 }: ConversationListProps) {
   const t = useTranslations("Inbox.conversationList");
   const tLeads = useTranslations("Leads");
+  const { user } = useAuth();
 
   const FILTER_OPTIONS: { label: string; value: InboxFilter }[] = useMemo(() => [
     { label: t("filterAll"), value: "all" },
+    { label: t("filterMine"), value: "mine" },
     { label: t("filterUnread"), value: "unread" },
     { label: t("filterOpen"), value: "open" },
     { label: t("filterPending"), value: "pending" },
@@ -312,6 +315,8 @@ export function ConversationList({
 
     if (filter === "unread") {
       result = result.filter((c) => c.unread_count > 0);
+    } else if (filter === "mine") {
+      result = result.filter((c) => c.assigned_agent_id === user?.id);
     } else if (filter !== "all") {
       result = result.filter((c) => c.status === filter);
     }
@@ -337,7 +342,7 @@ export function ConversationList({
     }
 
     return result;
-  }, [conversations, platformFilter, filter, search, selectedTagIds, selectedCompany]);
+  }, [conversations, platformFilter, filter, search, selectedTagIds, selectedCompany, user?.id]);
 
   // One conversation per contact's `lead_score` — a contact with several
   // conversations (e.g. WhatsApp + Instagram) always lands in the same

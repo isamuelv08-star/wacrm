@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { LeadScore } from './types'
+import { resolveProfileId } from './profile-id'
+import { pickRoundRobinAgent } from '@/lib/assignment/round-robin'
 
 // ============================================================
 // Apply a lead score — either the AI emitted via the `[[SCORE:...]]`
@@ -40,9 +42,27 @@ export async function applyLeadScore(
     /** Who set this score — defaults to 'ai' (every existing caller is
      *  the AI bot); a manual-override endpoint passes 'manual'. */
     source?: 'ai' | 'manual'
+    /** The conversation's current human handler (auth.users.id), if
+     *  any — passed through to `ensureDealInQualifiedStage` so a deal
+     *  reaching the qualified stage on a thread a human already owns
+     *  is credited to that same person instead of drawing a fresh
+     *  round-robin pick. */
+    preferredAgentUserId?: string | null
+    /** Account's lead-auto-assign toggle (`ai_configs.lead_auto_assign_enabled`).
+     *  See `ensureDealInQualifiedStage`. */
+    leadAutoAssignEnabled?: boolean
   },
 ): Promise<void> {
-  const { accountId, contactId, configOwnerUserId, score, reason = null, source = 'ai' } = args
+  const {
+    accountId,
+    contactId,
+    configOwnerUserId,
+    score,
+    reason = null,
+    source = 'ai',
+    preferredAgentUserId = null,
+    leadAutoAssignEnabled = false,
+  } = args
 
   try {
     const { error: scoreErr } = await db
@@ -62,7 +82,13 @@ export async function applyLeadScore(
 
     if (score !== 'hot') return // only HOT advances the deal — see applyLeadScore's doc comment
 
-    await ensureDealInQualifiedStage(db, { accountId, contactId, configOwnerUserId })
+    await ensureDealInQualifiedStage(db, {
+      accountId,
+      contactId,
+      configOwnerUserId,
+      preferredAgentUserId,
+      leadAutoAssignEnabled,
+    })
   } catch (err) {
     console.error('[ai lead-scoring] applyLeadScore failed:', err)
   }
@@ -82,6 +108,21 @@ export async function applyLeadScore(
 // Best-effort and idempotent (a no-op if the deal is already there) —
 // safe to call once per HOT score AND once per handoff on the same
 // turn without double-creating or double-moving anything.
+//
+// Also resolves the deal's OWNER (`deals.assigned_to`) whenever it's
+// still unset — never overwrites an existing one, so this only ever
+// fills a gap, never reassigns. `preferredAgentUserId` (the thread's
+// current human handler, if any) always wins over a fresh pick, so a
+// handoff and a HOT score landing in the same turn credit the same
+// person instead of racing two independent round-robin draws. With no
+// preferred agent, a pick is only drawn when `leadAutoAssignEnabled`
+// is on (`ai_configs.lead_auto_assign_enabled`) — off by default, so
+// accounts that never opted in see no behavior change. This never
+// touches `conversations.assigned_agent_id`: the deal owner and the
+// conversation's human handler are intentionally separate (see
+// migration 069's doc comment) so the AI keeps replying — including
+// driving a deal through sales mode end-to-end — even after a lead
+// gets an owner here.
 // ============================================================
 export async function ensureDealInQualifiedStage(
   db: SupabaseClient,
@@ -89,14 +130,22 @@ export async function ensureDealInQualifiedStage(
     accountId: string
     contactId: string
     configOwnerUserId: string
+    preferredAgentUserId?: string | null
+    leadAutoAssignEnabled?: boolean
   },
 ): Promise<void> {
-  const { accountId, contactId, configOwnerUserId } = args
+  const {
+    accountId,
+    contactId,
+    configOwnerUserId,
+    preferredAgentUserId = null,
+    leadAutoAssignEnabled = false,
+  } = args
 
   try {
     const { data: openDeal, error: dealErr } = await db
       .from('deals')
-      .select('id, pipeline_id, stage_id')
+      .select('id, pipeline_id, stage_id, assigned_to')
       .eq('contact_id', contactId)
       .eq('account_id', accountId)
       .eq('status', 'open')
@@ -115,14 +164,25 @@ export async function ensureDealInQualifiedStage(
         )
         return
       }
-      if (openDeal.stage_id === qualifiedStageId) return // already there
 
-      const { error: moveErr } = await db
-        .from('deals')
-        .update({ stage_id: qualifiedStageId, updated_at: new Date().toISOString() })
-        .eq('id', openDeal.id)
+      const updates: Record<string, unknown> = {}
+      if (openDeal.stage_id !== qualifiedStageId) {
+        updates.stage_id = qualifiedStageId
+      }
+      if (!openDeal.assigned_to) {
+        const ownerProfileId = await resolveDealOwnerProfileId(db, {
+          accountId,
+          preferredAgentUserId,
+          leadAutoAssignEnabled,
+        })
+        if (ownerProfileId) updates.assigned_to = ownerProfileId
+      }
+      if (Object.keys(updates).length === 0) return // already qualified + owned — nothing to do
+
+      updates.updated_at = new Date().toISOString()
+      const { error: moveErr } = await db.from('deals').update(updates).eq('id', openDeal.id)
       if (moveErr) {
-        console.error('[ai lead-scoring] failed to move deal to qualified stage:', moveErr.message)
+        console.error('[ai lead-scoring] failed to update deal (stage/owner):', moveErr.message)
       }
       return
     }
@@ -164,11 +224,10 @@ export async function ensureDealInQualifiedStage(
       return
     }
 
-    const { data: acct } = await db
-      .from('accounts')
-      .select('default_currency')
-      .eq('id', accountId)
-      .maybeSingle()
+    const [{ data: acct }, ownerProfileId] = await Promise.all([
+      db.from('accounts').select('default_currency').eq('id', accountId).maybeSingle(),
+      resolveDealOwnerProfileId(db, { accountId, preferredAgentUserId, leadAutoAssignEnabled }),
+    ])
 
     const { error: insertErr } = await db.from('deals').insert({
       account_id: accountId,
@@ -180,6 +239,7 @@ export async function ensureDealInQualifiedStage(
       value: 0,
       currency: acct?.default_currency ?? 'USD',
       status: 'open',
+      assigned_to: ownerProfileId,
     })
     if (insertErr) {
       console.error('[ai lead-scoring] failed to create deal in qualified stage:', insertErr.message)
@@ -187,6 +247,28 @@ export async function ensureDealInQualifiedStage(
   } catch (err) {
     console.error('[ai lead-scoring] ensureDealInQualifiedStage failed:', err)
   }
+}
+
+/**
+ * Resolve who a newly-qualified deal should be owned by: the thread's
+ * current human handler if there is one, otherwise a fresh round-robin
+ * pick when the account opted into `lead_auto_assign_enabled` — same
+ * pool/cursor every other assignment path draws from (migration 042),
+ * so leads land evenly across the team regardless of which mechanism
+ * handed them out. Returns null (leave unowned) when neither applies.
+ */
+async function resolveDealOwnerProfileId(
+  db: SupabaseClient,
+  args: {
+    accountId: string
+    preferredAgentUserId: string | null
+    leadAutoAssignEnabled: boolean
+  },
+): Promise<string | null> {
+  const { accountId, preferredAgentUserId, leadAutoAssignEnabled } = args
+  const ownerAuthId =
+    preferredAgentUserId ?? (leadAutoAssignEnabled ? await pickRoundRobinAgent(db, accountId) : null)
+  return resolveProfileId(db, ownerAuthId)
 }
 
 async function findQualifiedStageId(

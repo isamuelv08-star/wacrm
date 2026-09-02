@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Sparkles, CheckCircle2, Trash2, Eye, EyeOff, Flame, Handshake, CalendarClock } from 'lucide-react';
+import { Loader2, Sparkles, CheckCircle2, Trash2, Eye, EyeOff, Flame, Handshake, CalendarClock, Users } from 'lucide-react';
 import { listTimezones } from '@/lib/timezone-list';
 import { useAuth } from '@/hooks/use-auth';
 import { canEditSettings } from '@/lib/auth/roles';
@@ -89,6 +89,7 @@ export function AiConfig() {
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(false);
   const [salesModeEnabled, setSalesModeEnabled] = useState(false);
   const [aiSchedulingEnabled, setAiSchedulingEnabled] = useState(false);
+  const [leadAutoAssignEnabled, setLeadAutoAssignEnabled] = useState(false);
   // null = "never stop responding" (migration 047).
   const [maxPerConversation, setMaxPerConversation] = useState<number | null>(3);
   // null (default) = auto-resume is off — a handoff stays paused until a
@@ -139,6 +140,7 @@ export function AiConfig() {
         setAutoReplyEnabled(data.auto_reply_enabled);
         setSalesModeEnabled(Boolean(data.sales_mode_enabled));
         setAiSchedulingEnabled(Boolean(data.ai_scheduling_enabled));
+        setLeadAutoAssignEnabled(Boolean(data.lead_auto_assign_enabled));
         // The stored value is a number, or null ("never stop") — only an
         // absent key (older/partial payload) should fall back to the
         // column's own default, so this checks for undefined, not ??.
@@ -233,6 +235,7 @@ export function AiConfig() {
     auto_reply_enabled: autoReplyEnabled,
     sales_mode_enabled: salesModeEnabled,
     ai_scheduling_enabled: aiSchedulingEnabled,
+    lead_auto_assign_enabled: leadAutoAssignEnabled,
     auto_reply_max_per_conversation: maxPerConversation,
     auto_resume_after_minutes: autoResumeAfterMinutes,
     handoff_agent_id: handoffAgentId || null,
@@ -756,6 +759,23 @@ export function AiConfig() {
                   </Button>
                 ))}
               </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-4 rounded-md border border-border p-3">
+              <div>
+                <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                  <Users className="h-3.5 w-3.5 text-primary" />
+                  {t('leadAutoAssign')}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t('leadAutoAssignDesc')}
+                </p>
+              </div>
+              <Switch
+                checked={leadAutoAssignEnabled}
+                onCheckedChange={setLeadAutoAssignEnabled}
+                disabled={disabled || !autoReplyEnabled}
+              />
             </div>
 
             <div className="space-y-2">

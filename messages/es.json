@@ -217,6 +217,14 @@
         "noData": "Todavía no hay ventas en este período",
         "noDataHint": "Las ventas asignadas a un miembro del equipo van a aparecer acá."
       },
+      "leadsByRep": {
+        "title": "Leads por vendedor",
+        "description": "Conversaciones y negocios abiertos que tiene asignados cada miembro del equipo ahora mismo",
+        "noData": "Todavía no hay leads asignados",
+        "noDataHint": "Los leads asignados manualmente, por round-robin o por el reparto automático de la IA van a aparecer acá.",
+        "conversationsTitle": "Conversaciones abiertas asignadas",
+        "dealsTitle": "Negocios abiertos asignados"
+      },
       "alerts": {
         "title": "Alertas",
         "stalledCount": "{count, plural, =1 {# oportunidad estancada} other {# oportunidades estancadas}} hace {days}+ días",
@@ -248,6 +256,7 @@
     "conversationList": {
       "searchPlaceholder": "Buscar conversaciones...",
       "filterAll": "Todas",
+      "filterMine": "Asignados a mí",
       "filterUnread": "Sin leer",
       "filterOpen": "Abiertas",
       "filterPending": "Pendientes",
@@ -703,6 +712,9 @@
   "Pipelines": {
     "page": {
       "selectPipeline": "Seleccionar pipeline",
+      "assigneeFilter_all": "Todos",
+      "assigneeFilter_mine": "Mis leads",
+      "assigneeFilter_unassigned": "Sin asignar",
       "noPipelinesYet": "Aún no hay pipelines",
       "managePipelines": "Gestionar pipelines",
       "addPipeline": "Agregar pipeline",
@@ -1573,6 +1585,8 @@
         "commercialMetricsDesc": "Win rate, ticket promedio y ciclo de venta.",
         "topSellersLabel": "Top vendedores",
         "topSellersDesc": "Ranking del equipo con sus ventas contra la cuota.",
+        "leadsByRepLabel": "Leads por vendedor",
+        "leadsByRepDesc": "Conversaciones y negocios abiertos asignados a cada miembro del equipo.",
         "alertsLabel": "Alertas",
         "alertsDesc": "Oportunidades estancadas, clientes en riesgo y forecast por debajo de meta."
       },
@@ -1996,6 +2010,8 @@
       "autoResumeDesc": "Cuando el bot traspasa una conversación a un humano y nadie responde en este tiempo, se la devuelve automáticamente al bot en vez de dejar al cliente esperando. Apagado por defecto — un traspaso queda pausado hasta que alguien actúe.",
       "autoResumeMinutes": "min",
       "autoResumeOff": "Apagado",
+      "leadAutoAssign": "Reparto automático de leads calificados",
+      "leadAutoAssignDesc": "En cuanto un lead llega a la etapa calificada (por puntaje Caliente o por traspaso), se designa a un vendedor del equipo por turnos — el mismo reparto parejo que usan las conversaciones nuevas — sin importar la hora del día. No interrumpe al bot: si el modo de ventas está activo, sigue conversando y cerrando el negocio igual.",
       "handoffTo": "Transferir a",
       "handoffToDesc": "Cuando el bot no puede ayudar — o alcanza el límite de respuestas — se pausa y dirige el chat aquí, con una breve nota sobre lo ocurrido.",
       "handoffQueue": "Cola sin asignar (cualquier agente puede tomarlo)",

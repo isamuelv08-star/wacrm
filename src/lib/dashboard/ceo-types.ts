@@ -60,6 +60,21 @@ export interface TopSeller {
   attainmentPct: number | null
 }
 
+/** One team member's current lead load, for the "who owns what" panel
+ *  — a count, not a $ ranking (that's `TopSeller`). Covers both open
+ *  conversations someone is actively handling and open deals someone
+ *  owns, since a lead the AI's equitable distribution (migration 069)
+ *  routed overnight can be a deal owner before it's ever a
+ *  conversation handler (see lead-scoring.ts's doc comment). */
+export interface LeadsByRep {
+  userId: string
+  name: string
+  /** Open conversations with `assigned_agent_id` = this member. */
+  assignedConversations: number
+  /** Open deals with `assigned_to` = this member's profile id. */
+  assignedDeals: number
+}
+
 export interface CeoAlerts {
   /** Open deals whose most recent stage change is older than the stale threshold. */
   stalledCount: number

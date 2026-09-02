@@ -57,6 +57,19 @@ export interface AiConfig {
    *  agent's `auth.users.id`, or null to leave it unassigned (drop into
    *  the shared queue). */
   handoffAgentId: string | null
+  /**
+   * Opt-in extension of auto-reply (migration 069): when true, the
+   * moment a lead reaches the qualified pipeline stage (a HOT score,
+   * or a handoff — see `ensureDealInQualifiedStage`), it's handed to
+   * the next eligible rep in the same round-robin pool/cursor every
+   * other assignment path draws from, so qualified leads land evenly
+   * across the team even when nobody's watching the inbox (e.g.
+   * overnight). Independent of `salesModeEnabled`: this only ever sets
+   * `deals.assigned_to`, never `conversations.assigned_agent_id`, so
+   * the AI (including a full end-to-end sales-mode close) keeps
+   * driving the conversation uninterrupted either way.
+   */
+  leadAutoAssignEnabled: boolean
   /** Optional OpenAI-compatible key for embeddings. When set, the
    *  knowledge base is embedded and semantic retrieval turns on; when
    *  null, retrieval falls back to lexical full-text search. */

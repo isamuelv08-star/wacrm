@@ -1,14 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { AiConfig } from './types'
 
-const h = vi.hoisted(() => ({
-  loadAiConfig: vi.fn(),
-  buildConversationContext: vi.fn(),
-  generateClassification: vi.fn(),
-  applyLeadScore: vi.fn(),
-  logAiUsage: vi.fn(),
-  checkRateLimit: vi.fn(),
-}))
+const h = vi.hoisted(() => {
+  const conversationRow = vi.fn(() => ({ assigned_agent_id: null as string | null }))
+  const db = {
+    from: (_table: string) => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: () => Promise.resolve({ data: conversationRow(), error: null }),
+        }),
+      }),
+    }),
+  }
+  return {
+    loadAiConfig: vi.fn(),
+    buildConversationContext: vi.fn(),
+    generateClassification: vi.fn(),
+    applyLeadScore: vi.fn(),
+    logAiUsage: vi.fn(),
+    checkRateLimit: vi.fn(),
+    conversationRow,
+    db,
+  }
+})
 
 vi.mock('./config', () => ({ loadAiConfig: h.loadAiConfig }))
 vi.mock('./context', () => ({ buildConversationContext: h.buildConversationContext }))
@@ -19,7 +33,7 @@ vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: h.checkRateLimit,
   RATE_LIMITS: { aiClassifyAccount: { limit: 30, windowMs: 60_000 } },
 }))
-vi.mock('./admin-client', () => ({ supabaseAdmin: () => ({}) }))
+vi.mock('./admin-client', () => ({ supabaseAdmin: () => h.db }))
 
 import { classifyLeadIfNeeded } from './lead-classify'
 
@@ -43,6 +57,7 @@ function aiConfig(overrides: Partial<AiConfig> = {}): AiConfig {
     aiSchedulingEnabled: false,
     autoReplyMaxPerConversation: 3,
     handoffAgentId: null,
+    leadAutoAssignEnabled: false,
     embeddingsApiKey: null,
     transcriptionApiKey: null,
     ...overrides,
@@ -58,6 +73,7 @@ beforeEach(() => {
   h.applyLeadScore.mockReset()
   h.logAiUsage.mockReset()
   h.checkRateLimit.mockReset().mockReturnValue({ success: true })
+  h.conversationRow.mockReset().mockReturnValue({ assigned_agent_id: null })
 })
 
 describe('classifyLeadIfNeeded', () => {
@@ -107,7 +123,7 @@ describe('classifyLeadIfNeeded', () => {
     })
     await classifyLeadIfNeeded(ARGS)
     expect(h.applyLeadScore).toHaveBeenCalledWith(
-      {},
+      h.db,
       {
         accountId: 'acct-1',
         contactId: 'contact-1',
@@ -115,7 +131,37 @@ describe('classifyLeadIfNeeded', () => {
         score: 'hot',
         reason: 'Mentioned budget and wants to buy today.',
         source: 'ai',
+        preferredAgentUserId: null,
+        leadAutoAssignEnabled: false,
       },
+    )
+  })
+
+  it('passes the thread\'s existing handler through as preferredAgentUserId', async () => {
+    h.conversationRow.mockReturnValue({ assigned_agent_id: 'agent-9' })
+    h.generateClassification.mockResolvedValue({
+      score: 'hot',
+      reason: 'Ready to buy.',
+      usage: null,
+    })
+    await classifyLeadIfNeeded(ARGS)
+    expect(h.applyLeadScore).toHaveBeenCalledWith(
+      h.db,
+      expect.objectContaining({ preferredAgentUserId: 'agent-9' }),
+    )
+  })
+
+  it('forwards the account\'s lead_auto_assign_enabled setting', async () => {
+    h.loadAiConfig.mockResolvedValue(aiConfig({ leadAutoAssignEnabled: true }))
+    h.generateClassification.mockResolvedValue({
+      score: 'hot',
+      reason: 'Ready to buy.',
+      usage: null,
+    })
+    await classifyLeadIfNeeded(ARGS)
+    expect(h.applyLeadScore).toHaveBeenCalledWith(
+      h.db,
+      expect.objectContaining({ leadAutoAssignEnabled: true }),
     )
   })
 
@@ -133,7 +179,7 @@ describe('classifyLeadIfNeeded', () => {
     })
     await classifyLeadIfNeeded(ARGS)
     expect(h.logAiUsage).toHaveBeenCalledWith(
-      {},
+      h.db,
       expect.objectContaining({ mode: 'classify', accountId: 'acct-1', conversationId: 'conv-1' }),
     )
   })

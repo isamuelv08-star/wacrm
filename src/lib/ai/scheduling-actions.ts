@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { CalendarEventType } from '@/types'
 import { localDateTimeToUtcIso } from './timezone'
+import { resolveProfileId } from './profile-id'
 
 // ============================================================
 // Applies the [[SCHEDULE:...]] sentinel the AI auto-reply bot emitted
@@ -76,19 +77,9 @@ export async function applyScheduledEvent(
       return
     }
 
-    const resolveProfileId = async (authUserId: string | null): Promise<string | null> => {
-      if (!authUserId) return null
-      const { data } = await db
-        .from('profiles')
-        .select('id')
-        .eq('user_id', authUserId)
-        .maybeSingle()
-      return data?.id ?? null
-    }
-
     const [createdBy, assignedTo] = await Promise.all([
-      resolveProfileId(configOwnerUserId),
-      resolveProfileId(handoffAgentId),
+      resolveProfileId(db, configOwnerUserId),
+      resolveProfileId(db, handoffAgentId),
     ])
 
     const startMs = new Date(startsAt).getTime()

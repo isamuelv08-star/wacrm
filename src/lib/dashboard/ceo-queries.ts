@@ -12,6 +12,7 @@ import type {
   CeoMetrics,
   CommercialMetrics,
   FunnelStep,
+  LeadsByRep,
   SalesVsGoalPoint,
   TopSeller,
 } from './ceo-types'
@@ -336,6 +337,60 @@ export async function loadTopSellers(db: DB, range: DateRange, limit = 5): Promi
       return b.soldThisMonth - a.soldThisMonth
     })
     .slice(0, limit)
+}
+
+// --- 4b. Leads currently owned by each rep ---------------------------------
+
+/**
+ * Current snapshot (not date-ranged, unlike `loadTopSellers` — this is
+ * "who owns what right now", not a period metric) of how leads are
+ * spread across the team: open conversations someone is actively
+ * handling (`conversations.assigned_agent_id`) plus open deals someone
+ * owns (`deals.assigned_to`) — kept as two separate counts rather than
+ * merged into one, since a lead the AI's equitable distribution
+ * (migration 069) routed overnight can be a deal owner before it's
+ * ever picked up as a conversation (see lead-scoring.ts). Only
+ * surfaces members with at least one of either, same "don't clutter
+ * with zero rows" posture as `loadTopSellers`.
+ */
+export async function loadLeadsByRep(db: DB): Promise<LeadsByRep[]> {
+  const [membersRes, convRes, dealsRes] = await Promise.all([
+    db.from('profiles').select('id, user_id, full_name, email'),
+    db.from('conversations').select('assigned_agent_id').neq('status', 'closed').not('assigned_agent_id', 'is', null),
+    db.from('deals').select('assigned_to').eq('status', 'open').not('assigned_to', 'is', null),
+  ])
+  if (membersRes.error) throw membersRes.error
+  if (convRes.error) throw convRes.error
+  if (dealsRes.error) throw dealsRes.error
+
+  const convCountByUser = new Map<string, number>()
+  for (const c of (convRes.data ?? []) as { assigned_agent_id: string }[]) {
+    convCountByUser.set(c.assigned_agent_id, (convCountByUser.get(c.assigned_agent_id) ?? 0) + 1)
+  }
+  const dealCountByProfile = new Map<string, number>()
+  for (const d of (dealsRes.data ?? []) as { assigned_to: string }[]) {
+    dealCountByProfile.set(d.assigned_to, (dealCountByProfile.get(d.assigned_to) ?? 0) + 1)
+  }
+
+  const members = (membersRes.data ?? []) as {
+    id: string
+    user_id: string
+    full_name: string | null
+    email: string | null
+  }[]
+
+  return members
+    .map((m) => ({
+      userId: m.user_id,
+      name: m.full_name || m.email || '—',
+      assignedConversations: convCountByUser.get(m.user_id) ?? 0,
+      assignedDeals: dealCountByProfile.get(m.id) ?? 0,
+    }))
+    .filter((r) => r.assignedConversations > 0 || r.assignedDeals > 0)
+    .sort(
+      (a, b) =>
+        b.assignedConversations + b.assignedDeals - (a.assignedConversations + a.assignedDeals),
+    )
 }
 
 // --- 5. Alerts -------------------------------------------------------------

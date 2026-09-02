@@ -75,6 +75,7 @@ export async function POST(request: Request) {
         aiSchedulingEnabled: false,
         autoReplyMaxPerConversation: 3,
         handoffAgentId: null,
+        leadAutoAssignEnabled: false,
         embeddingsApiKey: null,
         transcriptionApiKey: null,
       })

@@ -85,6 +85,15 @@ export interface SendMessageParams {
   /** Structured payload for `messageType === 'interactive'`. */
   interactivePayload?: InteractiveMessagePayload | null;
   replyToMessageId?: string | null;
+  /**
+   * The sending agent's `auth.users.id` — when set, and the conversation
+   * is still unassigned, replying to it claims it for this agent (see
+   * `claimConversationForAgent` below). Only the dashboard's
+   * human-authenticated send route passes this; the public `/api/v1/
+   * messages` endpoint deliberately doesn't, since those sends aren't a
+   * salesperson "taking" a lead.
+   */
+  claimForUserId?: string | null;
 }
 
 export interface SendMessageResult {
@@ -181,6 +190,41 @@ export function validateSendMessageParams(params: {
   }
 }
 
+/**
+ * "Reply = claim it": when an agent sends the first message on a
+ * conversation nobody's handling yet, assign it to them — no manual
+ * "Assign to me" click needed. Guards against stealing a lead that a
+ * different mechanism (the AI's equitable distribution, lead-scoring.ts)
+ * already handed to a specific rep: if the contact's open deal already
+ * has an owner, the message still sends, it just doesn't change who's
+ * assigned. The conversation write itself is a conditional UPDATE
+ * (`assigned_agent_id IS NULL`) so two agents replying to the same
+ * unassigned thread at once resolve to a single winner without a lock,
+ * same pattern as `claim_ai_reply_slot`.
+ */
+async function claimConversationForAgent(
+  db: SupabaseClient,
+  args: { accountId: string; conversationId: string; contactId: string; agentUserId: string },
+): Promise<void> {
+  const { accountId, conversationId, contactId, agentUserId } = args;
+
+  const { data: openDeal } = await db
+    .from('deals')
+    .select('assigned_to')
+    .eq('contact_id', contactId)
+    .eq('account_id', accountId)
+    .eq('status', 'open')
+    .limit(1)
+    .maybeSingle();
+  if (openDeal?.assigned_to) return;
+
+  await db
+    .from('conversations')
+    .update({ assigned_agent_id: agentUserId })
+    .eq('id', conversationId)
+    .is('assigned_agent_id', null);
+}
+
 export async function sendMessageToConversation(
   db: SupabaseClient,
   accountId: string,
@@ -198,6 +242,7 @@ export async function sendMessageToConversation(
     templateMessageParams,
     interactivePayload,
     replyToMessageId,
+    claimForUserId,
   } = params;
 
   if (!conversationId) {
@@ -228,6 +273,23 @@ export async function sendMessageToConversation(
 
   if (convError || !conversation) {
     throw new SendMessageError('not_found', 'Conversation not found', 404);
+  }
+
+  // "Reply = claim it": a still-unassigned conversation is handed to
+  // whoever answers it first, so nobody has to remember to click
+  // "Assign to me". Best-effort — never let a claim hiccup block the
+  // customer-facing send that's about to happen.
+  if (claimForUserId && !conversation.assigned_agent_id) {
+    try {
+      await claimConversationForAgent(db, {
+        accountId,
+        conversationId,
+        contactId: conversation.contact_id as string,
+        agentUserId: claimForUserId,
+      });
+    } catch (err) {
+      console.error('[send-message] claimConversationForAgent failed:', err);
+    }
   }
 
   const contact = conversation.contact;

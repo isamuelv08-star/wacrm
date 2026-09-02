@@ -217,6 +217,14 @@
         "noData": "Ainda não há vendas neste período",
         "noDataHint": "Vendas atribuídas a um membro da equipe vão aparecer aqui."
       },
+      "leadsByRep": {
+        "title": "Leads por vendedor",
+        "description": "Conversas e negócios abertos que cada membro da equipe tem atribuídos agora",
+        "noData": "Ainda não há leads atribuídos",
+        "noDataHint": "Leads atribuídos manualmente, por rodízio ou pela distribuição automática da IA vão aparecer aqui.",
+        "conversationsTitle": "Conversas abertas atribuídas",
+        "dealsTitle": "Negócios abertos atribuídos"
+      },
       "alerts": {
         "title": "Alertas",
         "stalledCount": "{count, plural, =1 {# oportunidade parada} other {# oportunidades paradas}} há {days}+ dias",
@@ -248,6 +256,7 @@
     "conversationList": {
       "searchPlaceholder": "Buscar conversas...",
       "filterAll": "Todas",
+      "filterMine": "Atribuídas a mim",
       "filterUnread": "Não lidas",
       "filterOpen": "Abertas",
       "filterPending": "Pendentes",
@@ -703,6 +712,9 @@
   "Pipelines": {
     "page": {
       "selectPipeline": "Selecionar Pipeline",
+      "assigneeFilter_all": "Todos",
+      "assigneeFilter_mine": "Meus leads",
+      "assigneeFilter_unassigned": "Não atribuídos",
       "noPipelinesYet": "Nenhum pipeline ainda",
       "managePipelines": "Gerenciar Pipelines",
       "addPipeline": "Adicionar Pipeline",
@@ -1573,6 +1585,8 @@
         "commercialMetricsDesc": "Win rate, ticket médio e ciclo de vendas.",
         "topSellersLabel": "Top vendedores",
         "topSellersDesc": "Ranking da equipe com as vendas contra a cota.",
+        "leadsByRepLabel": "Leads por vendedor",
+        "leadsByRepDesc": "Conversas e negócios abertos atribuídos a cada membro da equipe.",
         "alertsLabel": "Alertas",
         "alertsDesc": "Negócios parados, clientes em risco e forecast abaixo da meta."
       },
@@ -1996,6 +2010,8 @@
       "autoResumeDesc": "Quando o bot transfere uma conversa para um humano e ninguém responde nesse tempo, ela volta automaticamente para o bot em vez de deixar o cliente esperando. Desativado por padrão — uma transferência fica pausada até alguém agir.",
       "autoResumeMinutes": "min",
       "autoResumeOff": "Desativado",
+      "leadAutoAssign": "Distribuição automática de leads qualificados",
+      "leadAutoAssignDesc": "Assim que um lead chega à etapa qualificada (por pontuação Quente ou por transferência), ele é designado a um vendedor da equipe em rodízio — o mesmo reparto equilibrado usado para conversas novas — a qualquer hora do dia. Não interrompe o bot: se o modo de vendas estiver ativo, ele continua conversando e fechando o negócio normalmente.",
       "handoffTo": "Transferir para",
       "handoffToDesc": "Quando o bot não consegue ajudar — ou atinge o limite de respostas — ele pausa e direciona a conversa para cá, com uma breve nota sobre o que aconteceu.",
       "handoffQueue": "Fila não atribuída (qualquer agente pode assumir)",
