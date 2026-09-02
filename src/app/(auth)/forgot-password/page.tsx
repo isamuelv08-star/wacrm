@@ -31,8 +31,17 @@ export default function ForgotPasswordPage() {
     setError(null);
     setLoading(true);
 
+    // Straight to /reset-password, NOT through /auth/callback: this Supabase
+    // project issues recovery links as an implicit grant (`#access_token=...`
+    // in the URL fragment) rather than a PKCE `?code=`, regardless of the
+    // requesting client's flowType — confirmed by generating a recovery link
+    // with an explicit code_challenge and getting a hash-based redirect back
+    // anyway. A fragment never reaches the server, so routing through
+    // /auth/callback first would have it redirect away (no `?code` to find)
+    // before the browser ever gets to read the hash. /reset-password's
+    // client-side code reads it directly instead (see its useEffect).
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+      redirectTo: `${window.location.origin}/reset-password`,
     });
 
     if (error) {

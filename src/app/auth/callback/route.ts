@@ -1,18 +1,24 @@
 // ============================================================
 // GET /auth/callback — Supabase Auth PKCE return leg.
 //
-// Every Supabase email flow that needs the browser to come back to
-// this app (password recovery, email-change confirmation, magic
-// links) is configured to redirect here first: it hands us a
-// short-lived `code` in the query string, which we exchange for a
-// real session via exchangeCodeForSession — that call is what
-// actually sets the sb-* session cookies. Only once that's done do we
-// forward the browser to `next` (defaults to /dashboard).
+// For a Supabase email flow that issues a PKCE `?code=` (exchanged
+// here via exchangeCodeForSession — that call is what actually sets
+// the sb-* session cookies), this is where the browser should land
+// after clicking the email link. Only once the exchange succeeds do
+// we forward the browser to `next` (defaults to /dashboard).
 //
-// This route didn't exist before, even though forgot-password/page.tsx
-// already pointed here (`redirectTo: .../auth/callback?next=/reset-password`)
-// — every password-reset attempt 404'd at this step, one hop before
-// the user ever saw /reset-password.
+// NOT currently used by password recovery: this Supabase project
+// issues recovery links as an implicit grant (`#access_token=...` in
+// the URL fragment) instead of PKCE, regardless of what the
+// requesting client asks for — confirmed by generating a recovery
+// link with an explicit code_challenge and still getting a hash-based
+// redirect back. A fragment never reaches the server, so a route like
+// this one — which only ever looks at the query string — can't do
+// anything with it; forgot-password/page.tsx and the agency "send
+// this member a reset link" flow both point straight at
+// /reset-password instead, which reads the hash client-side (see its
+// useEffect). Left in place for any future flow that genuinely gets a
+// PKCE code (e.g. an OAuth/social login redirect).
 // ============================================================
 
 import { NextResponse, type NextRequest } from 'next/server'

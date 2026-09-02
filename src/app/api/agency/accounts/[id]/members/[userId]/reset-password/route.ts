@@ -32,10 +32,18 @@ export async function POST(
 
   const origin = getPublicOrigin(request)
   try {
+    // Straight to /reset-password, NOT through /auth/callback: this reset is
+    // triggered by the service-role admin client (see
+    // sendAgencyMemberPasswordReset's doc comment), which can't complete the
+    // PKCE flow /auth/callback expects, so Supabase falls back to an implicit
+    // grant delivered as a `#access_token=...` URL fragment. That fragment
+    // never reaches our server — routing through /auth/callback first would
+    // have it redirect away (no `?code`) before the browser ever gets to read
+    // the hash. /reset-password's client-side code reads it directly instead.
     await sendAgencyMemberPasswordReset(
       id,
       userId,
-      `${origin}/auth/callback?next=/reset-password`,
+      `${origin}/reset-password`,
     )
   } catch (err) {
     return NextResponse.json(

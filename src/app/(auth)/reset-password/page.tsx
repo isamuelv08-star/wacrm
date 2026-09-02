@@ -39,6 +39,31 @@ export default function ResetPasswordPage() {
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
+    // The agency panel's "send this member a reset link" (admin.resetPasswordForEmail
+    // via a service-role client — see src/lib/agency/admin-client.ts) can't use the
+    // PKCE flow /auth/callback relies on: PKCE's code_verifier is generated and
+    // stored by whichever client called resetPasswordForEmail, and here that's the
+    // server's admin client, not this visitor's browser — no cookie exchange can
+    // ever complete it. Supabase falls back to the implicit grant for that link
+    // instead, landing here with `#access_token=...&refresh_token=...&type=recovery`
+    // in the hash (never sent to our server, so /auth/callback can't see it either).
+    // Detect that case and finish the sign-in client-side via setSession, which —
+    // unlike getSession()'s URL auto-detection — doesn't care what flowType this
+    // client is pinned to.
+    const hashParams = new URLSearchParams(window.location.hash.slice(1));
+    const accessToken = hashParams.get("access_token");
+    const refreshToken = hashParams.get("refresh_token");
+
+    if (accessToken && refreshToken) {
+      window.history.replaceState(null, "", window.location.pathname);
+      supabase.auth
+        .setSession({ access_token: accessToken, refresh_token: refreshToken })
+        .then(({ data: { user } }) => {
+          setSessionState(user ? "ready" : "missing");
+        });
+      return;
+    }
+
     supabase.auth.getUser().then(({ data: { user } }) => {
       setSessionState(user ? "ready" : "missing");
     });
