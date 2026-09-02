@@ -2215,6 +2215,20 @@
     "checkEmailTitle": "이메일을 확인하세요",
     "checkEmailDesc": "{email}로 비밀번호 재설정 링크를 보냈습니다. 받은편지함을 확인하세요."
   },
+  "ResetPasswordPage": {
+    "title": "새 비밀번호 설정",
+    "desc": "재설정을 완료하려면 새 비밀번호를 입력하고 확인하세요",
+    "newPasswordLabel": "새 비밀번호",
+    "confirmPasswordLabel": "비밀번호 확인",
+    "submit": "비밀번호 저장",
+    "submitting": "저장 중...",
+    "tooShort": "비밀번호는 최소 {min}자 이상이어야 합니다",
+    "mismatch": "비밀번호가 일치하지 않습니다",
+    "successDesc": "비밀번호가 업데이트되었습니다. 이제 로그인할 수 있습니다.",
+    "backToSignIn": "로그인으로 이동",
+    "invalidLinkDesc": "이 재설정 링크가 유효하지 않거나 만료되었습니다. 새 링크를 요청하세요.",
+    "requestNewLink": "새 링크 요청"
+  },
   "AuthErrors": {
     "userAlreadyRegistered": "이 이메일로 이미 계정이 있습니다. 로그인을 시도해보세요.",
     "invalidCredentials": "이메일 또는 비밀번호가 올바르지 않습니다.",
@@ -2291,8 +2305,12 @@
       "role_agent": "상담원",
       "role_viewer": "읽기 전용",
       "lastSeen": "마지막 접속",
+      "lastSignIn": "마지막 로그인",
       "never": "없음",
       "justNow": "방금 전",
+      "sendResetAction": "비밀번호 재설정 링크 보내기",
+      "sendResetSuccess": "{email}로 재설정 링크를 보냈습니다",
+      "sendResetError": "재설정 링크를 보내지 못했습니다",
       "removeMemberAction": "사용자 삭제",
       "connectionTitle": "WhatsApp 연결",
       "noConnection": "아직 WhatsApp을 연결하지 않았습니다.",

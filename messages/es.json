@@ -2215,6 +2215,20 @@
     "checkEmailTitle": "Revisá tu correo",
     "checkEmailDesc": "Te enviamos un link para restablecer tu contraseña a {email}. Revisá tu bandeja de entrada."
   },
+  "ResetPasswordPage": {
+    "title": "Elegí una nueva contraseña",
+    "desc": "Ingresá y confirmá tu nueva contraseña para completar el restablecimiento",
+    "newPasswordLabel": "Nueva contraseña",
+    "confirmPasswordLabel": "Confirmar contraseña",
+    "submit": "Guardar contraseña",
+    "submitting": "Guardando...",
+    "tooShort": "La contraseña debe tener al menos {min} caracteres",
+    "mismatch": "Las contraseñas no coinciden",
+    "successDesc": "Tu contraseña se actualizó correctamente. Ya podés iniciar sesión.",
+    "backToSignIn": "Ir a iniciar sesión",
+    "invalidLinkDesc": "Este link de restablecimiento no es válido o ya expiró. Pedí uno nuevo.",
+    "requestNewLink": "Pedir un nuevo link"
+  },
   "AuthErrors": {
     "userAlreadyRegistered": "Ya existe una cuenta con este correo. Iniciá sesión en su lugar.",
     "invalidCredentials": "Correo o contraseña incorrectos.",
@@ -2291,8 +2305,12 @@
       "role_agent": "Agente",
       "role_viewer": "Solo lectura",
       "lastSeen": "Última vez",
+      "lastSignIn": "Último inicio de sesión",
       "never": "nunca",
       "justNow": "ahora mismo",
+      "sendResetAction": "Enviar link para restablecer contraseña",
+      "sendResetSuccess": "Se envió el link de restablecimiento a {email}",
+      "sendResetError": "No se pudo enviar el link de restablecimiento",
       "removeMemberAction": "Eliminar usuario",
       "connectionTitle": "Conexión de WhatsApp",
       "noConnection": "Todavía no conectó WhatsApp.",

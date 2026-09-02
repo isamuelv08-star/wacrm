@@ -18,8 +18,13 @@ const AGENCY_STANDALONE = process.env.AGENCY_STANDALONE_MODE === 'true'
 // Supabase email/password flow — there's no separate credential system for
 // this panel, just a separate URL to reach it from and a stricter route
 // allow-list once you're on it.
-const AGENCY_STANDALONE_EXACT_PATHS = new Set(['/login', '/agency'])
-const AGENCY_STANDALONE_PATH_PREFIXES = ['/api/agency', '/api/locale']
+const AGENCY_STANDALONE_EXACT_PATHS = new Set([
+  '/login',
+  '/agency',
+  '/forgot-password',
+  '/reset-password',
+])
+const AGENCY_STANDALONE_PATH_PREFIXES = ['/api/agency', '/api/locale', '/auth/callback']
 
 function isAgencyStandaloneAllowedPath(pathname: string): boolean {
   return (

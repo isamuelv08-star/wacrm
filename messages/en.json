@@ -2215,6 +2215,20 @@
     "checkEmailTitle": "Check your email",
     "checkEmailDesc": "We've sent a password reset link to {email}. Please check your inbox."
   },
+  "ResetPasswordPage": {
+    "title": "Choose a new password",
+    "desc": "Enter and confirm your new password to finish resetting it",
+    "newPasswordLabel": "New password",
+    "confirmPasswordLabel": "Confirm password",
+    "submit": "Save password",
+    "submitting": "Saving...",
+    "tooShort": "Password must be at least {min} characters",
+    "mismatch": "Passwords don't match",
+    "successDesc": "Your password has been updated. You can now sign in.",
+    "backToSignIn": "Go to sign in",
+    "invalidLinkDesc": "This reset link is invalid or has expired. Request a new one.",
+    "requestNewLink": "Request a new link"
+  },
   "AuthErrors": {
     "userAlreadyRegistered": "An account with this email already exists. Try signing in instead.",
     "invalidCredentials": "Incorrect email or password.",
@@ -2291,8 +2305,12 @@
       "role_agent": "Agent",
       "role_viewer": "Viewer",
       "lastSeen": "Last seen",
+      "lastSignIn": "Last sign-in",
       "never": "never",
       "justNow": "just now",
+      "sendResetAction": "Send password reset link",
+      "sendResetSuccess": "Reset link sent to {email}",
+      "sendResetError": "Couldn't send the reset link",
       "removeMemberAction": "Delete user",
       "connectionTitle": "WhatsApp connection",
       "noConnection": "WhatsApp isn't connected yet.",

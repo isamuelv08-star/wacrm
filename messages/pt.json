@@ -2215,6 +2215,20 @@
     "checkEmailTitle": "Verifique seu email",
     "checkEmailDesc": "Enviamos um link de redefinição de senha para {email}. Verifique sua caixa de entrada."
   },
+  "ResetPasswordPage": {
+    "title": "Escolha uma nova senha",
+    "desc": "Digite e confirme sua nova senha para concluir a redefinição",
+    "newPasswordLabel": "Nova senha",
+    "confirmPasswordLabel": "Confirmar senha",
+    "submit": "Salvar senha",
+    "submitting": "Salvando...",
+    "tooShort": "A senha deve ter pelo menos {min} caracteres",
+    "mismatch": "As senhas não coincidem",
+    "successDesc": "Sua senha foi atualizada. Agora você já pode entrar.",
+    "backToSignIn": "Ir para o login",
+    "invalidLinkDesc": "Este link de redefinição é inválido ou expirou. Solicite um novo.",
+    "requestNewLink": "Solicitar novo link"
+  },
   "AuthErrors": {
     "userAlreadyRegistered": "Já existe uma conta com este e-mail. Tente entrar em vez disso.",
     "invalidCredentials": "E-mail ou senha incorretos.",
@@ -2291,8 +2305,12 @@
       "role_agent": "Agente",
       "role_viewer": "Somente leitura",
       "lastSeen": "Visto por último",
+      "lastSignIn": "Último login",
       "never": "nunca",
       "justNow": "agora mesmo",
+      "sendResetAction": "Enviar link de redefinição de senha",
+      "sendResetSuccess": "Link de redefinição enviado para {email}",
+      "sendResetError": "Não foi possível enviar o link de redefinição",
       "removeMemberAction": "Excluir usuário",
       "connectionTitle": "Conexão do WhatsApp",
       "noConnection": "Ainda não conectou o WhatsApp.",

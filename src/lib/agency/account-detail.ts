@@ -10,6 +10,13 @@ export interface AgencyAccountMember {
   /** From member_presence — null when the member has never opened the
    *  app (no heartbeat row yet), not necessarily "never logged in". */
   lastSeenAt: string | null
+  /** `last_sign_in_at` straight from Supabase Auth — when this user's
+   *  credentials (password, magic link, etc) last produced a session.
+   *  Distinct from `lastSeenAt`: that's in-app activity (member_presence
+   *  heartbeats) and can be null even for someone who signs in daily if
+   *  presence tracking hasn't fired yet, while this is null only when
+   *  the account has genuinely never been signed into. */
+  lastSignInAt: string | null
 }
 
 export interface AgencyWhatsAppConnection {
@@ -104,6 +111,24 @@ export async function loadAgencyAccountDetail(
     (presenceRows ?? []).map((p) => [p.user_id as string, p.last_seen_at as string]),
   )
 
+  // last_sign_in_at lives on the Auth user, not `profiles` — one
+  // admin.getUserById() per member. Account rosters here are small
+  // (a handful of seats per client), so N parallel calls is simpler
+  // than reconciling against auth.admin.listUsers()'s instance-wide
+  // pagination for what's normally a handful of ids.
+  const lastSignInByUser = new Map(
+    await Promise.all(
+      (profiles ?? []).map(async (p) => {
+        const { data, error } = await db.auth.admin.getUserById(p.user_id)
+        if (error) {
+          console.error(`[agency] getUserById failed for ${p.user_id}:`, error.message)
+          return [p.user_id as string, null] as const
+        }
+        return [p.user_id as string, data.user?.last_sign_in_at ?? null] as const
+      }),
+    ),
+  )
+
   const members: AgencyAccountMember[] = (profiles ?? []).map((p) => ({
     userId: p.user_id,
     fullName: p.full_name,
@@ -111,6 +136,7 @@ export async function loadAgencyAccountDetail(
     role: p.account_role,
     createdAt: p.created_at,
     lastSeenAt: presenceByUser.get(p.user_id) ?? null,
+    lastSignInAt: lastSignInByUser.get(p.user_id) ?? null,
   }))
 
   let connection: AgencyWhatsAppConnection | null = null
@@ -183,6 +209,42 @@ export async function loadAgencyAccountDetail(
       byModel: [...modelMap.values()].sort((a, b) => b.tokens - a.tokens),
     },
   }
+}
+
+/**
+ * Sends a member the same "reset your password" email the self-service
+ * /forgot-password flow triggers — the agency owner can never see or
+ * set a client's actual password (Supabase only ever stores a hash),
+ * so this is the closest thing to "help them get back in": it kicks
+ * off the real Supabase Auth recovery flow, landing them on
+ * /auth/callback → /reset-password to pick a new one themselves.
+ *
+ * Throws when the member isn't found in this account, or has no email
+ * on file (shouldn't happen — email is required at signup — but the
+ * column is nullable).
+ */
+export async function sendAgencyMemberPasswordReset(
+  accountId: string,
+  userId: string,
+  redirectTo: string,
+): Promise<void> {
+  const db = supabaseAdmin()
+
+  const { data: profile, error: profileErr } = await db
+    .from('profiles')
+    .select('account_id, email')
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (profileErr) throw new Error('Failed to look up member')
+  if (!profile || profile.account_id !== accountId) {
+    throw new Error('Member not found in this account')
+  }
+  if (!profile.email) {
+    throw new Error('This member has no email on file')
+  }
+
+  const { error } = await db.auth.resetPasswordForEmail(profile.email, { redirectTo })
+  if (error) throw new Error(error.message)
 }
 
 /**

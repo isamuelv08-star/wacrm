@@ -20,6 +20,7 @@ import { useTranslations, useLocale } from 'next-intl';
 import { toast } from 'sonner';
 import {
   Bot,
+  KeyRound,
   Loader2,
   Radio,
   ShieldAlert,
@@ -54,6 +55,7 @@ interface DetailMember {
   role: 'owner' | 'admin' | 'agent' | 'viewer';
   createdAt: string;
   lastSeenAt: string | null;
+  lastSignInAt: string | null;
 }
 
 interface DetailConnection {
@@ -112,6 +114,7 @@ export function AccountDetailSheet({
   const [detail, setDetail] = useState<DetailData | null>(null);
   const [removingMember, setRemovingMember] = useState<DetailMember | null>(null);
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
+  const [sendingResetUserId, setSendingResetUserId] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -165,6 +168,26 @@ export function AccountDetailSheet({
       toast.error(t('removeMemberError'));
     } finally {
       setPendingUserId(null);
+    }
+  }
+
+  async function handleSendReset(member: DetailMember) {
+    setSendingResetUserId(member.userId);
+    try {
+      const res = await fetch(
+        `/api/agency/accounts/${accountId}/members/${member.userId}/reset-password`,
+        { method: 'POST' },
+      );
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        toast.error(payload.error || t('sendResetError'));
+        return;
+      }
+      toast.success(t('sendResetSuccess', { email: member.email || '' }));
+    } catch {
+      toast.error(t('sendResetError'));
+    } finally {
+      setSendingResetUserId(null);
     }
   }
 
@@ -234,27 +257,51 @@ export function AccountDetailSheet({
                           <p className="truncate text-sm font-medium text-foreground">
                             {m.fullName || m.email || m.userId}
                           </p>
+                          {m.fullName && m.email && (
+                            <p className="truncate text-xs text-muted-foreground">{m.email}</p>
+                          )}
                           <p className="truncate text-xs text-muted-foreground">
                             {t(`role_${m.role}`)} · {t('lastSeen')}{' '}
-                            {timeAgo(m.lastSeenAt, locale, t)}
+                            {timeAgo(m.lastSeenAt, locale, t)} · {t('lastSignIn')}{' '}
+                            {timeAgo(m.lastSignInAt, locale, t)}
                           </p>
                         </div>
-                        {m.role !== 'owner' && (
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            className="shrink-0 text-muted-foreground hover:text-red-600"
-                            disabled={pendingUserId === m.userId}
-                            onClick={() => setRemovingMember(m)}
-                            aria-label={t('removeMemberAction')}
-                          >
-                            {pendingUserId === m.userId ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-4 w-4" />
-                            )}
-                          </Button>
-                        )}
+                        <div className="flex shrink-0 items-center gap-1">
+                          {m.email && (
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className="text-muted-foreground hover:text-primary"
+                              disabled={sendingResetUserId === m.userId}
+                              onClick={() => handleSendReset(m)}
+                              aria-label={t('sendResetAction')}
+                              title={t('sendResetAction')}
+                            >
+                              {sendingResetUserId === m.userId ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <KeyRound className="h-4 w-4" />
+                              )}
+                            </Button>
+                          )}
+                          {m.role !== 'owner' && (
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className="text-muted-foreground hover:text-red-600"
+                              disabled={pendingUserId === m.userId}
+                              onClick={() => setRemovingMember(m)}
+                              aria-label={t('removeMemberAction')}
+                              title={t('removeMemberAction')}
+                            >
+                              {pendingUserId === m.userId ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
