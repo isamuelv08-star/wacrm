@@ -26,6 +26,18 @@ import {
   RATE_LIMITS,
 } from "@/lib/rate-limit";
 import { isValidTimezone } from "@/lib/automations/schedule";
+import type { BusinessVertical } from "@/types";
+
+const BUSINESS_VERTICALS: readonly BusinessVertical[] = [
+  "sales_retail",
+  "medical_clinic",
+  "spa_beauty",
+  "travel_agency",
+  "real_estate",
+  "workshop_service",
+  "professional_services",
+  "other",
+];
 
 export async function GET() {
   try {
@@ -63,6 +75,7 @@ export async function PATCH(request: Request) {
       name?: unknown;
       hot_lead_alert_minutes?: unknown;
       timezone?: unknown;
+      business_vertical?: unknown;
     } | null;
 
     const update: Record<string, unknown> = {};
@@ -120,6 +133,17 @@ export async function PATCH(request: Request) {
       update.timezone = raw;
     }
 
+    if (body && "business_vertical" in body) {
+      const raw = body.business_vertical;
+      if (raw !== null && !BUSINESS_VERTICALS.includes(raw as BusinessVertical)) {
+        return NextResponse.json(
+          { error: `'business_vertical' must be one of: ${BUSINESS_VERTICALS.join(", ")}, or null` },
+          { status: 400 },
+        );
+      }
+      update.business_vertical = raw;
+    }
+
     if (Object.keys(update).length === 0) {
       return NextResponse.json(
         { error: "Nothing to update" },
@@ -134,7 +158,7 @@ export async function PATCH(request: Request) {
       .from("accounts")
       .update(update)
       .eq("id", ctx.accountId)
-      .select("id, name, hot_lead_alert_minutes, timezone")
+      .select("id, name, hot_lead_alert_minutes, timezone, business_vertical")
       .single();
 
     if (error) {

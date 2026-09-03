@@ -26,7 +26,9 @@
     "signingIn": "Entrando...",
     "signIn": "Entrar",
     "noAccount": "Ainda não tem uma conta?",
-    "createAccount": "Crie uma grátis"
+    "createAccount": "Crie uma grátis",
+    "continueWithGoogle": "Continuar com o Google",
+    "orDivider": "ou"
   },
   "Sidebar": {
     "title": "Saleslid",
@@ -1831,7 +1833,19 @@
       "disconnectError": "Não foi possível desconectar. Tente novamente.",
       "disconnectPartial": "Desconectado aqui, mas não foi possível contatar a Zernio para revogar também lá — verifique o painel da Zernio.",
       "manage": "Gerenciar",
-      "whatsappApiHint": "Conecte com suas próprias credenciais da Meta Cloud API, ou com um provedor de coexistência como o Dualhook."
+      "whatsappApiHint": "Conecte com suas próprias credenciais da Meta Cloud API, ou com um provedor de coexistência como o Dualhook.",
+      "googleCalendar": {
+        "title": "Google Calendar",
+        "description": "Deixe o agente de IA (e a página de Calendário) ler a disponibilidade da sua equipe e criar eventos diretamente no seu Google Calendar.",
+        "hint": "Leia a disponibilidade e crie eventos no seu Google Calendar.",
+        "connect": "Conectar Google Calendar",
+        "connected": "Conectado ✓",
+        "connectedAs": "Conectado como {email}",
+        "disconnectConfirm": "Desconectar o Google Calendar? O agente de IA e a página de Calendário vão parar de sincronizar eventos até você reconectar.",
+        "disconnected": "Google Calendar desconectado.",
+        "disconnectError": "Não foi possível desconectar. Tente novamente.",
+        "toastConnected": "Google Calendar conectado com sucesso."
+      }
     },
     "sections": {
       "overview": "Visão geral",
@@ -2001,6 +2015,9 @@
       "salesModeDesc": "O bot conduz ativamente a venda — qualifica, lida com objeções e move o negócio pelas etapas do pipeline conforme a conversa avança, até fechá-lo. Ainda assim transfere para um humano sempre que o cliente pedir.",
       "aiScheduling": "Agendamento automático",
       "aiSchedulingDesc": "Quando uma resposta assume um compromisso real — \"alguém vai te ligar amanhã às 10\", um horário confirmado para um atendimento — o bot agenda sozinho no Calendário, para que nada dito no chat fique esquecido. Precisa do fuso horário abaixo para calcular a hora certa.",
+      "googleCalendarSync": "Sincronizar com o Google Calendar",
+      "googleCalendarSyncDesc": "O bot lê seus próximos eventos do Google Calendar para evitar marcar compromissos sobrepostos, e também envia para lá qualquer compromisso que agendar.",
+      "googleCalendarSyncNotConnected": "Conecte o Google Calendar em Integrações primeiro para poder ativar isso.",
       "timezoneLabel": "Fuso horário",
       "timezoneHint": "Usado para converter uma hora relativa que o bot promete (\"amanhã às 10\") na hora absoluta correta. Configure corretamente antes de ativar o agendamento automático.",
       "maxAutoReplies": "Máximo de respostas automáticas por conversa",
@@ -2218,7 +2235,9 @@
     "checkEmailDesc": "Enviamos um link de confirmação para {email}. Verifique sua caixa de entrada e clique no link para confirmar sua conta.",
     "backToSignIn": "Voltar para o login",
     "passwordMismatch": "As senhas não coincidem",
-    "passwordTooShort": "A senha deve ter pelo menos 6 caracteres"
+    "passwordTooShort": "A senha deve ter pelo menos 6 caracteres",
+    "continueWithGoogle": "Continuar com o Google",
+    "orDivider": "ou"
   },
   "ForgotPasswordPage": {
     "title": "Redefinir senha",
@@ -2398,6 +2417,20 @@
     "back": "Voltar",
     "next": "Próximo",
     "finish": "Ir para o painel",
+    "businessType": {
+      "title": "Qual é o seu negócio?",
+      "description": "Isso só nos ajuda a ajustar algumas sugestões mais adiante — não te compromete com nada.",
+      "options": {
+        "sales_retail": "Vendas / Varejo",
+        "medical_clinic": "Clínica de saúde (estética, odontológica, médica, veterinária)",
+        "spa_beauty": "Spa / Beleza (salão, barbearia)",
+        "travel_agency": "Agência de viagens",
+        "real_estate": "Imobiliária",
+        "workshop_service": "Oficina / Serviço técnico",
+        "professional_services": "Serviços profissionais / Consultoria",
+        "other": "Outro"
+      }
+    },
     "whatsapp": {
       "title": "Conecte seu WhatsApp",
       "description": "Sua caixa de entrada, disparos e respostas com IA dependem dessa conexão — nada funciona até você configurá-la."
@@ -2410,6 +2443,11 @@
     "ai": {
       "title": "Qualificação de leads com IA",
       "description": "Opcional — classifica automaticamente cada conversa como HOT, WARM ou COLD. Você pode configurar isso depois em Configurações, se preferir pular por agora."
+    },
+    "calendar": {
+      "title": "Conecte o Google Calendar",
+      "description": "Opcional — negócios como o seu costumam funcionar com agendamentos. Conecte o Google Calendar para o agente de IA verificar disponibilidade e agendar por você.",
+      "body": "Como você nos disse que seu negócio é do tipo {vertical}, geralmente vale a pena conectar — você sempre pode fazer isso depois em Configurações."
     },
     "invite": {
       "title": "Convide sua equipe",

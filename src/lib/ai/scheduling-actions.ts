@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { CalendarEventType } from '@/types'
 import { localDateTimeToUtcIso } from './timezone'
 import { resolveProfileId } from './profile-id'
+import { syncEventToGoogle } from '@/lib/calendar/google-sync'
 
 // ============================================================
 // Applies the [[SCHEDULE:...]] sentinel the AI auto-reply bot emitted
@@ -49,6 +50,11 @@ export async function applyScheduledEvent(
     localDateTime: string
     type: CalendarEventType
     title: string
+    /** `ai_configs.google_calendar_sync_enabled` (migration 071) — when
+     *  true and the account has a Google Calendar connection, the
+     *  event filed below is also pushed there. See
+     *  `src/lib/calendar/google-sync.ts`. */
+    googleCalendarSyncEnabled: boolean
   },
 ): Promise<void> {
   const {
@@ -60,6 +66,7 @@ export async function applyScheduledEvent(
     localDateTime,
     type,
     title,
+    googleCalendarSyncEnabled,
   } = args
 
   try {
@@ -101,21 +108,39 @@ export async function applyScheduledEvent(
     }
     if (existing) return
 
-    const { error: insertErr } = await db.from('calendar_events').insert({
-      account_id: accountId,
-      created_by: createdBy,
-      assigned_to: assignedTo,
-      contact_id: contactId,
-      deal_id: null,
-      type,
-      title: title.slice(0, 200),
-      notes: 'Auto-scheduled by the AI assistant from the conversation.',
-      starts_at: startsAt,
-      ends_at: null,
-      reminder_minutes_before: REMINDER_MINUTES_BEFORE,
-    })
+    const eventTitle = title.slice(0, 200)
+    const eventNotes = 'Auto-scheduled by the AI assistant from the conversation.'
+    const { data: inserted, error: insertErr } = await db
+      .from('calendar_events')
+      .insert({
+        account_id: accountId,
+        created_by: createdBy,
+        assigned_to: assignedTo,
+        contact_id: contactId,
+        deal_id: null,
+        type,
+        title: eventTitle,
+        notes: eventNotes,
+        starts_at: startsAt,
+        ends_at: null,
+        reminder_minutes_before: REMINDER_MINUTES_BEFORE,
+      })
+      .select('id')
+      .single()
     if (insertErr) {
       console.error('[ai scheduling] failed to insert calendar event:', insertErr.message)
+      return
+    }
+
+    if (googleCalendarSyncEnabled) {
+      await syncEventToGoogle(db, accountId, {
+        id: inserted.id,
+        title: eventTitle,
+        notes: eventNotes,
+        starts_at: startsAt,
+        ends_at: null,
+        google_event_id: null,
+      })
     }
   } catch (err) {
     console.error('[ai scheduling] applyScheduledEvent failed:', err)

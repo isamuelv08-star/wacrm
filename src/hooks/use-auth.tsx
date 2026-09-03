@@ -13,6 +13,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import { DEFAULT_CURRENCY } from "@/lib/currency";
+import type { BusinessVertical } from "@/types";
 import {
   canEditSettings as canEditSettingsFor,
   canManageMembers as canManageMembersFor,
@@ -54,6 +55,10 @@ interface AccountSummary {
    *  not per-user — a teammate invited after the owner completes it
    *  never sees the wizard themselves. */
   onboarding_completed_at: string | null;
+  /** Chosen in the first onboarding step (migration 070). Null until
+   *  set — used only to decide whether onboarding suggests connecting
+   *  Google Calendar. */
+  business_vertical: BusinessVertical | null;
 }
 
 interface AuthContextValue {
@@ -190,7 +195,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .from("accounts")
             // default_currency added in migration 021; narrowed to the
             // USD fallback below for older schemas where it reads null.
-            .select("id, name, default_currency, onboarding_completed_at")
+            .select("id, name, default_currency, onboarding_completed_at, business_vertical")
             .eq("id", data.account_id)
             .maybeSingle();
           if (accountErr) {
@@ -206,6 +211,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               name: account.name,
               default_currency: account.default_currency ?? DEFAULT_CURRENCY,
               onboarding_completed_at: account.onboarding_completed_at ?? null,
+              business_vertical: (account.business_vertical as BusinessVertical | null) ?? null,
             };
           }
         }

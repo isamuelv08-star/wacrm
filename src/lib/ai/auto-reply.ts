@@ -8,6 +8,7 @@ import { buildHandoffSummary } from './handoff'
 import { applyLeadScore, ensureDealInQualifiedStage } from './lead-scoring'
 import { applySalesActions, loadDealStageContext } from './sales-actions'
 import { applyScheduledEvent } from './scheduling-actions'
+import { buildCalendarContext } from './calendar-context'
 import { describeNowInZone } from './timezone'
 import { logAiUsage } from './usage'
 import { latestUserMessage } from './query'
@@ -153,6 +154,15 @@ export async function dispatchInboundToAiReply(
       accountTimezone = acct?.timezone ?? 'UTC'
     }
 
+    // Same "only when actually opted in" posture as the timezone
+    // lookup above — an extra Google API round trip on every
+    // auto-reply for accounts that never turned this on would be
+    // pure waste (and pure added latency on the customer-facing send).
+    const calendarContext =
+      config.aiSchedulingEnabled && config.googleCalendarSyncEnabled
+        ? await buildCalendarContext(db, accountId, accountTimezone)
+        : []
+
     const systemPrompt = buildSystemPrompt({
       userPrompt: config.systemPrompt,
       mode: 'auto_reply',
@@ -165,6 +175,7 @@ export async function dispatchInboundToAiReply(
       scheduling: config.aiSchedulingEnabled
         ? { enabled: true, nowLabel: describeNowInZone(accountTimezone) }
         : null,
+      calendarContext,
     })
 
     // "Typing…" while the model generates — reads as someone actually
@@ -253,6 +264,7 @@ export async function dispatchInboundToAiReply(
         localDateTime: schedule.localDateTime,
         type: schedule.type,
         title: schedule.title,
+        googleCalendarSyncEnabled: config.googleCalendarSyncEnabled,
       })
     }
 

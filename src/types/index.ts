@@ -56,6 +56,35 @@ export interface Profile {
 // Account-sharing entities (017_account_sharing.sql)
 // ============================================================
 
+/**
+ * What kind of business this account is (migration 070), chosen in
+ * the first onboarding step. Purely a UX hint — used only to decide
+ * whether onboarding suggests connecting Google Calendar (appointment
+ * -driven verticals) or not; nothing in the backend gates a feature on
+ * it, and any account can connect Google Calendar from Settings
+ * regardless of vertical.
+ */
+export type BusinessVertical =
+  | 'sales_retail'
+  | 'medical_clinic'
+  | 'spa_beauty'
+  | 'travel_agency'
+  | 'real_estate'
+  | 'workshop_service'
+  | 'professional_services'
+  | 'other';
+
+/** Verticals whose businesses run on appointments/bookings — the ones
+ *  onboarding suggests connecting Google Calendar for. */
+export const APPOINTMENT_BASED_VERTICALS: readonly BusinessVertical[] = [
+  'medical_clinic',
+  'spa_beauty',
+  'travel_agency',
+  'real_estate',
+  'workshop_service',
+  'professional_services',
+];
+
 export interface Account {
   id: string;
   name: string;
@@ -67,6 +96,8 @@ export interface Account {
    * notification (migration 040). 0 disables the feature.
    */
   hot_lead_alert_minutes?: number;
+  /** Null until chosen in onboarding (migration 070). */
+  business_vertical?: BusinessVertical | null;
   created_at: string;
   updated_at: string;
 }
@@ -848,6 +879,12 @@ export interface CalendarEvent {
   /** NULL = no reminder configured. */
   reminder_minutes_before?: number | null;
   reminder_sent_at?: string | null;
+  /** Google Calendar event id this row was pushed to (migration 071),
+   *  or null when never synced (no connection, sync disabled, or the
+   *  push failed). Create-only correlation — set once, reused on
+   *  later edits so they update the same Google event instead of
+   *  duplicating it. */
+  google_event_id?: string | null;
   created_at: string;
   updated_at: string;
   /** Hydrated by queries that embed the relation — absent otherwise. */

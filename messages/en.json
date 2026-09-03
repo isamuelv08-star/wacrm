@@ -26,7 +26,9 @@
     "signingIn": "Signing in...",
     "signIn": "Sign in",
     "noAccount": "Don't have an account yet?",
-    "createAccount": "Create one for free"
+    "createAccount": "Create one for free",
+    "continueWithGoogle": "Continue with Google",
+    "orDivider": "or"
   },
   "Sidebar": {
     "title": "Saleslid",
@@ -1831,7 +1833,19 @@
       "disconnectError": "Could not disconnect. Please try again.",
       "disconnectPartial": "Disconnected here, but Zernio could not be reached to revoke it there too — check the Zernio dashboard.",
       "manage": "Manage",
-      "whatsappApiHint": "Connect with your own Meta Cloud API credentials, or a Coexistence provider like Dualhook."
+      "whatsappApiHint": "Connect with your own Meta Cloud API credentials, or a Coexistence provider like Dualhook.",
+      "googleCalendar": {
+        "title": "Google Calendar",
+        "description": "Let the AI agent (and the Calendar page) read your team's availability and create events directly on your Google Calendar.",
+        "hint": "Read availability and create events on your Google Calendar.",
+        "connect": "Connect Google Calendar",
+        "connected": "Connected ✓",
+        "connectedAs": "Connected as {email}",
+        "disconnectConfirm": "Disconnect Google Calendar? The AI agent and the Calendar page will stop syncing events until you reconnect.",
+        "disconnected": "Google Calendar disconnected.",
+        "disconnectError": "Could not disconnect. Please try again.",
+        "toastConnected": "Google Calendar connected successfully."
+      }
     },
     "sections": {
       "overview": "Overview",
@@ -2001,6 +2015,9 @@
       "salesModeDesc": "The bot actively drives the sale — qualifies, handles objections, and moves the deal through the pipeline stages as the conversation progresses, right up to closing it. Still hands off to a human whenever the customer asks for one.",
       "aiScheduling": "Automatic scheduling",
       "aiSchedulingDesc": "When a reply makes a real commitment — \"someone will call you tomorrow at 10\", an appointment confirmed for a specific time — the bot puts it on the Calendar itself, so nothing said in the chat gets forgotten. Needs the timezone below to compute the right time.",
+      "googleCalendarSync": "Sync with Google Calendar",
+      "googleCalendarSyncDesc": "The bot reads your upcoming Google Calendar events to avoid double-booking, and pushes any appointment it schedules there too.",
+      "googleCalendarSyncNotConnected": "Connect Google Calendar from Integrations first to turn this on.",
       "timezoneLabel": "Timezone",
       "timezoneHint": "Used to turn a relative time the bot commits to (\"tomorrow at 10\") into the correct absolute time. Set this correctly before turning automatic scheduling on.",
       "maxAutoReplies": "Max auto-replies per conversation",
@@ -2218,7 +2235,9 @@
     "checkEmailDesc": "We've sent a confirmation link to {email}. Please check your inbox and click the link to verify your account.",
     "backToSignIn": "Back to sign in",
     "passwordMismatch": "Passwords do not match",
-    "passwordTooShort": "Password must be at least 6 characters"
+    "passwordTooShort": "Password must be at least 6 characters",
+    "continueWithGoogle": "Continue with Google",
+    "orDivider": "or"
   },
   "ForgotPasswordPage": {
     "title": "Reset password",
@@ -2398,6 +2417,20 @@
     "back": "Back",
     "next": "Next",
     "finish": "Go to dashboard",
+    "businessType": {
+      "title": "What's your business?",
+      "description": "This just helps us tailor a couple of suggestions later — nothing here locks you into anything.",
+      "options": {
+        "sales_retail": "Sales / Retail",
+        "medical_clinic": "Health clinic (aesthetic, dental, medical, veterinary)",
+        "spa_beauty": "Spa / Beauty (salon, barbershop)",
+        "travel_agency": "Travel agency",
+        "real_estate": "Real estate",
+        "workshop_service": "Workshop / Technical service",
+        "professional_services": "Professional services / Consulting",
+        "other": "Other"
+      }
+    },
     "whatsapp": {
       "title": "Connect WhatsApp",
       "description": "Your inbox, broadcasts, and AI replies all run through this connection — nothing works until it's set up."
@@ -2410,6 +2443,11 @@
     "ai": {
       "title": "AI lead qualification",
       "description": "Optional — automatically score every conversation as HOT, WARM, or COLD. You can set this up later from Settings if you'd rather skip it for now."
+    },
+    "calendar": {
+      "title": "Connect Google Calendar",
+      "description": "Optional — businesses like yours usually run on appointments. Connect Google Calendar so the AI agent can check availability and book them for you.",
+      "body": "Since you told us you run a {vertical} business, this is usually worth connecting — you can always do it later from Settings."
     },
     "invite": {
       "title": "Invite your team",

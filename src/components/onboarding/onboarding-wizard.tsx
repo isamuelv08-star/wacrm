@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { CheckCircle2 } from "lucide-react";
@@ -15,24 +15,65 @@ import {
 } from "@/components/ui/card";
 import { WhatsAppChannelOptions } from "@/components/settings/whatsapp-channel-options";
 import { AiConfig } from "@/components/settings/ai-config";
+import { GoogleCalendarConnect } from "@/components/settings/google-calendar-connect";
 import { InviteMemberDialog } from "@/components/settings/invite-member-dialog";
+import { BusinessTypeStep } from "./business-type-step";
+import { useAuth } from "@/hooks/use-auth";
+import { APPOINTMENT_BASED_VERTICALS, type BusinessVertical } from "@/types";
 
-// Order matters — WhatsApp first because nothing else in the product
-// works without it (inbox/broadcasts/AI auto-reply are all inert with
-// no channel connected). The rest are informational/optional.
-const STEP_KEYS = ["whatsapp", "pipeline", "ai", "invite", "done"] as const;
-type StepKey = (typeof STEP_KEYS)[number];
+// Order matters — business type first (decides whether "calendar"
+// below is shown at all), then WhatsApp because nothing else in the
+// product works without it (inbox/broadcasts/AI auto-reply are all
+// inert with no channel connected). The rest are informational/optional.
+const BASE_STEP_KEYS = ["businessType", "whatsapp", "pipeline", "ai"] as const;
+const TAIL_STEP_KEYS = ["invite", "done"] as const;
+type StepKey =
+  | (typeof BASE_STEP_KEYS)[number]
+  | "calendar"
+  | (typeof TAIL_STEP_KEYS)[number];
 
 export function OnboardingWizard() {
   const t = useTranslations("Onboarding");
   const router = useRouter();
+  const { account } = useAuth();
   const [stepIndex, setStepIndex] = useState(0);
   const [finishing, setFinishing] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [businessVertical, setBusinessVertical] = useState<BusinessVertical | null>(
+    account?.business_vertical ?? null,
+  );
+
+  // "calendar" only shows up for appointment-driven verticals (clinics,
+  // spas, travel agencies, etc. — see APPOINTMENT_BASED_VERTICALS) —
+  // suggesting Google Calendar to a pure sales/retail account would be
+  // noise, not help.
+  const STEP_KEYS: readonly StepKey[] = useMemo(() => {
+    const suggestCalendar =
+      businessVertical !== null && APPOINTMENT_BASED_VERTICALS.includes(businessVertical);
+    return [
+      ...BASE_STEP_KEYS,
+      ...(suggestCalendar ? (["calendar"] as const) : []),
+      ...TAIL_STEP_KEYS,
+    ];
+  }, [businessVertical]);
 
   const step: StepKey = STEP_KEYS[stepIndex];
   const isFirst = stepIndex === 0;
   const isLast = stepIndex === STEP_KEYS.length - 1;
+
+  function handleSelectVertical(vertical: BusinessVertical) {
+    setBusinessVertical(vertical);
+    // Best-effort, fire-and-forget — same posture as the rest of this
+    // wizard (a failed save here just means the vertical stays unset
+    // and Settings never suggested anything special; nothing blocks
+    // on it). Saved immediately rather than only on "Next" so it
+    // sticks even if the user skips the rest of setup right after.
+    void fetch("/api/account", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ business_vertical: vertical }),
+    });
+  }
 
   // Marks the account onboarded and leaves the wizard — used by both
   // "Skip setup" (from any step) and the final step's "Finish" button.
@@ -95,6 +136,10 @@ export function OnboardingWizard() {
           <CardDescription>{t(`${step}.description`)}</CardDescription>
         </CardHeader>
         <CardContent>
+          {step === "businessType" && (
+            <BusinessTypeStep value={businessVertical} onChange={handleSelectVertical} />
+          )}
+
           {step === "whatsapp" && <WhatsAppChannelOptions />}
 
           {step === "pipeline" && (
@@ -107,6 +152,17 @@ export function OnboardingWizard() {
           )}
 
           {step === "ai" && <AiConfig />}
+
+          {step === "calendar" && (
+            <div className="flex flex-col items-start gap-3">
+              <p className="text-sm text-muted-foreground">
+                {t("calendar.body", {
+                  vertical: businessVertical ? t(`businessType.options.${businessVertical}`) : "",
+                })}
+              </p>
+              <GoogleCalendarConnect />
+            </div>
+          )}
 
           {step === "invite" && (
             <div className="flex flex-col items-start gap-3">

@@ -7,13 +7,7 @@ import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
 import { useCan } from '@/hooks/use-can'
-import {
-  cancelEvent,
-  completeEvent,
-  deleteEvent,
-  loadEventsInRange,
-  reopenEvent,
-} from '@/lib/calendar/queries'
+import { completeEvent, loadEventsInRange, reopenEvent } from '@/lib/calendar/queries'
 import type { CalendarEvent, Profile } from '@/types'
 import { MonthGrid } from '@/components/calendar/month-grid'
 import { DayAgenda } from '@/components/calendar/day-agenda'
@@ -138,9 +132,11 @@ export default function CalendarPage() {
   }
 
   async function handleCancel(ev: CalendarEvent) {
-    const db = createClient()
-    const { error } = await cancelEvent(db, ev.id)
-    if (error) {
+    // Routed through the API (unlike complete/reopen above) so
+    // cancelling also removes the linked Google Calendar event, if
+    // any — see src/app/api/calendar/events/[id]/cancel/route.ts.
+    const res = await fetch(`/api/calendar/events/${ev.id}/cancel`, { method: 'POST' })
+    if (!res.ok) {
       toast.error(t('toastActionFailed'))
       return
     }
@@ -148,9 +144,8 @@ export default function CalendarPage() {
   }
 
   async function handleDelete(ev: CalendarEvent) {
-    const db = createClient()
-    const { error } = await deleteEvent(db, ev.id)
-    if (error) {
+    const res = await fetch(`/api/calendar/events/${ev.id}`, { method: 'DELETE' })
+    if (!res.ok) {
       toast.error(t('toastActionFailed'))
       return
     }

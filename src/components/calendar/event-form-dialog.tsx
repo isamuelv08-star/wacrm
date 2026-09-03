@@ -7,12 +7,7 @@ import { Loader2, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
 import { useCan } from '@/hooks/use-can'
-import {
-  createEvent,
-  deleteEvent,
-  updateEvent,
-  type CalendarEventInput,
-} from '@/lib/calendar/queries'
+import type { CalendarEventInput } from '@/lib/calendar/queries'
 import type { CalendarEvent, CalendarEventType, Contact, Deal, Profile } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -202,13 +197,19 @@ export function EventFormDialog({
 
     savingRef.current = true
     setSaving(true)
-    const { error } = event
-      ? await updateEvent(supabase, event.id, input)
-      : await createEvent(supabase, accountId, profile?.id ?? null, input)
+    // Routed through the API (not a direct Supabase client call, unlike
+    // the rest of this file) so the save can also push to the account's
+    // connected Google Calendar server-side — the browser never holds a
+    // Google access token. See src/app/api/calendar/events/*.
+    const res = await fetch(event ? `/api/calendar/events/${event.id}` : '/api/calendar/events', {
+      method: event ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    })
     setSaving(false)
     savingRef.current = false
 
-    if (error) {
+    if (!res.ok) {
       toast.error(event ? t('toastFailedSave') : t('toastFailedCreate'))
       return
     }
@@ -220,9 +221,9 @@ export function EventFormDialog({
   async function handleDelete() {
     if (!event) return
     setDeleting(true)
-    const { error } = await deleteEvent(supabase, event.id)
+    const res = await fetch(`/api/calendar/events/${event.id}`, { method: 'DELETE' })
     setDeleting(false)
-    if (error) {
+    if (!res.ok) {
       toast.error(t('toastFailedDelete'))
       return
     }

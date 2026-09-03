@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { SettingsPanelHead } from './settings-panel-head';
 import { ConnectPlatformButton } from './connect-platform-button';
 import { WhatsAppChannelOptions } from './whatsapp-channel-options';
+import { GoogleCalendarConnect } from './google-calendar-connect';
 import { useAuth } from '@/hooks/use-auth';
 
 /**
@@ -55,6 +56,27 @@ export function IntegrationsPanel() {
     router.replace(`/settings?${params.toString()}`, { scroll: false });
   }, [searchParams, router, t]);
 
+  // Same handling as zernio_* above, for the Google Calendar OAuth
+  // round trip (/api/integrations/google-calendar/callback).
+  const handledGcalRef = useRef(false);
+  useEffect(() => {
+    const connected = searchParams.get('gcal_connected');
+    if (connected === null || handledGcalRef.current) return;
+    handledGcalRef.current = true;
+
+    const error = searchParams.get('gcal_error');
+    if (connected === '1') {
+      toast.success(t('googleCalendar.toastConnected'));
+    } else {
+      toast.error(error || t('toastFailedGeneric'));
+    }
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('gcal_connected');
+    params.delete('gcal_error');
+    router.replace(`/settings?${params.toString()}`, { scroll: false });
+  }, [searchParams, router, t]);
+
   return (
     <section className="animate-in fade-in-50 duration-200">
       <SettingsPanelHead title={t('title')} description={t('description')} />
@@ -77,6 +99,24 @@ export function IntegrationsPanel() {
             {accountId ? (
               <ConnectPlatformButton platform="instagram" profileId={accountId} />
             ) : null}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-4">
+        <CardHeader>
+          <CardTitle className="text-foreground">{t('googleCalendar.title')}</CardTitle>
+          <CardDescription className="text-muted-foreground">
+            {t('googleCalendar.description')}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-4">
+            <div>
+              <p className="text-sm font-medium text-foreground">{t('googleCalendar.title')}</p>
+              <p className="text-xs text-muted-foreground">{t('googleCalendar.hint')}</p>
+            </div>
+            <GoogleCalendarConnect />
           </div>
         </CardContent>
       </Card>

@@ -55,6 +55,7 @@ function aiConfig(overrides: Partial<AiConfig> = {}): AiConfig {
     autoReplyEnabled: false,
     salesModeEnabled: false,
     aiSchedulingEnabled: false,
+    googleCalendarSyncEnabled: false,
     autoReplyMaxPerConversation: 3,
     handoffAgentId: null,
     leadAutoAssignEnabled: false,

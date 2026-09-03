@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Sparkles, CheckCircle2, Trash2, Eye, EyeOff, Flame, Handshake, CalendarClock, Users } from 'lucide-react';
+import { Loader2, Sparkles, CheckCircle2, Trash2, Eye, EyeOff, Flame, Handshake, CalendarClock, Users, CalendarCheck2 } from 'lucide-react';
 import { listTimezones } from '@/lib/timezone-list';
 import { useAuth } from '@/hooks/use-auth';
 import { canEditSettings } from '@/lib/auth/roles';
@@ -89,6 +89,13 @@ export function AiConfig() {
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(false);
   const [salesModeEnabled, setSalesModeEnabled] = useState(false);
   const [aiSchedulingEnabled, setAiSchedulingEnabled] = useState(false);
+  const [googleCalendarSyncEnabled, setGoogleCalendarSyncEnabled] = useState(false);
+  // Whether the account has an active Google Calendar connection
+  // (Settings → Integrations) — gates the sync switch below, since
+  // there's nothing to sync to without one. Independent fetch from
+  // ai_configs, mirrors the "load once per account" ref pattern used
+  // for hotLeadAlertMinutes/timezone below.
+  const [googleCalendarConnected, setGoogleCalendarConnected] = useState(false);
   const [leadAutoAssignEnabled, setLeadAutoAssignEnabled] = useState(false);
   // null = "never stop responding" (migration 047).
   const [maxPerConversation, setMaxPerConversation] = useState<number | null>(3);
@@ -140,6 +147,7 @@ export function AiConfig() {
         setAutoReplyEnabled(data.auto_reply_enabled);
         setSalesModeEnabled(Boolean(data.sales_mode_enabled));
         setAiSchedulingEnabled(Boolean(data.ai_scheduling_enabled));
+        setGoogleCalendarSyncEnabled(Boolean(data.google_calendar_sync_enabled));
         setLeadAutoAssignEnabled(Boolean(data.lead_auto_assign_enabled));
         // The stored value is a number, or null ("never stop") — only an
         // absent key (older/partial payload) should fall back to the
@@ -190,16 +198,27 @@ export function AiConfig() {
     }
   }, []);
 
+  const fetchGoogleCalendarStatus = useCallback(async () => {
+    try {
+      const res = await fetch('/api/integrations/google-calendar');
+      const data = await res.json();
+      setGoogleCalendarConnected(res.ok && Boolean(data.connected));
+    } catch {
+      setGoogleCalendarConnected(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!accountId || loadedAccountIdRef.current === accountId) return;
     loadedAccountIdRef.current = accountId;
     void fetchConfig();
     void fetchHotLeadAlertMinutes();
+    void fetchGoogleCalendarStatus();
     // Members populate the handoff-target picker. Best-effort — on an
     // older deployment without the endpoint the picker just shows the
     // queue option.
     void fetchAccountMembers().then(setMembers);
-  }, [accountId, fetchConfig, fetchHotLeadAlertMinutes]);
+  }, [accountId, fetchConfig, fetchHotLeadAlertMinutes, fetchGoogleCalendarStatus]);
 
   // Swap the model default when the provider changes, unless the user
   // typed a custom model.
@@ -235,6 +254,7 @@ export function AiConfig() {
     auto_reply_enabled: autoReplyEnabled,
     sales_mode_enabled: salesModeEnabled,
     ai_scheduling_enabled: aiSchedulingEnabled,
+    google_calendar_sync_enabled: googleCalendarSyncEnabled,
     lead_auto_assign_enabled: leadAutoAssignEnabled,
     auto_reply_max_per_conversation: maxPerConversation,
     auto_resume_after_minutes: autoResumeAfterMinutes,
@@ -336,6 +356,7 @@ export function AiConfig() {
         setAutoReplyEnabled(false);
         setSalesModeEnabled(false);
         setAiSchedulingEnabled(false);
+        setGoogleCalendarSyncEnabled(false);
         setSystemPrompt('');
         setHandoffAgentId('');
       } else {
@@ -637,6 +658,25 @@ export function AiConfig() {
                 disabled={disabled || !autoReplyEnabled}
               />
             </div>
+
+            {aiSchedulingEnabled && (
+              <div className="flex items-center justify-between gap-4 rounded-md border border-border p-3">
+                <div>
+                  <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                    <CalendarCheck2 className="h-3.5 w-3.5 text-primary" />
+                    {t('googleCalendarSync')}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {googleCalendarConnected ? t('googleCalendarSyncDesc') : t('googleCalendarSyncNotConnected')}
+                  </p>
+                </div>
+                <Switch
+                  checked={googleCalendarSyncEnabled}
+                  onCheckedChange={setGoogleCalendarSyncEnabled}
+                  disabled={disabled || !googleCalendarConnected}
+                />
+              </div>
+            )}
 
             {aiSchedulingEnabled && (
               <div className="space-y-2">

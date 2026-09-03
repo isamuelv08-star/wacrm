@@ -12,6 +12,7 @@ interface AiConfigRow {
   auto_reply_enabled: boolean
   sales_mode_enabled: boolean
   ai_scheduling_enabled: boolean
+  google_calendar_sync_enabled: boolean
   auto_reply_max_per_conversation: number | null
   handoff_agent_id: string | null
   lead_auto_assign_enabled: boolean
@@ -20,7 +21,7 @@ interface AiConfigRow {
 }
 
 const CONFIG_COLUMNS =
-  'provider, model, api_key, system_prompt, qualification_criteria, is_active, auto_reply_enabled, sales_mode_enabled, ai_scheduling_enabled, auto_reply_max_per_conversation, handoff_agent_id, lead_auto_assign_enabled, embeddings_api_key, transcription_api_key'
+  'provider, model, api_key, system_prompt, qualification_criteria, is_active, auto_reply_enabled, sales_mode_enabled, ai_scheduling_enabled, google_calendar_sync_enabled, auto_reply_max_per_conversation, handoff_agent_id, lead_auto_assign_enabled, embeddings_api_key, transcription_api_key'
 
 /**
  * Load and decrypt the account's AI config for *use* (draft or
@@ -99,6 +100,7 @@ export async function loadAiConfig(
     autoReplyEnabled: row.auto_reply_enabled,
     salesModeEnabled: row.sales_mode_enabled,
     aiSchedulingEnabled: row.ai_scheduling_enabled,
+    googleCalendarSyncEnabled: row.google_calendar_sync_enabled,
     autoReplyMaxPerConversation: row.auto_reply_max_per_conversation,
     handoffAgentId: row.handoff_agent_id,
     leadAutoAssignEnabled: row.lead_auto_assign_enabled,

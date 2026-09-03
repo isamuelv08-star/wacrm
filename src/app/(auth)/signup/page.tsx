@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CheckCircle } from "lucide-react";
 import { AuthSplitShell, AUTH_ACCENT } from "@/components/auth/auth-split-shell";
+import { GoogleAuthButton } from "@/components/auth/google-auth-button";
 
 // `useSearchParams` opts the component out of static prerendering
 // unless wrapped in Suspense — same pattern as /login.
@@ -134,7 +135,19 @@ function SignupPageInner() {
         {inviteToken ? t("descInvite") : t("desc")}
       </p>
 
-      <form onSubmit={handleSignup} className="mt-8 flex flex-col gap-4">
+      <div className="mt-8">
+        <GoogleAuthButton
+          label={t("continueWithGoogle")}
+          next={inviteToken ? `/join/${encodeURIComponent(inviteToken)}` : "/dashboard"}
+        />
+        <div className="my-4 flex items-center gap-3 text-xs text-muted-foreground">
+          <div className="h-px flex-1 bg-border" />
+          {t("orDivider")}
+          <div className="h-px flex-1 bg-border" />
+        </div>
+      </div>
+
+      <form onSubmit={handleSignup} className="flex flex-col gap-4">
         {error && (
           <div
             role="alert"

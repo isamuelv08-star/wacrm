@@ -70,6 +70,17 @@ export interface AiConfig {
    * driving the conversation uninterrupted either way.
    */
   leadAutoAssignEnabled: boolean
+  /**
+   * Opt-in extension of `aiSchedulingEnabled` (migration 071): when
+   * true AND a Google Calendar connection exists for the account, the
+   * bot's system prompt is given a short readout of upcoming Google
+   * Calendar events (see `calendarContext` in `buildSystemPrompt`),
+   * and any `[[SCHEDULE:...]]` commitment it files also gets pushed to
+   * Google (`scheduling-actions.ts` → `syncEventToGoogle`). Independent
+   * of whether Google Calendar is connected at all — this only decides
+   * whether an existing connection is actually used by the AI.
+   */
+  googleCalendarSyncEnabled: boolean
   /** Optional OpenAI-compatible key for embeddings. When set, the
    *  knowledge base is embedded and semantic retrieval turns on; when
    *  null, retrieval falls back to lexical full-text search. */
