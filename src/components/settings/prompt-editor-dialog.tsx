@@ -71,14 +71,25 @@ export function PromptEditorDialog({
           {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
 
-        <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto lg:grid-cols-[1fr_260px]">
+        {/* `grid-cols-1` at the base is load-bearing: with only the
+            `lg:` column definition, a viewport (or dialog) narrower
+            than that breakpoint left the grid with NO explicit
+            columns, so the browser fell back to sizing the textarea's
+            track to its shrink-to-fit min-content — a couple of
+            characters wide — instead of stretching it. Every line
+            wrapped after 1-2 letters as a result. `min-w-0` on the
+            textarea itself is the usual second half of this fix: a
+            grid/flex item's default `min-width: auto` otherwise still
+            refuses to shrink the column below the textarea's own
+            preferred width once real content is typed. */}
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto lg:grid-cols-[1fr_260px]">
           <Textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder={placeholder}
             disabled={readOnly}
             rows={16}
-            className="min-h-[320px] resize-y lg:min-h-[400px]"
+            className="min-h-[320px] w-full min-w-0 resize-y lg:min-h-[400px]"
             autoFocus
           />
           <div className="shrink-0 space-y-2 rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">

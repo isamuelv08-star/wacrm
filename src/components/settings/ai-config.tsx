@@ -2,14 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Sparkles, CheckCircle2, Trash2, Eye, EyeOff, Flame, Handshake, CalendarClock, Users, CalendarCheck2, ImagePlus } from 'lucide-react';
+import { Loader2, Sparkles, CheckCircle2, Trash2, Eye, EyeOff, Flame, Handshake, CalendarClock, Users, CalendarCheck2, ImagePlus, MessageSquareText, Target } from 'lucide-react';
 import { listTimezones } from '@/lib/timezone-list';
 import { useAuth } from '@/hooks/use-auth';
 import { canEditSettings } from '@/lib/auth/roles';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { PromptEditorDialog } from './prompt-editor-dialog';
+import { PromptCard } from './prompt-card';
 import { Switch } from '@/components/ui/switch';
 import {
   Card,
@@ -85,11 +85,6 @@ export function AiConfig() {
   const [transcriptionKeyEdited, setTranscriptionKeyEdited] = useState(false);
   const [hasStoredTranscriptionKey, setHasStoredTranscriptionKey] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState('');
-  // Both long free-text fields open in a floating editor (PromptEditorDialog)
-  // instead of an always-expanded inline textarea — a long prompt used to
-  // blow up this whole page's height.
-  const [promptDialogOpen, setPromptDialogOpen] = useState(false);
-  const [criteriaDialogOpen, setCriteriaDialogOpen] = useState(false);
   const [qualificationCriteria, setQualificationCriteria] = useState('');
   const [isActive, setIsActive] = useState(false);
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(false);
@@ -565,55 +560,65 @@ export function AiConfig() {
           </CardContent>
         </Card>
 
+        <div className="grid gap-4 lg:grid-cols-2">
+          <PromptCard
+            icon={MessageSquareText}
+            title={t('businessContext')}
+            description={t('behaviourDesc')}
+            value={systemPrompt}
+            onSave={setSystemPrompt}
+            placeholder={t('promptPlaceholder')}
+            emptyLabel={t('promptEmpty')}
+            addLabel={t('addPrompt')}
+            editLabel={t('editPrompt')}
+            dialogDescription={t('promptDialogDesc')}
+            guideTitle={t('promptGuideTitle')}
+            guideItems={[
+              t('promptGuideItem1'),
+              t('promptGuideItem2'),
+              t('promptGuideItem3'),
+              t('promptGuideItem4'),
+              t('promptGuideItem5'),
+              t('promptGuideItem6'),
+            ]}
+            saveLabel={t('save')}
+            cancelLabel={t('cancel')}
+            disabled={disabled}
+          />
+
+          <PromptCard
+            icon={Target}
+            title={t('qualificationCriteria')}
+            description={t('qualificationCriteriaCardDesc')}
+            value={qualificationCriteria}
+            onSave={setQualificationCriteria}
+            placeholder={t('qualificationCriteriaPlaceholder')}
+            emptyLabel={t('criteriaEmpty')}
+            addLabel={t('addPrompt')}
+            editLabel={t('editPrompt')}
+            dialogDescription={t('criteriaDialogDesc')}
+            guideTitle={t('criteriaGuideTitle')}
+            guideItems={[
+              t('criteriaGuideItem1'),
+              t('criteriaGuideItem2'),
+              t('criteriaGuideItem3'),
+              t('criteriaGuideItem4'),
+            ]}
+            saveLabel={t('save')}
+            cancelLabel={t('cancel')}
+            hint={t('qualificationCriteriaHint')}
+            disabled={disabled}
+          />
+        </div>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-base">{t('behaviour')}</CardTitle>
             <CardDescription>
-              {t('behaviourDesc')}
+              {t('behaviourSwitchesDesc')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>{t('businessContext')}</Label>
-              <button
-                type="button"
-                onClick={() => setPromptDialogOpen(true)}
-                disabled={disabled}
-                className="flex w-full items-start justify-between gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <span
-                  className={`line-clamp-2 flex-1 ${systemPrompt ? 'text-foreground' : 'italic text-muted-foreground'}`}
-                >
-                  {systemPrompt || t('promptEmpty')}
-                </span>
-                <span className="shrink-0 text-xs font-medium text-primary">
-                  {systemPrompt ? t('editPrompt') : t('addPrompt')}
-                </span>
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              <Label>{t('qualificationCriteria')}</Label>
-              <button
-                type="button"
-                onClick={() => setCriteriaDialogOpen(true)}
-                disabled={disabled}
-                className="flex w-full items-start justify-between gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <span
-                  className={`line-clamp-2 flex-1 ${qualificationCriteria ? 'text-foreground' : 'italic text-muted-foreground'}`}
-                >
-                  {qualificationCriteria || t('criteriaEmpty')}
-                </span>
-                <span className="shrink-0 text-xs font-medium text-primary">
-                  {qualificationCriteria ? t('editPrompt') : t('addPrompt')}
-                </span>
-              </button>
-              <p className="text-xs text-muted-foreground">
-                {t('qualificationCriteriaHint')}
-              </p>
-            </div>
-
             <div className="flex items-center justify-between gap-4 rounded-md border border-border p-3">
               <div>
                 <p className="text-sm font-medium text-foreground">
@@ -934,48 +939,6 @@ export function AiConfig() {
 
           <AiMediaLibraryCard accountId={accountId} canEdit={canEdit} />
         </div>
-
-        <PromptEditorDialog
-          open={promptDialogOpen}
-          onOpenChange={setPromptDialogOpen}
-          title={t('businessContext')}
-          description={t('promptDialogDesc')}
-          value={systemPrompt}
-          onSave={setSystemPrompt}
-          placeholder={t('promptPlaceholder')}
-          guideTitle={t('promptGuideTitle')}
-          guideItems={[
-            t('promptGuideItem1'),
-            t('promptGuideItem2'),
-            t('promptGuideItem3'),
-            t('promptGuideItem4'),
-            t('promptGuideItem5'),
-            t('promptGuideItem6'),
-          ]}
-          saveLabel={t('save')}
-          cancelLabel={t('cancel')}
-          readOnly={disabled}
-        />
-
-        <PromptEditorDialog
-          open={criteriaDialogOpen}
-          onOpenChange={setCriteriaDialogOpen}
-          title={t('qualificationCriteria')}
-          description={t('criteriaDialogDesc')}
-          value={qualificationCriteria}
-          onSave={setQualificationCriteria}
-          placeholder={t('qualificationCriteriaPlaceholder')}
-          guideTitle={t('criteriaGuideTitle')}
-          guideItems={[
-            t('criteriaGuideItem1'),
-            t('criteriaGuideItem2'),
-            t('criteriaGuideItem3'),
-            t('criteriaGuideItem4'),
-          ]}
-          saveLabel={t('save')}
-          cancelLabel={t('cancel')}
-          readOnly={disabled}
-        />
 
         <div className="flex items-center justify-between">
           {configured ? (
