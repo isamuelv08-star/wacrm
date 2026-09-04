@@ -226,6 +226,12 @@ interface SendMediaEngineArgs {
   caption?: string
   /** Document-only; ignored by Meta for image/video. */
   filename?: string
+  /** Marks the persisted message row `ai_generated = true` so the inbox
+   *  badges it as an AI reply — mirrors `engineSendText`'s param. Only
+   *  the auto-reply bot's media-sending sentinel sets this (see
+   *  src/lib/ai/media-actions.ts); deterministic Flow `send_media` nodes
+   *  leave it false. */
+  aiGenerated?: boolean
 }
 
 /**
@@ -331,6 +337,7 @@ export async function engineSendMedia(
     content_text: args.caption ?? null,
     message_id: waMessageId,
     status: 'sent',
+    ai_generated: args.aiGenerated ?? false,
   })
   if (msgErr) {
     throw new Error(`sent to Meta but DB insert failed: ${msgErr.message}`)

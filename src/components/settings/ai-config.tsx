@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Sparkles, CheckCircle2, Trash2, Eye, EyeOff, Flame, Handshake, CalendarClock, Users, CalendarCheck2 } from 'lucide-react';
+import { Loader2, Sparkles, CheckCircle2, Trash2, Eye, EyeOff, Flame, Handshake, CalendarClock, Users, CalendarCheck2, ImagePlus } from 'lucide-react';
 import { listTimezones } from '@/lib/timezone-list';
 import { useAuth } from '@/hooks/use-auth';
 import { canEditSettings } from '@/lib/auth/roles';
@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/select';
 import { SettingsPanelHead } from './settings-panel-head';
 import { AiKnowledgeCard } from './ai-knowledge';
+import { AiMediaLibraryCard } from './ai-media-library';
 import { AI_PROVIDER_DEFAULT_MODEL } from '@/lib/ai/defaults';
 import type { AiProvider } from '@/lib/ai/types';
 import type { AccountMember } from '@/types';
@@ -97,6 +98,7 @@ export function AiConfig() {
   // for hotLeadAlertMinutes/timezone below.
   const [googleCalendarConnected, setGoogleCalendarConnected] = useState(false);
   const [leadAutoAssignEnabled, setLeadAutoAssignEnabled] = useState(false);
+  const [mediaSendingEnabled, setMediaSendingEnabled] = useState(false);
   // null = "never stop responding" (migration 047).
   const [maxPerConversation, setMaxPerConversation] = useState<number | null>(3);
   // null (default) = auto-resume is off — a handoff stays paused until a
@@ -149,6 +151,7 @@ export function AiConfig() {
         setAiSchedulingEnabled(Boolean(data.ai_scheduling_enabled));
         setGoogleCalendarSyncEnabled(Boolean(data.google_calendar_sync_enabled));
         setLeadAutoAssignEnabled(Boolean(data.lead_auto_assign_enabled));
+        setMediaSendingEnabled(Boolean(data.media_sending_enabled));
         // The stored value is a number, or null ("never stop") — only an
         // absent key (older/partial payload) should fall back to the
         // column's own default, so this checks for undefined, not ??.
@@ -255,6 +258,7 @@ export function AiConfig() {
     sales_mode_enabled: salesModeEnabled,
     ai_scheduling_enabled: aiSchedulingEnabled,
     google_calendar_sync_enabled: googleCalendarSyncEnabled,
+    media_sending_enabled: mediaSendingEnabled,
     lead_auto_assign_enabled: leadAutoAssignEnabled,
     auto_reply_max_per_conversation: maxPerConversation,
     auto_resume_after_minutes: autoResumeAfterMinutes,
@@ -357,6 +361,7 @@ export function AiConfig() {
         setSalesModeEnabled(false);
         setAiSchedulingEnabled(false);
         setGoogleCalendarSyncEnabled(false);
+        setMediaSendingEnabled(false);
         setSystemPrompt('');
         setHandoffAgentId('');
       } else {
@@ -817,6 +822,23 @@ export function AiConfig() {
               />
             </div>
 
+            <div className="flex items-center justify-between gap-4 rounded-md border border-border p-3">
+              <div>
+                <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                  <ImagePlus className="h-3.5 w-3.5 text-primary" />
+                  {t('mediaSending')}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t('mediaSendingDesc')}
+                </p>
+              </div>
+              <Switch
+                checked={mediaSendingEnabled}
+                onCheckedChange={setMediaSendingEnabled}
+                disabled={disabled || !autoReplyEnabled}
+              />
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="ai-handoff">{t('handoffTo')}</Label>
               <p className="text-xs text-muted-foreground">
@@ -891,6 +913,8 @@ export function AiConfig() {
               : hasStoredEmbeddingsKey
           }
         />
+
+        <AiMediaLibraryCard accountId={accountId} canEdit={canEdit} />
 
         <div className="flex items-center justify-between">
           {configured ? (

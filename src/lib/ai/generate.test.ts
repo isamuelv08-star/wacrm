@@ -14,6 +14,7 @@ function config(overrides: Partial<AiConfig> = {}): AiConfig {
     salesModeEnabled: false,
     aiSchedulingEnabled: false,
     googleCalendarSyncEnabled: false,
+    mediaSendingEnabled: false,
     autoReplyMaxPerConversation: 3,
     handoffAgentId: null,
     leadAutoAssignEnabled: false,
@@ -57,6 +58,9 @@ describe('parseGeneration', () => {
       dealLost: false,
       summary: null,
       schedule: null,
+      sendMedia: null,
+      contactName: null,
+      dealValue: null,
       usage: null,
     })
   })
@@ -73,6 +77,9 @@ describe('parseGeneration', () => {
       dealLost: false,
       summary: null,
       schedule: null,
+      sendMedia: null,
+      contactName: null,
+      dealValue: null,
       usage: null,
     })
     expect(parseGeneration('Let me get a human [[HANDOFF]]')).toEqual({
@@ -86,6 +93,9 @@ describe('parseGeneration', () => {
       dealLost: false,
       summary: null,
       schedule: null,
+      sendMedia: null,
+      contactName: null,
+      dealValue: null,
       usage: null,
     })
   })
@@ -103,6 +113,9 @@ describe('parseGeneration', () => {
       dealLost: false,
       summary: null,
       schedule: null,
+      sendMedia: null,
+      contactName: null,
+      dealValue: null,
       usage,
     })
   })
@@ -119,6 +132,9 @@ describe('parseGeneration', () => {
       dealLost: false,
       summary: null,
       schedule: null,
+      sendMedia: null,
+      contactName: null,
+      dealValue: null,
       usage: null,
     })
     expect(parseGeneration('Ok, noted. [[score:warm]]')).toEqual({
@@ -132,6 +148,9 @@ describe('parseGeneration', () => {
       dealLost: false,
       summary: null,
       schedule: null,
+      sendMedia: null,
+      contactName: null,
+      dealValue: null,
       usage: null,
     })
   })
@@ -156,6 +175,9 @@ describe('parseGeneration', () => {
       dealLost: false,
       summary: null,
       schedule: null,
+      sendMedia: null,
+      contactName: null,
+      dealValue: null,
       usage: null,
     })
   })
@@ -230,6 +252,61 @@ describe('parseGeneration', () => {
     )
     expect(result.schedule?.type).toBe('meeting')
   })
+
+  it('detects + strips the send-media sentinel', () => {
+    const result = parseGeneration(
+      "Sure, sending you the photo now! [[SEND_MEDIA: foto_llanta_205_55]]",
+    )
+    expect(result.text).toBe('Sure, sending you the photo now!')
+    expect(result.sendMedia).toBe('foto_llanta_205_55')
+  })
+
+  it('lowercases the send-media key', () => {
+    const result = parseGeneration('[[SEND_MEDIA: FOTO_LLANTA]]')
+    expect(result.sendMedia).toBe('foto_llanta')
+  })
+
+  it('returns null sendMedia when the tag is absent', () => {
+    expect(parseGeneration('Just a normal reply.').sendMedia).toBeNull()
+  })
+
+  it('never leaks the send-media tag into the customer-facing text', () => {
+    const result = parseGeneration('Here you go! [[SEND_MEDIA: brochure_2026]]')
+    expect(result.text).not.toContain('SEND_MEDIA')
+    expect(result.text).not.toContain('[[')
+  })
+
+  it('detects + strips the contact-name sentinel', () => {
+    const result = parseGeneration(
+      "Nice to meet you! [[CONTACT_NAME: Maria Fernanda Lopez]]",
+    )
+    expect(result.text).toBe('Nice to meet you!')
+    expect(result.contactName).toBe('Maria Fernanda Lopez')
+  })
+
+  it('returns null contactName when the tag is absent', () => {
+    expect(parseGeneration('Just a normal reply.').contactName).toBeNull()
+  })
+
+  it('never leaks the contact-name tag into the customer-facing text', () => {
+    const result = parseGeneration('Great, Juan! [[CONTACT_NAME: Juan]]')
+    expect(result.text).not.toContain('CONTACT_NAME')
+    expect(result.text).not.toContain('[[')
+  })
+
+  it('detects + strips the deal-value sentinel', () => {
+    const result = parseGeneration('Perfect, that plan is confirmed! [[DEAL_VALUE: 149.99]]')
+    expect(result.text).toBe('Perfect, that plan is confirmed!')
+    expect(result.dealValue).toBe(149.99)
+  })
+
+  it('parses a whole-number deal value with no decimal point', () => {
+    expect(parseGeneration('[[DEAL_VALUE: 1500]]').dealValue).toBe(1500)
+  })
+
+  it('returns null dealValue when the tag is absent', () => {
+    expect(parseGeneration('Just a normal reply.').dealValue).toBeNull()
+  })
 })
 
 describe('generateReply — OpenAI', () => {
@@ -259,6 +336,9 @@ describe('generateReply — OpenAI', () => {
       dealLost: false,
       summary: null,
       schedule: null,
+      sendMedia: null,
+      contactName: null,
+      dealValue: null,
       usage: { promptTokens: 42, completionTokens: 8, totalTokens: 50 },
     })
     const [url, opts] = fetchMock.mock.calls[0]
@@ -326,6 +406,9 @@ describe('generateReply — Anthropic', () => {
       dealLost: false,
       summary: null,
       schedule: null,
+      sendMedia: null,
+      contactName: null,
+      dealValue: null,
       usage: { promptTokens: 30, completionTokens: 6, totalTokens: 36 },
     })
     const [url, opts] = fetchMock.mock.calls[0]

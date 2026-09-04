@@ -7,7 +7,9 @@ import { buildSystemPrompt, splitReplyIntoMessages } from './defaults'
 import { buildHandoffSummary } from './handoff'
 import { applyLeadScore, ensureDealInQualifiedStage } from './lead-scoring'
 import { applySalesActions, loadDealStageContext } from './sales-actions'
+import { applyContactName } from './contact-actions'
 import { applyScheduledEvent } from './scheduling-actions'
+import { applySentMedia } from './media-actions'
 import { buildCalendarContext } from './calendar-context'
 import { describeNowInZone } from './timezone'
 import { logAiUsage } from './usage'
@@ -163,19 +165,48 @@ export async function dispatchInboundToAiReply(
         ? await buildCalendarContext(db, accountId, accountTimezone)
         : []
 
+    // Same "only when opted in" posture — an extra query per auto-reply
+    // for accounts that never turned this on would be pure waste. Empty
+    // catalog degrades to the same no-op as the switch being off:
+    // buildSystemPrompt only adds the [[SEND_MEDIA:...]] instruction
+    // when this array is non-empty.
+    let mediaLibrary: { key: string; description: string }[] = []
+    if (config.mediaSendingEnabled) {
+      const { data: items } = await db
+        .from('ai_media_library')
+        .select('key, description')
+        .eq('account_id', accountId)
+      mediaLibrary = items ?? []
+    }
+
+    // Cheap, single-row lookup — worth doing on every auto-reply (unlike
+    // the opt-in features above) since capturing a name is basic lead
+    // intake, not an extra capability an account has to turn on. Once a
+    // name is on file this stays false forever for this contact, so the
+    // instruction (and this query) only ever matters early in a lead's
+    // lifecycle.
+    const { data: contactRow } = await db
+      .from('contacts')
+      .select('name')
+      .eq('id', contactId)
+      .maybeSingle()
+    const needsContactName = !contactRow?.name?.trim()
+
     const systemPrompt = buildSystemPrompt({
       userPrompt: config.systemPrompt,
       mode: 'auto_reply',
       knowledge,
       qualificationCriteria: config.qualificationCriteria,
       salesMode: config.salesModeEnabled
-        ? { enabled: true, stages: dealContext.stages }
+        ? { enabled: true, stages: dealContext.stages, currency: dealContext.currency }
         : null,
       hasOpenDeal: dealContext.hasOpenDeal,
       scheduling: config.aiSchedulingEnabled
         ? { enabled: true, nowLabel: describeNowInZone(accountTimezone) }
         : null,
       calendarContext,
+      mediaLibrary,
+      needsContactName,
     })
 
     // "Typing…" while the model generates — reads as someone actually
@@ -195,6 +226,9 @@ export async function dispatchInboundToAiReply(
       dealLost,
       summary,
       schedule,
+      sendMedia,
+      contactName,
+      dealValue,
       usage,
     } = await generateReply({
       config,
@@ -238,7 +272,7 @@ export async function dispatchInboundToAiReply(
     // in the same turn ("customer confirmed the order AND wants a
     // human for delivery details"). applySalesActions owns its own
     // try/catch and never throws.
-    if (stageMove || dealWon || dealLost || summary) {
+    if (stageMove || dealWon || dealLost || summary || dealValue != null) {
       await applySalesActions(db, {
         accountId,
         contactId,
@@ -246,7 +280,15 @@ export async function dispatchInboundToAiReply(
         dealWon,
         dealLost,
         summary,
+        dealValue,
       })
+    }
+
+    // Independent of handoff/reply outcome, same as the blocks above —
+    // a customer can state their name in the same turn the bot hands
+    // off. applyContactName owns its own try/catch and never throws.
+    if (contactName) {
+      await applyContactName(db, { contactId, name: contactName })
     }
 
     // Same "independent of handoff/reply outcome" posture as the two
@@ -372,6 +414,20 @@ export async function dispatchInboundToAiReply(
         contactId,
         text: parts[i],
         aiGenerated: true,
+      })
+    }
+
+    // Sent as a follow-up AFTER the text reply, same order a human
+    // texting "sure, sending it now" then attaching the file would use.
+    // applySentMedia owns its own try/catch and never throws.
+    if (config.mediaSendingEnabled && sendMedia) {
+      void signalTyping(db, accountId, conversationId)
+      await applySentMedia(db, {
+        accountId,
+        conversationId,
+        contactId,
+        configOwnerUserId,
+        key: sendMedia,
       })
     }
   } catch (err) {

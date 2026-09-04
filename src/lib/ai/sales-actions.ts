@@ -25,10 +25,13 @@ export async function applySalesActions(
     dealLost: boolean
     /** Raw text from [[SUMMARY:...]], or null if the model didn't emit one. */
     summary: string | null
+    /** Parsed number from [[DEAL_VALUE:...]] (sales mode only), or null
+     *  if the model didn't emit one. */
+    dealValue: number | null
   },
 ): Promise<void> {
-  const { accountId, contactId, stageMove, dealWon, dealLost, summary } = args
-  if (!stageMove && !dealWon && !dealLost && !summary) return
+  const { accountId, contactId, stageMove, dealWon, dealLost, summary, dealValue } = args
+  if (!stageMove && !dealWon && !dealLost && !summary && dealValue == null) return
 
   try {
     const { data: openDeal, error: dealErr } = await db
@@ -81,6 +84,22 @@ export async function applySalesActions(
       update.ai_summary = summary
     }
 
+    // Sanity bound, not a business limit: a model that mis-parsed a
+    // phone number or order id as a price would otherwise silently
+    // overwrite the deal's real value with nonsense. Anything within
+    // this range is trusted as-is — deliberately not clamped, just
+    // rejected outright when clearly wrong, so a genuine (if unusual)
+    // high-ticket sale still goes through.
+    if (dealValue != null) {
+      if (dealValue > 0 && dealValue < 1_000_000_000) {
+        update.value = dealValue
+      } else {
+        console.warn(
+          `[ai sales-actions] model emitted an out-of-range deal value ${dealValue} — ignoring.`,
+        )
+      }
+    }
+
     if (Object.keys(update).length === 0) return
 
     update.updated_at = new Date().toISOString()
@@ -105,25 +124,31 @@ export async function loadDealStageContext(
 ): Promise<{
   hasOpenDeal: boolean
   stages: { name: string; current: boolean }[]
+  /** The open deal's own currency (ISO-4217), or null when there's no
+   *  open deal — fed into `buildSystemPrompt`'s `salesMode.currency` so
+   *  the [[DEAL_VALUE:...]] instruction names the right unit. */
+  currency: string | null
 }> {
   const { accountId, contactId } = args
   try {
     const { data: openDeal, error: dealErr } = await db
       .from('deals')
-      .select('pipeline_id, stage_id')
+      .select('pipeline_id, stage_id, currency')
       .eq('contact_id', contactId)
       .eq('account_id', accountId)
       .eq('status', 'open')
       .limit(1)
       .maybeSingle()
-    if (dealErr || !openDeal) return { hasOpenDeal: false, stages: [] }
+    if (dealErr || !openDeal) return { hasOpenDeal: false, stages: [], currency: null }
 
     const { data: stages, error: stagesErr } = await db
       .from('pipeline_stages')
       .select('id, name')
       .eq('pipeline_id', openDeal.pipeline_id)
       .order('position', { ascending: true })
-    if (stagesErr || !stages) return { hasOpenDeal: true, stages: [] }
+    if (stagesErr || !stages) {
+      return { hasOpenDeal: true, stages: [], currency: openDeal.currency ?? null }
+    }
 
     return {
       hasOpenDeal: true,
@@ -131,9 +156,10 @@ export async function loadDealStageContext(
         name: s.name as string,
         current: s.id === openDeal.stage_id,
       })),
+      currency: openDeal.currency ?? null,
     }
   } catch (err) {
     console.error('[ai sales-actions] loadDealStageContext failed:', err)
-    return { hasOpenDeal: false, stages: [] }
+    return { hasOpenDeal: false, stages: [], currency: null }
   }
 }

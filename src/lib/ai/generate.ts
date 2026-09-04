@@ -16,6 +16,9 @@ import {
   DEAL_LOST_SENTINEL,
   SUMMARY_SENTINEL_PATTERN,
   SCHEDULE_SENTINEL_PATTERN,
+  SEND_MEDIA_SENTINEL_PATTERN,
+  CONTACT_NAME_SENTINEL_PATTERN,
+  DEAL_VALUE_SENTINEL_PATTERN,
   aiRequestTimeoutMs,
 } from './defaults'
 import type { CalendarEventType } from '@/types'
@@ -198,6 +201,15 @@ export function parseGeneration(
       }
     : null
 
+  const sendMediaMatch = raw.match(SEND_MEDIA_SENTINEL_PATTERN)
+  const sendMedia = sendMediaMatch ? sendMediaMatch[1].trim().toLowerCase() : null
+
+  const contactNameMatch = raw.match(CONTACT_NAME_SENTINEL_PATTERN)
+  const contactName = contactNameMatch ? contactNameMatch[1].trim() || null : null
+
+  const dealValueMatch = raw.match(DEAL_VALUE_SENTINEL_PATTERN)
+  const dealValue = dealValueMatch ? Number(dealValueMatch[1]) : null
+
   const text = raw
     .split(HANDOFF_SENTINEL)
     .join('')
@@ -211,6 +223,9 @@ export function parseGeneration(
     .replace(STAGE_SENTINEL_PATTERN, '')
     .replace(SUMMARY_SENTINEL_PATTERN, '')
     .replace(SCHEDULE_SENTINEL_PATTERN, '')
+    .replace(SEND_MEDIA_SENTINEL_PATTERN, '')
+    .replace(CONTACT_NAME_SENTINEL_PATTERN, '')
+    .replace(DEAL_VALUE_SENTINEL_PATTERN, '')
     .trim()
   return {
     text,
@@ -223,6 +238,9 @@ export function parseGeneration(
     dealLost,
     summary,
     schedule,
+    sendMedia,
+    contactName,
+    dealValue,
     usage,
   }
 }

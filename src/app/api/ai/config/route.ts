@@ -30,7 +30,7 @@ export async function GET() {
       // `api_key` is selected only to derive `has_key` — it is stripped
       // out below and never returned to the client.
       .select(
-        'provider, model, system_prompt, qualification_criteria, is_active, auto_reply_enabled, sales_mode_enabled, ai_scheduling_enabled, google_calendar_sync_enabled, auto_reply_max_per_conversation, auto_resume_after_minutes, handoff_agent_id, lead_auto_assign_enabled, api_key, embeddings_api_key, transcription_api_key',
+        'provider, model, system_prompt, qualification_criteria, is_active, auto_reply_enabled, sales_mode_enabled, ai_scheduling_enabled, google_calendar_sync_enabled, media_sending_enabled, auto_reply_max_per_conversation, auto_resume_after_minutes, handoff_agent_id, lead_auto_assign_enabled, api_key, embeddings_api_key, transcription_api_key',
       )
       .eq('account_id', accountId)
       .maybeSingle()
@@ -98,6 +98,7 @@ export async function POST(request: Request) {
     const salesModeEnabled = body.sales_mode_enabled === true
     const aiSchedulingEnabled = body.ai_scheduling_enabled === true
     const googleCalendarSyncEnabled = body.google_calendar_sync_enabled === true
+    const mediaSendingEnabled = body.media_sending_enabled === true
     const leadAutoAssignEnabled = body.lead_auto_assign_enabled === true
 
     // null = "never stop responding" (migration 047), enforced by
@@ -211,6 +212,7 @@ export async function POST(request: Request) {
           salesModeEnabled,
           aiSchedulingEnabled,
           googleCalendarSyncEnabled,
+          mediaSendingEnabled,
           autoReplyMaxPerConversation: maxPer,
           handoffAgentId: null,
           leadAutoAssignEnabled,
@@ -257,6 +259,7 @@ export async function POST(request: Request) {
       sales_mode_enabled: salesModeEnabled,
       ai_scheduling_enabled: aiSchedulingEnabled,
       google_calendar_sync_enabled: googleCalendarSyncEnabled,
+      media_sending_enabled: mediaSendingEnabled,
       lead_auto_assign_enabled: leadAutoAssignEnabled,
       auto_reply_max_per_conversation: maxPer,
       auto_resume_after_minutes: autoResumeAfterMinutes,

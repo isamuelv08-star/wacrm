@@ -81,6 +81,14 @@ export interface AiConfig {
    * whether an existing connection is actually used by the AI.
    */
   googleCalendarSyncEnabled: boolean
+  /**
+   * Opt-in extension of auto-reply (migration 072): when true, the bot
+   * is taught the [[SEND_MEDIA: <key>]] sentinel protocol and may send
+   * a file from the account's curated media catalog as a follow-up
+   * WhatsApp message. See `buildSystemPrompt`'s `mediaLibrary` param
+   * and `media-actions.ts`.
+   */
+  mediaSendingEnabled: boolean
   /** Optional OpenAI-compatible key for embeddings. When set, the
    *  knowledge base is embedded and semantic retrieval turns on; when
    *  null, retrieval falls back to lexical full-text search. */
@@ -170,6 +178,28 @@ export interface GenerateResult {
    * Never present in `text`, never shown to the customer.
    */
   schedule: { localDateTime: string; type: CalendarEventType; title: string } | null
+  /**
+   * The catalog `key` the model asked to send this turn via
+   * [[SEND_MEDIA: <key>]] (media-sending opt-in only), or null when it
+   * didn't emit one. Never present in `text`, never shown to the
+   * customer as literal text — `media-actions.ts` resolves it to the
+   * actual file and sends it as a separate message.
+   */
+  sendMedia: string | null
+  /**
+   * The customer's own name, from [[CONTACT_NAME: <name>]] — emitted
+   * whenever they state it and the contact has none on file yet (see
+   * `buildSystemPrompt`'s `needsContactName`). Null when not emitted.
+   * Never present in `text`, never shown to the customer as literal
+   * text. `contact-actions.ts` persists it to `contacts.name`.
+   */
+  contactName: string | null
+  /**
+   * The deal's new total value from [[DEAL_VALUE: <number>]] (sales
+   * mode only), or null when not emitted. Never present in `text`.
+   * `sales-actions.ts` writes it to the open deal's `value` column.
+   */
+  dealValue: number | null
   /** Provider token usage for this call, or null when unavailable. */
   usage: AiUsage | null
 }
