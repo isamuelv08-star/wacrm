@@ -32,11 +32,24 @@ import {
 // (the account-menu Settings link points at `?tab=integrations`) and can't
 // navigate away. Mirror the login/signup split: a thin wrapper supplies
 // the boundary; the inner component reads the query string.
+//
+// The fallback mirrors DashboardShell's own loading spinner instead of
+// `null` — a blank fallback flashed the whole page to empty for a beat
+// on every navigation into Settings, reading as an internal "reload"
+// even though nothing actually reloaded over the network.
 export default function SettingsPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<SettingsPageFallback />}>
       <SettingsPageInner />
     </Suspense>
+  );
+}
+
+function SettingsPageFallback() {
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+    </div>
   );
 }
 

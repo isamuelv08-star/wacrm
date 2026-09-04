@@ -14,11 +14,23 @@ import type { AutomationStepType, AutomationTriggerType } from "@/types"
 // `useSearchParams` requires a Suspense boundary or the production build
 // bails to CSR and errors out. Thin wrapper supplies it; the inner
 // component reads the `?template=` query string.
+//
+// Fallback mirrors DashboardShell's own spinner instead of `null` — see
+// the same fix in inbox/page.tsx and settings/page.tsx for why a blank
+// fallback reads as an internal "reload".
 export default function NewAutomationPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<NewAutomationPageFallback />}>
       <NewAutomationPageInner />
     </Suspense>
+  )
+}
+
+function NewAutomationPageFallback() {
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+    </div>
   )
 }
 

@@ -266,7 +266,7 @@ export function AiMediaLibraryCard({
      *  keeps the card compact regardless of how long the description
      *  ends up being. */}
     <Dialog open={pendingFile !== null} onOpenChange={(open) => !open && cancelAdd()}>
-        <DialogContent className="flex max-h-[85vh] w-[95vw] max-w-lg flex-col overflow-hidden">
+        <DialogContent className="flex max-h-[85vh] w-[95vw] sm:max-w-lg flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle>{t('addItem')}</DialogTitle>
           </DialogHeader>

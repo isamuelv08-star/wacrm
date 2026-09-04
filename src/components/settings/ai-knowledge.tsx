@@ -313,7 +313,7 @@ export function AiKnowledgeCard({
      *  inline — a long document used to push the rest of the page
      *  down while editing. */}
     <Dialog open={editing !== null} onOpenChange={(open) => !open && cancelEdit()}>
-        <DialogContent className="flex max-h-[85vh] w-[95vw] max-w-2xl flex-col overflow-hidden">
+        <DialogContent className="flex max-h-[85vh] w-[95vw] sm:max-w-2xl flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle>{editing === 'new' ? t('addDoc') : t('editDocHeading')}</DialogTitle>
           </DialogHeader>

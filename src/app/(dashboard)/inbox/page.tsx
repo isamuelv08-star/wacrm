@@ -35,11 +35,27 @@ const CONTACT_PANEL_STORAGE_KEY = "saleslid:inbox:contact-panel-open";
 // `useSearchParams` (the `?c=<id>` deep link below) requires a Suspense
 // boundary or the production build bails to CSR and errors out. Thin
 // wrapper supplies it; the inner component holds all the inbox state.
+//
+// The fallback matches the real layout's outer shell (same sizing, same
+// centered spinner DashboardShell itself uses) instead of `null` — a
+// blank fallback made every navigation into /inbox flash to an empty
+// page for a beat before the real content popped in, which read as an
+// internal "reload" even though no network page load happened. Keeping
+// the same footprint on screen the whole time makes the transition feel
+// continuous instead of a hard swap.
 export default function InboxPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<InboxPageFallback />}>
       <InboxPageInner />
     </Suspense>
+  );
+}
+
+function InboxPageFallback() {
+  return (
+    <div className="-m-4 flex h-[calc(100vh-3.5rem)] flex-col items-center justify-center overflow-hidden sm:-m-6">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+    </div>
   );
 }
 

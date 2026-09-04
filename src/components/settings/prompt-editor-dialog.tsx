@@ -65,7 +65,16 @@ export function PromptEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[85vh] w-[95vw] max-w-3xl flex-col overflow-hidden">
+      {/* `sm:max-w-3xl`, not bare `max-w-3xl`: DialogContent's own base
+          classes already set `sm:max-w-sm`, and tailwind-merge only
+          dedupes classes that share the same responsive variant. An
+          unprefixed `max-w-3xl` here doesn't "win" against `sm:max-w-sm`
+          — both survive the merge, and in the generated stylesheet the
+          `sm:` media-query rule is emitted after the base rule, so it
+          took priority on every screen ≥640px and capped this dialog at
+          384px regardless of what we passed. Matching the variant is
+          what actually lets our value override it. */}
+      <DialogContent className="flex max-h-[85vh] w-[95vw] sm:max-w-3xl flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}
