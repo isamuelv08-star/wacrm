@@ -744,7 +744,9 @@
     "board": {
       "dropDealHere": "여기에 딜을 놓으세요",
       "addDeal": "딜 추가",
-      "pipelineValue": "파이프라인 가치"
+      "pipelineValue": "파이프라인 가치",
+      "expandCards": "전체 카드 보기",
+      "compactCards": "간략한 카드로 보기"
     },
     "card": {
       "noContact": "연락처 없음",

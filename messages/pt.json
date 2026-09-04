@@ -744,7 +744,9 @@
     "board": {
       "dropDealHere": "Solte um negócio aqui",
       "addDeal": "Adicionar Negócio",
-      "pipelineValue": "Valor do pipeline"
+      "pipelineValue": "Valor do pipeline",
+      "expandCards": "Mostrar cartões completos",
+      "compactCards": "Voltar a cartões compactos"
     },
     "card": {
       "noContact": "Sem contato",

@@ -744,7 +744,9 @@
     "board": {
       "dropDealHere": "Drop a deal here",
       "addDeal": "Add Deal",
-      "pipelineValue": "Pipeline value"
+      "pipelineValue": "Pipeline value",
+      "expandCards": "Show full cards",
+      "compactCards": "Collapse to compact cards"
     },
     "card": {
       "noContact": "No contact",

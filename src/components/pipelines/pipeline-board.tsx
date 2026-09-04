@@ -31,6 +31,8 @@ import {
   Target,
   Flag,
   CircleDot,
+  Rows3,
+  Rows4,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
@@ -58,6 +60,14 @@ const STAGE_ICON_MAP: Record<string, LucideIcon> = {
   lost: XCircle,
 };
 const STAGE_ICON_FALLBACKS: LucideIcon[] = [Layers, Target, Flag, CircleDot];
+
+/** Once a column has more leads than this, its cards auto-collapse to
+ *  a dense single-row layout (see DealCard's `compact` prop) — past
+ *  this count, full-size cards push most of the column below the
+ *  fold, which is exactly the "one lead-heavy stage makes the whole
+ *  board scroll forever" problem this solves. The column header gets
+ *  a toggle to force it back to full-size cards on demand. */
+const COMPACT_THRESHOLD = 8;
 
 function stageIconKey(name: string): string {
   const n = name.toLowerCase();
@@ -268,6 +278,13 @@ function StageColumn({
     STAGE_ICON_MAP[iconKey] ??
     STAGE_ICON_FALLBACKS[stage.position % STAGE_ICON_FALLBACKS.length];
 
+  // Auto-compacts past COMPACT_THRESHOLD; the toggle only ever
+  // overrides it back to full-size — there's no manual "force compact"
+  // below the threshold, since that's not the problem being solved.
+  const [forceExpanded, setForceExpanded] = useState(false);
+  const overThreshold = deals.length > COMPACT_THRESHOLD;
+  const isCompact = overThreshold && !forceExpanded;
+
   return (
     // On mobile each column is `w-[85vw]` (with a reasonable min/max)
     // so the next column's edge peeks in — a "there's more here" hint.
@@ -296,16 +313,29 @@ function StageColumn({
             {deals.length}
           </p>
         </div>
-        <span
-          aria-hidden
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-          style={{
-            backgroundColor: `color-mix(in oklch, ${stage.color} 24%, transparent)`,
-            color: stage.color,
-          }}
-        >
-          <StageIcon className="h-[18px] w-[18px]" />
-        </span>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {overThreshold && (
+            <button
+              type="button"
+              onClick={() => setForceExpanded((v) => !v)}
+              title={isCompact ? t("expandCards") : t("compactCards")}
+              aria-label={isCompact ? t("expandCards") : t("compactCards")}
+              className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground dark:hover:bg-white/5"
+            >
+              {isCompact ? <Rows4 className="h-4 w-4" /> : <Rows3 className="h-4 w-4" />}
+            </button>
+          )}
+          <span
+            aria-hidden
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+            style={{
+              backgroundColor: `color-mix(in oklch, ${stage.color} 24%, transparent)`,
+              color: stage.color,
+            }}
+          >
+            <StageIcon className="h-[18px] w-[18px]" />
+          </span>
+        </div>
       </div>
 
       <div
@@ -320,7 +350,9 @@ function StageColumn({
 
       <div
         ref={setNodeRef}
-        className={`mt-3 flex flex-1 flex-col gap-2 rounded-lg transition-all ${
+        className={`mt-3 flex flex-1 flex-col rounded-lg transition-all ${
+          isCompact ? "gap-1" : "gap-2"
+        } ${
           isOver
             ? "bg-primary/5 outline outline-2 outline-dashed outline-primary outline-offset-2"
             : ""
@@ -337,6 +369,7 @@ function StageColumn({
               deal={deal}
               stage={stage}
               onEdit={onEditDeal}
+              compact={isCompact}
               conversationStaleness={
                 deal.contact_id ? conversationStaleness?.get(deal.contact_id) : undefined
               }
@@ -362,11 +395,13 @@ function DraggableDealCard({
   deal,
   stage,
   onEdit,
+  compact,
   conversationStaleness,
 }: {
   deal: Deal;
   stage: PipelineStage;
   onEdit: (deal: Deal) => void;
+  compact?: boolean;
   conversationStaleness?: ConversationStaleness;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -384,6 +419,7 @@ function DraggableDealCard({
         deal={deal}
         stage={stage}
         onEdit={onEdit}
+        compact={compact}
         conversationStaleness={conversationStaleness}
       />
     </div>

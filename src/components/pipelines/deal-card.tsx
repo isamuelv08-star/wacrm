@@ -21,6 +21,10 @@ interface DealCardProps {
   isOverlay?: boolean;
   /** Drives the "cooling off" badge — omit to render the card without one. */
   conversationStaleness?: ConversationStaleness;
+  /** Collapses the card to a single dense row (avatar, name, value) —
+   *  used once a column has enough leads that full cards would push
+   *  most of them below the fold. See StageColumn's COMPACT_THRESHOLD. */
+  compact?: boolean;
 }
 
 function formatDate(dateStr: string) {
@@ -43,9 +47,48 @@ export function DealCard({
   onEdit,
   isOverlay,
   conversationStaleness,
+  compact,
 }: DealCardProps) {
   const t = useTranslations("Pipelines.card");
   const assigneeLabel = deal.assignee?.full_name || null;
+
+  if (compact) {
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          if (isOverlay) return;
+          e.stopPropagation();
+          onEdit(deal);
+        }}
+        title={deal.title}
+        className={`group relative flex w-full items-center gap-2 rounded-xl border border-border/50 bg-muted/70 py-1.5 pl-3 pr-2.5 text-left shadow-sm transition-all ${
+          isOverlay ? "shadow-xl" : "hover:border-border hover:bg-muted hover:shadow-md"
+        }`}
+      >
+        <span
+          aria-hidden
+          className="absolute left-0 top-0 h-full w-1 rounded-l-xl"
+          style={{ backgroundColor: stage?.color ?? "#94a3b8" }}
+        />
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[9px] font-semibold text-foreground">
+          {initials(deal.contact?.name, deal.contact?.phone)}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
+          {deal.title}
+        </span>
+        {deal.status === "won" && (
+          <Check className="h-3 w-3 shrink-0 text-primary" aria-label={t("won")} />
+        )}
+        {deal.status === "lost" && (
+          <X className="h-3 w-3 shrink-0 text-red-400" aria-label={t("lost")} />
+        )}
+        <span className="shrink-0 text-xs font-bold text-primary">
+          {formatCurrency(deal.value, deal.currency)}
+        </span>
+      </button>
+    );
+  }
 
   return (
     <button
