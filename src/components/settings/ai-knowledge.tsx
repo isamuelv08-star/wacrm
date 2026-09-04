@@ -14,6 +14,13 @@ import {
   CardTitle,
   CardDescription,
 } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useTranslations } from 'next-intl';
 
 interface DocSummary {
@@ -190,6 +197,7 @@ export function AiKnowledgeCard({
   };
 
   return (
+    <>
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
@@ -208,7 +216,7 @@ export function AiKnowledgeCard({
           </div>
         ) : (
           <>
-            {docs.length === 0 && editing === null && (
+            {docs.length === 0 && (
               <p className="text-sm text-muted-foreground">
                 {t('noDocs')}
               </p>
@@ -251,89 +259,99 @@ export function AiKnowledgeCard({
               </ul>
             )}
 
-            {editing !== null ? (
-              <div className="space-y-3 rounded-md border border-border p-3">
-                <div className="space-y-2">
-                  <Label htmlFor="kb-title">{t('editDocTitle')}</Label>
-                  <Input
-                    id="kb-title"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder={t('editDocTitlePlaceholder')}
-                    disabled={saving}
+            {canEdit && (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={openNew}>
+                    <Plus className="mr-2 h-4 w-4" /> {t('addDoc')}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={pickPdf}
+                    disabled={uploading}
+                  >
+                    {uploading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <FileUp className="mr-2 h-4 w-4" />
+                    )}
+                    {t('uploadPdf')}
+                  </Button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    className="hidden"
+                    onChange={(e) => void uploadPdf(e)}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="kb-content">{t('editDocContent')}</Label>
-                  <Textarea
-                    id="kb-content"
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    placeholder={t('editDocContentPlaceholder')}
-                    rows={8}
-                    disabled={saving}
-                  />
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button variant="ghost" onClick={cancelEdit} disabled={saving}>
-                    {t('cancel')}
+                {hasEmbeddingsKey && docs.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={reindex}
+                    disabled={reindexing}
+                    title={t('reindexTooltip')}
+                  >
+                    {reindexing ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                    )}
+                    {t('reindex')}
                   </Button>
-                  <Button onClick={save} disabled={saving}>
-                    {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {t('saveDoc')}
-                  </Button>
-                </div>
+                )}
               </div>
-            ) : (
-              canEdit && (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={openNew}>
-                      <Plus className="mr-2 h-4 w-4" /> {t('addDoc')}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={pickPdf}
-                      disabled={uploading}
-                    >
-                      {uploading ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <FileUp className="mr-2 h-4 w-4" />
-                      )}
-                      {t('uploadPdf')}
-                    </Button>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="application/pdf,.pdf"
-                      className="hidden"
-                      onChange={(e) => void uploadPdf(e)}
-                    />
-                  </div>
-                  {hasEmbeddingsKey && docs.length > 0 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={reindex}
-                      disabled={reindexing}
-                      title={t('reindexTooltip')}
-                    >
-                      {reindexing ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <RefreshCw className="mr-2 h-4 w-4" />
-                      )}
-                      {t('reindex')}
-                    </Button>
-                  )}
-                </div>
-              )
             )}
           </>
         )}
       </CardContent>
     </Card>
+
+    {/* Add/edit opens in a floating dialog instead of expanding
+     *  inline — a long document used to push the rest of the page
+     *  down while editing. */}
+    <Dialog open={editing !== null} onOpenChange={(open) => !open && cancelEdit()}>
+        <DialogContent className="flex max-h-[85vh] w-[95vw] max-w-2xl flex-col overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>{editing === 'new' ? t('addDoc') : t('editDocHeading')}</DialogTitle>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
+            <div className="space-y-2">
+              <Label htmlFor="kb-title">{t('editDocTitle')}</Label>
+              <Input
+                id="kb-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder={t('editDocTitlePlaceholder')}
+                disabled={saving}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="kb-content">{t('editDocContent')}</Label>
+              <Textarea
+                id="kb-content"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder={t('editDocContentPlaceholder')}
+                rows={12}
+                className="min-h-[240px] resize-y"
+                disabled={saving}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={cancelEdit} disabled={saving}>
+              {t('cancel')}
+            </Button>
+            <Button onClick={save} disabled={saving}>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t('saveDoc')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

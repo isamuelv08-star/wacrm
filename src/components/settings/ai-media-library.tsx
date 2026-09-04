@@ -14,6 +14,13 @@ import {
   CardTitle,
   CardDescription,
 } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useTranslations } from 'next-intl';
 import { uploadAccountMedia, deleteAccountMedia, MEDIA_MAX_BYTES_BY_KIND } from '@/lib/storage/upload-media';
 
@@ -181,6 +188,7 @@ export function AiMediaLibraryCard({
   };
 
   return (
+    <>
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
@@ -195,7 +203,7 @@ export function AiMediaLibraryCard({
           </div>
         ) : (
           <>
-            {items.length === 0 && !pendingFile && (
+            {items.length === 0 && (
               <p className="text-sm text-muted-foreground">{t('noItems')}</p>
             )}
 
@@ -235,55 +243,7 @@ export function AiMediaLibraryCard({
               </ul>
             )}
 
-            {canEdit && pendingFile && (
-              <div className="space-y-3 rounded-md border border-border p-3">
-                <p className="truncate text-xs text-muted-foreground">
-                  {t('selectedFile', { name: pendingFile.name })}
-                </p>
-                <div className="space-y-2">
-                  <Label htmlFor="media-key">{t('keyLabel')}</Label>
-                  <Input
-                    id="media-key"
-                    value={key}
-                    onChange={(e) => setKey(slugifyKey(e.target.value))}
-                    disabled={saving}
-                  />
-                  <p className="text-xs text-muted-foreground">{t('keyHint')}</p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="media-title">{t('titleLabel')}</Label>
-                  <Input
-                    id="media-title"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    disabled={saving}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="media-description">{t('descriptionLabel')}</Label>
-                  <Textarea
-                    id="media-description"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder={t('descriptionPlaceholder')}
-                    rows={2}
-                    disabled={saving}
-                  />
-                  <p className="text-xs text-muted-foreground">{t('descriptionHint')}</p>
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button variant="ghost" onClick={cancelAdd} disabled={saving}>
-                    {t('cancel')}
-                  </Button>
-                  <Button onClick={save} disabled={saving}>
-                    {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {t('save')}
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {canEdit && !pendingFile && (
+            {canEdit && (
               <div>
                 <Button variant="outline" size="sm" onClick={pickFile}>
                   <Plus className="mr-2 h-4 w-4" /> {t('addItem')}
@@ -301,5 +261,65 @@ export function AiMediaLibraryCard({
         )}
       </CardContent>
     </Card>
+
+    {/* Opens once a file is picked, instead of expanding inline —
+     *  keeps the card compact regardless of how long the description
+     *  ends up being. */}
+    <Dialog open={pendingFile !== null} onOpenChange={(open) => !open && cancelAdd()}>
+        <DialogContent className="flex max-h-[85vh] w-[95vw] max-w-lg flex-col overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>{t('addItem')}</DialogTitle>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
+            {pendingFile && (
+              <p className="truncate text-xs text-muted-foreground">
+                {t('selectedFile', { name: pendingFile.name })}
+              </p>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="media-key">{t('keyLabel')}</Label>
+              <Input
+                id="media-key"
+                value={key}
+                onChange={(e) => setKey(slugifyKey(e.target.value))}
+                disabled={saving}
+              />
+              <p className="text-xs text-muted-foreground">{t('keyHint')}</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="media-title">{t('titleLabel')}</Label>
+              <Input
+                id="media-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                disabled={saving}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="media-description">{t('descriptionLabel')}</Label>
+              <Textarea
+                id="media-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder={t('descriptionPlaceholder')}
+                rows={4}
+                className="min-h-[100px] resize-y"
+                disabled={saving}
+              />
+              <p className="text-xs text-muted-foreground">{t('descriptionHint')}</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={cancelAdd} disabled={saving}>
+              {t('cancel')}
+            </Button>
+            <Button onClick={save} disabled={saving}>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t('save')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

@@ -9,7 +9,7 @@ import { canEditSettings } from '@/lib/auth/roles';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { PromptEditorDialog } from './prompt-editor-dialog';
 import { Switch } from '@/components/ui/switch';
 import {
   Card,
@@ -85,6 +85,11 @@ export function AiConfig() {
   const [transcriptionKeyEdited, setTranscriptionKeyEdited] = useState(false);
   const [hasStoredTranscriptionKey, setHasStoredTranscriptionKey] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState('');
+  // Both long free-text fields open in a floating editor (PromptEditorDialog)
+  // instead of an always-expanded inline textarea — a long prompt used to
+  // blow up this whole page's height.
+  const [promptDialogOpen, setPromptDialogOpen] = useState(false);
+  const [criteriaDialogOpen, setCriteriaDialogOpen] = useState(false);
   const [qualificationCriteria, setQualificationCriteria] = useState('');
   const [isActive, setIsActive] = useState(false);
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(false);
@@ -569,29 +574,41 @@ export function AiConfig() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="ai-prompt">{t('businessContext')}</Label>
-              <Textarea
-                id="ai-prompt"
-                value={systemPrompt}
-                onChange={(e) => setSystemPrompt(e.target.value)}
-                placeholder={t('promptPlaceholder')}
-                rows={5}
+              <Label>{t('businessContext')}</Label>
+              <button
+                type="button"
+                onClick={() => setPromptDialogOpen(true)}
                 disabled={disabled}
-              />
+                className="flex w-full items-start justify-between gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span
+                  className={`line-clamp-2 flex-1 ${systemPrompt ? 'text-foreground' : 'italic text-muted-foreground'}`}
+                >
+                  {systemPrompt || t('promptEmpty')}
+                </span>
+                <span className="shrink-0 text-xs font-medium text-primary">
+                  {systemPrompt ? t('editPrompt') : t('addPrompt')}
+                </span>
+              </button>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="ai-qualification-criteria">
-                {t('qualificationCriteria')}
-              </Label>
-              <Textarea
-                id="ai-qualification-criteria"
-                value={qualificationCriteria}
-                onChange={(e) => setQualificationCriteria(e.target.value)}
-                placeholder={t('qualificationCriteriaPlaceholder')}
-                rows={5}
+              <Label>{t('qualificationCriteria')}</Label>
+              <button
+                type="button"
+                onClick={() => setCriteriaDialogOpen(true)}
                 disabled={disabled}
-              />
+                className="flex w-full items-start justify-between gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span
+                  className={`line-clamp-2 flex-1 ${qualificationCriteria ? 'text-foreground' : 'italic text-muted-foreground'}`}
+                >
+                  {qualificationCriteria || t('criteriaEmpty')}
+                </span>
+                <span className="shrink-0 text-xs font-medium text-primary">
+                  {qualificationCriteria ? t('editPrompt') : t('addPrompt')}
+                </span>
+              </button>
               <p className="text-xs text-muted-foreground">
                 {t('qualificationCriteriaHint')}
               </p>
@@ -904,17 +921,61 @@ export function AiConfig() {
           </CardContent>
         </Card>
 
-        <AiKnowledgeCard
-          accountId={accountId}
-          canEdit={canEdit}
-          hasEmbeddingsKey={
-            embeddingsKeyEdited
-              ? embeddingsKey.trim().length > 0
-              : hasStoredEmbeddingsKey
-          }
+        <div className="grid gap-4 lg:grid-cols-2">
+          <AiKnowledgeCard
+            accountId={accountId}
+            canEdit={canEdit}
+            hasEmbeddingsKey={
+              embeddingsKeyEdited
+                ? embeddingsKey.trim().length > 0
+                : hasStoredEmbeddingsKey
+            }
+          />
+
+          <AiMediaLibraryCard accountId={accountId} canEdit={canEdit} />
+        </div>
+
+        <PromptEditorDialog
+          open={promptDialogOpen}
+          onOpenChange={setPromptDialogOpen}
+          title={t('businessContext')}
+          description={t('promptDialogDesc')}
+          value={systemPrompt}
+          onSave={setSystemPrompt}
+          placeholder={t('promptPlaceholder')}
+          guideTitle={t('promptGuideTitle')}
+          guideItems={[
+            t('promptGuideItem1'),
+            t('promptGuideItem2'),
+            t('promptGuideItem3'),
+            t('promptGuideItem4'),
+            t('promptGuideItem5'),
+            t('promptGuideItem6'),
+          ]}
+          saveLabel={t('save')}
+          cancelLabel={t('cancel')}
+          readOnly={disabled}
         />
 
-        <AiMediaLibraryCard accountId={accountId} canEdit={canEdit} />
+        <PromptEditorDialog
+          open={criteriaDialogOpen}
+          onOpenChange={setCriteriaDialogOpen}
+          title={t('qualificationCriteria')}
+          description={t('criteriaDialogDesc')}
+          value={qualificationCriteria}
+          onSave={setQualificationCriteria}
+          placeholder={t('qualificationCriteriaPlaceholder')}
+          guideTitle={t('criteriaGuideTitle')}
+          guideItems={[
+            t('criteriaGuideItem1'),
+            t('criteriaGuideItem2'),
+            t('criteriaGuideItem3'),
+            t('criteriaGuideItem4'),
+          ]}
+          saveLabel={t('save')}
+          cancelLabel={t('cancel')}
+          readOnly={disabled}
+        />
 
         <div className="flex items-center justify-between">
           {configured ? (
