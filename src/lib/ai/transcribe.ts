@@ -3,7 +3,6 @@ import { AiError, type AiConfig } from './types'
 import { aiRequestTimeoutMs } from './defaults'
 import { providerHttpError, toNetworkError } from './providers/shared'
 import { loadAiConfig } from './config'
-import { downloadMedia, getMediaUrl } from '@/lib/whatsapp/meta-api'
 
 // ============================================================
 // Voice-note transcription (migration 041).
@@ -182,20 +181,23 @@ export interface TranscribeAndStoreArgs {
   /** Internal UUID of the just-inserted `messages` row (content_text
    *  starts null for audio; this call fills it in after the fact). */
   messageId: string
-  /** Meta media id from the inbound webhook payload (`message.audio.id`). */
-  mediaId: string
+  /** Already-downloaded voice-note bytes — the caller fetches these
+   *  however its provider requires (Meta Graph API, a Zernio-bridged
+   *  attachment, ...) via `downloadInboundMedia`
+   *  (src/lib/whatsapp/inbound-media.ts). This function no longer
+   *  cares which provider the message came from. */
+  audio: Buffer
   mimeType: string
-  accessToken: string
 }
 
 /**
- * Download the voice note from Meta, transcribe it, and store the
- * result on the message's own `content_text`. Best-effort: swallows
- * every failure (no AI configured, decrypt failure, download failure,
- * provider error, DB error) and logs rather than throws, since this
- * runs inline in the webhook's `after()` chain ahead of the AI
- * auto-reply dispatch — a transcription hiccup must never stop a
- * customer's message from being processed.
+ * Transcribe an already-downloaded voice note and store the result on
+ * the message's own `content_text`. Best-effort: swallows every
+ * failure (no AI configured, decrypt failure, provider error, DB
+ * error) and logs rather than throws, since this runs inline in the
+ * webhook's `after()` chain ahead of the AI auto-reply dispatch — a
+ * transcription hiccup must never stop a customer's message from
+ * being processed.
  *
  * Returns the transcript on success so the caller can also feed it into
  * the SAME inbound turn's auto-reply gating (which otherwise only
@@ -204,7 +206,7 @@ export interface TranscribeAndStoreArgs {
 export async function transcribeAndStoreAudioMessage(
   args: TranscribeAndStoreArgs,
 ): Promise<string | null> {
-  const { db, accountId, messageId, mediaId, mimeType, accessToken } = args
+  const { db, accountId, messageId, audio, mimeType } = args
   try {
     // requireActive: false — transcription is a standalone convenience
     // (so the team can read a voice note without listening to it) and
@@ -221,13 +223,7 @@ export async function transcribeAndStoreAudioMessage(
       Boolean(config.transcriptionApiKey)
     if (!canTranscribe) return null
 
-    const mediaInfo = await getMediaUrl({ mediaId, accessToken })
-    const { buffer } = await downloadMedia({
-      downloadUrl: mediaInfo.url,
-      accessToken,
-    })
-
-    const text = await transcribeInboundAudio(config, buffer, mimeType)
+    const text = await transcribeInboundAudio(config, audio, mimeType)
     if (!text) return null
 
     const { error } = await db

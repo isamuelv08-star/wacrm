@@ -161,20 +161,15 @@ describe('describeInboundImage (provider dispatch)', () => {
 
 // ============================================================
 // describeAndStoreImageMessage — the best-effort orchestrator. Mocks
-// loadAiConfig and the Meta media helpers so only the dispatch +
-// DB-update + error-swallowing behavior is under test.
+// loadAiConfig so only the dispatch + DB-update + error-swallowing
+// behavior is under test; the caller is now responsible for
+// downloading the image bytes (see src/lib/whatsapp/inbound-media.ts),
+// so this function itself no longer touches Meta/Zernio at all.
 // ============================================================
 
 const loadAiConfigMock = vi.fn()
 vi.mock('./config', () => ({
   loadAiConfig: (...args: unknown[]) => loadAiConfigMock(...args),
-}))
-
-const getMediaUrlMock = vi.fn()
-const downloadMediaMock = vi.fn()
-vi.mock('@/lib/whatsapp/meta-api', () => ({
-  getMediaUrl: (...args: unknown[]) => getMediaUrlMock(...args),
-  downloadMedia: (...args: unknown[]) => downloadMediaMock(...args),
 }))
 
 function fakeUpdateDb(onUpdate: (payload: unknown, id: string) => void): SupabaseClient {
@@ -193,12 +188,12 @@ function fakeUpdateDb(onUpdate: (payload: unknown, id: string) => void): Supabas
 describe('describeAndStoreImageMessage', () => {
   beforeEach(() => {
     loadAiConfigMock.mockReset()
-    getMediaUrlMock.mockReset()
-    downloadMediaMock.mockReset()
   })
 
-  it('returns null and never touches Meta when the account has no AI config', async () => {
+  it('returns null and never calls the provider when the account has no AI config', async () => {
     loadAiConfigMock.mockResolvedValue(null)
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
     const db = fakeUpdateDb(() => {
       throw new Error('should not update')
     })
@@ -207,20 +202,17 @@ describe('describeAndStoreImageMessage', () => {
       db,
       accountId: 'acct-1',
       messageId: 'msg-1',
-      mediaId: 'media-1',
+      image: Buffer.from('bytes'),
       mimeType: 'image/jpeg',
-      accessToken: 'token',
       caption: null,
     })
 
     expect(result).toBeNull()
-    expect(getMediaUrlMock).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('downloads, describes, and stores the description on ai_image_description', async () => {
+  it('describes already-downloaded bytes and stores the description on ai_image_description', async () => {
     loadAiConfigMock.mockResolvedValue({ provider: 'openai', apiKey: 'sk-x', model: 'gpt-test' })
-    getMediaUrlMock.mockResolvedValue({ url: 'https://meta.example/media', mimeType: 'image/jpeg' })
-    downloadMediaMock.mockResolvedValue({ buffer: Buffer.from('bytes'), contentType: 'image/jpeg' })
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okOpenAi('A pair of white sneakers, size 42 visible on the box.')))
 
     let updated: { payload: unknown; id: string } | null = null
@@ -232,9 +224,8 @@ describe('describeAndStoreImageMessage', () => {
       db,
       accountId: 'acct-1',
       messageId: 'msg-1',
-      mediaId: 'media-1',
+      image: Buffer.from('bytes'),
       mimeType: 'image/jpeg',
-      accessToken: 'token',
       caption: null,
     })
 
@@ -247,8 +238,6 @@ describe('describeAndStoreImageMessage', () => {
 
   it('swallows a provider failure and returns null rather than throwing', async () => {
     loadAiConfigMock.mockResolvedValue({ provider: 'openai', apiKey: 'sk-x', model: 'gpt-test' })
-    getMediaUrlMock.mockResolvedValue({ url: 'https://meta.example/media', mimeType: 'image/jpeg' })
-    downloadMediaMock.mockResolvedValue({ buffer: Buffer.from('bytes'), contentType: 'image/jpeg' })
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -264,9 +253,8 @@ describe('describeAndStoreImageMessage', () => {
       }),
       accountId: 'acct-1',
       messageId: 'msg-1',
-      mediaId: 'media-1',
+      image: Buffer.from('bytes'),
       mimeType: 'image/jpeg',
-      accessToken: 'token',
       caption: null,
     })
 

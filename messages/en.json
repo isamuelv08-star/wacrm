@@ -352,7 +352,10 @@
       "downloadFailed": "Couldn't download the attachment",
       "viewImage": "View image",
       "expandVideo": "Expand video",
-      "imageAlt": "Shared image"
+      "imageAlt": "Shared image",
+      "playAudio": "Play",
+      "pauseAudio": "Pause",
+      "transcript": "Transcript"
     },
     "mediaViewer": {
       "counter": "{index} of {total}",
@@ -1983,6 +1986,7 @@
       "title": "Agent setup",
       "description": "Bring your own OpenAI or Anthropic key. wacrm calls the provider directly with your key — no per-seat AI fees, and your data stays yours. This powers AI-drafted replies in the inbox, the auto-reply bot, and the Playground.",
       "adminOnlyConfig": "Only admins and owners can change the AI configuration.",
+      "loading": "Loading AI configuration…",
       "loadFailed": "Failed to load AI configuration",
       "providerAndKey": "Provider & key",
       "encryptionNotice": "Your key is encrypted at rest (AES-256-GCM) and never shown again after saving.",

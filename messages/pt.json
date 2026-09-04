@@ -352,7 +352,10 @@
       "downloadFailed": "Não foi possível baixar o anexo",
       "viewImage": "Ver imagem",
       "expandVideo": "Expandir vídeo",
-      "imageAlt": "Imagem compartilhada"
+      "imageAlt": "Imagem compartilhada",
+      "playAudio": "Reproduzir",
+      "pauseAudio": "Pausar",
+      "transcript": "Transcrição"
     },
     "mediaViewer": {
       "counter": "{index} de {total}",
@@ -1983,6 +1986,7 @@
       "title": "Configuração do agente",
       "description": "Use sua própria chave da OpenAI ou da Anthropic. O wacrm chama o provedor diretamente com sua chave — sem taxas de IA por usuário, e seus dados continuam seus. Isso alimenta as respostas redigidas por IA na caixa de entrada, o bot de resposta automática e o Playground.",
       "adminOnlyConfig": "Somente administradores e proprietários podem alterar a configuração de IA.",
+      "loading": "Carregando configuração de IA…",
       "loadFailed": "Falha ao carregar a configuração de IA",
       "providerAndKey": "Provedor e chave",
       "encryptionNotice": "Sua chave é criptografada em repouso (AES-256-GCM) e nunca é exibida novamente após ser salva.",

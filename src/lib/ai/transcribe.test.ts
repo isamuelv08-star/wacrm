@@ -137,20 +137,16 @@ describe('transcribeInboundAudio (hybrid dispatch)', () => {
 
 // ============================================================
 // transcribeAndStoreAudioMessage — the best-effort orchestrator.
-// Mocks loadAiConfig and the Meta media helpers so only the dispatch +
-// DB-update + error-swallowing behavior is under test.
+// Mocks loadAiConfig so only the dispatch + DB-update +
+// error-swallowing behavior is under test; the caller is now
+// responsible for downloading the audio bytes (see
+// src/lib/whatsapp/inbound-media.ts), so this function itself no
+// longer touches Meta/Zernio at all.
 // ============================================================
 
 const loadAiConfigMock = vi.fn()
 vi.mock('./config', () => ({
   loadAiConfig: (...args: unknown[]) => loadAiConfigMock(...args),
-}))
-
-const getMediaUrlMock = vi.fn()
-const downloadMediaMock = vi.fn()
-vi.mock('@/lib/whatsapp/meta-api', () => ({
-  getMediaUrl: (...args: unknown[]) => getMediaUrlMock(...args),
-  downloadMedia: (...args: unknown[]) => downloadMediaMock(...args),
 }))
 
 function fakeUpdateDb(onUpdate: (payload: unknown, id: string) => void): SupabaseClient {
@@ -169,12 +165,12 @@ function fakeUpdateDb(onUpdate: (payload: unknown, id: string) => void): Supabas
 describe('transcribeAndStoreAudioMessage', () => {
   beforeEach(() => {
     loadAiConfigMock.mockReset()
-    getMediaUrlMock.mockReset()
-    downloadMediaMock.mockReset()
   })
 
-  it('returns null and never touches Meta when the account has no AI config', async () => {
+  it('returns null and never calls the provider when the account has no AI config', async () => {
     loadAiConfigMock.mockResolvedValue(null)
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
     const db = fakeUpdateDb(() => {
       throw new Error('should not update')
     })
@@ -183,21 +179,22 @@ describe('transcribeAndStoreAudioMessage', () => {
       db,
       accountId: 'acct-1',
       messageId: 'msg-1',
-      mediaId: 'media-1',
+      audio: Buffer.from('bytes'),
       mimeType: 'audio/ogg',
-      accessToken: 'token',
     })
 
     expect(result).toBeNull()
-    expect(getMediaUrlMock).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('returns null when provider is anthropic with no transcription key (no Meta call either)', async () => {
+  it('returns null when provider is anthropic with no transcription key (no provider call either)', async () => {
     loadAiConfigMock.mockResolvedValue({
       provider: 'anthropic',
       apiKey: 'sk-ant-x',
       transcriptionApiKey: null,
     })
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
 
     const result = await transcribeAndStoreAudioMessage({
       db: fakeUpdateDb(() => {
@@ -205,23 +202,20 @@ describe('transcribeAndStoreAudioMessage', () => {
       }),
       accountId: 'acct-1',
       messageId: 'msg-1',
-      mediaId: 'media-1',
+      audio: Buffer.from('bytes'),
       mimeType: 'audio/ogg',
-      accessToken: 'token',
     })
 
     expect(result).toBeNull()
-    expect(getMediaUrlMock).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('downloads, transcribes, and stores the transcript for an openai account', async () => {
+  it('transcribes already-downloaded bytes and stores the transcript for an openai account', async () => {
     loadAiConfigMock.mockResolvedValue({
       provider: 'openai',
       apiKey: 'sk-x',
       transcriptionApiKey: null,
     })
-    getMediaUrlMock.mockResolvedValue({ url: 'https://meta.example/media', mimeType: 'audio/ogg' })
-    downloadMediaMock.mockResolvedValue({ buffer: Buffer.from('bytes'), contentType: 'audio/ogg' })
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okTranscript('me gustaria una cotizacion')))
 
     let updated: { payload: unknown; id: string } | null = null
@@ -233,9 +227,8 @@ describe('transcribeAndStoreAudioMessage', () => {
       db,
       accountId: 'acct-1',
       messageId: 'msg-1',
-      mediaId: 'media-1',
+      audio: Buffer.from('bytes'),
       mimeType: 'audio/ogg',
-      accessToken: 'token',
     })
 
     expect(result).toBe('me gustaria una cotizacion')
@@ -251,8 +244,6 @@ describe('transcribeAndStoreAudioMessage', () => {
       apiKey: 'sk-x',
       transcriptionApiKey: null,
     })
-    getMediaUrlMock.mockResolvedValue({ url: 'https://meta.example/media', mimeType: 'audio/ogg' })
-    downloadMediaMock.mockResolvedValue({ buffer: Buffer.from('bytes'), contentType: 'audio/ogg' })
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -268,9 +259,8 @@ describe('transcribeAndStoreAudioMessage', () => {
       }),
       accountId: 'acct-1',
       messageId: 'msg-1',
-      mediaId: 'media-1',
+      audio: Buffer.from('bytes'),
       mimeType: 'audio/ogg',
-      accessToken: 'token',
     })
 
     expect(result).toBeNull()

@@ -26,10 +26,12 @@ import {
 // of which provider delivered the message.
 //
 // Known gaps in this first pass (all silently degrade rather than
-// crash): reactions, click-to-WhatsApp referral capture, Flow (nfm_reply)
-// submissions, and voice-transcription/image-description (both Meta-only,
-// see webhook-processor.ts). Swipe-replies, button/list taps, text, and
-// image/video/document/audio all work.
+// crash): reactions, click-to-WhatsApp referral capture, and Flow
+// (nfm_reply) submissions. Swipe-replies, button/list taps, text,
+// image/video/document/audio, voice transcription, and image
+// description all work (see downloadInboundMedia in
+// src/lib/whatsapp/inbound-media.ts for how the latter two reach
+// Zernio-bridged media too).
 // ============================================================
 
 export const maxDuration = 60

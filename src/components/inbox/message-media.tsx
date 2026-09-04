@@ -1,12 +1,15 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Download,
   FileText,
   ImageOff,
   Loader2,
   Maximize2,
+  Mic,
+  Pause,
+  Play,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -103,9 +106,23 @@ function MediaActionButton({
   );
 }
 
-function MediaPlaceholder({ children }: { children: React.ReactNode }) {
+function MediaPlaceholder({
+  children,
+  pulse = false,
+}: {
+  children: React.ReactNode;
+  /** True while genuinely loading (vs. a terminal "broken" state) —
+   *  gives the box a soft shimmer instead of sitting inert, so a slow
+   *  attachment reads as "still coming" rather than "did this fail?" */
+  pulse?: boolean;
+}) {
   return (
-    <div className="flex h-40 w-60 items-center justify-center rounded-lg bg-muted">
+    <div
+      className={cn(
+        "flex h-40 w-60 items-center justify-center rounded-lg bg-muted",
+        pulse && "animate-pulse",
+      )}
+    >
       {children}
     </div>
   );
@@ -136,7 +153,7 @@ export function MediaImageBubble({
 
   if (status !== "ready" || !src) {
     return (
-      <MediaPlaceholder>
+      <MediaPlaceholder pulse>
         <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </MediaPlaceholder>
     );
@@ -147,7 +164,10 @@ export function MediaImageBubble({
     <img
       src={src}
       alt={t("imageAlt")}
-      className={cn(MEDIA_BOX, "rounded-lg object-contain")}
+      className={cn(
+        MEDIA_BOX,
+        "animate-in fade-in rounded-lg object-contain ring-1 ring-inset ring-foreground/10 duration-300",
+      )}
       onError={() => setBroken(true)}
     />
   );
@@ -223,6 +243,26 @@ export function MediaVideoBubble({
   );
 }
 
+function formatAudioTime(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+/**
+ * A themed voice-note player, replacing the browser's native
+ * `<audio controls>` — which renders with the OS's own chrome
+ * (different per browser, never matching the app's dark theme) and
+ * looks out of place next to every other custom-styled bubble.
+ *
+ * The `<audio>` element itself is kept (muted of its native UI via
+ * `controls={false}`) purely as the playback engine, driven through a
+ * ref; play/pause, seek, and the elapsed/total time readout are all
+ * custom-rendered so a voice note reads like the rest of the inbox —
+ * a compact pill with a play button, a slim progress track, and a mic
+ * glyph to distinguish it from other bubble types at a glance.
+ */
 export function MediaAudioBubble({
   message,
   t,
@@ -231,10 +271,83 @@ export function MediaAudioBubble({
   t: Translator;
 }) {
   const { downloading, download } = useMediaDownload(message, t);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const onLoadedMetadata = () => setDuration(audio.duration || 0);
+    const onTimeUpdate = () => setCurrentTime(audio.currentTime);
+    const onEnded = () => {
+      setPlaying(false);
+      setCurrentTime(0);
+    };
+    audio.addEventListener("loadedmetadata", onLoadedMetadata);
+    audio.addEventListener("timeupdate", onTimeUpdate);
+    audio.addEventListener("ended", onEnded);
+    return () => {
+      audio.removeEventListener("loadedmetadata", onLoadedMetadata);
+      audio.removeEventListener("timeupdate", onTimeUpdate);
+      audio.removeEventListener("ended", onEnded);
+    };
+  }, []);
+
+  function togglePlay() {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (playing) {
+      audio.pause();
+      setPlaying(false);
+    } else {
+      void audio.play();
+      setPlaying(true);
+    }
+  }
+
+  function seek(e: React.ChangeEvent<HTMLInputElement>) {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const next = Number(e.target.value);
+    audio.currentTime = next;
+    setCurrentTime(next);
+  }
 
   return (
     <div className="flex items-center gap-2">
-      <audio src={message.media_url} controls className="max-w-60" />
+      <audio ref={audioRef} src={message.media_url} preload="metadata" className="hidden" />
+      <div className="flex w-56 items-center gap-2.5 rounded-full bg-background/50 px-2 py-1.5">
+        <button
+          type="button"
+          onClick={togglePlay}
+          aria-label={playing ? t("pauseAudio") : t("playAudio")}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-transform hover:scale-105 active:scale-95"
+        >
+          {playing ? (
+            <Pause className="h-3.5 w-3.5 fill-current" />
+          ) : (
+            <Play className="ml-0.5 h-3.5 w-3.5 fill-current" />
+          )}
+        </button>
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <input
+            type="range"
+            min={0}
+            max={duration || 0}
+            step={0.1}
+            value={Math.min(currentTime, duration || 0)}
+            onChange={seek}
+            aria-label={t("audio")}
+            className="h-1 w-full cursor-pointer appearance-none rounded-full bg-foreground/15 accent-primary"
+          />
+          <span className="flex items-center gap-1 text-[10px] tabular-nums text-muted-foreground">
+            <Mic className="h-2.5 w-2.5 shrink-0" />
+            {formatAudioTime(playing || currentTime > 0 ? currentTime : duration)}
+          </span>
+        </div>
+      </div>
       <MediaActionButton
         icon={Download}
         label={t("download")}

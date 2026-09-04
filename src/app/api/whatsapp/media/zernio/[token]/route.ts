@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { downloadInboundMedia, InboundMediaError } from '@/lib/whatsapp/inbound-media'
 
 // ============================================================
 // Proxies inbound WhatsApp media for Zernio-bridged accounts.
@@ -13,8 +14,10 @@ import { createClient } from '@/lib/supabase/server'
 // stored access token — Zernio's inbound attachment URL already
 // carries everything needed, so the webhook adapter
 // (webhook/zernio/route.ts) base64url-encodes that whole URL as
-// `token`. This route just decodes it, adds the Zernio auth header,
-// and re-fetches.
+// `token`. The actual decode + host-validation + fetch lives in
+// `downloadInboundMedia` (src/lib/whatsapp/inbound-media.ts), shared
+// with voice transcription and image description so that
+// security-sensitive logic exists in exactly one place.
 // ============================================================
 
 export async function GET(
@@ -53,54 +56,23 @@ export async function GET(
       )
     }
 
-    const apiKey = process.env.ZERNIO_API_KEY
-    if (!apiKey) {
-      console.error('[media/zernio] ZERNIO_API_KEY is not set')
-      return NextResponse.json({ error: 'Zernio is not configured' }, { status: 500 })
-    }
-
-    let mediaUrl: string
-    try {
-      mediaUrl = Buffer.from(token, 'base64url').toString('utf8')
-    } catch {
-      return NextResponse.json({ error: 'Invalid media token' }, { status: 400 })
-    }
-
-    // Defense in depth: the token is server-generated (base64url of a
-    // URL Zernio itself gave us in a signed webhook), but decoding
-    // arbitrary base64 into a fetch target is exactly the shape of an
-    // SSRF bug if that assumption is ever wrong — so only proceed
-    // when it actually decodes to a Zernio host.
-    let parsed: URL
-    try {
-      parsed = new URL(mediaUrl)
-    } catch {
-      return NextResponse.json({ error: 'Invalid media token' }, { status: 400 })
-    }
-    const isZernioHost =
-      parsed.hostname === 'zernio.com' || parsed.hostname.endsWith('.zernio.com')
-    if (!isZernioHost || parsed.protocol !== 'https:') {
-      return NextResponse.json({ error: 'Invalid media token' }, { status: 400 })
-    }
-
-    const upstream = await fetch(parsed.toString(), {
-      headers: { Authorization: `Bearer ${apiKey}` },
-    })
-
-    if (!upstream.ok) {
-      console.error('[media/zernio] upstream fetch failed:', upstream.status)
-      return NextResponse.json({ error: 'Failed to fetch media' }, { status: 502 })
-    }
-
-    const buffer = await upstream.arrayBuffer()
-    return new Response(buffer, {
+    const { buffer, mimeType } = await downloadInboundMedia({ provider: 'zernio', mediaId: token })
+    // `new Uint8Array(buffer)` copies into a plain-ArrayBuffer-backed
+    // view — a Node Buffer's underlying ArrayBufferLike can widen to
+    // SharedArrayBuffer, which Response's BodyInit typing rejects
+    // directly (same issue noted in src/lib/whatsapp/encryption.ts).
+    return new Response(new Uint8Array(buffer), {
       status: 200,
       headers: {
-        'Content-Type': upstream.headers.get('content-type') || 'application/octet-stream',
+        'Content-Type': mimeType,
         'Cache-Control': 'public, max-age=86400',
       },
     })
   } catch (error) {
+    if (error instanceof InboundMediaError) {
+      console.error('[media/zernio]', error.message)
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
     console.error('Error in Zernio media GET:', error)
     return NextResponse.json({ error: 'Failed to fetch media' }, { status: 500 })
   }

@@ -11,6 +11,7 @@ import {
   LayoutTemplate,
   CornerDownLeft,
   Sparkles,
+  FileText,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ReplyQuote } from "./reply-quote";
@@ -143,10 +144,22 @@ function MessageContent({
           ) : (
             <MediaUnavailable label={t("audio")} t={t} />
           )}
+          {/* content_text on an audio message is always the AI
+              transcript (never a customer-typed caption — WhatsApp
+              voice notes carry no caption field) — labeled so it
+              reads as "what was said," not as an extra message. */}
           {message.content_text && (
-            <p className="mt-1 whitespace-pre-wrap break-words text-sm">
-              {message.content_text}
-            </p>
+            <div className="mt-1.5 flex items-start gap-1.5 rounded-lg bg-background/40 px-2.5 py-1.5">
+              <FileText className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" />
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {t("transcript")}
+                </p>
+                <p className="whitespace-pre-wrap break-words text-sm">
+                  {message.content_text}
+                </p>
+              </div>
+            </div>
           )}
         </div>
       );

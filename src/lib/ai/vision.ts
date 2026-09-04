@@ -3,7 +3,6 @@ import { AiError, type AiConfig } from './types'
 import { aiRequestTimeoutMs } from './defaults'
 import { providerHttpError, toNetworkError } from './providers/shared'
 import { loadAiConfig } from './config'
-import { downloadMedia, getMediaUrl } from '@/lib/whatsapp/meta-api'
 
 // ============================================================
 // Inbound image description (migration 046).
@@ -218,22 +217,24 @@ export interface DescribeAndStoreArgs {
   accountId: string
   /** Internal UUID of the just-inserted `messages` row. */
   messageId: string
-  /** Meta media id from the inbound webhook payload (`message.image.id`). */
-  mediaId: string
+  /** Already-downloaded image bytes — the caller fetches these however
+   *  its provider requires (Meta Graph API, a Zernio-bridged
+   *  attachment, ...) via `downloadInboundMedia`
+   *  (src/lib/whatsapp/inbound-media.ts). */
+  image: Buffer
   mimeType: string
-  accessToken: string
   /** The caption the customer sent alongside the image, if any — folded
    *  into the vision prompt as extra context. */
   caption: string | null
 }
 
 /**
- * Download the image from Meta, describe it, and store the result on
+ * Describe an already-downloaded image and store the result on
  * `messages.ai_image_description`. Best-effort: swallows every failure
- * (no AI configured, download failure, provider error, DB error) and
- * logs rather than throws, since this runs inline in the webhook's
- * `after()` chain ahead of the AI auto-reply dispatch — a vision hiccup
- * must never stop a customer's message from being processed.
+ * (no AI configured, provider error, DB error) and logs rather than
+ * throws, since this runs inline in the webhook's `after()` chain ahead
+ * of the AI auto-reply dispatch — a vision hiccup must never stop a
+ * customer's message from being processed.
  *
  * Returns the description on success so the caller can also use it to
  * decide whether to dispatch the SAME inbound turn's auto-reply (which
@@ -242,7 +243,7 @@ export interface DescribeAndStoreArgs {
 export async function describeAndStoreImageMessage(
   args: DescribeAndStoreArgs,
 ): Promise<string | null> {
-  const { db, accountId, messageId, mediaId, mimeType, accessToken, caption } = args
+  const { db, accountId, messageId, image, mimeType, caption } = args
   try {
     // requireActive: false — same posture as transcribeAndStoreAudioMessage:
     // this is a standalone convenience (lets a human agent see what's in
@@ -251,13 +252,7 @@ export async function describeAndStoreImageMessage(
     const config = await loadAiConfig(db, accountId, { requireActive: false })
     if (!config) return null
 
-    const mediaInfo = await getMediaUrl({ mediaId, accessToken })
-    const { buffer } = await downloadMedia({
-      downloadUrl: mediaInfo.url,
-      accessToken,
-    })
-
-    const description = await describeInboundImage(config, buffer, mimeType, caption)
+    const description = await describeInboundImage(config, image, mimeType, caption)
     if (!description) return null
 
     const { error } = await db

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
 import { getMediaUrl } from '@/lib/whatsapp/meta-api'
+import { downloadInboundMedia } from '@/lib/whatsapp/inbound-media'
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
 import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe'
 import { captureLeadSourceFromReferral, type MetaReferral } from '@/lib/contacts/lead-source'
@@ -849,23 +850,29 @@ export async function processMessage(
   // the AI auto-reply dispatch below both see it in the same turn.
   // transcribeAndStoreAudioMessage owns its own try/catch and never
   // throws; it silently no-ops when the account has no usable key.
-  // Meta-only: both helpers fetch the media bytes straight from Meta's
-  // Graph API using `mediaId` + `accessToken`. A Zernio-bridged
-  // message's "mediaId" is really an encoded Zernio proxy token (see
-  // parseMessageContent above), so calling these would just fail —
-  // skip them rather than burn a Meta-shaped call on a non-Meta id.
-  // Voice transcription / image description for Zernio-connected
-  // accounts is a known gap, not yet built.
-  if (provider === 'meta' && contentType === 'audio' && mediaUrl && message.audio?.id) {
-    const transcript = await transcribeAndStoreAudioMessage({
-      db: supabaseAdmin(),
-      accountId,
-      messageId: insertedMessage.id,
-      mediaId: message.audio.id,
-      mimeType: message.audio.mime_type,
-      accessToken,
-    })
-    if (transcript) contentText = transcript
+  // `downloadInboundMedia` handles both providers (Meta Graph API
+  // directly, or a Zernio-bridged attachment via its proxy token) — this
+  // used to be Meta-only, which is why voice notes for Zernio-connected
+  // accounts never got transcribed at all (content_text stayed null with
+  // no error logged, since the block was simply skipped).
+  if (contentType === 'audio' && mediaUrl && message.audio?.id) {
+    try {
+      const { buffer, mimeType } = await downloadInboundMedia({
+        provider,
+        mediaId: message.audio.id,
+        accessToken,
+      })
+      const transcript = await transcribeAndStoreAudioMessage({
+        db: supabaseAdmin(),
+        accountId,
+        messageId: insertedMessage.id,
+        audio: buffer,
+        mimeType,
+      })
+      if (transcript) contentText = transcript
+    } catch (err) {
+      console.error('[webhook] audio download for transcription failed:', err)
+    }
   }
 
   // Best-effort image description (migration 046) — same shape as the
@@ -879,17 +886,25 @@ export async function processMessage(
   // automations untouched (still driven by the real caption, same as
   // before this migration).
   let hasImageDescription = false
-  if (provider === 'meta' && contentType === 'image' && mediaUrl && message.image?.id) {
-    const description = await describeAndStoreImageMessage({
-      db: supabaseAdmin(),
-      accountId,
-      messageId: insertedMessage.id,
-      mediaId: message.image.id,
-      mimeType: message.image.mime_type,
-      accessToken,
-      caption: contentText,
-    })
-    if (description) hasImageDescription = true
+  if (contentType === 'image' && mediaUrl && message.image?.id) {
+    try {
+      const { buffer, mimeType } = await downloadInboundMedia({
+        provider,
+        mediaId: message.image.id,
+        accessToken,
+      })
+      const description = await describeAndStoreImageMessage({
+        db: supabaseAdmin(),
+        accountId,
+        messageId: insertedMessage.id,
+        image: buffer,
+        mimeType,
+        caption: contentText,
+      })
+      if (description) hasImageDescription = true
+    } catch (err) {
+      console.error('[webhook] image download for description failed:', err)
+    }
   }
 
   // Update conversation
