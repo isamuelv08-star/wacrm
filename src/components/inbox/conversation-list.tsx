@@ -413,8 +413,15 @@ export function ConversationList({
           platform's own accent (Instagram's gradient, WhatsApp's green);
           "Todas" fills with the app's theme primary since it isn't
           platform-specific. Inactive pills sit on a flat muted fill so
-          the active one reads clearly as "selected", not just underlined. */}
-      <div className="flex items-center gap-1.5 border-b border-border px-3 py-2.5">
+          the active one reads clearly as "selected", not just underlined.
+
+          `overflow-x-auto` + `shrink-0` on every pill, same treatment as
+          the lead-score row below: at a narrow list width (this panel is
+          user-resizable — see inbox/page.tsx) the three pills no longer
+          fit their intrinsic content width, and without this they simply
+          overflowed the column and rendered on top of the thread panel
+          to its right instead of scrolling within their own row. */}
+      <div className="flex items-center gap-1.5 overflow-x-auto border-b border-border px-3 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {PLATFORM_TAB_ORDER.map((tab) => {
           const isActive = platformFilter === tab;
           const label =
@@ -430,7 +437,7 @@ export function ConversationList({
               type="button"
               onClick={() => handlePlatformFilterChange(tab)}
               className={cn(
-                "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all",
+                "flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all",
                 isActive
                   ? "text-white shadow-sm"
                   : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground",
