@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { downloadInboundMedia, InboundMediaError } from '@/lib/whatsapp/inbound-media'
+import { proxyInboundMedia, InboundMediaError } from '@/lib/whatsapp/inbound-media'
 
 // ============================================================
 // Proxies inbound WhatsApp media for Zernio-bridged accounts.
@@ -56,18 +56,22 @@ export async function GET(
       )
     }
 
-    const { buffer, mimeType } = await downloadInboundMedia({ provider: 'zernio', mediaId: token })
-    // `new Uint8Array(buffer)` copies into a plain-ArrayBuffer-backed
-    // view — a Node Buffer's underlying ArrayBufferLike can widen to
-    // SharedArrayBuffer, which Response's BodyInit typing rejects
-    // directly (same issue noted in src/lib/whatsapp/encryption.ts).
-    return new Response(new Uint8Array(buffer), {
-      status: 200,
-      headers: {
-        'Content-Type': mimeType,
-        'Cache-Control': 'public, max-age=86400',
-      },
+    // Forward the browser's Range header (video/audio scrubbing) and
+    // stream the body straight through — see proxyInboundMedia's
+    // header note on why this matters for video specifically.
+    const media = await proxyInboundMedia({
+      provider: 'zernio',
+      mediaId: token,
+      rangeHeader: request.headers.get('range'),
     })
+    const headers = new Headers({
+      'Content-Type': media.contentType,
+      'Cache-Control': 'public, max-age=86400',
+      'Accept-Ranges': 'bytes',
+    })
+    if (media.contentRange) headers.set('Content-Range', media.contentRange)
+    if (media.contentLength) headers.set('Content-Length', media.contentLength)
+    return new Response(media.body, { status: media.status, headers })
   } catch (error) {
     if (error instanceof InboundMediaError) {
       console.error('[media/zernio]', error.message)

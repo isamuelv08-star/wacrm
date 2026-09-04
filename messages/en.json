@@ -253,7 +253,9 @@
   },
   "Inbox": {
     "page": {
-      "whatsappNotConnected": "WhatsApp® is not connected. Go to Settings to connect your account."
+      "whatsappNotConnected": "WhatsApp® is not connected. Go to Settings to connect your account.",
+      "resizeConversationList": "Resize conversation list (double-click to reset)",
+      "resizeContactPanel": "Resize contact panel (double-click to reset)"
     },
     "conversationList": {
       "searchPlaceholder": "Search conversations...",

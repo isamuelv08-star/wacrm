@@ -13,9 +13,20 @@ import { useRealtime } from "@/hooks/use-realtime";
 import { ConversationList } from "@/components/inbox/conversation-list";
 import { MessageThread } from "@/components/inbox/message-thread";
 import { ContactSidebar } from "@/components/inbox/contact-sidebar";
-import { toast } from "sonner";
+import { ResizeHandle } from "@/components/ui/resize-handle";
+import { useResizablePanel } from "@/hooks/use-resizable-panel";
 import { WifiOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const LIST_WIDTH_STORAGE_KEY = "saleslid:inbox:list-width";
+const LIST_WIDTH_DEFAULT = 320;
+const LIST_WIDTH_MIN = 260;
+const LIST_WIDTH_MAX = 480;
+
+const CONTACT_WIDTH_STORAGE_KEY = "saleslid:inbox:contact-width";
+const CONTACT_WIDTH_DEFAULT = 280;
+const CONTACT_WIDTH_MIN = 260;
+const CONTACT_WIDTH_MAX = 420;
 
 // Remembers the agent's show/hide choice for the desktop contact panel
 // across reloads and sessions (device-scoped, like the theme prefs).
@@ -77,6 +88,30 @@ function InboxPageInner() {
       // localStorage can throw in private-browsing / sandboxed contexts.
     }
   }, []);
+
+  // Fixed, user-adjustable widths for the two side panels (desktop
+  // only — mobile stays single-pane, see `hasActiveConv` below). These
+  // replace the previous flex-grow-based auto-redistribution: with
+  // grow ratios, collapsing/expanding the contact panel (or the main
+  // nav Sidebar) reflowed EVERY panel's width at once, which read as
+  // the whole inbox "jumping" rather than just the one panel the user
+  // actually toggled. A fixed width per panel means toggling one only
+  // ever changes that one; the thread (flex-1 in the middle) absorbs
+  // whatever space is left.
+  const listPanel = useResizablePanel({
+    storageKey: LIST_WIDTH_STORAGE_KEY,
+    defaultWidth: LIST_WIDTH_DEFAULT,
+    min: LIST_WIDTH_MIN,
+    max: LIST_WIDTH_MAX,
+    handleEdge: "end",
+  });
+  const contactPanel = useResizablePanel({
+    storageKey: CONTACT_WIDTH_STORAGE_KEY,
+    defaultWidth: CONTACT_WIDTH_DEFAULT,
+    min: CONTACT_WIDTH_MIN,
+    max: CONTACT_WIDTH_MAX,
+    handleEdge: "start",
+  });
 
   const handleToggleContactPanel = useCallback(() => {
     setContactPanelOpen((prev) => {
@@ -633,21 +668,16 @@ function InboxPageInner() {
       <div className="flex flex-1 overflow-hidden">
         {/* Left panel: Conversation list.
             Hidden on mobile when a conversation is selected so the
-            thread can occupy the full width. Always visible on lg+.
-
-            `lg:grow lg:basis-80` (not the old `lg:flex-none`): this panel
-            used to sit at a hard 320px no matter what, so collapsing the
-            main nav Sidebar or the contact-info panel only ever widened
-            the thread in the middle — the list stayed cramped even with
-            plenty of freed-up screen space. Giving it a real (if smaller)
-            grow factor alongside the thread's `lg:grow-[3]` below means
-            both panels actually redistribute whenever a sibling's width
-            changes, with no cross-component state needed — pure flexbox. */}
+            thread can occupy the full width. Always visible on lg+, at
+            a fixed (but user-resizable, see listPanel above) width —
+            `w-full` on mobile so it still fills the single visible
+            pane there. */}
         <div
           className={cn(
-            "flex h-full flex-1 lg:grow lg:basis-80 lg:shrink lg:max-w-md",
+            "flex h-full w-full flex-1 lg:w-[var(--list-width)] lg:flex-none",
             hasActiveConv ? "hidden lg:flex" : "flex",
           )}
+          style={{ "--list-width": `${listPanel.width}px` } as React.CSSProperties}
         >
           <ConversationList
             activeConversationId={activeConversation?.id ?? null}
@@ -655,6 +685,14 @@ function InboxPageInner() {
             conversations={conversations}
             onConversationsLoaded={handleConversationsLoaded}
             resyncToken={resyncToken}
+          />
+        </div>
+        <div className="hidden lg:flex">
+          <ResizeHandle
+            onPointerDown={listPanel.onHandlePointerDown}
+            onDoubleClick={listPanel.reset}
+            resizing={listPanel.resizing}
+            label={t("resizeConversationList")}
           />
         </div>
 
@@ -667,10 +705,13 @@ function InboxPageInner() {
             of content inside the thread (long quote preview, very
             long URL in a message body) forces the flex child past
             its share and pushes the contact-sidebar panel off-screen
-            on the right. Issue #165. */}
+            on the right. Issue #165. The side panels are now fixed
+            (resizable) widths rather than flex-grow shares, so this is
+            the only panel that actually grows/shrinks as the window or
+            its siblings resize. */}
         <div
           className={cn(
-            "flex h-full min-w-0 flex-1 lg:flex lg:grow-[3]",
+            "flex h-full min-w-0 flex-1",
             hasActiveConv ? "flex" : "hidden lg:flex",
           )}
         >
@@ -694,18 +735,37 @@ function InboxPageInner() {
             (unlike before #258's rework) so its own collapse toggle keeps
             working when the agent has it collapsed — a slim icon rail
             instead of unmounting outright, the same pattern the main nav
-            Sidebar uses. On mobile it's always hidden (the `lg:block`
-            below); the toggle is itself desktop-only. */}
-        <div className="hidden lg:block">
-          <ContactSidebar
-            contact={activeContact}
-            conversationId={activeConversation?.id ?? null}
-            aiAutoreplyDisabled={activeConversation?.ai_autoreply_disabled ?? false}
-            assignedAgentId={activeConversation?.assigned_agent_id ?? null}
-            onAiAutoReplyChange={handleAiAutoReplyChange}
-            open={contactPanelOpen}
-            onToggle={handleToggleContactPanel}
-          />
+            Sidebar uses. On mobile it's always hidden (the `lg:flex`
+            below); the toggle is itself desktop-only. The resize handle
+            only shows while expanded — the collapsed rail has its own
+            fixed width, nothing to drag. */}
+        <div className="hidden lg:flex">
+          {contactPanelOpen && (
+            <ResizeHandle
+              onPointerDown={contactPanel.onHandlePointerDown}
+              onDoubleClick={contactPanel.reset}
+              resizing={contactPanel.resizing}
+              label={t("resizeContactPanel")}
+            />
+          )}
+          <div
+            className={contactPanelOpen ? "h-full lg:w-[var(--contact-width)]" : "h-full"}
+            style={
+              contactPanelOpen
+                ? ({ "--contact-width": `${contactPanel.width}px` } as React.CSSProperties)
+                : undefined
+            }
+          >
+            <ContactSidebar
+              contact={activeContact}
+              conversationId={activeConversation?.id ?? null}
+              aiAutoreplyDisabled={activeConversation?.ai_autoreply_disabled ?? false}
+              assignedAgentId={activeConversation?.assigned_agent_id ?? null}
+              onAiAutoReplyChange={handleAiAutoReplyChange}
+              open={contactPanelOpen}
+              onToggle={handleToggleContactPanel}
+            />
+          </div>
         </div>
       </div>
     </div>

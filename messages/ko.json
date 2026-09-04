@@ -253,7 +253,9 @@
   },
   "Inbox": {
     "page": {
-      "whatsappNotConnected": "WhatsApp®이 연결되어 있지 않습니다. 설정으로 이동해 계정을 연결하세요."
+      "whatsappNotConnected": "WhatsApp®이 연결되어 있지 않습니다. 설정으로 이동해 계정을 연결하세요.",
+      "resizeConversationList": "대화 목록 크기 조절 (더블클릭하면 초기화)",
+      "resizeContactPanel": "연락처 패널 크기 조절 (더블클릭하면 초기화)"
     },
     "conversationList": {
       "searchPlaceholder": "대화 검색...",

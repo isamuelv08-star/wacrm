@@ -343,7 +343,7 @@ export function ContactSidebar({
 
   if (!contact) {
     return (
-      <div className="flex h-full w-70 flex-col border-l border-border bg-card">
+      <div className="flex h-full w-full flex-col border-l border-border bg-card">
         <div className="flex h-12 shrink-0 items-center justify-end border-b border-border px-2">
           {collapseButton}
         </div>
@@ -376,7 +376,7 @@ export function ContactSidebar({
         : (statusDeal?.stage?.color ?? "#94a3b8");
 
   return (
-    <div className="flex h-full w-70 flex-col border-l border-border bg-card">
+    <div className="flex h-full w-full flex-col border-l border-border bg-card">
       <div className="flex h-12 shrink-0 items-center justify-end border-b border-border px-2">
         {collapseButton}
       </div>

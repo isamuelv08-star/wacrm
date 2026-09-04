@@ -214,12 +214,15 @@ export function MediaVideoBubble({
   return (
     <div className="relative w-fit">
       {/* Plain URL, not a blob: the element should stream rather than wait
-          for up to 16 MB to land. */}
+          for up to 16 MB to land — the proxy route this points at now
+          forwards Range requests (src/lib/whatsapp/inbound-media.ts's
+          proxyInboundMedia), so seeking actually works instead of the
+          player stalling until the whole clip buffers. */}
       <video
         src={message.media_url}
         controls
         preload="metadata"
-        className={cn(MEDIA_BOX, "rounded-lg")}
+        className={cn(MEDIA_BOX, "animate-in fade-in rounded-lg ring-1 ring-inset ring-foreground/10 duration-300")}
       />
       {/* Top-right, clear of the native controls — and always visible, since
           expanding is the only way to watch a clip capped at 15rem wide and

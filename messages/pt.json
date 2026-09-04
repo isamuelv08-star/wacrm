@@ -253,7 +253,9 @@
   },
   "Inbox": {
     "page": {
-      "whatsappNotConnected": "O WhatsApp® não está conectado. Vá até Configurações para conectar sua conta."
+      "whatsappNotConnected": "O WhatsApp® não está conectado. Vá até Configurações para conectar sua conta.",
+      "resizeConversationList": "Redimensionar a lista de conversas (clique duplo para redefinir)",
+      "resizeContactPanel": "Redimensionar o painel de contato (clique duplo para redefinir)"
     },
     "conversationList": {
       "searchPlaceholder": "Buscar conversas...",

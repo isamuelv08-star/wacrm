@@ -38,12 +38,12 @@ export class InboundMediaError extends Error {
   }
 }
 
-async function downloadZernioMedia(token: string): Promise<DownloadedMedia> {
-  const apiKey = process.env.ZERNIO_API_KEY
-  if (!apiKey) {
-    throw new InboundMediaError('Zernio is not configured on this server.', 500)
-  }
-
+/**
+ * Decode + validate a Zernio media token into the real attachment URL.
+ * Shared by every Zernio-fetching path below — the SSRF host-guard
+ * only needs to exist in one place.
+ */
+function resolveZernioMediaUrl(token: string): URL {
   let mediaUrl: string
   try {
     mediaUrl = Buffer.from(token, 'base64url').toString('utf8')
@@ -67,8 +67,22 @@ async function downloadZernioMedia(token: string): Promise<DownloadedMedia> {
   if (!isZernioHost || parsed.protocol !== 'https:') {
     throw new InboundMediaError('Invalid media token.', 400)
   }
+  return parsed
+}
 
-  const res = await fetch(parsed.toString(), {
+function requireZernioApiKey(): string {
+  const apiKey = process.env.ZERNIO_API_KEY
+  if (!apiKey) {
+    throw new InboundMediaError('Zernio is not configured on this server.', 500)
+  }
+  return apiKey
+}
+
+async function downloadZernioMedia(token: string): Promise<DownloadedMedia> {
+  const apiKey = requireZernioApiKey()
+  const url = resolveZernioMediaUrl(token)
+
+  const res = await fetch(url.toString(), {
     headers: { Authorization: `Bearer ${apiKey}` },
   })
   if (!res.ok) {
@@ -101,4 +115,86 @@ export async function downloadInboundMedia(
     throw new InboundMediaError('accessToken is required to download Meta media.', 500)
   }
   return downloadMetaMedia(mediaId, accessToken)
+}
+
+// ============================================================
+// Browser-facing proxy fetch — used by the two media routes
+// (src/app/api/whatsapp/media/[mediaId]/route.ts and
+// .../media/zernio/[token]/route.ts), NOT by transcription/vision
+// (which need the complete buffer). Forwards the browser's `Range`
+// header upstream and streams the response straight through instead
+// of buffering the whole file first.
+//
+// This is what video playback actually needs: without Range support,
+// a <video> element can't seek until the entire clip has downloaded
+// (worse, the server had to fully buffer it in memory first too,
+// since `downloadInboundMedia` above always awaits the full
+// ArrayBuffer) — a 15 MB WhatsApp video looked "broken" in practice,
+// stuck buffering with a scrub bar that didn't respond.
+// ============================================================
+
+export interface ProxiedMedia {
+  /** 200 for a full response, 206 for a satisfied Range request. */
+  status: number
+  body: ReadableStream<Uint8Array> | null
+  contentType: string
+  /** Only present on a 206 (or a 416 the caller chooses to surface). */
+  contentRange: string | null
+  contentLength: string | null
+}
+
+export interface ProxyInboundMediaArgs {
+  provider: 'meta' | 'zernio'
+  mediaId: string
+  /** Required for provider='meta'; ignored for provider='zernio'. */
+  accessToken?: string
+  /** The incoming request's `Range` header, forwarded upstream as-is
+   *  (or omitted entirely when the browser didn't send one). */
+  rangeHeader: string | null
+}
+
+function toProxiedMedia(res: Response, fallbackContentType: string): ProxiedMedia {
+  return {
+    status: res.status,
+    body: res.body,
+    contentType: res.headers.get('content-type') || fallbackContentType,
+    contentRange: res.headers.get('content-range'),
+    contentLength: res.headers.get('content-length'),
+  }
+}
+
+export async function proxyInboundMedia(args: ProxyInboundMediaArgs): Promise<ProxiedMedia> {
+  const { provider, mediaId, accessToken, rangeHeader } = args
+
+  if (provider === 'zernio') {
+    const apiKey = requireZernioApiKey()
+    const url = resolveZernioMediaUrl(mediaId)
+    const res = await fetch(url.toString(), {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        ...(rangeHeader ? { Range: rangeHeader } : {}),
+      },
+    })
+    // A 206 is success (partial content); anything else non-2xx is a
+    // real upstream failure.
+    if (!res.ok && res.status !== 206) {
+      throw new InboundMediaError(`Failed to fetch media (${res.status}).`, 502)
+    }
+    return toProxiedMedia(res, 'application/octet-stream')
+  }
+
+  if (!accessToken) {
+    throw new InboundMediaError('accessToken is required to download Meta media.', 500)
+  }
+  const mediaInfo = await getMediaUrl({ mediaId, accessToken })
+  const res = await fetch(mediaInfo.url, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      ...(rangeHeader ? { Range: rangeHeader } : {}),
+    },
+  })
+  if (!res.ok && res.status !== 206) {
+    throw new InboundMediaError(`Failed to fetch media (${res.status}).`, 502)
+  }
+  return toProxiedMedia(res, mediaInfo.mimeType)
 }
