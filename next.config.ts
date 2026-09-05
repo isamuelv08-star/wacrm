@@ -1,6 +1,5 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
-import { withSentryConfig } from "@sentry/nextjs";
 
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
@@ -162,25 +161,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withSentryConfig(withNextIntl(nextConfig), {
-  // Only used to upload readable (un-minified) source maps to Sentry at
-  // build time, so stack traces in the dashboard show real file/line
-  // instead of minified output — entirely optional. Without
-  // SENTRY_AUTH_TOKEN set, this step is silently skipped and the build
-  // is otherwise unaffected; error reporting itself only depends on
-  // NEXT_PUBLIC_SENTRY_DSN (see src/instrumentation.ts).
-  org: process.env.SENTRY_ORG,
-  project: process.env.SENTRY_PROJECT,
-  authToken: process.env.SENTRY_AUTH_TOKEN,
-  silent: true,
-  // The Sentry webpack/turbopack plugin uploads maps then deletes the
-  // client-visible copies unless told to keep them — irrelevant here
-  // since we opt out of the tunnel route (below) and don't ship a
-  // public sourcemaps directory regardless.
-  disableLogger: true,
-  // Avoids adding a same-origin proxy route for Sentry's ingest
-  // endpoint. That's mainly useful to dodge ad-blockers; this is an
-  // internal CRM behind auth, not a public site trying to maximize
-  // client-error capture rates.
-  tunnelRoute: undefined,
-});
+export default withNextIntl(nextConfig);
