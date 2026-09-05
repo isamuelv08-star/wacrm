@@ -26,11 +26,24 @@ ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
 ARG NEXT_PUBLIC_SITE_URL
 ARG NEXT_PUBLIC_APP_LOCALE=en
+ARG NEXT_PUBLIC_SENTRY_DSN
 ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
     NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
     NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
     NEXT_PUBLIC_APP_LOCALE=$NEXT_PUBLIC_APP_LOCALE \
+    NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN \
     NEXT_TELEMETRY_DISABLED=1
+
+# Sentry source-map upload (readable stack traces in the dashboard) is
+# entirely optional and build-only — withSentryConfig silently skips
+# it when SENTRY_AUTH_TOKEN is unset, so these three are safe to leave
+# unset. They must NOT be baked into ENV (unlike the NEXT_PUBLIC_* vars
+# above): they're only read by the Sentry webpack plugin during `npm
+# run build`, never by the running app, so passing them as plain ARGs
+# keeps them out of the final image and its layer history.
+ARG SENTRY_ORG
+ARG SENTRY_PROJECT
+ARG SENTRY_AUTH_TOKEN
 
 RUN npm run build
 
