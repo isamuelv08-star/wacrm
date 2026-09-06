@@ -237,6 +237,20 @@ export function MessageThread({
     };
   }, []);
 
+  // Forces the session timer below to re-evaluate once a minute purely
+  // from the clock ticking, not just when `messages` changes. Without
+  // this, the 24h window only got re-checked when a new message came
+  // in — an agent who left a conversation open past the real cutoff
+  // (no new messages either side) kept seeing a stale "N left"/open
+  // composer and could type a free-form reply Meta would then reject,
+  // instead of the composer correctly locking itself the moment the
+  // window actually closes.
+  const [clockTick, setClockTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setClockTick((t) => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   // 24-hour session timer
   const sessionInfo = useMemo(() => {
     if (!messages.length) return { expired: false, remaining: "" };
@@ -262,7 +276,8 @@ export function MessageThread({
         : tTimer("xmRemaining", { minutes: Math.floor(hoursLeft * 60) });
 
     return { expired, remaining };
-  }, [messages, tTimer]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- clockTick is a deliberate re-run trigger, not a value read inside
+  }, [messages, tTimer, clockTick]);
 
   // Store latest callback in a ref so fetchMessages doesn't need to
   // depend on `onMessagesLoaded` — otherwise parent re-renders cause
