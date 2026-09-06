@@ -181,6 +181,19 @@ export const RATE_LIMITS = {
   /** Sidebar assistant, per account. Bounds the whole team's draws on
    *  the one shared BYO provider key, same rationale as aiDraftAccount. */
   aiAssistantAccount: { limit: 60, windowMs: 60_000 },
+  /** Email/password sign-in, per IP. 10/min is comfortable for a
+   *  human who fat-fingered their password a couple of times, while
+   *  bounding a script hammering the endpoint from one address.
+   *  Supabase's own GoTrue rate limits are the backstop for anyone
+   *  who calls its Auth API directly with the public anon key instead
+   *  of going through our /api/auth/login proxy. */
+  login: { limit: 10, windowMs: 60_000 },
+  /** Sign-in, per email (case-insensitive), 5-minute window. Separate
+   *  from the per-IP budget above so a credential-stuffing run spread
+   *  across many IPs still can't hammer one specific victim account —
+   *  a longer window than the per-IP one since the threat here is
+   *  sustained targeting of one account, not a quick burst. */
+  loginEmail: { limit: 8, windowMs: 5 * 60_000 },
 } as const;
 
 /** Test-only helper. Clears the in-memory state so unit tests don't

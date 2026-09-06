@@ -4,7 +4,6 @@ import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { createClient } from "@/lib/supabase/client";
 import { translateAuthError } from "@/lib/supabase/auth-errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,20 +37,37 @@ function LoginPageInner() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const supabase = createClient();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    // Goes through our own /api/auth/login instead of calling
+    // supabase.auth.signInWithPassword directly from the browser, so
+    // the app's own rate limiter (per-IP and per-email) sits in front
+    // of every attempt — see that route for why a direct client call
+    // couldn't be rate-limited at all.
+    let res: Response;
+    try {
+      res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+    } catch {
+      setError(tErrors("networkError"));
+      setLoading(false);
+      return;
+    }
 
-    if (error) {
-      setError(translateAuthError(error.message, tErrors));
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(
+        res.status === 429
+          ? tErrors("rateLimited")
+          : translateAuthError(data.error ?? "", tErrors),
+      );
       setLoading(false);
       return;
     }

@@ -2339,7 +2339,8 @@
     "userAlreadyRegistered": "Ya existe una cuenta con este correo. Iniciá sesión en su lugar.",
     "invalidCredentials": "Correo o contraseña incorrectos.",
     "emailNotConfirmed": "Confirmá tu correo antes de iniciar sesión — revisá tu bandeja de entrada.",
-    "rateLimited": "Demasiados intentos. Esperá un momento e intentá de nuevo."
+    "rateLimited": "Demasiados intentos. Esperá un momento e intentá de nuevo.",
+    "networkError": "No se pudo conectar con el servidor. Revisá tu conexión e intentá de nuevo."
   },
   "Join": {
     "verifying": "Verificando invitación…",

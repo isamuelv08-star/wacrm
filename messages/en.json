@@ -2339,7 +2339,8 @@
     "userAlreadyRegistered": "An account with this email already exists. Try signing in instead.",
     "invalidCredentials": "Incorrect email or password.",
     "emailNotConfirmed": "Confirm your email before signing in — check your inbox for the verification link.",
-    "rateLimited": "Too many attempts. Wait a moment and try again."
+    "rateLimited": "Too many attempts. Wait a moment and try again.",
+    "networkError": "Couldn't reach the server. Check your connection and try again."
   },
   "Join": {
     "verifying": "Verifying invitation…",
