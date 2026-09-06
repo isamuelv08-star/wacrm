@@ -58,7 +58,22 @@
     "menuProfile": "프로필",
     "menuSettings": "설정",
     "menuSignOut": "로그아웃",
-    "ceo": "CEO 대시보드"
+    "ceo": "CEO 대시보드",
+    "assistant": {
+      "trigger": "CRM에게 물어보기",
+      "triggerHint": "매출, 리드, 목표",
+      "title": "CRM 어시스턴트",
+      "subtitle": "실시간 계정 데이터를 기반으로 답변합니다",
+      "emptyHint": "리드, 매출, 목표에 대해 물어보세요.",
+      "exampleHot": "\"핫 리드가 몇 명이나 있나요?\"",
+      "exampleGoal": "\"이번 달 목표 대비 진행 상황은 어떤가요?\"",
+      "notConfigured": "이 계정에 아직 AI 제공자가 설정되어 있지 않습니다.",
+      "goToSetup": "설정하기",
+      "thinking": "생각 중…",
+      "placeholder": "질문을 입력하세요…",
+      "replyError": "답변을 받지 못했습니다.",
+      "reachError": "어시스턴트에 연결할 수 없습니다."
+    }
   },
   "Header": {
     "dashboard": "대시보드",

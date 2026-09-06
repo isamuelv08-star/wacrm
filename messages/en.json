@@ -58,7 +58,22 @@
     "menuProfile": "Profile",
     "menuSettings": "Settings",
     "menuSignOut": "Sign out",
-    "ceo": "CEO Dashboard"
+    "ceo": "CEO Dashboard",
+    "assistant": {
+      "trigger": "Ask your CRM",
+      "triggerHint": "Sales, leads & goals",
+      "title": "CRM Assistant",
+      "subtitle": "Answers from your live account data",
+      "emptyHint": "Ask about your leads, sales, or goal.",
+      "exampleHot": "\"How many hot leads do I have?\"",
+      "exampleGoal": "\"How are we doing against this month's goal?\"",
+      "notConfigured": "No AI provider configured yet for this account.",
+      "goToSetup": "Set it up",
+      "thinking": "Thinking…",
+      "placeholder": "Ask a question…",
+      "replyError": "Couldn't get a reply.",
+      "reachError": "Couldn't reach the assistant."
+    }
   },
   "Header": {
     "dashboard": "Dashboard",

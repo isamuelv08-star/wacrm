@@ -58,7 +58,22 @@
     "menuProfile": "Perfil",
     "menuSettings": "Configurações",
     "menuSignOut": "Sair",
-    "ceo": "Painel CEO"
+    "ceo": "Painel CEO",
+    "assistant": {
+      "trigger": "Pergunte ao seu CRM",
+      "triggerHint": "Vendas, leads e metas",
+      "title": "Assistente do CRM",
+      "subtitle": "Responde com os dados ao vivo da sua conta",
+      "emptyHint": "Pergunte sobre seus leads, vendas ou meta.",
+      "exampleHot": "\"Quantos leads quentes eu tenho?\"",
+      "exampleGoal": "\"Como estamos em relação à meta deste mês?\"",
+      "notConfigured": "Ainda não há um provedor de IA configurado para esta conta.",
+      "goToSetup": "Configurar",
+      "thinking": "Pensando…",
+      "placeholder": "Faça uma pergunta…",
+      "replyError": "Não foi possível obter uma resposta.",
+      "reachError": "Não foi possível contatar o assistente."
+    }
   },
   "Header": {
     "dashboard": "Painel",

@@ -36,6 +36,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { AiAssistantWidget } from "@/components/layout/ai-assistant-widget";
 
 // Desktop collapse preference — device-scoped like the inbox contact-panel
 // toggle, so it survives reloads but isn't tied to a specific account.
@@ -421,6 +422,13 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             </ul>
           </nav>
         </TooltipProvider>
+
+        {/* Sidebar AI assistant — subtle entry point to a small chat
+            popover that answers questions about this account's own
+            live data (hot leads, sales vs goal, alerts...). */}
+        <div className="shrink-0 border-t border-border p-3">
+          <AiAssistantWidget collapsed={collapsed} />
+        </div>
 
         {/* User section */}
         <div className="shrink-0 border-t border-border p-3">

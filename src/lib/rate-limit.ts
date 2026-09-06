@@ -173,6 +173,14 @@ export const RATE_LIMITS = {
    *  same rationale: bounds a burst of inbound across many threads
    *  against the account's own BYO provider key. */
   aiClassifyAccount: { limit: 30, windowMs: 60_000 },
+  /** Sidebar "ask your CRM" assistant, per user. 20/min matches
+   *  aiDraft's budget — same shape of usage (a person typing
+   *  questions), just aimed at the account's own data instead of a
+   *  customer reply. */
+  aiAssistant: { limit: 20, windowMs: 60_000 },
+  /** Sidebar assistant, per account. Bounds the whole team's draws on
+   *  the one shared BYO provider key, same rationale as aiDraftAccount. */
+  aiAssistantAccount: { limit: 60, windowMs: 60_000 },
 } as const;
 
 /** Test-only helper. Clears the in-memory state so unit tests don't
