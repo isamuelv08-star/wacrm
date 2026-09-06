@@ -50,6 +50,14 @@ COPY --from=builder --chown=nextjs:nextjs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nextjs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nextjs /app/public ./public
 
+# Next's standalone-output file tracing (@vercel/nft) only picked up the
+# .cjs helpers here, not the esm/ ones next-intl's ESM build needs at
+# runtime — leaving `.next/standalone` missing
+# node_modules/@swc/helpers/esm/_interop_require_default.js and crashing
+# on boot with MODULE_NOT_FOUND. Overwrite with the full package so
+# runtime has both.
+COPY --from=builder --chown=nextjs:nextjs /app/node_modules/@swc/helpers ./node_modules/@swc/helpers
+
 USER nextjs
 EXPOSE 3000
 CMD ["node", "server.js"]
