@@ -8,6 +8,8 @@
 
 import { randomBytes } from 'node:crypto';
 
+import { isDeliverableUrl } from '@/lib/webhooks/ssrf';
+
 /** Secret prefix — self-identifying, like `wacrm_live_` for keys. */
 export const WEBHOOK_SECRET_PREFIX = 'whsec_';
 
@@ -51,16 +53,24 @@ export function serializeWebhookEndpoint(
 /**
  * Validate a webhook target URL: must be a well-formed absolute
  * `https://` URL (an unencrypted `http://` sink would leak signed
- * event payloads). Returns the normalized string or null.
+ * event payloads) that resolves to a publicly-routable address.
+ *
+ * Delivery already re-checks this at send time via the same
+ * `isDeliverableUrl` guard (see src/lib/webhooks/deliver.ts) — a URL
+ * that fails here would just fail every delivery attempt forever, so
+ * rejecting it up front gives the caller a clear 400 instead of a
+ * silently-dead endpoint. Returns the normalized string or null.
  */
-export function normalizeWebhookUrl(input: unknown): string | null {
+export async function normalizeWebhookUrl(input: unknown): Promise<string | null> {
   if (typeof input !== 'string') return null;
   const trimmed = input.trim();
+  let url: URL;
   try {
-    const u = new URL(trimmed);
-    if (u.protocol !== 'https:') return null;
-    return u.toString();
+    url = new URL(trimmed);
   } catch {
     return null;
   }
+  if (url.protocol !== 'https:') return null;
+  if (!(await isDeliverableUrl(url.toString()))) return null;
+  return url.toString();
 }

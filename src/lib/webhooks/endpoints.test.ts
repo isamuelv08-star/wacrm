@@ -45,15 +45,23 @@ describe('serializeWebhookEndpoint', () => {
 });
 
 describe('normalizeWebhookUrl', () => {
-  it('accepts https and normalizes', () => {
-    expect(normalizeWebhookUrl('  https://example.com/hook  ')).toBe(
-      'https://example.com/hook'
+  it('accepts https to a public address and normalizes', async () => {
+    // A literal public IP, not a hostname — avoids a real DNS lookup in
+    // this test while still exercising the isDeliverableUrl check.
+    expect(await normalizeWebhookUrl('  https://8.8.8.8/hook  ')).toBe(
+      'https://8.8.8.8/hook'
     );
   });
 
-  it('rejects http, non-URLs, and non-strings', () => {
-    expect(normalizeWebhookUrl('http://example.com/hook')).toBeNull();
-    expect(normalizeWebhookUrl('not a url')).toBeNull();
-    expect(normalizeWebhookUrl(123)).toBeNull();
+  it('rejects http, non-URLs, and non-strings', async () => {
+    expect(await normalizeWebhookUrl('http://example.com/hook')).toBeNull();
+    expect(await normalizeWebhookUrl('not a url')).toBeNull();
+    expect(await normalizeWebhookUrl(123)).toBeNull();
+  });
+
+  it('rejects a URL that resolves to a private/internal address', async () => {
+    expect(await normalizeWebhookUrl('https://127.0.0.1/hook')).toBeNull();
+    expect(await normalizeWebhookUrl('https://localhost/hook')).toBeNull();
+    expect(await normalizeWebhookUrl('https://169.254.169.254/hook')).toBeNull();
   });
 });

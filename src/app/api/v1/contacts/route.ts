@@ -32,6 +32,11 @@ function sanitizeSearch(raw: string): string {
   return raw.replace(/[^\p{L}\p{N} +@.\-_]/gu, '').trim();
 }
 
+const MAX_NAME_LEN = 120;
+const MAX_EMAIL_LEN = 254; // RFC 5321 mailbox length cap
+const MAX_COMPANY_LEN = 160;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export async function GET(request: Request) {
   try {
     const ctx = await requireApiKey(request, 'contacts:read');
@@ -110,18 +115,36 @@ export async function POST(request: Request) {
       return fail('bad_request', "'phone' is required", 400);
     }
 
+    const name = typeof body.name === 'string' ? body.name.trim() : undefined;
+    if (name && name.length > MAX_NAME_LEN) {
+      return fail(
+        'bad_request',
+        `'name' must be ${MAX_NAME_LEN} characters or fewer`,
+        400
+      );
+    }
+
+    const email = typeof body.email === 'string' ? body.email.trim() : undefined;
+    if (email && (email.length > MAX_EMAIL_LEN || !EMAIL_RE.test(email))) {
+      return fail('bad_request', "'email' must be a valid email address", 400);
+    }
+
+    const company = typeof body.company === 'string' ? body.company.trim() : undefined;
+    if (company && company.length > MAX_COMPANY_LEN) {
+      return fail(
+        'bad_request',
+        `'company' must be ${MAX_COMPANY_LEN} characters or fewer`,
+        400
+      );
+    }
+
     const auditUserId = await resolveAuditUserId(ctx.supabase, ctx.accountId);
 
     const { id, created } = await findOrCreateContact(
       ctx.supabase,
       ctx.accountId,
       auditUserId,
-      {
-        phone,
-        name: typeof body.name === 'string' ? body.name : undefined,
-        email: typeof body.email === 'string' ? body.email : undefined,
-        company: typeof body.company === 'string' ? body.company : undefined,
-      }
+      { phone, name: name || undefined, email: email || undefined, company: company || undefined }
     );
 
     if (Array.isArray(body.tags)) {

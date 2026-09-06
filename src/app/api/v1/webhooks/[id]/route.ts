@@ -62,9 +62,13 @@ export async function PATCH(
     const updates: Record<string, unknown> = {};
 
     if ('url' in body) {
-      const url = normalizeWebhookUrl(body.url);
+      const url = await normalizeWebhookUrl(body.url);
       if (!url) {
-        return fail('bad_request', "'url' must be a valid https:// URL", 400);
+        return fail(
+          'bad_request',
+          "'url' must be a valid https:// URL that resolves to a public address",
+          400
+        );
       }
       updates.url = url;
     }

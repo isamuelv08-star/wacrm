@@ -58,9 +58,13 @@ export async function POST(request: Request) {
       return fail('bad_request', 'Request body must be a JSON object', 400);
     }
 
-    const url = normalizeWebhookUrl(body.url);
+    const url = await normalizeWebhookUrl(body.url);
     if (!url) {
-      return fail('bad_request', "'url' must be a valid https:// URL", 400);
+      return fail(
+        'bad_request',
+        "'url' must be a valid https:// URL that resolves to a public address",
+        400
+      );
     }
 
     const events = normalizeEvents(body.events);
