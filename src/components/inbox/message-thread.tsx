@@ -138,6 +138,11 @@ function groupMessagesByDate(messages: Message[]) {
   return groups;
 }
 
+// Matches Supabase/PostgREST's own default "Max Rows" cap — see the
+// fetch effect below for why this must be paired with a descending
+// order (newest-first) rather than left as an implicit ascending cap.
+const MESSAGE_FETCH_LIMIT = 1000;
+
 const STATUS_OPTIONS: { label: string; value: ConversationStatus; color: string }[] = [
   { label: "Open", value: "open", color: "text-primary" },
   { label: "Pending", value: "pending", color: "text-amber-400" },
@@ -320,18 +325,35 @@ export function MessageThread({
     (async () => {
       setLoading(true);
 
+      // Explicit descending + limit, reversed back to ascending below —
+      // NOT the same as ordering ascending with no limit. PostgREST (and
+      // therefore Supabase) silently caps a response with no explicit
+      // limit at its own "Max Rows" setting (1000 by default). Ordered
+      // ascending, that cap keeps the OLDEST message in the conversation
+      // and drops everything after it once the thread passes that many
+      // messages — including, on any long-running contact, today's
+      // actual last message. That's what was making the 24h session
+      // timer above see a stale last-customer-message and lock the
+      // composer even though the customer had just written: the real
+      // latest message was never in `messages` to begin with. Ordering
+      // by newest-first before the cap guarantees the messages that
+      // matter for "what's the latest state of this thread" are the
+      // ones kept; a conversation past MESSAGE_FETCH_LIMIT just doesn't
+      // show its oldest history yet (no "load older" pagination exists
+      // here today — a separate feature, not this bug).
       const { data, error } = await supabase
         .from("messages")
         .select("*")
         .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: false })
+        .limit(MESSAGE_FETCH_LIMIT);
 
       if (cancelled) return;
 
       if (error) {
         console.error("Failed to fetch messages:", error);
       } else {
-        onMessagesLoadedRef.current(data ?? []);
+        onMessagesLoadedRef.current([...(data ?? [])].reverse());
       }
 
       if (!cancelled) setLoading(false);

@@ -108,7 +108,8 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
   follow_up_reminder: {
     slug: 'follow_up_reminder',
     name: 'Follow-up Reminder',
-    description: 'Send a nudge if a contact has not replied within 24 hours.',
+    description:
+      'Send a WhatsApp template nudge if a contact has not replied within 24 hours.',
     trigger_type: 'new_message_received',
     trigger_config: {},
     steps: [
@@ -116,12 +117,20 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         step_type: 'wait',
         step_config: { amount: 1, unit: 'days' },
       },
+      // MUST be a template, not send_message: a 1-day wait fires this
+      // step well after WhatsApp's 24h customer-service window has
+      // closed (that's the whole point of a "haven't replied" nudge),
+      // and Meta rejects free-form text outside that window. This step
+      // starts with an empty template_name on purpose — the account's
+      // own approved re-engagement template doesn't exist yet when this
+      // seed is written, and validate.ts's `send_template` case already
+      // requires a non-empty template_name before the automation can be
+      // saved, so the builder's template picker forces the user to
+      // choose (or create) one instead of silently shipping a step that
+      // would fail on every real run.
       {
-        step_type: 'send_message',
-        step_config: {
-          text:
-            "Just circling back — did you have any other questions for us? Happy to help!",
-        },
+        step_type: 'send_template',
+        step_config: { template_name: '', language: 'en_US' },
       },
     ],
   },
