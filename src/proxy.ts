@@ -33,7 +33,12 @@ function isAgencyStandaloneAllowedPath(pathname: string): boolean {
   )
 }
 
-export async function middleware(request: NextRequest) {
+// Renamed from `middleware.ts`/`export function middleware` — Next.js 16
+// deprecated the `middleware` file convention in favor of `proxy` (same
+// runtime hooks, new name + a new Node.js-by-default runtime; see
+// node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/proxy.md's
+// "Migration to Proxy" section). Logic is unchanged from the old file.
+export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
