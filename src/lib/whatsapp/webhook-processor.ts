@@ -659,6 +659,11 @@ export async function processMessage(
   // pipeline (contacts, conversations, automations, flows, AI
   // auto-reply, notifications) is provider-agnostic by design.
   provider: 'meta' | 'zernio' = 'meta',
+  // Zernio's own conversation id for THIS inbound message, when known
+  // up front (provider === 'zernio' only — see the stamping block
+  // right after `conversation` resolves below for why this can't wait
+  // until after this function returns).
+  zernioConversationId?: string | null,
 ) {
   const senderPhone = normalizePhone(message.from)
   const contactName = contact.profile.name
@@ -681,6 +686,44 @@ export async function processMessage(
   )
   if (!convResult) return
   const conversation = convResult.conversation
+
+  // Stamp Zernio's conversation id NOW, before anything below (flows,
+  // automations, AI auto-reply) can try to reply — not after this
+  // function returns, which is where this used to happen (see
+  // src/app/api/whatsapp/webhook/zernio/route.ts's history). Zernio
+  // already has its own conversation object the moment the customer's
+  // message lands, even on their very first-ever message, so this id
+  // is always available up front; there was never a real reason to
+  // defer it.
+  //
+  // The bug that deferring caused: with no zernio_conversation_id yet,
+  // an auto-reply/flow/automation send to a BRAND-NEW conversation had
+  // to go through Zernio's "start a new conversation" endpoint instead
+  // of "reply in this one" — which Meta only allows when the WABA has
+  // "Direct Send" enabled (an unusual, opt-in capability most accounts
+  // don't have). Without it, that first send threw
+  // `ZernioApiError: Direct Send is not enabled for this WhatsApp
+  // account`, and the customer got no reply at all — until their NEXT
+  // message arrived, by which point the old post-hoc stamping (further
+  // down the zernio route) had already set it, so the second attempt
+  // used the (unrestricted) "reply in this one" path and quietly
+  // "worked". Every brand-new conversation hit this on its first
+  // reply, every time — not an intermittent glitch.
+  if (
+    provider === 'zernio' &&
+    zernioConversationId &&
+    conversation.zernio_conversation_id !== zernioConversationId
+  ) {
+    const { error: zernioStampErr } = await supabaseAdmin()
+      .from('conversations')
+      .update({ zernio_conversation_id: zernioConversationId })
+      .eq('id', conversation.id)
+    if (zernioStampErr) {
+      console.error('[webhook] failed to stamp zernio_conversation_id early:', zernioStampErr.message)
+    } else {
+      conversation.zernio_conversation_id = zernioConversationId
+    }
+  }
 
   // Idempotency guard against Meta webhook redelivery (migration 062)
   // — Meta's delivery is documented "at least once", not exactly-once,

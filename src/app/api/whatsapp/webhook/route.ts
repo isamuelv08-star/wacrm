@@ -7,10 +7,14 @@ import {
 } from '@/lib/whatsapp/webhook-processor'
 
 // The `after()` callback in POST runs within this route's max duration.
-// Inbound processing can fan out to per-media Meta verification calls, so
-// give it headroom beyond the platform default (Vercel clamps this to the
-// plan's ceiling). Tune as needed.
-export const maxDuration = 60
+// Inbound processing can fan out to per-media Meta verification calls,
+// and — when AI auto-reply is on — a fixed ~12s debounce wait (see
+// dispatchInboundToAiReply) plus up to the provider's own request
+// timeout (default 30s) on top of that, so give it real headroom
+// beyond the platform default (Vercel clamps this to the plan's
+// ceiling; a self-hosted long-running server ignores this setting
+// entirely). Tune as needed.
+export const maxDuration = 120
 
 // This route is for DIRECT Meta Cloud API connections (our own app).
 // Meta signs every POST with our own App Secret, so we can verify

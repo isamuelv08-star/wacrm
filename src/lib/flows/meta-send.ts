@@ -99,6 +99,81 @@ interface SendTextEngineArgs {
    *  badges it as an AI reply. Only the auto-reply bot sets this;
    *  deterministic Flow/automation sends leave it false. */
   aiGenerated?: boolean
+  /** Skip the contact/Zernio/whatsapp_config resolution below and use
+   *  this instead — see `resolveSendContext`'s doc comment for why a
+   *  multi-part reply wants to pass the same one to every part. */
+  resolved?: ResolvedSendContext
+}
+
+export interface ResolvedSendContext {
+  sanitizedPhone: string
+  contactRowId: string
+  zernioSocialAccountId: string | null
+  /** Null when Zernio-bridged (zernioSocialAccountId is set instead). */
+  whatsappConfig: { phone_number_id: string; send_api_base: string | null } | null
+  /** Decrypted access token. Null when Zernio-bridged. */
+  accessToken: string | null
+}
+
+/**
+ * Resolve everything about "how do we reach this contact" once: their
+ * phone, whether the account is Zernio-bridged, and — if not — the
+ * account's WhatsApp config plus its decrypted access token.
+ *
+ * `engineSendText` used to redo these 2-3 DB reads (+ a decrypt) on
+ * every single call, which is fine for one-off Flow sends but wasteful
+ * for the AI auto-reply bot's multi-part replies (up to
+ * MAX_REPLY_PARTS messages to the SAME contact in the SAME turn) —
+ * resolve once here, then pass the result into every `engineSendText`
+ * call via its `resolved` param.
+ */
+export async function resolveSendContext(
+  db: ReturnType<typeof supabaseAdmin>,
+  accountId: string,
+  contactId: string,
+): Promise<ResolvedSendContext> {
+  const { data: contact, error: contactErr } = await db
+    .from('contacts')
+    .select('id, phone')
+    .eq('id', contactId)
+    .eq('account_id', accountId)
+    .maybeSingle()
+  if (contactErr || !contact?.phone) {
+    throw new Error('contact not found for this account')
+  }
+
+  const sanitized = sanitizePhoneForMeta(contact.phone)
+  if (!isValidE164(sanitized)) {
+    throw new Error(`contact phone invalid: ${contact.phone}`)
+  }
+
+  const zernioSocialAccountId = await resolveZernioSocialAccountId(db, accountId)
+  if (zernioSocialAccountId) {
+    return {
+      sanitizedPhone: sanitized,
+      contactRowId: contact.id,
+      zernioSocialAccountId,
+      whatsappConfig: null,
+      accessToken: null,
+    }
+  }
+
+  const { data: config, error: configErr } = await db
+    .from('whatsapp_config')
+    .select('*')
+    .eq('account_id', accountId)
+    .single()
+  if (configErr || !config) {
+    throw new Error('WhatsApp not configured for this account')
+  }
+
+  return {
+    sanitizedPhone: sanitized,
+    contactRowId: contact.id,
+    zernioSocialAccountId: null,
+    whatsappConfig: { phone_number_id: config.phone_number_id, send_api_base: config.send_api_base ?? null },
+    accessToken: decrypt(config.access_token),
+  }
 }
 
 /**
@@ -118,42 +193,22 @@ export async function engineSendText(
 ): Promise<{ whatsapp_message_id: string }> {
   const db = supabaseAdmin()
 
-  const { data: contact, error: contactErr } = await db
-    .from('contacts')
-    .select('id, phone')
-    .eq('id', args.contactId)
-    .eq('account_id', args.accountId)
-    .maybeSingle()
-  if (contactErr || !contact?.phone) {
-    throw new Error('contact not found for this account')
-  }
-
-  const sanitized = sanitizePhoneForMeta(contact.phone)
-  if (!isValidE164(sanitized)) {
-    throw new Error(`contact phone invalid: ${contact.phone}`)
-  }
-
-  const zernioSocialAccountId = await resolveZernioSocialAccountId(db, args.accountId)
+  const ctx = args.resolved ?? (await resolveSendContext(db, args.accountId, args.contactId))
+  const sanitized = ctx.sanitizedPhone
 
   let waMessageId: string
-  if (zernioSocialAccountId) {
-    waMessageId = await sendViaZernioAndPersist(db, zernioSocialAccountId, {
+  if (ctx.zernioSocialAccountId) {
+    waMessageId = await sendViaZernioAndPersist(db, ctx.zernioSocialAccountId, {
       conversationId: args.conversationId,
       recipientPhone: sanitized,
       messageType: 'text',
       contentText: args.text,
     })
   } else {
-    const { data: config, error: configErr } = await db
-      .from('whatsapp_config')
-      .select('*')
-      .eq('account_id', args.accountId)
-      .single()
-    if (configErr || !config) {
-      throw new Error('WhatsApp not configured for this account')
-    }
-
-    const accessToken = decrypt(config.access_token)
+    // Only unset when Zernio-bridged (the branch above), which we're
+    // not in here — see ResolvedSendContext's doc comment.
+    const config = ctx.whatsappConfig!
+    const accessToken = ctx.accessToken!
 
     const attempt = async (phone: string): Promise<string> => {
       const r = await sendTextMessage({
@@ -186,7 +241,7 @@ export async function engineSendText(
     waMessageId = sentId
 
     if (workingPhone !== sanitized) {
-      await db.from('contacts').update({ phone: workingPhone }).eq('id', contact.id)
+      await db.from('contacts').update({ phone: workingPhone }).eq('id', ctx.contactRowId)
     }
   }
 

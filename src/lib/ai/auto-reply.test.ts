@@ -8,6 +8,7 @@ const h = vi.hoisted(() => ({
   retrieveKnowledge: vi.fn(),
   generateReply: vi.fn(),
   engineSendText: vi.fn(),
+  resolveSendContext: vi.fn(),
   applyLeadScore: vi.fn(),
   ensureDealInQualifiedStage: vi.fn(),
   state: {
@@ -17,14 +18,26 @@ const h = vi.hoisted(() => ({
     roundRobinAgentId: null as string | null,
     updatePayload: null as Record<string, unknown> | null,
     rpcCalls: [] as { name: string; args: unknown }[],
+    // Consumed in order by the debounce's two `countCustomerMessages`
+    // reads (before/after the wait). A single value means "no change" —
+    // the common case every existing test wants. A test asserting the
+    // stand-down behaviour pushes [1, 2] so the second read sees a
+    // newer message that "arrived" during the wait.
+    customerMsgCounts: [1, 1] as number[],
   },
 }))
+
+// The debounce wait would otherwise add a real ~12s to every test.
+process.env.AI_AUTOREPLY_DEBOUNCE_MS = '0'
 
 vi.mock('./config', () => ({ loadAiConfig: h.loadAiConfig }))
 vi.mock('./context', () => ({ buildConversationContext: h.buildConversationContext }))
 vi.mock('./knowledge', () => ({ retrieveKnowledge: h.retrieveKnowledge }))
 vi.mock('./generate', () => ({ generateReply: h.generateReply }))
-vi.mock('@/lib/flows/meta-send', () => ({ engineSendText: h.engineSendText }))
+vi.mock('@/lib/flows/meta-send', () => ({
+  engineSendText: h.engineSendText,
+  resolveSendContext: h.resolveSendContext,
+}))
 vi.mock('./lead-scoring', () => ({
   applyLeadScore: h.applyLeadScore,
   ensureDealInQualifiedStage: h.ensureDealInQualifiedStage,
@@ -40,6 +53,18 @@ vi.mock('./admin-client', () => ({
           in: () => chain,
           limit: () =>
             Promise.resolve({ data: h.state.autoResponders, error: null }),
+        }
+        return chain
+      }
+      if (table === 'messages') {
+        // .select('id', {count}).eq().eq() → countCustomerMessages. Each
+        // full chain (one per debounce read) shifts the next queued
+        // count off h.state.customerMsgCounts.
+        const chain = {
+          select: () => chain,
+          eq: () => chain,
+          then: (resolve: (v: { count: number | null; error: null }) => void) =>
+            resolve({ count: h.state.customerMsgCounts.shift() ?? 1, error: null }),
         }
         return chain
       }
@@ -109,11 +134,19 @@ beforeEach(() => {
   h.state.roundRobinAgentId = null
   h.state.updatePayload = null
   h.state.rpcCalls = []
+  h.state.customerMsgCounts = [1, 1]
   h.loadAiConfig.mockResolvedValue(aiConfig())
   h.buildConversationContext.mockResolvedValue([{ role: 'user', content: 'hi' }])
   h.retrieveKnowledge.mockResolvedValue([])
   h.generateReply.mockResolvedValue({ text: 'Hello!', handoff: false, score: null })
   h.engineSendText.mockResolvedValue({ whatsapp_message_id: 'm1' })
+  h.resolveSendContext.mockResolvedValue({
+    sanitizedPhone: '15551234567',
+    contactRowId: 'contact-1',
+    zernioSocialAccountId: null,
+    whatsappConfig: { phone_number_id: 'pn-1', send_api_base: null },
+    accessToken: 'decrypted-token',
+  })
   h.applyLeadScore.mockReset()
   h.ensureDealInQualifiedStage.mockReset()
 })
@@ -138,6 +171,13 @@ describe('dispatchInboundToAiReply — eligibility gates', () => {
     expect(h.retrieveKnowledge).toHaveBeenCalled()
     const systemPrompt = h.generateReply.mock.calls[0][0].systemPrompt as string
     expect(systemPrompt).toContain('Returns accepted within 30 days.')
+  })
+
+  it('stands down when a newer customer message arrives during the debounce wait', async () => {
+    h.state.customerMsgCounts = [1, 2] // count went up between the two reads
+    await dispatchInboundToAiReply(ARGS)
+    expect(h.generateReply).not.toHaveBeenCalled()
+    expect(h.engineSendText).not.toHaveBeenCalled()
   })
 
   it('stands down when an active message-level automation exists', async () => {

@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabaseAdmin } from './admin-client'
 import { loadAiConfig } from './config'
 import { buildConversationContext } from './context'
@@ -14,7 +15,7 @@ import { buildCalendarContext } from './calendar-context'
 import { describeNowInZone } from './timezone'
 import { logAiUsage } from './usage'
 import { latestUserMessage } from './query'
-import { engineSendText } from '@/lib/flows/meta-send'
+import { engineSendText, resolveSendContext } from '@/lib/flows/meta-send'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 import { pickRoundRobinAgent } from '@/lib/assignment/round-robin'
 import { signalTyping } from '@/lib/whatsapp/typing-indicator'
@@ -23,16 +24,37 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+// How long a dispatch waits, after its own eligibility checks pass and
+// before it does anything expensive, to see whether a newer customer
+// message beats it to the reply — see the debounce block in
+// dispatchInboundToAiReply for the full reasoning. Override with
+// AI_AUTOREPLY_DEBOUNCE_MS (tests set it to 0; an operator could tune
+// the window without a code change).
+function debounceMs(): number {
+  const raw = Number(process.env.AI_AUTOREPLY_DEBOUNCE_MS)
+  return Number.isFinite(raw) && raw >= 0 ? raw : 12_000
+}
+
+async function countCustomerMessages(db: SupabaseClient, conversationId: string): Promise<number> {
+  const { count } = await db
+    .from('messages')
+    .select('id', { count: 'exact', head: true })
+    .eq('conversation_id', conversationId)
+    .eq('sender_type', 'customer')
+  return count ?? 0
+}
+
 /**
  * Pause before sending the NEXT part of a split auto-reply, scaled to
  * that part's own length instead of a fixed delay — a two-word part
  * arriving after the same pause as a full sentence read as robotic.
- * ~50ms/char (≈ 240 chars/min, an unhurried but real phone typing
- * speed) clamped so a short part still feels deliberate (never under
- * 900ms) and a long one doesn't stall the thread (never over 3500ms).
+ * Roughly half the previous pacing (was 900-3500ms, 50ms/char): still
+ * enough of a beat that a multi-part reply doesn't read as one message
+ * split for no reason, but a 3-part reply no longer adds up to ~7s of
+ * pure waiting on top of the model's own latency.
  */
 function typingDelayForPart(text: string): number {
-  return Math.min(3500, Math.max(900, text.length * 50))
+  return Math.min(1800, Math.max(500, text.length * 25))
 }
 
 interface DispatchArgs {
@@ -68,6 +90,10 @@ export async function dispatchInboundToAiReply(
   args: DispatchArgs,
 ): Promise<void> {
   const { accountId, conversationId, contactId, configOwnerUserId } = args
+  // Diagnostic only — logs how long the dispatch spent on DB/knowledge
+  // work vs. the provider call itself, so a "the AI replies too slowly"
+  // report can be traced to a specific stage instead of guessed at.
+  const dispatchStartedAt = Date.now()
 
   try {
     const db = supabaseAdmin()
@@ -109,14 +135,34 @@ export async function dispatchInboundToAiReply(
     )
       return
 
-    const messages = await buildConversationContext(db, conversationId)
-    if (messages.length === 0) return
+    // Debounce: wait a bit before actually replying, so a customer who
+    // sends several quick messages in a row (breaking one thought into
+    // 2-3 bubbles) gets ONE reply covering all of them instead of the
+    // bot answering the first fragment the instant it lands. Every
+    // inbound message runs this same dispatch independently (one per
+    // webhook delivery), so "wait, then check if a newer message beat
+    // us to it" is what keeps that from turning into one reply PER
+    // fragment: whichever delivery is the last to still see no newer
+    // customer message once its own wait ends is the one that actually
+    // replies; every earlier one quietly stands down.
+    const customerMsgCountAtStart = await countCustomerMessages(db, conversationId)
+    // Cosmetic, same fire-and-forget posture as every other signalTyping
+    // call — shows "typing…" right away instead of the customer staring
+    // at silence for the whole debounce window.
+    void signalTyping(db, accountId, conversationId)
+    await sleep(debounceMs())
+    const customerMsgCountAfterWait = await countCustomerMessages(db, conversationId)
+    if (customerMsgCountAfterWait > customerMsgCountAtStart) {
+      return // a newer message arrived — its own dispatch will reply instead
+    }
 
     // Account-wide throttle on the shared BYO key. The per-conversation
     // cap bounds one thread; this bounds a burst across many threads (a
     // marketing blast landing 200 replies at once) so we never run the
     // owner's key past the provider's rate limit. Over the limit → skip
     // the auto-reply; the inbound still sits in the inbox for a human.
+    // Checked before any of the context-gathering below so a throttled
+    // account doesn't pay for those reads either.
     const acctLimit = checkRateLimit(
       `ai-autoreply:${accountId}`,
       RATE_LIMITS.aiAutoReplyAccount,
@@ -128,69 +174,65 @@ export async function dispatchInboundToAiReply(
       return
     }
 
-    // Ground the reply in the account's knowledge base (best-effort).
-    const knowledge = await retrieveKnowledge(
-      db,
-      accountId,
-      config,
-      latestUserMessage(messages),
-    )
+    // Every reply this account might be waiting on is gated on the LLM
+    // call at the bottom of this function — every DB round trip before
+    // it is pure added latency on top of that. None of these five reads
+    // depend on each other's result (only `retrieveKnowledge` below
+    // needs `messages`, which is why it isn't in this batch too), so
+    // firing them together turns N sequential round trips into one.
+    // The trade-off: on the rare conversation with zero text/audio/
+    // image/video messages ever (so `messages` comes back empty and we
+    // bail right after), the other four still ran for nothing — a cheap
+    // price for cutting real latency on every reply that DOES send.
+    const [messages, dealContext, accountRow, mediaItemsRes, contactRow] = await Promise.all([
+      buildConversationContext(db, conversationId),
+      // Deal + pipeline-stage context, needed regardless of sales mode:
+      // it drives sales mode's [[STAGE:...]] protocol when enabled, AND
+      // decides whether [[SUMMARY:...]] gets taught at all (only
+      // meaningful with an open deal to attach it to). Two short
+      // lookups; a no-op cost when there's no open deal either way.
+      loadDealStageContext(db, { accountId, contactId }),
+      // Only fetched when scheduling is actually on — an extra query on
+      // every single auto-reply for accounts that never enabled it
+      // would be pure waste.
+      config.aiSchedulingEnabled
+        ? db.from('accounts').select('timezone').eq('id', accountId).maybeSingle()
+        : Promise.resolve({ data: null as { timezone: string } | null }),
+      // Same "only when opted in" posture — an extra query per
+      // auto-reply for accounts that never turned this on would be pure
+      // waste. Empty catalog degrades to the same no-op as the switch
+      // being off: buildSystemPrompt only adds the [[SEND_MEDIA:...]]
+      // instruction when this array is non-empty.
+      config.mediaSendingEnabled
+        ? db.from('ai_media_library').select('key, description').eq('account_id', accountId)
+        : Promise.resolve({ data: [] as { key: string; description: string }[] }),
+      // Cheap, single-row lookup — worth doing on every auto-reply
+      // (unlike the opt-in features above) since capturing a name is
+      // basic lead intake, not an extra capability an account has to
+      // turn on. Once a name is on file this stays false forever for
+      // this contact, so the instruction (and this query) only ever
+      // matters early in a lead's lifecycle.
+      db.from('contacts').select('name').eq('id', contactId).maybeSingle(),
+    ])
+    if (messages.length === 0) return
 
-    // Deal + pipeline-stage context, needed regardless of sales mode:
-    // it drives sales mode's [[STAGE:...]] protocol when enabled, AND
-    // decides whether [[SUMMARY:...]] gets taught at all (only
-    // meaningful with an open deal to attach it to). Two short
-    // lookups; a no-op cost when there's no open deal either way.
-    const dealContext = await loadDealStageContext(db, { accountId, contactId })
+    const accountTimezone = accountRow.data?.timezone ?? 'UTC'
+    const mediaLibrary = mediaItemsRes.data ?? []
+    const needsContactName = !contactRow.data?.name?.trim()
 
-    // Only fetched when scheduling is actually on — an extra query on
-    // every single auto-reply for accounts that never enabled it would
-    // be pure waste.
-    let accountTimezone = 'UTC'
-    if (config.aiSchedulingEnabled) {
-      const { data: acct } = await db
-        .from('accounts')
-        .select('timezone')
-        .eq('id', accountId)
-        .maybeSingle()
-      accountTimezone = acct?.timezone ?? 'UTC'
-    }
-
-    // Same "only when actually opted in" posture as the timezone
-    // lookup above — an extra Google API round trip on every
-    // auto-reply for accounts that never turned this on would be
-    // pure waste (and pure added latency on the customer-facing send).
-    const calendarContext =
+    // Knowledge retrieval (its own embeddings API call + one or two DB
+    // RPCs) and the Google Calendar readout (an external API round
+    // trip, opt-in) are independent of each other — run them together
+    // rather than one after the other. calendarContext still needs
+    // `accountTimezone` from the batch above, which is why it couldn't
+    // join that Promise.all too.
+    const [knowledge, calendarContext] = await Promise.all([
+      // Ground the reply in the account's knowledge base (best-effort).
+      retrieveKnowledge(db, accountId, config, latestUserMessage(messages)),
       config.aiSchedulingEnabled && config.googleCalendarSyncEnabled
-        ? await buildCalendarContext(db, accountId, accountTimezone)
-        : []
-
-    // Same "only when opted in" posture — an extra query per auto-reply
-    // for accounts that never turned this on would be pure waste. Empty
-    // catalog degrades to the same no-op as the switch being off:
-    // buildSystemPrompt only adds the [[SEND_MEDIA:...]] instruction
-    // when this array is non-empty.
-    let mediaLibrary: { key: string; description: string }[] = []
-    if (config.mediaSendingEnabled) {
-      const { data: items } = await db
-        .from('ai_media_library')
-        .select('key, description')
-        .eq('account_id', accountId)
-      mediaLibrary = items ?? []
-    }
-
-    // Cheap, single-row lookup — worth doing on every auto-reply (unlike
-    // the opt-in features above) since capturing a name is basic lead
-    // intake, not an extra capability an account has to turn on. Once a
-    // name is on file this stays false forever for this contact, so the
-    // instruction (and this query) only ever matters early in a lead's
-    // lifecycle.
-    const { data: contactRow } = await db
-      .from('contacts')
-      .select('name')
-      .eq('id', contactId)
-      .maybeSingle()
-    const needsContactName = !contactRow?.name?.trim()
+        ? buildCalendarContext(db, accountId, accountTimezone)
+        : Promise.resolve([]),
+    ])
 
     const systemPrompt = buildSystemPrompt({
       userPrompt: config.systemPrompt,
@@ -230,11 +272,15 @@ export async function dispatchInboundToAiReply(
       contactName,
       dealValue,
       usage,
-    } = await generateReply({
-      config,
-      systemPrompt,
-      messages,
-    })
+    } = await (async () => {
+      const beforeLlm = Date.now()
+      const result = await generateReply({ config, systemPrompt, messages })
+      console.log(
+        `[ai auto-reply] conversation ${conversationId}: provider call took ${Date.now() - beforeLlm}ms ` +
+          `(${beforeLlm - dispatchStartedAt}ms of DB/knowledge work before it, ${Date.now() - dispatchStartedAt}ms total so far)`,
+      )
+      return result
+    })()
 
     // Record token spend on the account's BYO key. Fire-and-forget so it
     // never adds latency to the customer-facing send: `logAiUsage`
@@ -398,7 +444,12 @@ export async function dispatchInboundToAiReply(
     // Sent as separate consecutive messages (up to MAX_REPLY_PARTS) rather
     // than one block, with a short pause in between — closer to how a
     // person actually texts than a single wall of text arriving at once.
+    // Resolved once and reused for every part — same contact, same
+    // WhatsApp config either way, so there's no reason for parts 2 and 3
+    // to redo the same contact + whatsapp_config lookups (and decrypt)
+    // part 1 already did. See `resolveSendContext`'s doc comment.
     const parts = splitReplyIntoMessages(text)
+    const sendContext = await resolveSendContext(db, accountId, contactId)
     for (let i = 0; i < parts.length; i++) {
       if (i > 0) {
         // Sending a message clears the platform's typing bubble, so
@@ -414,6 +465,7 @@ export async function dispatchInboundToAiReply(
         contactId,
         text: parts[i],
         aiGenerated: true,
+        resolved: sendContext,
       })
     }
 

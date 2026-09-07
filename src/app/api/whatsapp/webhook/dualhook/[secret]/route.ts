@@ -18,7 +18,11 @@ import {
 // (`DUALHOOK_WEBHOOK_SECRET`), which the provider is configured with
 // out of band. Both routes feed the same shared pipeline in
 // `src/lib/whatsapp/webhook-processor.ts`.
-export const maxDuration = 60
+//
+// Same headroom reasoning as the direct-Meta route: AI auto-reply's
+// debounce wait (~12s) plus the provider's own request timeout can add
+// up on top of ordinary processing.
+export const maxDuration = 120
 
 // GET - Webhook verification (identical to the direct-Meta route —
 // hub.verify_token has nothing to do with which secret authenticates
