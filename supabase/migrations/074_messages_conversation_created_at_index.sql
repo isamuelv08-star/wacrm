@@ -1,0 +1,33 @@
+-- ============================================================
+-- 074_messages_conversation_created_at_index.sql — speed up
+--                                                    opening a thread
+--
+-- The inbox's message-thread fetch (src/components/inbox/
+-- message-thread.tsx) is:
+--
+--   SELECT * FROM messages
+--   WHERE conversation_id = $1
+--   ORDER BY created_at DESC
+--   LIMIT 1000
+--
+-- `idx_messages_conversation` (migration 001) only covers
+-- `conversation_id` — it lets Postgres find the matching rows fast,
+-- but then has to sort ALL of them by `created_at` before it can take
+-- the top 1000. For a contact with a long message history (exactly
+-- the "conversation I haven't opened in a while" case — it's had time
+-- to accumulate), that sort is real, user-visible latency: reported as
+-- the inbox showing a ~2s full loading spinner when switching to one
+-- of these threads.
+--
+-- A composite (conversation_id, created_at DESC) index lets Postgres
+-- walk it in exactly the order this query needs and stop after 1000
+-- rows — no separate sort step. Added alongside the existing
+-- single-column index rather than replacing it (a pure addition,
+-- zero risk to any other query path that still only filters on
+-- conversation_id).
+--
+-- Idempotent — safe to re-run.
+-- ============================================================
+
+CREATE INDEX IF NOT EXISTS idx_messages_conversation_created_at
+  ON messages (conversation_id, created_at DESC);
