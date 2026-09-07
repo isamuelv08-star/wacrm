@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { GitBranch, Plus, ChevronDown, Settings } from "lucide-react";
+import { GitBranch, Plus, ChevronDown, Settings, CalendarRange } from "lucide-react";
 import { toast } from "sonner";
 import { useCan } from "@/hooks/use-can";
 import { useAuth } from "@/hooks/use-auth";
@@ -38,6 +38,11 @@ import { useTranslations } from "next-intl";
 // agent+. The two CTAs gate on different `useCan` capabilities,
 // not on different copy.
 
+// Persists the "group stale leads by date" board preference across
+// visits — same try/catch localStorage idiom as sidebar.tsx's
+// SIDEBAR_COLLAPSED_STORAGE_KEY.
+const GROUP_BY_DATE_STORAGE_KEY = "saleslid:pipeline:group-by-date";
+
 // Spec-defined seed — name and color per the product spec.
 const SPEC_DEFAULT_STAGES = [
   { name: "New Lead", color: "#3b82f6", position: 0 }, // blue
@@ -49,6 +54,7 @@ const SPEC_DEFAULT_STAGES = [
 
 export default function PipelinesPage() {
   const t = useTranslations("Pipelines.page");
+  const tBoard = useTranslations("Pipelines.board");
   const supabase = createClient();
   const canEditSettings = useCan("edit-settings");
   const canCreateDeals = useCan("send-messages");
@@ -76,6 +82,30 @@ export default function PipelinesPage() {
     if (assigneeFilter === "unassigned") return deals.filter((d) => !d.assigned_to);
     return deals;
   }, [deals, assigneeFilter, user?.id]);
+
+  // "Group stale leads by date" board display mode — off by default
+  // (opt-in), persisted client-side only, no effect on what's fetched.
+  const [groupByDate, setGroupByDate] = useState(false);
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(GROUP_BY_DATE_STORAGE_KEY);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (stored !== null) setGroupByDate(stored === "true");
+    } catch {
+      // localStorage can throw in private-browsing/sandboxed contexts.
+    }
+  }, []);
+  const toggleGroupByDate = useCallback(() => {
+    setGroupByDate((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(GROUP_BY_DATE_STORAGE_KEY, String(next));
+      } catch {
+        // Persistence is best-effort; ignore storage failures.
+      }
+      return next;
+    });
+  }, []);
 
   // Dialog / sheet state
   const [newPipelineOpen, setNewPipelineOpen] = useState(false);
@@ -470,6 +500,21 @@ export default function PipelinesPage() {
               </button>
             ))}
           </div>
+
+          <button
+            type="button"
+            onClick={toggleGroupByDate}
+            aria-pressed={groupByDate}
+            title={groupByDate ? tBoard("ungroupByDate") : tBoard("groupByDate")}
+            className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs font-medium transition-colors ${
+              groupByDate
+                ? "border-primary/40 bg-primary/10 text-primary"
+                : "border-border bg-card text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <CalendarRange className="h-3.5 w-3.5" />
+            {tBoard("groupByDate")}
+          </button>
         </div>
 
         <div className="flex items-center gap-2">
@@ -531,6 +576,7 @@ export default function PipelinesPage() {
             onAddDeal={handleAddDeal}
             onEditDeal={handleEditDeal}
             conversationStaleness={conversationStaleness}
+            groupByDate={groupByDate}
           />
         </>
       )}

@@ -16,7 +16,9 @@ import {
 } from "@dnd-kit/core";
 import type { Deal, PipelineStage } from "@/types";
 import type { ConversationStaleness } from "@/lib/pipelines/lead-staleness";
+import { groupDealsByDate } from "@/lib/pipelines/deal-groups";
 import { DealCard } from "./deal-card";
+import { DealGroupRow } from "./deal-group-row";
 import { Button } from "@/components/ui/button";
 import {
   Plus,
@@ -89,6 +91,10 @@ interface PipelineBoardProps {
   onEditDeal: (deal: Deal) => void;
   /** Optional — omit to render every card without a staleness badge. */
   conversationStaleness?: Map<string, ConversationStaleness>;
+  /** When true, each column collapses deals older than this week into
+   *  weekly/monthly summary rows instead of an endless flat list — see
+   *  lib/pipelines/deal-groups.ts. */
+  groupByDate: boolean;
 }
 
 export function PipelineBoard({
@@ -98,6 +104,7 @@ export function PipelineBoard({
   onAddDeal,
   onEditDeal,
   conversationStaleness,
+  groupByDate,
 }: PipelineBoardProps) {
   const { defaultCurrency } = useAuth();
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
@@ -182,6 +189,7 @@ export function PipelineBoard({
               onAddDeal={onAddDeal}
               onEditDeal={onEditDeal}
               conversationStaleness={conversationStaleness}
+              groupByDate={groupByDate}
             />
           );
         })}
@@ -262,6 +270,7 @@ function StageColumn({
   onAddDeal,
   onEditDeal,
   conversationStaleness,
+  groupByDate,
 }: {
   stage: PipelineStage;
   deals: Deal[];
@@ -270,6 +279,7 @@ function StageColumn({
   onAddDeal: (stageId: string) => void;
   onEditDeal: (deal: Deal) => void;
   conversationStaleness?: Map<string, ConversationStaleness>;
+  groupByDate: boolean;
 }) {
   const t = useTranslations("Pipelines.board");
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
@@ -278,11 +288,24 @@ function StageColumn({
     STAGE_ICON_MAP[iconKey] ??
     STAGE_ICON_FALLBACKS[stage.position % STAGE_ICON_FALLBACKS.length];
 
+  // Groups older deals into weekly/monthly summary rows when enabled
+  // (see lib/pipelines/deal-groups.ts). null when off, so every
+  // downstream check below degrades to today's flat-list behavior.
+  const groups = useMemo(
+    () => (groupByDate ? groupDealsByDate(deals) : null),
+    [deals, groupByDate],
+  );
+
   // Auto-compacts past COMPACT_THRESHOLD; the toggle only ever
   // overrides it back to full-size — there's no manual "force compact"
   // below the threshold, since that's not the problem being solved.
+  // Counts top-level rows (a group header counts as one row, same as
+  // an individual card), not the column's total deal count — so
+  // expanding a group to reveal its cards never retroactively shrinks
+  // other already-visible full-size cards.
   const [forceExpanded, setForceExpanded] = useState(false);
-  const overThreshold = deals.length > COMPACT_THRESHOLD;
+  const visibleRowCount = groups ? groups.length : deals.length;
+  const overThreshold = visibleRowCount > COMPACT_THRESHOLD;
   const isCompact = overThreshold && !forceExpanded;
 
   return (
@@ -362,6 +385,33 @@ function StageColumn({
           <div className="flex flex-1 items-center justify-center rounded-lg border-2 border-dashed border-border py-10 text-xs text-muted-foreground">
             {t("dropDealHere")}
           </div>
+        ) : groups ? (
+          groups.map((entry) =>
+            entry.kind === "individual" ? (
+              <DraggableDealCard
+                key={entry.deal.id}
+                deal={entry.deal}
+                stage={stage}
+                onEdit={onEditDeal}
+                compact={isCompact}
+                conversationStaleness={
+                  entry.deal.contact_id
+                    ? conversationStaleness?.get(entry.deal.contact_id)
+                    : undefined
+                }
+              />
+            ) : (
+              <DealGroupRow
+                key={entry.key}
+                group={entry}
+                stage={stage}
+                currency={currency}
+                compact={isCompact}
+                onEditDeal={onEditDeal}
+                conversationStaleness={conversationStaleness}
+              />
+            ),
+          )
         ) : (
           deals.map((deal) => (
             <DraggableDealCard
@@ -391,7 +441,7 @@ function StageColumn({
   );
 }
 
-function DraggableDealCard({
+export function DraggableDealCard({
   deal,
   stage,
   onEdit,

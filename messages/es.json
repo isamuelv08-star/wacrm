@@ -769,7 +769,10 @@
       "addDeal": "Agregar negocio",
       "pipelineValue": "Valor del pipeline",
       "expandCards": "Mostrar tarjetas completas",
-      "compactCards": "Volver a tarjetas compactas"
+      "compactCards": "Volver a tarjetas compactas",
+      "groupByDate": "Agrupar leads antiguos por fecha",
+      "ungroupByDate": "Mostrar cada lead individualmente",
+      "leadCount": "{count, plural, one {# lead} other {# leads}}"
     },
     "card": {
       "noContact": "Sin contacto",

@@ -769,7 +769,10 @@
       "addDeal": "딜 추가",
       "pipelineValue": "파이프라인 가치",
       "expandCards": "전체 카드 보기",
-      "compactCards": "간략한 카드로 보기"
+      "compactCards": "간략한 카드로 보기",
+      "groupByDate": "오래된 리드 날짜별로 그룹화",
+      "ungroupByDate": "모든 리드 개별로 보기",
+      "leadCount": "리드 {count}개"
     },
     "card": {
       "noContact": "연락처 없음",

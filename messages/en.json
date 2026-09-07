@@ -769,7 +769,10 @@
       "addDeal": "Add Deal",
       "pipelineValue": "Pipeline value",
       "expandCards": "Show full cards",
-      "compactCards": "Collapse to compact cards"
+      "compactCards": "Collapse to compact cards",
+      "groupByDate": "Group stale leads by date",
+      "ungroupByDate": "Show every lead individually",
+      "leadCount": "{count, plural, one {# lead} other {# leads}}"
     },
     "card": {
       "noContact": "No contact",
