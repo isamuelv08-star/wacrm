@@ -26,15 +26,7 @@ import {
 } from '@/lib/dashboard/queries'
 import { rangeForPreset, formatRangeLabel, type PeriodPreset, type PeriodRange } from '@/lib/period'
 import { PeriodSelector } from '@/components/period-selector'
-import {
-  loadCeoAlerts,
-  loadCeoMetrics,
-  loadCommercialMetrics,
-  loadLeadsByRep,
-  loadSalesFunnel,
-  loadSalesVsGoal,
-  loadTopSellers,
-} from '@/lib/dashboard/ceo-queries'
+import { useDebouncedCallback } from '@/hooks/use-debounced-callback'
 import type {
   ConversationsSeriesPoint,
   HotUnansweredItem,
@@ -78,6 +70,41 @@ type RangeDays = 7 | 30 | 90
 // Open deals sitting untouched this long count as "stalled" in the
 // sales Alerts card.
 const STALE_DAYS = 7
+
+interface CeoSummaryResponse {
+  ceoMetrics: CeoMetrics | null
+  salesVsGoal: SalesVsGoalPoint[] | null
+  salesFunnel: FunnelStep[] | null
+  commercialMetrics: CommercialMetrics | null
+  topSellers: TopSeller[] | null
+  leadsByRep: LeadsByRep[] | null
+  alerts: CeoAlerts | null
+}
+
+/**
+ * Fetch the sales/CEO section from the cached `/api/dashboard/ceo-summary`
+ * route instead of hitting Supabase directly for each of its seven
+ * metrics — see that route's doc comment for the caching + permission
+ * strategy. `customRange` is required whenever `range.label ===
+ * 'custom'`: `range.start`/`.end` are already day-truncated /
+ * exclusive-end-adjusted by `rangeForPreset`, so re-sending THOSE as
+ * if they were raw picker input would apply that adjustment twice on
+ * the server.
+ */
+async function fetchCeoSummary(
+  range: PeriodRange,
+  staleDays: number,
+  customRange?: { start: string; end: string },
+): Promise<CeoSummaryResponse> {
+  const params = new URLSearchParams({ preset: range.label, staleDays: String(staleDays) })
+  if (range.label === 'custom' && customRange) {
+    params.set('start', customRange.start)
+    params.set('end', customRange.end)
+  }
+  const res = await fetch(`/api/dashboard/ceo-summary?${params.toString()}`)
+  if (!res.ok) throw new Error(`ceo-summary request failed: ${res.status}`)
+  return res.json() as Promise<CeoSummaryResponse>
+}
 
 export default function DashboardPage() {
   const t = useTranslations('Dashboard.page')
@@ -148,6 +175,16 @@ export default function DashboardPage() {
   useEffect(() => {
     periodRangeRef.current = periodRange
   }, [periodRange])
+
+  // Same ref-read trick, for the ceo-summary fetch below: it needs the
+  // RAW custom start/end strings (not periodRange.start/.end, which
+  // are already day-truncated/exclusive-end-adjusted by rangeForPreset
+  // — sending those back through rangeForPreset('custom', ...) a
+  // second time server-side would apply that adjustment twice).
+  const customRangeRef = useRef({ start: customStart, end: customEnd })
+  useEffect(() => {
+    customRangeRef.current = { start: customStart, end: customEnd }
+  }, [customStart, customEnd])
 
   const [range, setRange] = useState<RangeDays>(30)
   // Keep a cache per range so switching tabs doesn't re-fetch what we
@@ -253,49 +290,35 @@ export default function DashboardPage() {
       return
     }
 
-    void loadCeoMetrics(db, currentRange)
-      .then((m) => {
-        setCeoMetrics(m)
-        // Alerts need the full metrics bundle this same call already
-        // computed — fetch it right after instead of re-scanning
-        // open deals a second time.
-        setAlertsLoading(true)
-        void loadCeoAlerts(db, m, STALE_DAYS)
-          .then((a) => setAlerts(a))
-          .catch((err) => console.error('[dashboard] sales alerts failed:', err))
-          .finally(() => setAlertsLoading(false))
+    // One cached round trip for all seven sales/CEO widgets instead of
+    // seven direct Supabase calls — see fetchCeoSummary's doc comment.
+    void fetchCeoSummary(currentRange, STALE_DAYS, customRangeRef.current)
+      .then((data) => {
+        setCeoMetrics(data.ceoMetrics)
+        setSalesVsGoal(data.salesVsGoal)
+        setFunnel(data.salesFunnel)
+        setCommercial(data.commercialMetrics)
+        setTopSellers(data.topSellers)
+        setLeadsByRep(data.leadsByRep)
+        setAlerts(data.alerts)
       })
-      .catch((err) => console.error('[dashboard] sales metrics failed:', err))
-      .finally(() => setCeoMetricsLoading(false))
-
-    void loadSalesVsGoal(db, currentRange)
-      .then((s) => setSalesVsGoal(s))
-      .catch((err) => console.error('[dashboard] sales-vs-goal failed:', err))
-      .finally(() => setSalesVsGoalLoading(false))
-
-    void loadSalesFunnel(db)
-      .then((f) => setFunnel(f))
-      .catch((err) => console.error('[dashboard] funnel failed:', err))
-      .finally(() => setFunnelLoading(false))
-
-    void loadCommercialMetrics(db)
-      .then((c) => setCommercial(c))
-      .catch((err) => console.error('[dashboard] commercial metrics failed:', err))
-      .finally(() => setCommercialLoading(false))
-
-    void loadTopSellers(db, currentRange)
-      .then((s) => setTopSellers(s))
-      .catch((err) => console.error('[dashboard] top-sellers failed:', err))
-      .finally(() => setTopSellersLoading(false))
-
-    // Not range-dependent (a live "who owns what" snapshot, unlike the
-    // $-vs-quota ranking above) — mirrors loadSalesFunnel/loadCommercialMetrics,
-    // so it's only refetched here, not in applyPeriodRange below.
-    void loadLeadsByRep(db)
-      .then((r) => setLeadsByRep(r))
-      .catch((err) => console.error('[dashboard] leads-by-rep failed:', err))
-      .finally(() => setLeadsByRepLoading(false))
+      .catch((err) => console.error('[dashboard] ceo-summary failed:', err))
+      .finally(() => {
+        setCeoMetricsLoading(false)
+        setSalesVsGoalLoading(false)
+        setFunnelLoading(false)
+        setCommercialLoading(false)
+        setTopSellersLoading(false)
+        setLeadsByRepLoading(false)
+        setAlertsLoading(false)
+      })
   }, [hasAnySalesAccess])
+
+  // Coalesces a burst of realtime events (see the two subscriptions
+  // below) into one `loadAll()` instead of one per row changed — a
+  // bulk import or an automation touching many deals/contacts at once
+  // would otherwise fire a full reload per event, per open tab.
+  const debouncedLoadAll = useDebouncedCallback(loadAll, 500, 2000)
 
   // Re-fetch every time this route becomes the active page — not just
   // on first mount. Next's client router cache can keep this page's
@@ -335,18 +358,18 @@ export default function DashboardPage() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'deals', filter: `account_id=eq.${accountId}` },
-        () => loadAll(),
+        () => debouncedLoadAll(),
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'sales_goals', filter: `account_id=eq.${accountId}` },
-        () => loadAll(),
+        () => debouncedLoadAll(),
       )
       .subscribe()
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [accountId, hasAnySalesAccess, loadAll])
+  }, [accountId, hasAnySalesAccess, debouncedLoadAll])
 
   // Live updates for the KPI row and the operational cards (Pipeline
   // Donut, Hot Unanswered) — these only ever refreshed on mount,
@@ -366,18 +389,18 @@ export default function DashboardPage() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'contacts', filter: `account_id=eq.${accountId}` },
-        () => loadAll(),
+        () => debouncedLoadAll(),
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'conversations', filter: `account_id=eq.${accountId}` },
-        () => loadAll(),
+        () => debouncedLoadAll(),
       )
       .subscribe()
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [accountId, loadAll])
+  }, [accountId, debouncedLoadAll])
 
   // Range switch handler — kept in an event callback (not an effect)
   // so the setState calls stay out of the react-hooks/set-state-in-effect
@@ -408,7 +431,7 @@ export default function DashboardPage() {
   // effect keyed on `periodRange`, these only ever run in response to
   // an actual user interaction with the selector.
   const applyPeriodRange = useCallback(
-    (r: PeriodRange) => {
+    (r: PeriodRange, customRange?: { start: string; end: string }) => {
       const db = createClient()
 
       setResponseTimeLoading(true)
@@ -419,30 +442,32 @@ export default function DashboardPage() {
 
       if (!hasAnySalesAccess) return
 
+      // Same cached round trip loadAll uses — funnel/commercial/leadsByRep
+      // come along too even though they're not range-dependent; they're
+      // cheap (served from the same cache entry loadAll already primed)
+      // and applying them here keeps this one call the single source of
+      // truth for the whole sales section instead of two divergent paths.
       setCeoMetricsLoading(true)
-      loadCeoMetrics(db, r)
-        .then((m) => {
-          setCeoMetrics(m)
-          setAlertsLoading(true)
-          void loadCeoAlerts(db, m, STALE_DAYS)
-            .then((a) => setAlerts(a))
-            .catch((err) => console.error('[dashboard] sales alerts failed:', err))
-            .finally(() => setAlertsLoading(false))
-        })
-        .catch((err) => console.error('[dashboard] sales metrics failed:', err))
-        .finally(() => setCeoMetricsLoading(false))
-
       setSalesVsGoalLoading(true)
-      loadSalesVsGoal(db, r)
-        .then((s) => setSalesVsGoal(s))
-        .catch((err) => console.error('[dashboard] sales-vs-goal failed:', err))
-        .finally(() => setSalesVsGoalLoading(false))
-
       setTopSellersLoading(true)
-      loadTopSellers(db, r)
-        .then((s) => setTopSellers(s))
-        .catch((err) => console.error('[dashboard] top-sellers failed:', err))
-        .finally(() => setTopSellersLoading(false))
+      setAlertsLoading(true)
+      void fetchCeoSummary(r, STALE_DAYS, customRange)
+        .then((data) => {
+          setCeoMetrics(data.ceoMetrics)
+          setSalesVsGoal(data.salesVsGoal)
+          setFunnel(data.salesFunnel)
+          setCommercial(data.commercialMetrics)
+          setTopSellers(data.topSellers)
+          setLeadsByRep(data.leadsByRep)
+          setAlerts(data.alerts)
+        })
+        .catch((err) => console.error('[dashboard] ceo-summary failed:', err))
+        .finally(() => {
+          setCeoMetricsLoading(false)
+          setSalesVsGoalLoading(false)
+          setTopSellersLoading(false)
+          setAlertsLoading(false)
+        })
     },
     [hasAnySalesAccess],
   )
@@ -464,7 +489,10 @@ export default function DashboardPage() {
       setCustomStart(start)
       setCustomEnd(end)
       if (!start || !end) return
-      applyPeriodRange(rangeForPreset('custom', { start: new Date(start), end: new Date(end) }))
+      applyPeriodRange(
+        rangeForPreset('custom', { start: new Date(start), end: new Date(end) }),
+        { start, end },
+      )
     },
     [applyPeriodRange],
   )

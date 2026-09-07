@@ -9,6 +9,76 @@ Versions follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0, `MINOR` bumps cover new modules; `PATCH` bumps cover bug fixes
 and polish.
 
+## [0.8.2] — 2026-09-05
+
+Fixes a crash that broke every standalone Docker deploy, closes an
+auth-middleware gap on four dashboard routes, hardens API input
+validation, and caches the dashboard's sales/CEO section server-side.
+
+### Changed
+
+- **`/dashboard`'s sales/CEO section now shares one cached read across
+  every viewer of an account.** The seven `ceo-queries.ts` loaders
+  (KPIs, sales-vs-goal, funnel, commercial metrics, top sellers,
+  leads-by-rep, alerts) ran straight against Supabase from the browser
+  on every mount, pathname match, and tab refocus — cost that scaled
+  with how many people had the page open, on top of how much data the
+  account had accumulated. A new `/api/dashboard/ceo-summary` route now
+  computes all seven once per account + period (cached 180s) and
+  filters the response down to what the caller's role/permissions
+  allow, mirroring the existing client-side `canViewDashboardSection`
+  check. The sidebar AI assistant's own dashboard-access check moved
+  into a shared `loadDashboardAccess` helper so the two call sites
+  can't drift apart.
+- **Realtime reloads on `/dashboard`, `/pipelines`, and `/calendar` now
+  debounce.** Each page's `postgres_changes` subscription re-ran its
+  whole load on every single row event — a bulk import or an
+  automation touching many rows at once fired one full reload per row,
+  per open browser tab. `useDebouncedCallback` coalesces a burst into
+  one reload 500ms after the last event (capped at a 2s max wait so a
+  sustained burst still reloads periodically instead of never).
+- **Extracted a shared `cachedForAccount` helper** (`src/lib/cache/
+  account-cache.ts`) around the `unstable_cache` pattern the CEO
+  summary route introduced, with a documented TTL menu instead of a
+  bare number per route. Future account-scoped cached endpoints reuse
+  this instead of re-deriving the key/TTL convention each time; its
+  doc comment also covers the single-instance caveat (same as
+  `src/lib/rate-limit.ts`'s) and the Redis swap path for when this app
+  runs more than one instance at once.
+
+### Fixed
+
+- **Standalone Docker deploys crashed on boot.** Next's file-tracing for
+  `.next/standalone` only copied the `.cjs` half of `@swc/helpers`,
+  leaving out the `esm/` files next-intl's ESM build needs at runtime —
+  every production deploy failed immediately with `Error: Cannot find
+  module '.../@swc/helpers/esm/_interop_require_default.js'`. The
+  Dockerfile now copies the full `@swc/helpers` package into the
+  runtime image instead of relying on the trace.
+- **`/calendar`, `/flows`, `/notifications`, and `/agents` weren't
+  behind the login redirect.** `middleware.ts`'s `protectedPaths` list
+  only covered 7 of the 11 routes under the dashboard route group, so
+  those four rendered their page shell for logged-out visitors (the
+  underlying data stayed RLS-scoped throughout). All dashboard routes
+  now redirect unauthenticated visitors to `/login`.
+
+### Security
+
+- **Webhook registration now rejects internal targets up front.**
+  `POST`/`PATCH /api/v1/webhooks` accepted any `https://` URL,
+  including one resolving to a private, loopback, or cloud-metadata
+  address — delivery already refused to send to such a target, so this
+  only produced a dead endpoint with a confusing failure mode.
+  Registration now runs the same public-address check delivery uses,
+  returning a clear 400 instead of silently saving a URL that could
+  never receive anything.
+- **`POST /api/v1/contacts` now validates `name`, `email`, and
+  `company`** — length caps and an email-shape check, matching the
+  pattern already used on the account/invitation/API-key routes.
+- **Bumped the `fast-uri` override** past the version range affected by
+  four host-confusion/SSRF advisories (fixed upstream in 3.1.6). It's a
+  transitive dependency of dev tooling only, not the production bundle.
+
 ## [0.8.1] — 2026-07-10
 
 Fixes inbound chats fragmenting into multiple threads for the same

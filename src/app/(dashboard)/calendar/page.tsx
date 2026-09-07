@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
 import { useCan } from '@/hooks/use-can'
+import { useDebouncedCallback } from '@/hooks/use-debounced-callback'
 import { completeEvent, loadEventsInRange, reopenEvent } from '@/lib/calendar/queries'
 import type { CalendarEvent, Profile } from '@/types'
 import { MonthGrid } from '@/components/calendar/month-grid'
@@ -63,6 +64,10 @@ export default function CalendarPage() {
       .then(({ data }) => setProfiles((data ?? []) as Profile[]))
   }, [])
 
+  // Coalesces a burst of calendar-event changes into one `load()`
+  // instead of one per row changed.
+  const debouncedLoad = useDebouncedCallback(load, 500, 2000)
+
   // Realtime — a teammate adding/editing/removing an event should
   // reflect here without a manual refresh, same shape as the
   // dashboard's sales subscription.
@@ -74,13 +79,13 @@ export default function CalendarPage() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'calendar_events', filter: `account_id=eq.${accountId}` },
-        () => load(),
+        () => debouncedLoad(),
       )
       .subscribe()
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [accountId, load])
+  }, [accountId, debouncedLoad])
 
   const visibleEvents = useMemo(() => {
     if (!events) return []

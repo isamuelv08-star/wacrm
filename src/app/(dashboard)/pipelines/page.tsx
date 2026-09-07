@@ -29,6 +29,7 @@ import { GitBranch, Plus, ChevronDown, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { useCan } from "@/hooks/use-can";
 import { useAuth } from "@/hooks/use-auth";
+import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
 import { GatedButton } from "@/components/ui/gated-button";
 import { useTranslations } from "next-intl";
 
@@ -275,6 +276,11 @@ export default function PipelinesPage() {
     setDeals(await loadDeals(selectedPipelineId));
   }, [loadDeals, selectedPipelineId]);
 
+  // Coalesces a burst of deal-change events (a bulk import, an
+  // automation touching many deals at once) into one `refreshDeals()`
+  // instead of one per row changed.
+  const debouncedRefreshDeals = useDebouncedCallback(refreshDeals, 500, 2000);
+
   // Live updates — this page had no realtime subscription at all, so
   // a deal created/moved/edited by a teammate (or an automation, or
   // the AI bot) never showed up here without a manual reload. Same
@@ -287,13 +293,13 @@ export default function PipelinesPage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "deals", filter: `account_id=eq.${accountId}` },
-        () => refreshDeals(),
+        () => debouncedRefreshDeals(),
       )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [accountId, supabase, refreshDeals]);
+  }, [accountId, supabase, debouncedRefreshDeals]);
 
   const handleDealMoved = useCallback(
     async (dealId: string, newStageId: string) => {

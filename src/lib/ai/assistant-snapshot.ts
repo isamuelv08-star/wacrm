@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { canViewDashboardSection, type AccountRole, type DashboardPermissions } from '@/lib/auth/roles'
+import type { AccountRole } from '@/lib/auth/roles'
+import { loadDashboardAccess } from '@/lib/auth/dashboard-access'
 import { rangeForPreset } from '@/lib/period'
 import { formatCurrency } from '@/lib/currency'
 import {
@@ -33,17 +34,7 @@ export async function buildAssistantSnapshot(args: {
   currency: string
 }): Promise<string> {
   const { db, role, userId, currency } = args
-  const isOwner = role === 'owner'
-
-  const permsRow = await db
-    .from('profiles')
-    .select('dashboard_permissions')
-    .eq('user_id', userId)
-    .maybeSingle()
-  const permissions = (permsRow.data?.dashboard_permissions ?? null) as DashboardPermissions | null
-
-  const can = (key: Parameters<typeof canViewDashboardSection>[2]) =>
-    isOwner || canViewDashboardSection(role, permissions, key)
+  const { can } = await loadDashboardAccess(db, { role, userId })
 
   const sections: string[] = []
 
