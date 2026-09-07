@@ -1,6 +1,12 @@
 {
   "Common": {
     "period": {
+      "presetToday": "Today",
+      "presetYesterday": "Yesterday",
+      "presetLast7Days": "Last 7 days",
+      "presetLast30Days": "Last 30 days",
+      "presetThisWeek": "This week",
+      "presetLastWeek": "Last week",
       "presetThisMonth": "This month",
       "presetLastMonth": "Last month",
       "presetThisQuarter": "This quarter",
@@ -8,7 +14,9 @@
       "presetAllTime": "All time",
       "presetCustom": "Custom",
       "from": "From",
-      "to": "to"
+      "to": "to",
+      "apply": "Apply",
+      "cancel": "Cancel"
     }
   },
   "LoginPage": {

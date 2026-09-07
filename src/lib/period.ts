@@ -5,7 +5,19 @@
 // concrete [start, end) range plus a display preset lives here once
 // instead of two near-identical copies drifting apart.
 
-export type PeriodPreset = "thisMonth" | "lastMonth" | "thisQuarter" | "thisYear" | "allTime" | "custom";
+export type PeriodPreset =
+  | "today"
+  | "yesterday"
+  | "last7Days"
+  | "last30Days"
+  | "thisWeek"
+  | "lastWeek"
+  | "thisMonth"
+  | "lastMonth"
+  | "thisQuarter"
+  | "thisYear"
+  | "allTime"
+  | "custom";
 
 export interface PeriodRange {
   start: Date;
@@ -32,6 +44,20 @@ function startOfYear(d: Date): Date {
   return new Date(d.getFullYear(), 0, 1);
 }
 
+/** Monday-anchored week start, matching the calendar page's convention. */
+function startOfWeekMonday(d: Date): Date {
+  const start = startOfDay(d);
+  const mondayOffset = (start.getDay() + 6) % 7;
+  start.setDate(start.getDate() - mondayOffset);
+  return start;
+}
+
+function addDays(d: Date, days: number): Date {
+  const out = new Date(d);
+  out.setDate(out.getDate() + days);
+  return out;
+}
+
 /**
  * Resolves a preset (or an explicit custom pair) into a concrete
  * `[start, end)` range plus a display label. `custom` is required
@@ -41,6 +67,31 @@ export function rangeForPreset(preset: PeriodPreset, custom?: { start: Date; end
   const now = new Date();
 
   switch (preset) {
+    case "today": {
+      const start = startOfDay(now);
+      return { start, end: addDays(start, 1), label: "today" };
+    }
+    case "yesterday": {
+      const start = addDays(startOfDay(now), -1);
+      return { start, end: addDays(start, 1), label: "yesterday" };
+    }
+    case "last7Days": {
+      // Inclusive of today — a 7-day window ending today, not yesterday.
+      const start = addDays(startOfDay(now), -6);
+      return { start, end: addDays(startOfDay(now), 1), label: "last7Days" };
+    }
+    case "last30Days": {
+      const start = addDays(startOfDay(now), -29);
+      return { start, end: addDays(startOfDay(now), 1), label: "last30Days" };
+    }
+    case "thisWeek": {
+      const start = startOfWeekMonday(now);
+      return { start, end: addDays(start, 7), label: "thisWeek" };
+    }
+    case "lastWeek": {
+      const start = addDays(startOfWeekMonday(now), -7);
+      return { start, end: startOfWeekMonday(now), label: "lastWeek" };
+    }
     case "thisMonth": {
       const start = startOfMonth(now);
       return { start, end: startOfMonth(new Date(start.getFullYear(), start.getMonth() + 1, 1)), label: "thisMonth" };
@@ -79,12 +130,21 @@ export function rangeForPreset(preset: PeriodPreset, custom?: { start: Date; end
 
 /**
  * Human-readable display label for a resolved range — "August 2026",
- * "Q3 2026", a custom "Aug 1 – Aug 15, 2026" span, etc. `t` only needs
- * the `presetAllTime` key (the one preset with no natural date-derived
- * label), so any translator over the `Common.period` namespace works.
+ * "Q3 2026", a custom "Aug 1 – Aug 15, 2026" span, etc. `t` needs the
+ * `preset*` keys for the presets with no natural date-derived label
+ * (today, yesterday, this/last week, all time), so any translator over
+ * the `Common.period` namespace works.
  */
 export function formatRangeLabel(range: PeriodRange, t: (key: string) => string): string {
   switch (range.label) {
+    case "today":
+      return t("presetToday");
+    case "yesterday":
+      return t("presetYesterday");
+    case "thisWeek":
+      return t("presetThisWeek");
+    case "lastWeek":
+      return t("presetLastWeek");
     case "thisMonth":
     case "lastMonth":
       return range.start.toLocaleDateString(undefined, { month: "long", year: "numeric" });
@@ -94,6 +154,8 @@ export function formatRangeLabel(range: PeriodRange, t: (key: string) => string)
       return String(range.start.getFullYear());
     case "allTime":
       return t("presetAllTime");
+    case "last7Days":
+    case "last30Days":
     case "custom": {
       const inclusiveEnd = new Date(range.end.getTime() - 1);
       return `${range.start.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${inclusiveEnd.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;

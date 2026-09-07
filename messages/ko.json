@@ -1,6 +1,12 @@
 {
   "Common": {
     "period": {
+      "presetToday": "오늘",
+      "presetYesterday": "어제",
+      "presetLast7Days": "최근 7일",
+      "presetLast30Days": "최근 30일",
+      "presetThisWeek": "이번 주",
+      "presetLastWeek": "지난 주",
       "presetThisMonth": "이번 달",
       "presetLastMonth": "지난 달",
       "presetThisQuarter": "이번 분기",
@@ -8,7 +14,9 @@
       "presetAllTime": "전체 기간",
       "presetCustom": "직접 설정",
       "from": "시작",
-      "to": "종료"
+      "to": "종료",
+      "apply": "적용",
+      "cancel": "취소"
     }
   },
   "LoginPage": {
