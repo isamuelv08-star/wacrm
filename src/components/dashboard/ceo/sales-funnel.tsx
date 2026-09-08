@@ -1,22 +1,23 @@
 "use client"
 
 import { useEffect, useId, useState } from 'react'
-import { Filter } from 'lucide-react'
+import { Filter, TrendingUp } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import type { FunnelStep } from '@/lib/dashboard/ceo-types'
+import type { FunnelStep, SalesFunnelData } from '@/lib/dashboard/ceo-types'
 import { formatCurrency } from '@/lib/currency'
 import { EmptyState } from '../empty-state'
 import { Skeleton } from '../skeleton'
 
 interface SalesFunnelProps {
-  data: FunnelStep[] | null
+  data: SalesFunnelData | null
   loading: boolean
   currency: string
 }
 
 export function SalesFunnel({ data, loading, currency }: SalesFunnelProps) {
   const t = useTranslations('Dashboard.ceo.funnel')
-  const hasData = (data ?? []).some((s) => s.count > 0)
+  const steps = data?.steps ?? []
+  const hasData = steps.some((s) => s.count > 0)
 
   return (
     <section className="rounded-xl border border-border bg-card">
@@ -30,10 +31,64 @@ export function SalesFunnel({ data, loading, currency }: SalesFunnelProps) {
         ) : !hasData ? (
           <EmptyState icon={Filter} title={t('noData')} hint={t('noDataHint')} />
         ) : (
-          <FunnelChart data={data} currency={currency} />
+          <>
+            <FunnelChart data={steps} currency={currency} />
+            <ConversionSummary data={data} currency={currency} />
+          </>
         )}
       </div>
     </section>
+  )
+}
+
+/**
+ * "Of the leads that came in, how many became a sale" — derived from
+ * the exact same numbers the funnel above already shows (its own
+ * leads/won bookends, plus lost tracked alongside for the win-rate
+ * half), not a separate query. Sits right under the chart since it's
+ * the one summary number a lot of the "read the funnel" work above is
+ * building up to.
+ */
+function ConversionSummary({ data, currency }: { data: SalesFunnelData; currency: string }) {
+  const t = useTranslations('Dashboard.ceo.funnel')
+  return (
+    <div className="mt-4 grid grid-cols-1 gap-3 border-t border-border pt-4 sm:grid-cols-3">
+      <div className="flex items-start gap-2.5 rounded-lg bg-muted/50 p-3">
+        <TrendingUp className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+        <div>
+          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            {t('leadToWon')}
+          </p>
+          <p className="mt-0.5 text-base font-semibold text-foreground">
+            {data.leadToWonPct == null ? '—' : `${data.leadToWonPct.toFixed(1)}%`}
+          </p>
+        </div>
+      </div>
+      <div className="rounded-lg bg-muted/50 p-3">
+        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          {t('winRate')}
+        </p>
+        <p className="mt-0.5 text-base font-semibold text-foreground">
+          {data.winRatePct == null ? '—' : `${data.winRatePct.toFixed(1)}%`}
+        </p>
+        <p className="mt-0.5 text-[11px] text-muted-foreground">
+          {t('wonVsLost', { won: data.wonCount, lost: data.lostCount })}
+        </p>
+      </div>
+      <div className="rounded-lg bg-muted/50 p-3">
+        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          {t('closedValue')}
+        </p>
+        <p className="mt-0.5 text-base font-semibold text-foreground">
+          {formatCurrency(data.wonValue, currency)}
+        </p>
+        {data.lostValue > 0 && (
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            {t('lostValue', { value: formatCurrency(data.lostValue, currency) })}
+          </p>
+        )}
+      </div>
+    </div>
   )
 }
 

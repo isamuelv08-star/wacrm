@@ -40,22 +40,29 @@ interface PipelineAnalyticsProps {
 }
 
 /**
- * Weighted pipeline value: value × per-stage probability.
- * First stage ≈ 10%, stages interpolate up to 90% before the final stage,
- * final stage (Won) = 100%. Lost deals excluded.
+ * Weighted pipeline value: value × per-stage probability, interpolated
+ * 10%-90% across the pipeline's OPEN stages only (`openStages` — every
+ * stage except the ones flagged is_won_stage/is_lost_stage). Those two
+ * are outcomes a deal branches into, not a forward step an open deal
+ * sits in — `weightedValue`'s caller already excludes won/lost deals
+ * from this calculation entirely, so they'd never be looked up here in
+ * practice, but including them in the interpolation basis used to
+ * silently assume "the last stage in position order is Won" (a
+ * position-based hack from before stages carried an explicit outcome
+ * flag). That broke the moment a pipeline had a Lost stage sitting
+ * after Won: Lost — not Won — became "the last stage", so it computed
+ * as 100% probability, and Won itself dropped out of the 100% slot.
  */
 function computeStageProbability(
   stage: PipelineStage,
-  sortedStages: PipelineStage[],
+  openStages: PipelineStage[],
 ): number {
-  const n = sortedStages.length;
-  if (n <= 1) return 1;
-  const index = sortedStages.findIndex((s) => s.id === stage.id);
+  const n = openStages.length;
+  if (n === 0) return 0;
+  if (n === 1) return 0.5;
+  const index = openStages.findIndex((s) => s.id === stage.id);
   if (index < 0) return 0;
-  if (index === n - 1) return 1;
-  const slots = n - 1;
-  if (slots <= 1) return 0.1;
-  const t = index / (slots - 1);
+  const t = index / (n - 1);
   return 0.1 + t * (0.9 - 0.1);
 }
 
@@ -91,6 +98,10 @@ export function PipelineAnalytics({ pipelineId, pipelineName, stages, deals }: P
     () => [...stages].sort((a, b) => a.position - b.position),
     [stages],
   );
+  const openStages = useMemo(
+    () => sortedStages.filter((s) => !s.is_won_stage && !s.is_lost_stage),
+    [sortedStages],
+  );
   const qualifiedStage = useMemo(
     () => stages.find((s) => s.is_qualified_stage) ?? null,
     [stages],
@@ -108,7 +119,7 @@ export function PipelineAnalytics({ pipelineId, pipelineName, stages, deals }: P
     const weightedValue = openDeals.reduce((sum, d) => {
       const stage = stageById.get(d.stage_id);
       if (!stage) return sum;
-      const prob = computeStageProbability(stage, sortedStages);
+      const prob = computeStageProbability(stage, openStages);
       return sum + Number(d.value || 0) * prob;
     }, 0);
 
@@ -134,7 +145,7 @@ export function PipelineAnalytics({ pipelineId, pipelineName, stages, deals }: P
       lostInPeriod,
       leadsEntered,
     };
-  }, [deals, sortedStages, range]);
+  }, [deals, sortedStages, openStages, range]);
 
   // "Reached qualified" needs deal_stage_history (migration 039) — not
   // part of the `deals` list the page already loaded — so it's the one

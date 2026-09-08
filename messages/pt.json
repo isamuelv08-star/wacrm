@@ -270,7 +270,12 @@
         "noDataHint": "Novos leads e negócios avançando pelo pipeline vão preencher este funil.",
         "ariaLabel": "Funil de vendas de leads a negócios ganhos",
         "dealCount": "{count} {count, plural, =1 {negócio} other {negócios}}",
-        "conversionToNext": "{pct}% avançou para a próxima etapa"
+        "conversionToNext": "{pct}% avançou para a próxima etapa",
+        "leadToWon": "Conversão de leads em venda",
+        "winRate": "Taxa de fechamento",
+        "wonVsLost": "{won} ganhos / {lost} perdidos",
+        "closedValue": "Valor ganho",
+        "lostValue": "{value} perdido"
       }
     }
   },
@@ -2243,13 +2248,13 @@
   "NotificationsPage": {
     "title": "Notificações",
     "subtitle": "Novos leads, pontuação de leads e atribuições aparecem aqui.",
-    "markAllRead": "Marcar tudo como lido",
+    "markAllRead": "Apagar todas",
     "retry": "Tentar novamente",
     "emptyTitle": "Ainda não há notificações",
     "emptyBody": "Você verá um alerta aqui para novos leads, pontuação de leads e conversas atribuídas a você.",
     "unreadAria": "Não lida",
     "markReadError": "Não foi possível marcar a notificação como lida",
-    "markAllError": "Não foi possível marcar tudo como lido",
+    "markAllError": "Não foi possível apagar as notificações",
     "desktopNotificationsOn": "Notificações de área de trabalho ativadas",
     "desktopNotificationsOff": "Ativar notificações de área de trabalho",
     "desktopNotificationsBlocked": "Bloqueadas pelo navegador — ative nas configurações do site",

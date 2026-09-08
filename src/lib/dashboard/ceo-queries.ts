@@ -13,6 +13,7 @@ import type {
   CommercialMetrics,
   FunnelStep,
   LeadsByRep,
+  SalesFunnelData,
   SalesVsGoalPoint,
   TopSeller,
 } from './ceo-types'
@@ -545,22 +546,33 @@ function computeForecastGap(forecast: number, goal: number | null): number | nul
  * deal that has since moved on (or closed) still counts at every
  * stage it passed through. That's what makes stage-to-stage drop-off
  * meaningful instead of just "how many deals happen to be here now".
+ *
+ * Stages flagged `is_won_stage`/`is_lost_stage` (migration 060) are
+ * excluded from `steps` — they're where a deal branches OUT of the
+ * pipeline, not a stage every deal advances through, so counting them
+ * as a funnel bar rendered a confusing Won/Lost bar sitting right next
+ * to the synthetic `won` bookend below. Their outcome is summarized
+ * instead in the returned `wonCount`/`lostCount`/conversion fields —
+ * the numbers the dashboard's conversion card (just beneath the chart)
+ * reads from.
  */
-export async function loadSalesFunnel(db: DB, days = 90): Promise<FunnelStep[]> {
+export async function loadSalesFunnel(db: DB, days = 90): Promise<SalesFunnelData> {
   const windowStart = daysAgoStart(days).toISOString()
 
-  const [stagesRes, leadsRes, historyRes, dealValuesRes, wonRes] = await Promise.all([
-    db.from('pipeline_stages').select('id, name').order('position'),
+  const [stagesRes, leadsRes, historyRes, dealValuesRes, wonRes, lostRes] = await Promise.all([
+    db.from('pipeline_stages').select('id, name, is_won_stage, is_lost_stage').order('position'),
     db.from('contacts').select('id', { count: 'exact', head: true }).gte('created_at', windowStart),
     db.from('deal_stage_history').select('deal_id, to_stage_id').gte('changed_at', windowStart),
     db.from('deals').select('id, value'),
     db.from('deals').select('value').eq('status', 'won').gte('closed_at', windowStart),
+    db.from('deals').select('value').eq('status', 'lost').gte('closed_at', windowStart),
   ])
   if (stagesRes.error) throw stagesRes.error
   if (leadsRes.error) throw leadsRes.error
   if (historyRes.error) throw historyRes.error
   if (dealValuesRes.error) throw dealValuesRes.error
   if (wonRes.error) throw wonRes.error
+  if (lostRes.error) throw lostRes.error
 
   const valueByDeal = new Map<string, number>()
   for (const d of (dealValuesRes.data ?? []) as { id: string; value: number | null }[]) {
@@ -574,8 +586,14 @@ export async function loadSalesFunnel(db: DB, days = 90): Promise<FunnelStep[]> 
     dealsByStage.set(h.to_stage_id, set)
   }
 
-  const stages = (stagesRes.data ?? []) as { id: string; name: string }[]
-  const stageSteps: FunnelStep[] = stages.map((s) => {
+  const stages = (stagesRes.data ?? []) as {
+    id: string
+    name: string
+    is_won_stage: boolean | null
+    is_lost_stage: boolean | null
+  }[]
+  const funnelStages = stages.filter((s) => !s.is_won_stage && !s.is_lost_stage)
+  const stageSteps: FunnelStep[] = funnelStages.map((s) => {
     const dealIds = dealsByStage.get(s.id) ?? new Set<string>()
     let value = 0
     for (const id of dealIds) value += valueByDeal.get(id) ?? 0
@@ -583,13 +601,23 @@ export async function loadSalesFunnel(db: DB, days = 90): Promise<FunnelStep[]> 
   })
 
   const wonRows = (wonRes.data ?? []) as { value: number | null }[]
-  const leadsStep: FunnelStep = { key: 'leads', label: '', count: leadsRes.count ?? 0, value: null }
-  const wonStep: FunnelStep = {
-    key: 'won',
-    label: '',
-    count: wonRows.length,
-    value: wonRows.reduce((s, r) => s + (r.value ?? 0), 0),
-  }
+  const lostRows = (lostRes.data ?? []) as { value: number | null }[]
+  const leadsCount = leadsRes.count ?? 0
+  const wonCount = wonRows.length
+  const lostCount = lostRows.length
+  const wonValue = wonRows.reduce((s, r) => s + (r.value ?? 0), 0)
+  const lostValue = lostRows.reduce((s, r) => s + (r.value ?? 0), 0)
 
-  return [leadsStep, ...stageSteps, wonStep]
+  const leadsStep: FunnelStep = { key: 'leads', label: '', count: leadsCount, value: null }
+  const wonStep: FunnelStep = { key: 'won', label: '', count: wonCount, value: wonValue }
+
+  return {
+    steps: [leadsStep, ...stageSteps, wonStep],
+    wonCount,
+    wonValue,
+    lostCount,
+    lostValue,
+    leadToWonPct: leadsCount > 0 ? (wonCount / leadsCount) * 100 : null,
+    winRatePct: wonCount + lostCount > 0 ? (wonCount / (wonCount + lostCount)) * 100 : null,
+  }
 }

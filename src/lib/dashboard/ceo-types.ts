@@ -104,12 +104,18 @@ export interface CeoAlerts {
 }
 
 /** One step of the sales funnel: leads (contacts) at the top, each of
- *  the account's own pipeline stages in position order (deals that
- *  REACHED that stage in the window, per deal_stage_history — not
- *  just deals currently sitting there), and won deals at the bottom.
- *  `key` is 'leads' | 'won' | a pipeline_stages.id; `label` carries
- *  the account's own stage name already and is empty for the two
- *  synthetic bookend steps, which the component labels itself via
+ *  the account's own OPEN pipeline stages in position order (deals
+ *  that REACHED that stage in the window, per deal_stage_history —
+ *  not just deals currently sitting there), and won deals at the
+ *  bottom. Stages flagged `is_won_stage`/`is_lost_stage` are excluded
+ *  from this list — they're outcomes a deal branches into, not a
+ *  forward step every deal passes through, so folding them in here
+ *  used to render a confusing Won/Lost bar in the middle of the funnel
+ *  immediately followed by the synthetic `won` bookend below. Their
+ *  outcome is summarized instead in `SalesFunnelData`'s conversion
+ *  fields. `key` is 'leads' | 'won' | a pipeline_stages.id; `label`
+ *  carries the account's own stage name already and is empty for the
+ *  two synthetic bookend steps, which the component labels itself via
  *  translation. */
 export interface FunnelStep {
   key: string
@@ -118,4 +124,27 @@ export interface FunnelStep {
   /** Null only for the 'leads' step — a contact isn't worth a dollar
    *  figure the way a deal is. */
   value: number | null
+}
+
+/** Full sales-funnel payload: the chart's own steps, plus a conversion
+ *  summary derived from that exact same data (leads at the top, won at
+ *  the bottom, lost tracked alongside for the win-rate half) — the
+ *  card the dashboard renders just beneath the funnel chart. */
+export interface SalesFunnelData {
+  steps: FunnelStep[]
+  wonCount: number
+  wonValue: number
+  /** Deals that closed lost in the same window — not one of `steps`
+   *  (a lost deal is a drop-off, not a forward funnel stage), but
+   *  needed for `winRatePct`. */
+  lostCount: number
+  lostValue: number
+  /** wonCount / leadsCount (the funnel's own top step) as 0-100 — "of
+   *  the leads that entered, how many became a sale". Null when there
+   *  were no leads in the window to convert from. */
+  leadToWonPct: number | null
+  /** wonCount / (wonCount + lostCount) as 0-100 — of the deals that
+   *  actually closed one way or the other, how many closed won. Null
+   *  when nothing closed in the window. */
+  winRatePct: number | null
 }

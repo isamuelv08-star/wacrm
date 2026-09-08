@@ -270,7 +270,12 @@
         "noDataHint": "New leads and deals moving through the pipeline will fill in this funnel.",
         "ariaLabel": "Sales funnel from leads to won deals",
         "dealCount": "{count} {count, plural, =1 {deal} other {deals}}",
-        "conversionToNext": "{pct}% moved to the next stage"
+        "conversionToNext": "{pct}% moved to the next stage",
+        "leadToWon": "Lead-to-sale conversion",
+        "winRate": "Win rate",
+        "wonVsLost": "{won} won / {lost} lost",
+        "closedValue": "Won value",
+        "lostValue": "{value} lost"
       }
     }
   },
@@ -2243,13 +2248,13 @@
   "NotificationsPage": {
     "title": "Notifications",
     "subtitle": "New leads, lead scoring, and assignments show up here.",
-    "markAllRead": "Mark all as read",
+    "markAllRead": "Clear all",
     "retry": "Retry",
     "emptyTitle": "No notifications yet",
     "emptyBody": "You'll see an alert here for new leads, lead scoring, and conversations assigned to you.",
     "unreadAria": "Unread",
     "markReadError": "Failed to mark notification as read",
-    "markAllError": "Failed to mark all as read",
+    "markAllError": "Failed to clear notifications",
     "desktopNotificationsOn": "Desktop notifications on",
     "desktopNotificationsOff": "Turn on desktop notifications",
     "desktopNotificationsBlocked": "Blocked by the browser — enable it in the site settings",

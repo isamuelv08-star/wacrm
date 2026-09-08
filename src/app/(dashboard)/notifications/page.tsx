@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import type { Notification } from "@/types";
-import { Bell, BellOff, BellRing, CheckCheck, Loader2 } from "lucide-react";
+import { Bell, BellOff, BellRing, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useDesktopNotificationsSetting } from "@/hooks/use-desktop-notifications";
@@ -129,26 +129,30 @@ export default function NotificationsPage() {
     if (!granted) toast.error(t("desktopNotificationsBlocked"));
   }, [desktopNotifications, t]);
 
-  const unreadIds = notifications?.filter((n) => !n.read_at).map((n) => n.id) ?? [];
-
-  const markAllRead = useCallback(async () => {
-    if (unreadIds.length === 0) return;
+  // "Mark all as read" used to just set `read_at` on every unread row,
+  // which meant read notifications sat in the feed forever — taking up
+  // space with no way to clear them. It now deletes every notification
+  // currently on screen outright (read or not), so the list actually
+  // empties out instead of just dimming. Scoped to the ids already
+  // loaded (not a bare unfiltered DELETE) so it only ever touches what
+  // this page loaded for the active account — RLS further restricts
+  // that to this user's own rows regardless (migration 071).
+  const clearAllNotifications = useCallback(async () => {
+    if (!notifications || notifications.length === 0) return;
     setMarkingAll(true);
-    const now = new Date().toISOString();
-    setNotifications(
-      (prev) => prev?.map((n) => (n.read_at ? n : { ...n, read_at: now })) ?? prev,
-    );
+    const ids = notifications.map((n) => n.id);
+    setNotifications([]);
     const supabase = createClient();
-    const { error: updateErr } = await supabase
+    const { error: deleteErr } = await supabase
       .from("notifications")
-      .update({ read_at: now })
-      .is("read_at", null);
+      .delete()
+      .in("id", ids);
     setMarkingAll(false);
-    if (updateErr) {
+    if (deleteErr) {
       toast.error(t("markAllError"));
       load();
     }
-  }, [unreadIds.length, load, t]);
+  }, [notifications, load, t]);
 
   if (error) {
     return (
@@ -204,13 +208,13 @@ export default function NotificationsPage() {
           <Button
             variant="outline"
             size="sm"
-            disabled={unreadIds.length === 0 || markingAll}
-            onClick={markAllRead}
+            disabled={notifications.length === 0 || markingAll}
+            onClick={clearAllNotifications}
           >
             {markingAll ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <CheckCheck className="h-4 w-4" />
+              <Trash2 className="h-4 w-4" />
             )}
             {t("markAllRead")}
           </Button>

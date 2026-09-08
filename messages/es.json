@@ -270,7 +270,12 @@
         "noDataHint": "Los leads nuevos y los deals que avancen por el pipeline van a completar este embudo.",
         "ariaLabel": "Embudo de ventas de leads a negocios ganados",
         "dealCount": "{count} {count, plural, =1 {negocio} other {negocios}}",
-        "conversionToNext": "{pct}% avanzó a la siguiente etapa"
+        "conversionToNext": "{pct}% avanzó a la siguiente etapa",
+        "leadToWon": "Conversión de leads a venta",
+        "winRate": "Tasa de cierre",
+        "wonVsLost": "{won} ganados / {lost} perdidos",
+        "closedValue": "Valor ganado",
+        "lostValue": "{value} perdido"
       }
     }
   },
@@ -2243,13 +2248,13 @@
   "NotificationsPage": {
     "title": "Notificaciones",
     "subtitle": "Los nuevos leads, la puntuación de leads y las asignaciones aparecen acá.",
-    "markAllRead": "Marcar todo como leído",
+    "markAllRead": "Borrar todas",
     "retry": "Reintentar",
     "emptyTitle": "Todavía no hay notificaciones",
     "emptyBody": "Acá vas a ver una alerta por nuevos leads, puntuación de leads y conversaciones que te asignen.",
     "unreadAria": "Sin leer",
     "markReadError": "No se pudo marcar la notificación como leída",
-    "markAllError": "No se pudo marcar todo como leído",
+    "markAllError": "No se pudieron borrar las notificaciones",
     "desktopNotificationsOn": "Notificaciones de escritorio activadas",
     "desktopNotificationsOff": "Activar notificaciones de escritorio",
     "desktopNotificationsBlocked": "Bloqueadas por el navegador — habilítalas en la configuración del sitio",

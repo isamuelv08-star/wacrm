@@ -39,8 +39,8 @@ import type {
   CeoAlerts,
   CeoMetrics,
   CommercialMetrics,
-  FunnelStep,
   LeadsByRep,
+  SalesFunnelData,
   SalesVsGoalPoint,
   TopSeller,
 } from '@/lib/dashboard/ceo-types'
@@ -74,7 +74,7 @@ const STALE_DAYS = 7
 interface CeoSummaryResponse {
   ceoMetrics: CeoMetrics | null
   salesVsGoal: SalesVsGoalPoint[] | null
-  salesFunnel: FunnelStep[] | null
+  salesFunnel: SalesFunnelData | null
   commercialMetrics: CommercialMetrics | null
   topSellers: TopSeller[] | null
   leadsByRep: LeadsByRep[] | null
@@ -221,7 +221,7 @@ export default function DashboardPage() {
   const [ceoMetricsLoading, setCeoMetricsLoading] = useState(true)
   const [salesVsGoal, setSalesVsGoal] = useState<SalesVsGoalPoint[] | null>(null)
   const [salesVsGoalLoading, setSalesVsGoalLoading] = useState(true)
-  const [funnel, setFunnel] = useState<FunnelStep[] | null>(null)
+  const [funnel, setFunnel] = useState<SalesFunnelData | null>(null)
   const [funnelLoading, setFunnelLoading] = useState(true)
   const [commercial, setCommercial] = useState<CommercialMetrics | null>(null)
   const [commercialLoading, setCommercialLoading] = useState(true)

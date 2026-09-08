@@ -270,7 +270,12 @@
         "noDataHint": "새 리드와 파이프라인을 통과하는 딜이 이 퍼널을 채웁니다.",
         "ariaLabel": "리드부터 성사된 딜까지의 영업 퍼널",
         "dealCount": "딜 {count}건",
-        "conversionToNext": "{pct}%가 다음 단계로 진행"
+        "conversionToNext": "{pct}%가 다음 단계로 진행",
+        "leadToWon": "리드 대비 성사율",
+        "winRate": "성사율",
+        "wonVsLost": "성사 {won} / 실패 {lost}",
+        "closedValue": "성사 금액",
+        "lostValue": "실패 금액 {value}"
       }
     }
   },
@@ -2243,13 +2248,13 @@
   "NotificationsPage": {
     "title": "알림",
     "subtitle": "새 리드, 리드 점수, 배정 내역이 여기에 표시됩니다.",
-    "markAllRead": "모두 읽음으로 표시",
+    "markAllRead": "모두 삭제",
     "retry": "다시 시도",
     "emptyTitle": "아직 알림이 없습니다",
     "emptyBody": "새 리드, 리드 점수, 배정된 대화에 대한 알림이 여기에 표시됩니다.",
     "unreadAria": "읽지 않음",
     "markReadError": "알림을 읽음으로 표시하지 못했습니다",
-    "markAllError": "모두 읽음으로 표시하지 못했습니다",
+    "markAllError": "알림을 삭제하지 못했습니다",
     "desktopNotificationsOn": "데스크톱 알림 켜짐",
     "desktopNotificationsOff": "데스크톱 알림 켜기",
     "desktopNotificationsBlocked": "브라우저에서 차단됨 — 사이트 설정에서 활성화하세요",
