@@ -8,6 +8,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { PresenceHeartbeat } from "@/components/presence/presence-heartbeat";
 import { NewNotificationToastListener } from "@/components/notifications/new-notification-toast-listener";
+import { consumePendingInviteToken } from "@/lib/auth/pending-invite";
 
 // Auth-gated dashboard shell. Extracted from the layout so the layout
 // itself can stay a server component and export metadata (noindex) —
@@ -33,9 +34,24 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   // per-user — a teammate invited after the owner finishes it never
   // sees this. Gated on `profileLoading` so we don't redirect during
   // the brief window before the account row has loaded.
+  //
+  // Before sending an un-onboarded account into the wizard, check for
+  // a pending invite token (see @/lib/auth/pending-invite). A visitor
+  // who arrived via /join/<token> should never see "set up your
+  // business" — that page's normal flow is signup/login → back to
+  // /join/<token> → accept, but if that redirect chain got dropped
+  // (email-confirmation redirect not on Supabase's allow-list, link
+  // opened in a new tab, ...) they land here instead, on a fresh
+  // personal account. Route them back to finish accepting the invite
+  // rather than onboarding a throwaway account. One-shot (`consume`
+  // clears it): if accepting fails, the next visit falls through to
+  // the normal wizard instead of looping.
   useEffect(() => {
     if (!loading && user && !profileLoading && account && !account.onboarding_completed_at) {
-      router.push("/onboarding");
+      const pendingInviteToken = consumePendingInviteToken();
+      router.push(
+        pendingInviteToken ? `/join/${encodeURIComponent(pendingInviteToken)}` : "/onboarding",
+      );
     }
   }, [loading, user, profileLoading, account, router]);
 

@@ -1576,6 +1576,8 @@
       "expired": "expirada",
       "revoke": "Revocar",
       "revokedToast": "Invitación revocada",
+      "inviteRoleUpdatedToast": "Invitación actualizada a {role}",
+      "inviteRoleError": "No se pudo actualizar el rol de la invitación",
       "removeDialogTitle": "Quitar miembro",
       "removeDialogDesc": "¿Quitar a <bold>{name}</bold> de la cuenta? Se cerrará su sesión en esta cuenta y se le asignará una nueva cuenta personal en su próximo inicio de sesión. Su acceso no se elimina.",
       "cancel": "Cancelar",

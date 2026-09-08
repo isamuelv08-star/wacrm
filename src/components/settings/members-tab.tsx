@@ -105,6 +105,14 @@ interface Invitation {
   expires_at: string;
 }
 
+// Pending invitations only ever carry a non-owner role — mirrors the
+// `role <> 'owner'` CHECK on `account_invitations` (migration 017).
+const EDITABLE_INVITE_ROLES: { value: Invitation['role'] }[] = [
+  { value: 'admin' },
+  { value: 'agent' },
+  { value: 'viewer' },
+];
+
 // These roles are translated via `useTranslations("Settings.roles")` where they are used.
 const EDITABLE_ROLES: { value: AccountRole }[] = [
   { value: 'admin' },
@@ -153,6 +161,9 @@ export function MembersTab() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [removingMember, setRemovingMember] = useState<Member | null>(null);
   const [pendingMemberAction, setPendingMemberAction] = useState<string | null>(
+    null,
+  );
+  const [pendingInviteAction, setPendingInviteAction] = useState<string | null>(
     null,
   );
 
@@ -395,6 +406,43 @@ export function MembersTab() {
     } catch (err) {
       console.error('[MembersTab] revoke error:', err);
       toast.error('Could not reach the server');
+    }
+  }
+
+  // Changes the role a still-pending invite grants, WITHOUT touching
+  // its token — the link the admin already sent stays valid, it just
+  // hands out a different role once accepted. See the PATCH route's
+  // header comment for why this is separate from revoke+recreate.
+  async function handleInviteRoleChange(invite: Invitation, nextRole: Invitation['role']) {
+    if (invite.role === nextRole) return;
+    const previousRole = invite.role;
+    setPendingInviteAction(invite.id);
+    setInvitations((prev) =>
+      prev.map((i) => (i.id === invite.id ? { ...i, role: nextRole } : i)),
+    );
+    try {
+      const res = await fetch(`/api/account/invitations/${invite.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: nextRole }),
+      });
+      if (!res.ok) {
+        setInvitations((prev) =>
+          prev.map((i) => (i.id === invite.id ? { ...i, role: previousRole } : i)),
+        );
+        const payload = await res.json().catch(() => ({}));
+        toast.error(payload.error || t('inviteRoleError'));
+        return;
+      }
+      toast.success(t('inviteRoleUpdatedToast', { role: tRoles(nextRole) }));
+    } catch (err) {
+      setInvitations((prev) =>
+        prev.map((i) => (i.id === invite.id ? { ...i, role: previousRole } : i)),
+      );
+      console.error('[MembersTab] invite role change error:', err);
+      toast.error('Could not reach the server');
+    } finally {
+      setPendingInviteAction(null);
     }
   }
 
@@ -689,43 +737,64 @@ export function MembersTab() {
               <CardContent className="p-0">
                 <ul className="divide-y divide-border">
                   {invitations.map((inv) => {
-                    const inviteRoleMeta = ROLE_META[inv.role];
-                    const InviteRoleIcon = inviteRoleMeta.icon;
+                    const isInviteBusy = pendingInviteAction === inv.id;
                     return (
                     <li
                       key={inv.id}
-                      className="flex items-center gap-4 px-4 py-3"
+                      className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:gap-4"
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-foreground">
-                            {inv.label || t('untitledInvite')}
-                          </span>
-                          <span
-                            className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium ${inviteRoleMeta.className}`}
-                          >
-                            <InviteRoleIcon className="size-3" />
-                            {tRoles(inv.role)}
-                          </span>
-                        </div>
+                        <span className="text-sm font-medium text-foreground">
+                          {inv.label || t('untitledInvite')}
+                        </span>
                         <p className="mt-0.5 text-xs text-muted-foreground">
                           {t('created', { date: fmtDate(inv.created_at) })} · {fmtExpiresIn(inv.expires_at, t)}
                         </p>
                       </div>
 
-                      {/* Revoke: red default state, mirrors the
-                          members-tab Remove button. Pre-polish version
-                          read as a neutral secondary button until
-                          hover. */}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleRevoke(inv)}
-                        className="border-red-500/40 bg-red-500/10 text-red-300 hover:bg-red-500/20 hover:border-red-500/60 hover:text-red-200"
-                      >
-                        <MailX className="size-4" />
-                        {t('revoke')}
-                      </Button>
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        {/* Role select — edits the pending invite's
+                            role in place (same link, same token). Not
+                            a static badge anymore: the admin can still
+                            change what role the link grants after
+                            it's already been sent, without revoking
+                            and generating a new one. */}
+                        <Select
+                          value={inv.role}
+                          onValueChange={(v) =>
+                            v && handleInviteRoleChange(inv, v as Invitation['role'])
+                          }
+                        >
+                          <SelectTrigger
+                            className="w-32 bg-muted border-border text-foreground"
+                            disabled={isInviteBusy}
+                          >
+                            <SelectValue>{tRoles(inv.role)}</SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {EDITABLE_INVITE_ROLES.map((r) => (
+                              <SelectItem key={r.value} value={r.value}>
+                                {tRoles(r.value)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        {/* Revoke: red default state, mirrors the
+                            members-tab Remove button. Pre-polish version
+                            read as a neutral secondary button until
+                            hover. */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleRevoke(inv)}
+                          disabled={isInviteBusy}
+                          className="border-red-500/40 bg-red-500/10 text-red-300 hover:bg-red-500/20 hover:border-red-500/60 hover:text-red-200"
+                        >
+                          <MailX className="size-4" />
+                          {t('revoke')}
+                        </Button>
+                      </div>
                     </li>
                     );
                   })}

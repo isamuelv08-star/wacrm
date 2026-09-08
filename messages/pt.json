@@ -1576,6 +1576,8 @@
       "expired": "expirado",
       "revoke": "Revogar",
       "revokedToast": "Convite revogado",
+      "inviteRoleUpdatedToast": "Convite atualizado para {role}",
+      "inviteRoleError": "Falha ao atualizar o papel do convite",
       "removeDialogTitle": "Remover membro",
       "removeDialogDesc": "Remover <bold>{name}</bold> da conta? A pessoa será desconectada desta conta e receberá uma nova conta pessoal no próximo login. O login dela não é excluído.",
       "cancel": "Cancelar",

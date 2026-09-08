@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { consumePendingInviteToken } from "@/lib/auth/pending-invite";
 
 // Chrome-free auth-gated shell for the onboarding wizard — no
 // sidebar/header (unlike DashboardShell), same "redirect to /login if
@@ -21,6 +22,21 @@ function OnboardingShellInner({ children }: { children: React.ReactNode }) {
       router.push("/login");
     }
   }, [user, loading, router]);
+
+  // Defense-in-depth against DashboardShell's own check (see its
+  // pending-invite comment): if a visitor with a pending invite
+  // somehow lands here directly — a bookmarked /onboarding URL, a
+  // stale tab — send them to finish accepting instead of starting
+  // the "set up your business" wizard on their throwaway personal
+  // account.
+  useEffect(() => {
+    if (!loading && user) {
+      const pendingInviteToken = consumePendingInviteToken();
+      if (pendingInviteToken) {
+        router.push(`/join/${encodeURIComponent(pendingInviteToken)}`);
+      }
+    }
+  }, [loading, user, router]);
 
   if (loading) {
     return (

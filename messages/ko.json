@@ -1576,6 +1576,8 @@
       "expired": "만료됨",
       "revoke": "취소",
       "revokedToast": "초대가 취소되었습니다",
+      "inviteRoleUpdatedToast": "초대 역할을 {role}(으)로 변경했습니다",
+      "inviteRoleError": "초대 역할을 변경하지 못했습니다",
       "removeDialogTitle": "멤버 제거",
       "removeDialogDesc": "<bold>{name}</bold>을(를) 이 계정에서 제거하시겠습니까? 이 계정에서 로그아웃되며 다음 로그인 시 새로운 개인 계정이 발급됩니다. 로그인 정보 자체는 삭제되지 않습니다.",
       "cancel": "취소",

@@ -1576,6 +1576,8 @@
       "expired": "expired",
       "revoke": "Revoke",
       "revokedToast": "Invitation revoked",
+      "inviteRoleUpdatedToast": "Invitation updated to {role}",
+      "inviteRoleError": "Failed to update the invitation's role",
       "removeDialogTitle": "Remove member",
       "removeDialogDesc": "Remove <bold>{name}</bold> from the account? They'll be signed out of this account and given a fresh personal account on their next sign-in. Their login isn't deleted.",
       "cancel": "Cancel",

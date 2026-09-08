@@ -53,6 +53,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { createClient } from '@/lib/supabase/client';
+import {
+  clearPendingInviteToken,
+  savePendingInviteToken,
+} from '@/lib/auth/pending-invite';
 
 interface PeekOk {
   ok: true;
@@ -65,6 +69,20 @@ interface PeekFail {
   reason: 'not_found' | 'used' | 'expired' | 'server_error';
 }
 type PeekResult = PeekOk | PeekFail;
+
+// Keep the pending-invite marker (see @/lib/auth/pending-invite) in
+// sync with what we just learned about this token: alive → save it
+// so DashboardShell can find its way back here if the signup/verify
+// round trip drops the visitor on /dashboard instead. Terminally dead
+// (redeemed elsewhere, expired) → clear it so a stale token doesn't
+// keep bouncing the visitor back to a dead invite forever.
+function syncPendingInvite(token: string, peek: PeekResult) {
+  if (peek.ok) {
+    savePendingInviteToken(token);
+  } else if (peek.reason === 'not_found' || peek.reason === 'used' || peek.reason === 'expired') {
+    clearPendingInviteToken();
+  }
+}
 
 export default function JoinPage() {
   const t = useTranslations('Join');
@@ -117,6 +135,7 @@ export default function JoinPage() {
       const peekBody = (await peekRes.json()) as PeekResult;
       setPeek(peekBody);
       setAuthedUserId(authRes.data.user?.id ?? null);
+      syncPendingInvite(token, peekBody);
     } catch (err) {
       console.error('[join] peek error:', err);
       setPeek({ ok: false, reason: 'server_error' });
@@ -143,6 +162,7 @@ export default function JoinPage() {
         if (cancelled) return;
         setPeek(peekBody);
         setAuthedUserId(authRes.data.user?.id ?? null);
+        syncPendingInvite(token, peekBody);
       } catch (err) {
         console.error('[join] peek error:', err);
         if (cancelled) return;
@@ -184,6 +204,7 @@ export default function JoinPage() {
         setAccepting(false);
         return;
       }
+      clearPendingInviteToken();
       toast.success(t('welcomeToast'));
       // Full reload (not router.push) so AuthProvider re-fetches
       // the profile with the new account_id and account_role.
