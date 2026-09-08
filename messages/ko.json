@@ -2249,7 +2249,13 @@
     "emptyBody": "새 리드, 리드 점수, 배정된 대화에 대한 알림이 여기에 표시됩니다.",
     "unreadAria": "읽지 않음",
     "markReadError": "알림을 읽음으로 표시하지 못했습니다",
-    "markAllError": "모두 읽음으로 표시하지 못했습니다"
+    "markAllError": "모두 읽음으로 표시하지 못했습니다",
+    "desktopNotificationsOn": "데스크톱 알림 켜짐",
+    "desktopNotificationsOff": "데스크톱 알림 켜기",
+    "desktopNotificationsBlocked": "브라우저에서 차단됨 — 사이트 설정에서 활성화하세요",
+    "messagesGroupTitle": "새 메시지 {count}개",
+    "qualificationGroupTitle": "리드 평가 업데이트 {count}개",
+    "groupUnread": "읽지 않음 {count}개"
   },
   "NotificationsToast": {
     "manage": "관리"

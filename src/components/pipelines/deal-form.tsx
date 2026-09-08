@@ -9,7 +9,6 @@ import type {
   Contact,
   Conversation,
   Deal,
-  DealStatus,
   PipelineStage,
   Profile,
 } from "@/types";
@@ -25,12 +24,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   CalendarPlus,
-  Check,
-  X,
   Trash2,
   MessageSquare,
   DollarSign,
-  Loader2,
   Mail,
   Building2,
   SlidersHorizontal,
@@ -85,7 +81,6 @@ export function DealForm({
   const [contactCustomFields, setContactCustomFields] = useState<CustomFieldWithValue[]>([]);
 
   const [saving, setSaving] = useState(false);
-  const [statusAction, setStatusAction] = useState<DealStatus | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   // Quick-schedule — opens the calendar's create dialog pre-filled
@@ -231,25 +226,6 @@ export function DealForm({
 
     setSaving(false);
     toast.success(deal ? t("toastUpdated") : t("toastCreated"));
-    onOpenChange(false);
-    onSaved();
-  }
-
-  async function handleStatusChange(status: DealStatus) {
-    if (!deal) return;
-    setStatusAction(status);
-    const { error } = await supabase
-      .from("deals")
-      .update({ status })
-      .eq("id", deal.id);
-    setStatusAction(null);
-    if (error) {
-      toast.error(t("toastFailedStatus"));
-      return;
-    }
-    toast.success(
-      status === "won" ? t("toastMarkedWon") : status === "lost" ? t("toastMarkedLost") : t("toastReopened"),
-    );
     onOpenChange(false);
     onSaved();
   }
@@ -441,56 +417,14 @@ export function DealForm({
               </Button>
             )}
 
-            {deal && (
-              <div className="space-y-2 rounded-lg border border-border bg-muted/50 p-3">
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  {t("status")}
-                </p>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <Button
-                    type="button"
-                    onClick={() => handleStatusChange("won")}
-                    disabled={!!statusAction || deal.status === "won"}
-                    className="h-auto min-w-0 flex-1 basis-0 whitespace-normal bg-primary py-2 text-center text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-                  >
-                    {statusAction === "won" ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <>
-                        <Check className="h-4 w-4 shrink-0" />
-                        {t("markAsWon")}
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={() => handleStatusChange("lost")}
-                    disabled={!!statusAction || deal.status === "lost"}
-                    className="h-auto min-w-0 flex-1 basis-0 whitespace-normal bg-red-600 py-2 text-center text-white hover:bg-red-700 disabled:opacity-50"
-                  >
-                    {statusAction === "lost" ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <>
-                        <X className="h-4 w-4 shrink-0" />
-                        {t("markAsLost")}
-                      </>
-                    )}
-                  </Button>
-                </div>
-                {deal.status && deal.status !== "open" && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => handleStatusChange("open")}
-                    disabled={!!statusAction}
-                    className="w-full text-muted-foreground hover:text-foreground"
-                  >
-                    {t("reopenDeal")}
-                  </Button>
-                )}
-              </div>
-            )}
+            {/* No manual "Mark as Won/Lost" action here anymore — status
+                is derived solely from which stage the card sits in (see
+                migration 060's sync trigger + the is_won_stage/
+                is_lost_stage flags in Pipeline settings). Dragging the
+                card into (or out of) the Won/Lost stage is the only way
+                to close or reopen a deal now, so the board stays the
+                single source of truth instead of two paths that could
+                disagree. */}
           </div>
 
           <div className="border-t border-border/50 bg-popover/80 p-4">

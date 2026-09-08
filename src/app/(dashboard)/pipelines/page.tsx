@@ -43,13 +43,18 @@ import { useTranslations } from "next-intl";
 // SIDEBAR_COLLAPSED_STORAGE_KEY.
 const GROUP_BY_DATE_STORAGE_KEY = "saleslid:pipeline:group-by-date";
 
-// Spec-defined seed — name and color per the product spec.
+// Spec-defined seed — name and color per the product spec. Won/Lost
+// carry their outcome flag straight from creation (migration 060's
+// sync trigger reads it off `pipeline_stages`) so a brand-new pipeline
+// already registers a drag into either one — no trip to Settings
+// needed just to get the default board working.
 const SPEC_DEFAULT_STAGES = [
   { name: "New Lead", color: "#3b82f6", position: 0 }, // blue
   { name: "Qualified", color: "#eab308", position: 1 }, // yellow
   { name: "Proposal Sent", color: "#f97316", position: 2 }, // orange
   { name: "Negotiation", color: "#8b5cf6", position: 3 }, // purple
-  { name: "Won", color: "#22c55e", position: 4 }, // green
+  { name: "Won", color: "#22c55e", position: 4, isWonStage: true }, // green
+  { name: "Lost", color: "#ef4444", position: 5, isLostStage: true }, // red
 ];
 
 export default function PipelinesPage() {
@@ -183,6 +188,8 @@ export default function PipelinesPage() {
       name: s.name,
       color: s.color,
       position: s.position,
+      is_won_stage: "isWonStage" in s ? s.isWonStage : false,
+      is_lost_stage: "isLostStage" in s ? s.isLostStage : false,
     }));
     await supabase.from("pipeline_stages").insert(stagesPayload);
 
@@ -401,6 +408,8 @@ export default function PipelinesPage() {
       name: s.name,
       color: s.color,
       position: s.position,
+      is_won_stage: "isWonStage" in s ? s.isWonStage : false,
+      is_lost_stage: "isLostStage" in s ? s.isLostStage : false,
     }));
     await supabase.from("pipeline_stages").insert(stagesPayload);
 

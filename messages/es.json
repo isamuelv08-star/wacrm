@@ -2249,7 +2249,13 @@
     "emptyBody": "Acá vas a ver una alerta por nuevos leads, puntuación de leads y conversaciones que te asignen.",
     "unreadAria": "Sin leer",
     "markReadError": "No se pudo marcar la notificación como leída",
-    "markAllError": "No se pudo marcar todo como leído"
+    "markAllError": "No se pudo marcar todo como leído",
+    "desktopNotificationsOn": "Notificaciones de escritorio activadas",
+    "desktopNotificationsOff": "Activar notificaciones de escritorio",
+    "desktopNotificationsBlocked": "Bloqueadas por el navegador — habilítalas en la configuración del sitio",
+    "messagesGroupTitle": "{count, plural, one {# mensaje nuevo} other {# mensajes nuevos}}",
+    "qualificationGroupTitle": "{count, plural, one {# actualización de calificación} other {# actualizaciones de calificación}}",
+    "groupUnread": "{count} sin leer"
   },
   "NotificationsToast": {
     "manage": "Gestionar"

@@ -6,34 +6,13 @@ import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import type { Notification } from "@/types";
-import {
-  Bell,
-  CheckCheck,
-  Loader2,
-  UserPlus,
-  Flame,
-  Star,
-  UserRoundPlus,
-  Sparkles,
-  MessageCircle,
-  Snowflake,
-} from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { Bell, BellOff, BellRing, CheckCheck, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-
-// Icon per notification type — the Record type forces a compile error
-// if a new NotificationType value ships without an icon here.
-const TYPE_ICON: Record<Notification["type"], typeof Bell> = {
-  conversation_assigned: UserPlus,
-  hot_lead_unanswered: Flame,
-  lead_qualified: Star,
-  new_lead: UserRoundPlus,
-  lead_scored: Sparkles,
-  new_message: MessageCircle,
-  lead_stale: Snowflake,
-};
+import { useDesktopNotificationsSetting } from "@/hooks/use-desktop-notifications";
+import { groupNotifications } from "@/lib/notifications/group-notifications";
+import { NotificationRow } from "@/components/notifications/notification-row";
+import { NotificationGroupRow } from "@/components/notifications/notification-group-row";
 
 export default function NotificationsPage() {
   const t = useTranslations("NotificationsPage");
@@ -44,6 +23,7 @@ export default function NotificationsPage() {
   );
   const [error, setError] = useState<string | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
+  const desktopNotifications = useDesktopNotificationsSetting();
 
   const load = useCallback(async () => {
     if (!accountId) return;
@@ -140,6 +120,15 @@ export default function NotificationsPage() {
     [markRead, router],
   );
 
+  const toggleDesktopNotifications = useCallback(async () => {
+    if (desktopNotifications.enabled) {
+      desktopNotifications.disable();
+      return;
+    }
+    const granted = await desktopNotifications.enable();
+    if (!granted) toast.error(t("desktopNotificationsBlocked"));
+  }, [desktopNotifications, t]);
+
   const unreadIds = notifications?.filter((n) => !n.read_at).map((n) => n.id) ?? [];
 
   const markAllRead = useCallback(async () => {
@@ -189,19 +178,43 @@ export default function NotificationsPage() {
             {t("subtitle")}
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={unreadIds.length === 0 || markingAll}
-          onClick={markAllRead}
-        >
-          {markingAll ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <CheckCheck className="h-4 w-4" />
+        <div className="flex items-center gap-2">
+          {desktopNotifications.supported && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={desktopNotifications.permission === "denied"}
+              title={
+                desktopNotifications.permission === "denied"
+                  ? t("desktopNotificationsBlocked")
+                  : undefined
+              }
+              onClick={toggleDesktopNotifications}
+            >
+              {desktopNotifications.enabled ? (
+                <BellRing className="h-4 w-4" />
+              ) : (
+                <BellOff className="h-4 w-4" />
+              )}
+              {desktopNotifications.enabled
+                ? t("desktopNotificationsOn")
+                : t("desktopNotificationsOff")}
+            </Button>
           )}
-          {t("markAllRead")}
-        </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={unreadIds.length === 0 || markingAll}
+            onClick={markAllRead}
+          >
+            {markingAll ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <CheckCheck className="h-4 w-4" />
+            )}
+            {t("markAllRead")}
+          </Button>
+        </div>
       </div>
 
       {notifications.length === 0 ? (
@@ -218,67 +231,17 @@ export default function NotificationsPage() {
         </div>
       ) : (
         <ul className="space-y-2">
-          {notifications.map((n) => {
-            const Icon = TYPE_ICON[n.type] ?? Bell;
-            const isUnread = !n.read_at;
-            return (
-              <li key={n.id}>
-                <button
-                  type="button"
-                  onClick={() => handleClick(n)}
-                  className={cn(
-                    "flex w-full items-start gap-3 rounded-xl border p-4 text-left transition-colors",
-                    isUnread
-                      ? "border-primary/30 bg-primary/5 hover:border-primary/50"
-                      : "border-border bg-card hover:border-border/70",
-                  )}
-                >
-                  <div
-                    className={cn(
-                      "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg",
-                      isUnread ? "bg-primary/15" : "bg-muted",
-                    )}
-                    aria-hidden
-                  >
-                    <Icon
-                      className={cn(
-                        "h-5 w-5",
-                        isUnread ? "text-primary" : "text-muted-foreground",
-                      )}
-                    />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={cn(
-                          "truncate text-sm font-semibold",
-                          isUnread ? "text-foreground" : "text-muted-foreground",
-                        )}
-                      >
-                        {n.title}
-                      </span>
-                      {isUnread && (
-                        <span
-                          aria-label={t("unreadAria")}
-                          className="h-2 w-2 flex-shrink-0 rounded-full bg-primary"
-                        />
-                      )}
-                    </div>
-                    {n.body && (
-                      <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                        {n.body}
-                      </p>
-                    )}
-                    <p className="mt-1 text-[11px] text-muted-foreground/70">
-                      {formatDistanceToNow(new Date(n.created_at), {
-                        addSuffix: true,
-                      })}
-                    </p>
-                  </div>
-                </button>
+          {groupNotifications(notifications).map((entry) =>
+            entry.kind === "group" ? (
+              <li key={entry.key}>
+                <NotificationGroupRow group={entry} onClick={handleClick} />
               </li>
-            );
-          })}
+            ) : (
+              <li key={entry.notification.id}>
+                <NotificationRow notification={entry.notification} onClick={handleClick} />
+              </li>
+            ),
+          )}
         </ul>
       )}
     </div>

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { showDesktopNotification } from "@/lib/notifications/desktop";
 import type { Notification } from "@/types";
 
 /**
@@ -28,6 +29,11 @@ import type { Notification } from "@/types";
  * hook) since this only needs the URL at the moment the event fires,
  * not a reactive value — keeps this component free of the Suspense
  * boundary `useSearchParams` would otherwise require.
+ *
+ * `new_lead` additionally fires a native OS/Chrome notification (when
+ * the user opted in — see hooks/use-desktop-notifications.ts) so a new
+ * lead lands on the desktop even while the tab isn't focused, the same
+ * way Kommo alerts on incoming leads.
  */
 export function NewNotificationToastListener() {
   const router = useRouter();
@@ -60,6 +66,22 @@ export function NewNotificationToastListener() {
                 }
               : undefined,
           });
+
+          if (row.type === "new_lead") {
+            const desktopNotification = showDesktopNotification(row.title, {
+              body: row.body,
+              tag: row.id,
+            });
+            if (desktopNotification) {
+              desktopNotification.onclick = () => {
+                window.focus();
+                if (row.conversation_id) {
+                  router.push(`/inbox?c=${row.conversation_id}`);
+                }
+                desktopNotification.close();
+              };
+            }
+          }
         },
       )
       .subscribe();

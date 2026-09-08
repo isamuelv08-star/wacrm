@@ -314,11 +314,31 @@ export default function DashboardPage() {
       })
   }, [hasAnySalesAccess])
 
-  // Coalesces a burst of realtime events (see the two subscriptions
-  // below) into one `loadAll()` instead of one per row changed — a
-  // bulk import or an automation touching many deals/contacts at once
-  // would otherwise fire a full reload per event, per open tab.
-  const debouncedLoadAll = useDebouncedCallback(loadAll, 500, 2000)
+  // Realtime-triggered reload — unlike the mount/pathname/visibility
+  // triggers below (which are fine reading a still-warm cache), a
+  // `postgres_changes` event means something the dashboard displays
+  // just changed (a deal dragged to a new stage, a goal edited), so the
+  // very next fetch needs fresh numbers, not whatever the server cached
+  // up to 3 minutes ago. Busts that cache first (best-effort — a failed
+  // revalidate just means this one reload falls back to the stale
+  // value, not a broken dashboard) and only then re-fetches.
+  const reloadAfterRealtimeChange = useCallback(async () => {
+    if (hasAnySalesAccess) {
+      try {
+        await fetch('/api/dashboard/ceo-summary/revalidate', { method: 'POST' })
+      } catch (err) {
+        console.error('[dashboard] ceo-summary revalidate failed:', err)
+      }
+    }
+    loadAll()
+  }, [hasAnySalesAccess, loadAll])
+
+  // Coalesces a burst of realtime events (see the subscriptions below)
+  // into one reload instead of one per row changed — a bulk import or
+  // an automation touching many deals/contacts at once would otherwise
+  // fire a full reload (plus a cache-bust round trip) per event, per
+  // open tab.
+  const debouncedLoadAll = useDebouncedCallback(reloadAfterRealtimeChange, 500, 2000)
 
   // Re-fetch every time this route becomes the active page — not just
   // on first mount. Next's client router cache can keep this page's
@@ -363,6 +383,19 @@ export default function DashboardPage() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'sales_goals', filter: `account_id=eq.${accountId}` },
+        () => debouncedLoadAll(),
+      )
+      // Marking a stage won/lost in Pipeline settings retroactively
+      // updates every deal already sitting there (migration 060), which
+      // itself fires `deals` events the subscription above already
+      // catches — but a stage with zero deals in it right now (e.g. a
+      // brand-new "Perdidos" column) wouldn't touch a single `deals`
+      // row, so the funnel's stage counts would stay stale until
+      // something else reloads the page. Listening here directly closes
+      // that gap.
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'pipeline_stages' },
         () => debouncedLoadAll(),
       )
       .subscribe()

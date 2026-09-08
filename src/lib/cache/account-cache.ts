@@ -20,6 +20,13 @@ export const CACHE_TTL = {
  * never share a cache entry with each other; add any params the
  * result depends on (period range, filters, ...) after it.
  *
+ * `tags`, when given, are also passed straight to `unstable_cache` —
+ * calling `revalidateTag(tag)` (from a Route Handler) evicts every
+ * entry sharing that tag immediately, regardless of its exact key.
+ * That's what lets a real user action (e.g. dragging a deal to a new
+ * stage) force a cache miss on demand instead of waiting out the TTL
+ * — see /api/dashboard/ceo-summary/revalidate.
+ *
  * IMPORTANT — Next's default cache handler backing `unstable_cache` is
  * in-memory/filesystem PER PROCESS. On a single Docker container
  * that's exactly what you want: one shared cache for every viewer of
@@ -35,6 +42,15 @@ export function cachedForAccount<T>(
   keyParts: [accountId: string, ...rest: string[]],
   ttlSeconds: number,
   fn: () => Promise<T>,
+  tags?: string[],
 ): () => Promise<T> {
-  return unstable_cache(fn, ['account-cache', ...keyParts], { revalidate: ttlSeconds })
+  return unstable_cache(fn, ['account-cache', ...keyParts], { revalidate: ttlSeconds, tags })
+}
+
+/** Shared tag for every cache entry that backs the CEO/sales dashboard
+ *  summary for one account — see the ceo-summary route (writer) and
+ *  its sibling revalidate route (the only caller of `revalidateTag`
+ *  with this tag). */
+export function dashboardSummaryCacheTag(accountId: string): string {
+  return `dashboard-summary:${accountId}`
 }
