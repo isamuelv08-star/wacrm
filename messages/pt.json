@@ -463,6 +463,10 @@
       "resumed": "IA retomada.",
       "updateError": "Não foi possível atualizar o assistente de IA.",
       "networkError": "Não foi possível conectar ao servidor."
+    },
+    "aiActivity": {
+      "leadScored": "A IA classificou este lead como {score}",
+      "leadQualified": "A IA moveu este lead para Qualificado"
     }
   },
   "Contacts": {

@@ -367,6 +367,25 @@ export interface Message {
   ai_generated?: boolean;
 }
 
+/**
+ * One row of the "what the AI just did" feed (migration 075),
+ * rendered inline in the Inbox thread as a subtle pill — see
+ * src/lib/ai/activity-log.ts (write side) and
+ * src/components/inbox/ai-activity-pill.tsx (render side).
+ */
+export type AiActivityEventType = 'lead_scored' | 'lead_qualified';
+
+export interface AiActivityEvent {
+  id: string;
+  account_id: string;
+  conversation_id: string;
+  contact_id: string | null;
+  event_type: AiActivityEventType;
+  /** Event-specific extras — currently only `{ score }` on `lead_scored`. */
+  payload: { score?: 'hot' | 'warm' | 'cold' };
+  created_at: string;
+}
+
 export type ReactionActor = 'customer' | 'agent';
 
 export interface MessageReaction {

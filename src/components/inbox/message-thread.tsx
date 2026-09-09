@@ -8,6 +8,7 @@ import { PresenceDot } from "@/components/presence/presence-dot";
 import { presenceLabel } from "@/lib/presence";
 import { cn } from "@/lib/utils";
 import type {
+  AiActivityEvent,
   Conversation,
   Message,
   MessageReaction,
@@ -49,6 +50,7 @@ import {
 import { deleteAccountMedia } from "@/lib/storage/upload-media";
 import { TemplatePicker } from "./template-picker";
 import { AiThreadBanner } from "./ai-thread-banner";
+import { AiActivityPill } from "./ai-activity-pill";
 import { buildReplyPreview } from "./reply-quote";
 import { toast } from "sonner";
 import { AvatarRing } from "./platform-accent";
@@ -121,17 +123,50 @@ function formatDateSeparator(dateStr: string, t: ReturnType<typeof useTranslatio
   return format(date, "MMMM d, yyyy");
 }
 
-function groupMessagesByDate(messages: Message[]) {
-  const groups: { date: string; messages: Message[] }[] = [];
+/**
+ * A thread item is either a real message or an inline "what the AI
+ * did" marker (migration 075) — merged and sorted chronologically so
+ * an activity pill renders at the exact point in time it happened,
+ * interleaved with the actual conversation rather than off to the
+ * side.
+ */
+type ThreadItem =
+  | { kind: "message"; created_at: string; message: Message }
+  | { kind: "event"; created_at: string; event: AiActivityEvent };
+
+function mergeThreadItems(
+  messages: Message[],
+  events: AiActivityEvent[],
+): ThreadItem[] {
+  const items: ThreadItem[] = [
+    ...messages.map((message) => ({
+      kind: "message" as const,
+      created_at: message.created_at,
+      message,
+    })),
+    ...events.map((event) => ({
+      kind: "event" as const,
+      created_at: event.created_at,
+      event,
+    })),
+  ];
+  items.sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+  );
+  return items;
+}
+
+function groupItemsByDate(items: ThreadItem[]) {
+  const groups: { date: string; items: ThreadItem[] }[] = [];
   let currentDate = "";
 
-  for (const msg of messages) {
-    const day = format(new Date(msg.created_at), "yyyy-MM-dd");
+  for (const item of items) {
+    const day = format(new Date(item.created_at), "yyyy-MM-dd");
     if (day !== currentDate) {
       currentDate = day;
-      groups.push({ date: msg.created_at, messages: [msg] });
+      groups.push({ date: item.created_at, items: [item] });
     } else {
-      groups[groups.length - 1].messages.push(msg);
+      groups[groups.length - 1].items.push(item);
     }
   }
 
@@ -186,6 +221,7 @@ export function MessageThread({
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [reactions, setReactions] = useState<MessageReaction[]>([]);
+  const [activityEvents, setActivityEvents] = useState<AiActivityEvent[]>([]);
   // Purely visual spin state for the manual-refresh button. The actual
   // refetch is fire-and-forget through `onRefresh` (which bumps the
   // parent's resyncToken); the 700ms spin is just feedback so the click
@@ -462,6 +498,65 @@ export function MessageThread({
           const old = payload.old as Partial<MessageReaction>;
           if (!old?.id) return;
           setReactions((prev) => prev.filter((r) => r.id !== old.id));
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [conversationId]);
+
+  // AI activity feed (migration 075) — "what the AI just did" markers,
+  // fetched and subscribed the same way reactions are above: scoped to
+  // the visible conversation, insert-only (nothing ever updates or
+  // deletes a past event).
+  useEffect(() => {
+    if (!conversationId) {
+      setActivityEvents([]);
+      return;
+    }
+    const supabase = createClient();
+    let cancelled = false;
+
+    (async () => {
+      const { data, error } = await supabase
+        .from("ai_activity_events")
+        .select("*")
+        .eq("conversation_id", conversationId)
+        .order("created_at", { ascending: true });
+      if (cancelled) return;
+      if (error) {
+        console.error("Failed to fetch AI activity events:", error);
+        return;
+      }
+      setActivityEvents((data as AiActivityEvent[]) ?? []);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId, resyncToken]);
+
+  useEffect(() => {
+    if (!conversationId) return;
+    const supabase = createClient();
+
+    const channel = supabase
+      .channel(`ai-activity:${conversationId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "ai_activity_events",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload) => {
+          const row = payload.new as AiActivityEvent;
+          setActivityEvents((prev) =>
+            prev.some((e) => e.id === row.id) ? prev : [...prev, row],
+          );
         },
       )
       .subscribe();
@@ -924,7 +1019,7 @@ export function MessageThread({
 
   const displayName = contact.name || contact.phone;
   const platform = getConversationPlatform(conversation);
-  const messageGroups = groupMessagesByDate(messages);
+  const messageGroups = groupItemsByDate(mergeThreadItems(messages, activityEvents));
   const currentStatus = STATUS_OPTIONS.find(
     (s) => s.value === conversation.status
   );
@@ -1140,9 +1235,13 @@ export function MessageThread({
                     {formatDateSeparator(group.date, t)}
                   </span>
                 </div>
-                {/* Messages */}
+                {/* Messages + inline AI activity markers */}
                 <div className="space-y-2">
-                  {group.messages.map((msg) => {
+                  {group.items.map((item) => {
+                    if (item.kind === "event") {
+                      return <AiActivityPill key={item.event.id} event={item.event} />;
+                    }
+                    const msg = item.message;
                     const parent = msg.reply_to_message_id
                       ? messagesById.get(msg.reply_to_message_id)
                       : null;
@@ -1150,7 +1249,7 @@ export function MessageThread({
                       ? {
                           authorLabel:
                             parent.sender_type === "agent" || parent.sender_type === "bot"
-                              ? t("me") 
+                              ? t("me")
                               : contact?.name || contact?.phone || "Unknown",
                           preview: buildReplyPreview(parent, tQuote),
                         }

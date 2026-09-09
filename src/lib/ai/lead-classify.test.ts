@@ -135,6 +135,7 @@ describe('classifyLeadIfNeeded', () => {
         source: 'ai',
         preferredAgentUserId: null,
         leadAutoAssignEnabled: false,
+        conversationId: 'conv-1',
       },
     )
   })

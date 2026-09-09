@@ -310,6 +310,7 @@ export async function dispatchInboundToAiReply(
         source: 'ai',
         preferredAgentUserId: conv.assigned_agent_id,
         leadAutoAssignEnabled: config.leadAutoAssignEnabled,
+        conversationId,
       })
     }
 
@@ -414,6 +415,7 @@ export async function dispatchInboundToAiReply(
         configOwnerUserId,
         preferredAgentUserId: targetAgentId ?? conv.assigned_agent_id,
         leadAutoAssignEnabled: config.leadAutoAssignEnabled,
+        conversationId,
       })
 
       return

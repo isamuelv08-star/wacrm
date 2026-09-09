@@ -333,6 +333,7 @@ describe('dispatchInboundToAiReply — handoff', () => {
         configOwnerUserId: 'user-1',
         preferredAgentUserId: null,
         leadAutoAssignEnabled: false,
+        conversationId: 'conv-1',
       },
     )
   })

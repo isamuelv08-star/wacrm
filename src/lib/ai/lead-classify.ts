@@ -99,6 +99,7 @@ export async function classifyLeadIfNeeded(args: ClassifyArgs): Promise<void> {
       source: 'ai',
       preferredAgentUserId: conv?.assigned_agent_id ?? null,
       leadAutoAssignEnabled: config.leadAutoAssignEnabled,
+      conversationId,
     })
   } catch (err) {
     console.error('[ai lead-classify] dispatch failed:', err)

@@ -463,6 +463,10 @@
       "resumed": "AI resumed.",
       "updateError": "Couldn’t update the AI assistant.",
       "networkError": "Couldn’t reach the server."
+    },
+    "aiActivity": {
+      "leadScored": "The AI scored this lead as {score}",
+      "leadQualified": "The AI moved this lead to Qualified"
     }
   },
   "Contacts": {

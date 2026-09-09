@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { LeadScore } from './types'
 import { resolveProfileId } from './profile-id'
 import { pickRoundRobinAgent } from '@/lib/assignment/round-robin'
+import { logAiActivity } from './activity-log'
 
 // ============================================================
 // Apply a lead score — either the AI emitted via the `[[SCORE:...]]`
@@ -51,6 +52,12 @@ export async function applyLeadScore(
     /** Account's lead-auto-assign toggle (`ai_configs.lead_auto_assign_enabled`).
      *  See `ensureDealInQualifiedStage`. */
     leadAutoAssignEnabled?: boolean
+    /** Conversation this assessment happened in, if any — drives the
+     *  inline "AI activity" pill (migration 075) and is forwarded to
+     *  `ensureDealInQualifiedStage` for the same purpose. Omitted by
+     *  the manual-override route, which has no single conversation to
+     *  anchor a badge change to. */
+    conversationId?: string | null
   },
 ): Promise<void> {
   const {
@@ -62,9 +69,21 @@ export async function applyLeadScore(
     source = 'ai',
     preferredAgentUserId = null,
     leadAutoAssignEnabled = false,
+    conversationId = null,
   } = args
 
   try {
+    // Read the score BEFORE overwriting it so we can tell whether this
+    // call actually changed anything — the AI re-asserting the same
+    // score turn after turn on an ongoing HOT lead shouldn't spam the
+    // activity feed with a duplicate pill every time.
+    const { data: before } = await db
+      .from('contacts')
+      .select('lead_score')
+      .eq('id', contactId)
+      .maybeSingle()
+    const previousScore = (before?.lead_score as LeadScore | null) ?? null
+
     const { error: scoreErr } = await db
       .from('contacts')
       .update({
@@ -78,6 +97,14 @@ export async function applyLeadScore(
       .eq('account_id', accountId)
     if (scoreErr) {
       console.error('[ai lead-scoring] failed to persist lead_score:', scoreErr.message)
+    } else if (source === 'ai' && score !== previousScore) {
+      await logAiActivity(db, {
+        accountId,
+        conversationId,
+        contactId,
+        eventType: 'lead_scored',
+        payload: { score },
+      })
     }
 
     if (score !== 'hot') return // only HOT advances the deal — see applyLeadScore's doc comment
@@ -88,6 +115,7 @@ export async function applyLeadScore(
       configOwnerUserId,
       preferredAgentUserId,
       leadAutoAssignEnabled,
+      conversationId,
     })
   } catch (err) {
     console.error('[ai lead-scoring] applyLeadScore failed:', err)
@@ -132,6 +160,10 @@ export async function ensureDealInQualifiedStage(
     configOwnerUserId: string
     preferredAgentUserId?: string | null
     leadAutoAssignEnabled?: boolean
+    /** Conversation this qualification happened in, if any — drives the
+     *  inline "AI activity" pill (migration 075). See applyLeadScore's
+     *  matching parameter. */
+    conversationId?: string | null
   },
 ): Promise<void> {
   const {
@@ -140,6 +172,7 @@ export async function ensureDealInQualifiedStage(
     configOwnerUserId,
     preferredAgentUserId = null,
     leadAutoAssignEnabled = false,
+    conversationId = null,
   } = args
 
   try {
@@ -165,8 +198,9 @@ export async function ensureDealInQualifiedStage(
         return
       }
 
+      const movingToQualified = openDeal.stage_id !== qualifiedStageId
       const updates: Record<string, unknown> = {}
-      if (openDeal.stage_id !== qualifiedStageId) {
+      if (movingToQualified) {
         updates.stage_id = qualifiedStageId
       }
       if (!openDeal.assigned_to) {
@@ -183,6 +217,16 @@ export async function ensureDealInQualifiedStage(
       const { error: moveErr } = await db.from('deals').update(updates).eq('id', openDeal.id)
       if (moveErr) {
         console.error('[ai lead-scoring] failed to update deal (stage/owner):', moveErr.message)
+      } else if (movingToQualified) {
+        // Only a real stage transition counts as "the AI qualified this
+        // lead" — filling in `assigned_to` alone (deal was already
+        // sitting in the qualified stage) isn't a qualification event.
+        await logAiActivity(db, {
+          accountId,
+          conversationId,
+          contactId,
+          eventType: 'lead_qualified',
+        })
       }
       return
     }
@@ -243,6 +287,13 @@ export async function ensureDealInQualifiedStage(
     })
     if (insertErr) {
       console.error('[ai lead-scoring] failed to create deal in qualified stage:', insertErr.message)
+    } else {
+      await logAiActivity(db, {
+        accountId,
+        conversationId,
+        contactId,
+        eventType: 'lead_qualified',
+      })
     }
   } catch (err) {
     console.error('[ai lead-scoring] ensureDealInQualifiedStage failed:', err)

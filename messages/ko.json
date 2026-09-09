@@ -463,6 +463,10 @@
       "resumed": "AI가 재개되었습니다.",
       "updateError": "AI 어시스턴트를 업데이트하지 못했습니다.",
       "networkError": "서버에 연결할 수 없습니다."
+    },
+    "aiActivity": {
+      "leadScored": "AI가 이 리드를 {score}(으)로 평가했습니다",
+      "leadQualified": "AI가 이 리드를 '검증됨' 단계로 이동했습니다"
     }
   },
   "Contacts": {
