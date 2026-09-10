@@ -36,6 +36,7 @@ import {
   Star,
   Trophy,
   XCircle,
+  Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
@@ -122,6 +123,7 @@ export function PipelineSettings({
       is_qualified_stage: s.is_qualified_stage ?? false,
       is_won_stage: s.is_won_stage ?? false,
       is_lost_stage: s.is_lost_stage ?? false,
+      is_followup_stage: s.is_followup_stage ?? false,
       win_probability: s.win_probability ?? null,
     }));
 
@@ -269,6 +271,9 @@ export function PipelineSettings({
                 <p className="text-xs text-muted-foreground">
                   {t("wonLostStageHint")}
                 </p>
+                <p className="text-xs text-muted-foreground">
+                  {t("followupStageHint")}
+                </p>
                 <DndContext
                   sensors={sensors}
                   collisionDetection={closestCenter}
@@ -314,9 +319,11 @@ export function PipelineSettings({
                                 ...s,
                                 is_won_stage: s.id === stage.id ? !s.is_won_stage : false,
                                 // A stage can't be both — picking Won
-                                // for this one clears any Lost flag it
-                                // might have had.
+                                // for this one clears any Lost/Seguimiento
+                                // flag it might have had.
                                 is_lost_stage: s.id === stage.id ? false : s.is_lost_stage,
+                                is_followup_stage:
+                                  s.id === stage.id ? false : s.is_followup_stage,
                               })),
                             );
                           }}
@@ -326,6 +333,22 @@ export function PipelineSettings({
                                 ...s,
                                 is_lost_stage: s.id === stage.id ? !s.is_lost_stage : false,
                                 is_won_stage: s.id === stage.id ? false : s.is_won_stage,
+                                is_followup_stage:
+                                  s.id === stage.id ? false : s.is_followup_stage,
+                              })),
+                            );
+                          }}
+                          onToggleFollowup={() => {
+                            setLocalStages(
+                              localStages.map((s) => ({
+                                ...s,
+                                is_followup_stage:
+                                  s.id === stage.id ? !s.is_followup_stage : false,
+                                // A follow-up stage is a neutral holding
+                                // stage, not an outcome — clear Won/Lost
+                                // on this one if it had them.
+                                is_won_stage: s.id === stage.id ? false : s.is_won_stage,
+                                is_lost_stage: s.id === stage.id ? false : s.is_lost_stage,
                               })),
                             );
                           }}
@@ -427,6 +450,7 @@ function SortableStageRow({
   onToggleQualified,
   onToggleWon,
   onToggleLost,
+  onToggleFollowup,
   colors,
   t,
 }: {
@@ -438,6 +462,7 @@ function SortableStageRow({
   onToggleQualified: () => void;
   onToggleWon: () => void;
   onToggleLost: () => void;
+  onToggleFollowup: () => void;
   colors: string[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   t: any;
@@ -503,6 +528,20 @@ function SortableStageRow({
           className="h-3 w-3"
           fill={stage.is_qualified_stage ? "currentColor" : "none"}
         />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        onClick={onToggleFollowup}
+        aria-pressed={!!stage.is_followup_stage}
+        title={t("markAsFollowupStage")}
+        className={
+          stage.is_followup_stage
+            ? "text-teal-400 hover:text-teal-300"
+            : "text-muted-foreground hover:text-teal-400"
+        }
+      >
+        <Clock className="h-3 w-3" fill={stage.is_followup_stage ? "currentColor" : "none"} />
       </Button>
       <Button
         variant="ghost"

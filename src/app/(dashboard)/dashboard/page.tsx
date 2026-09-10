@@ -18,6 +18,7 @@ import {
 
 import {
   loadConversationsSeries,
+  loadFollowupLeads,
   loadHotUnanswered,
   loadLeadsQualifiedToday,
   loadMetrics,
@@ -29,6 +30,7 @@ import { PeriodSelector } from '@/components/period-selector'
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback'
 import type {
   ConversationsSeriesPoint,
+  FollowupSummary,
   HotUnansweredItem,
   LeadsQualifiedToday,
   MetricsBundle,
@@ -55,6 +57,7 @@ import { PipelineDonut } from '@/components/dashboard/pipeline-donut'
 import { ResponseTimeCard } from '@/components/dashboard/response-time-card'
 import { HotUnansweredCard } from '@/components/dashboard/hot-unanswered-card'
 import { LeadsQualifiedTodayCard } from '@/components/dashboard/leads-qualified-today-card'
+import { FollowupCard } from '@/components/dashboard/followup-card'
 import { TeamCard } from '@/components/dashboard/team-card'
 import { SalesVsGoalChart } from '@/components/dashboard/ceo/sales-vs-goal-chart'
 import { SalesFunnel } from '@/components/dashboard/ceo/sales-funnel'
@@ -216,6 +219,9 @@ export default function DashboardPage() {
   const [leadsQualifiedToday, setLeadsQualifiedToday] = useState<LeadsQualifiedToday | null>(null)
   const [leadsQualifiedTodayLoading, setLeadsQualifiedTodayLoading] = useState(true)
 
+  const [followup, setFollowup] = useState<FollowupSummary | null>(null)
+  const [followupLoading, setFollowupLoading] = useState(true)
+
   // Sales section state — only ever fetched when `hasAnySalesAccess`.
   const [ceoMetrics, setCeoMetrics] = useState<CeoMetrics | null>(null)
   const [ceoMetricsLoading, setCeoMetricsLoading] = useState(true)
@@ -278,6 +284,11 @@ export default function DashboardPage() {
       .then((d) => setLeadsQualifiedToday(d))
       .catch((err) => console.error('[dashboard] leads qualified today failed:', err))
       .finally(() => setLeadsQualifiedTodayLoading(false))
+
+    void loadFollowupLeads(db)
+      .then((d) => setFollowup(d))
+      .catch((err) => console.error('[dashboard] followup leads failed:', err))
+      .finally(() => setFollowupLoading(false))
 
     if (!hasAnySalesAccess) {
       setCeoMetricsLoading(false)
@@ -677,6 +688,13 @@ export default function DashboardPage() {
             <LeadsQualifiedTodayCard data={leadsQualifiedToday} loading={leadsQualifiedTodayLoading} />
           </div>
         </div>
+      </RevealSection>
+
+      {/* Seguimiento — leads sitting in any pipeline's "Seguimiento" stage
+          (is_followup_stage), grouped hot/warm/cold with direct management.
+          Full width: it's a working queue, not a glance-and-move-on stat. */}
+      <RevealSection delayMs={250}>
+        <FollowupCard data={followup} loading={followupLoading} onLeadMoved={loadAll} />
       </RevealSection>
 
       {/* Sales section — visible only to whoever has at least one of

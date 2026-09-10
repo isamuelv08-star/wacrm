@@ -8,6 +8,9 @@ import { PipelineBoard } from "@/components/pipelines/pipeline-board";
 import { PipelineSettings } from "@/components/pipelines/pipeline-settings";
 import { DealForm } from "@/components/pipelines/deal-form";
 import { PipelineAnalytics } from "@/components/pipelines/pipeline-analytics";
+import { FollowupCard } from "@/components/dashboard/followup-card";
+import { loadFollowupLeads } from "@/lib/dashboard/queries";
+import type { FollowupSummary } from "@/lib/dashboard/types";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -57,11 +60,12 @@ const GROUP_BY_DATE_STORAGE_KEY = "saleslid:pipeline:group-by-date";
 // across open stages that computeStageProbability() applies.
 const SPEC_DEFAULT_STAGES = [
   { name: "New Lead", color: "#3b82f6", position: 0, winProbability: 10 }, // blue
-  { name: "Qualified", color: "#eab308", position: 1, winProbability: 37, isQualifiedStage: true }, // yellow
-  { name: "Proposal Sent", color: "#f97316", position: 2, winProbability: 63 }, // orange
-  { name: "Negotiation", color: "#8b5cf6", position: 3, winProbability: 90 }, // purple
-  { name: "Won", color: "#22c55e", position: 4, isWonStage: true, winProbability: 100 }, // green
-  { name: "Lost", color: "#ef4444", position: 5, isLostStage: true, winProbability: 0 }, // red
+  { name: "Seguimiento", color: "#14b8a6", position: 1, winProbability: 20, isFollowupStage: true }, // teal
+  { name: "Qualified", color: "#eab308", position: 2, winProbability: 37, isQualifiedStage: true }, // yellow
+  { name: "Proposal Sent", color: "#f97316", position: 3, winProbability: 63 }, // orange
+  { name: "Negotiation", color: "#8b5cf6", position: 4, winProbability: 90 }, // purple
+  { name: "Won", color: "#22c55e", position: 5, isWonStage: true, winProbability: 100 }, // green
+  { name: "Lost", color: "#ef4444", position: 6, isLostStage: true, winProbability: 0 }, // red
 ];
 
 function defaultStageRows(pipelineId: string) {
@@ -73,6 +77,7 @@ function defaultStageRows(pipelineId: string) {
     is_won_stage: "isWonStage" in s ? s.isWonStage : false,
     is_lost_stage: "isLostStage" in s ? s.isLostStage : false,
     is_qualified_stage: "isQualifiedStage" in s ? s.isQualifiedStage : false,
+    is_followup_stage: "isFollowupStage" in s ? s.isFollowupStage : false,
     win_probability: s.winProbability,
   }));
 }
@@ -264,6 +269,33 @@ export default function PipelinesPage() {
     };
   }, [selectedPipelineId, loadStages, loadDeals]);
 
+  // Seguimiento card, scoped to the selected pipeline — same query the
+  // Dashboard's account-wide card uses (`loadFollowupLeads`), just with
+  // `pipelineId` set so it only reflects leads in *this* pipeline's
+  // Seguimiento stage.
+  const [followup, setFollowup] = useState<FollowupSummary | null>(null);
+  const [followupLoading, setFollowupLoading] = useState(true);
+
+  const refreshFollowup = useCallback(async () => {
+    if (!selectedPipelineId) {
+      setFollowup(null);
+      return;
+    }
+    try {
+      setFollowup(await loadFollowupLeads(supabase, { pipelineId: selectedPipelineId }));
+    } catch (err) {
+      console.error("[pipelines] followup leads failed:", err);
+    } finally {
+      setFollowupLoading(false);
+    }
+  }, [selectedPipelineId, supabase]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFollowupLoading(true);
+    void refreshFollowup();
+  }, [refreshFollowup]);
+
   // Conversation staleness for every OPEN deal's contact — won/lost
   // deals don't get a badge (see deal-card.tsx), so their contacts are
   // deliberately excluded from this fetch.
@@ -327,8 +359,13 @@ export default function PipelinesPage() {
 
   // Coalesces a burst of deal-change events (a bulk import, an
   // automation touching many deals at once) into one `refreshDeals()`
-  // instead of one per row changed.
-  const debouncedRefreshDeals = useDebouncedCallback(refreshDeals, 500, 2000);
+  // instead of one per row changed. Follow-up counts ride the same
+  // debounced refresh — a stage move that affects the board also
+  // affects who's sitting in Seguimiento.
+  const refreshDealsAndFollowup = useCallback(async () => {
+    await Promise.all([refreshDeals(), refreshFollowup()]);
+  }, [refreshDeals, refreshFollowup]);
+  const debouncedRefreshDeals = useDebouncedCallback(refreshDealsAndFollowup, 500, 2000);
 
   // Live updates — this page had no realtime subscription at all, so
   // a deal created/moved/edited by a teammate (or an automation, or
@@ -582,6 +619,9 @@ export default function PipelinesPage() {
             stages={stages}
             deals={visibleDeals}
           />
+          {stages.some((s) => s.is_followup_stage) && (
+            <FollowupCard data={followup} loading={followupLoading} onLeadMoved={refreshFollowup} />
+          )}
           <PipelineBoard
             stages={stages}
             deals={visibleDeals}

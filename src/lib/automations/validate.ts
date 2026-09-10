@@ -108,6 +108,14 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
         issues.push({ path: `${path}.title`, message: 'title is required' })
       }
       break
+    case 'move_deal_stage':
+      if (!nonEmpty(c.pipeline_id)) {
+        issues.push({ path: `${path}.pipeline_id`, message: 'pipeline is required' })
+      }
+      if (!nonEmpty(c.stage_id)) {
+        issues.push({ path: `${path}.stage_id`, message: 'stage is required' })
+      }
+      break
     case 'wait':
       if (typeof c.amount !== 'number' || !Number.isFinite(c.amount) || c.amount <= 0) {
         issues.push({ path: `${path}.amount`, message: 'wait amount must be greater than 0' })
@@ -125,6 +133,14 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
       }
       if (!nonEmpty(c.operand)) {
         issues.push({ path: `${path}.operand`, message: 'condition operand is required' })
+      } else if (c.subject === 'no_reply_elapsed') {
+        const hours = Number(c.operand)
+        if (!Number.isFinite(hours) || hours <= 0) {
+          issues.push({
+            path: `${path}.operand`,
+            message: 'hours must be a number greater than 0',
+          })
+        }
       }
       break
     case 'send_webhook':

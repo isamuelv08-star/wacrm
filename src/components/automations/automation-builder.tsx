@@ -23,6 +23,7 @@ import {
   UserCheck,
   PencilLine,
   Briefcase,
+  ArrowRightCircle,
   Hourglass,
   GitBranch,
   Webhook,
@@ -116,6 +117,7 @@ const STEP_META: Record<AutomationStepType, StepMeta> = {
   assign_conversation: { label: "assign_conversation", icon: UserCheck, border: "border-l-primary" },
   update_contact_field: { label: "update_contact_field", icon: PencilLine, border: "border-l-primary" },
   create_deal: { label: "create_deal", icon: Briefcase, border: "border-l-primary" },
+  move_deal_stage: { label: "move_deal_stage", icon: ArrowRightCircle, border: "border-l-teal-500" },
   wait: { label: "wait", icon: Hourglass, border: "border-l-border" },
   condition: { label: "condition", icon: GitBranch, border: "border-l-amber-500" },
   send_webhook: { label: "send_webhook", icon: Webhook, border: "border-l-primary" },
@@ -132,6 +134,7 @@ const ADDABLE_STEPS: AutomationStepType[] = [
   "assign_conversation",
   "update_contact_field",
   "create_deal",
+  "move_deal_stage",
   "wait",
   "condition",
   "send_webhook",
@@ -189,6 +192,8 @@ function blankConfig(type: AutomationStepType): Record<string, unknown> {
       return { field: "name", value: "" }
     case "create_deal":
       return { pipeline_id: "", stage_id: "", title: "", value: 0 }
+    case "move_deal_stage":
+      return { pipeline_id: "", stage_id: "" }
     case "wait":
       return { amount: 1, unit: "hours" }
     case "condition":
@@ -1466,6 +1471,15 @@ function StepEditor({
           </FieldBlock>
         </>
       )
+    case "move_deal_stage":
+      return (
+        <DealPipelineFields
+          pipelineId={(cfg.pipeline_id as string) ?? ""}
+          stageId={(cfg.stage_id as string) ?? ""}
+          onChange={(patch) => set(patch)}
+          t={t}
+        />
+      )
     case "wait":
       return (
         <div className="grid grid-cols-2 gap-2">
@@ -1502,10 +1516,19 @@ function StepEditor({
               <SelectItem value="contact_field">{t("config.subjects.contact_field")}</SelectItem>
               <SelectItem value="message_content">{t("config.subjects.message_content")}</SelectItem>
               <SelectItem value="time_of_day">{t("config.subjects.time_of_day")}</SelectItem>
+              <SelectItem value="no_reply_elapsed">{t("config.subjects.no_reply_elapsed")}</SelectItem>
             </Picker>
           </FieldBlock>
-          <FieldBlock label={t("config.operandLabel")}>
+          <FieldBlock
+            label={
+              cfg.subject === "no_reply_elapsed"
+                ? t("config.hoursLabel")
+                : t("config.operandLabel")
+            }
+          >
             <Input
+              type={cfg.subject === "no_reply_elapsed" ? "number" : "text"}
+              min={cfg.subject === "no_reply_elapsed" ? 1 : undefined}
               placeholder={
                 cfg.subject === "time_of_day"
                   ? t("config.placeholderTime")
@@ -1513,6 +1536,8 @@ function StepEditor({
                   ? t("config.placeholderContact")
                   : cfg.subject === "tag_presence"
                   ? t("config.placeholderTag")
+                  : cfg.subject === "no_reply_elapsed"
+                  ? t("config.placeholderHours")
                   : ""
               }
               value={(cfg.operand as string) ?? ""}

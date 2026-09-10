@@ -9,6 +9,7 @@ import {
 } from './date-utils'
 import type {
   ConversationsSeriesPoint,
+  FollowupSummary,
   HotUnansweredItem,
   LeadsQualifiedToday,
   MetricsBundle,
@@ -359,4 +360,96 @@ export async function loadLeadsQualifiedToday(db: DB): Promise<LeadsQualifiedTod
     warm: warm.count ?? 0,
     cold: cold.count ?? 0,
   }
+}
+
+/**
+ * Open deals currently sitting in a "Seguimiento" stage (any stage
+ * flagged `is_followup_stage`, migration 077), grouped by the
+ * contact's hot/warm/cold `lead_score` — the Dashboard/Pipeline
+ * "Seguimiento" cards. Pass `pipelineId` to scope to one pipeline
+ * (used by the Pipelines page's own card); omitted, it covers every
+ * pipeline in the account (the Dashboard card).
+ *
+ * A lead whose contact has no `lead_score` yet (never assessed) isn't
+ * placed in any bucket — same convention as `loadLeadsQualifiedToday`,
+ * which only counts assessed contacts.
+ */
+export async function loadFollowupLeads(db: DB, opts?: { pipelineId?: string }): Promise<FollowupSummary> {
+  let stageQuery = db
+    .from('pipeline_stages')
+    .select('id, name, pipeline_id, pipelines!inner(name)')
+    .eq('is_followup_stage', true)
+  if (opts?.pipelineId) stageQuery = stageQuery.eq('pipeline_id', opts.pipelineId)
+  const { data: stages, error: stagesErr } = await stageQuery
+  if (stagesErr) throw stagesErr
+  const empty: FollowupSummary = { hot: [], warm: [], cold: [] }
+  if (!stages || stages.length === 0) return empty
+
+  type StageRow = { id: string; name: string; pipeline_id: string; pipelines: { name: string } | { name: string }[] }
+  const stageMeta = new Map(
+    (stages as StageRow[]).map((s) => [
+      s.id,
+      { name: s.name, pipelineId: s.pipeline_id, pipelineName: Array.isArray(s.pipelines) ? s.pipelines[0]?.name : s.pipelines?.name },
+    ]),
+  )
+  const stageIds = Array.from(stageMeta.keys())
+
+  const { data: deals, error: dealsErr } = await db
+    .from('deals')
+    .select('id, contact_id, conversation_id, pipeline_id, stage_id, contacts(name, phone, lead_score)')
+    .in('stage_id', stageIds)
+    .eq('status', 'open')
+  if (dealsErr) throw dealsErr
+  if (!deals || deals.length === 0) return empty
+
+  type ContactJoin = { name: string | null; phone: string; lead_score: string | null } | { name: string | null; phone: string; lead_score: string | null }[] | null
+  type DealRow = {
+    id: string
+    contact_id: string | null
+    conversation_id: string | null
+    pipeline_id: string
+    stage_id: string
+    contacts: ContactJoin
+  }
+  const dealIds = (deals as DealRow[]).map((d) => d.id)
+
+  // Most recent placement into this stage per deal, for "days waiting".
+  const { data: history } = await db
+    .from('deal_stage_history')
+    .select('deal_id, changed_at')
+    .in('deal_id', dealIds)
+    .in('to_stage_id', stageIds)
+    .order('changed_at', { ascending: false })
+  const enteredAt = new Map<string, string>()
+  for (const row of (history ?? []) as { deal_id: string; changed_at: string }[]) {
+    if (!enteredAt.has(row.deal_id)) enteredAt.set(row.deal_id, row.changed_at)
+  }
+
+  const now = Date.now()
+  const summary: FollowupSummary = { hot: [], warm: [], cold: [] }
+  for (const d of deals as DealRow[]) {
+    const contact = Array.isArray(d.contacts) ? d.contacts[0] : d.contacts
+    const score = contact?.lead_score
+    if (score !== 'hot' && score !== 'warm' && score !== 'cold') continue
+    const meta = stageMeta.get(d.stage_id)
+    const changedAt = enteredAt.get(d.id)
+    const daysInStage = changedAt ? Math.max(0, Math.floor((now - new Date(changedAt).getTime()) / 86_400_000)) : 0
+    summary[score].push({
+      dealId: d.id,
+      contactId: d.contact_id,
+      contactName: contact?.name ?? null,
+      phone: contact?.phone ?? null,
+      conversationId: d.conversation_id,
+      pipelineId: d.pipeline_id,
+      pipelineName: meta?.pipelineName ?? '',
+      stageId: d.stage_id,
+      stageName: meta?.name ?? '',
+      daysInStage,
+    })
+  }
+  // Longest-waiting first within each bucket — the most overdue retry.
+  for (const bucket of [summary.hot, summary.warm, summary.cold]) {
+    bucket.sort((a, b) => b.daysInStage - a.daysInStage)
+  }
+  return summary
 }

@@ -15,6 +15,8 @@ import {
   Award,
   Download,
   Printer,
+  Clock,
+  RotateCcw,
 } from "lucide-react";
 import {
   Tooltip,
@@ -84,6 +86,8 @@ export function PipelineAnalytics({ pipelineId, pipelineName, stages, deals }: P
   // part of the already-loaded `deals` list) so it resolves separately
   // from the client-side `stats` below.
   const [reachedQualifiedCount, setReachedQualifiedCount] = useState<number | null>(null);
+  const [enteredFollowupCount, setEnteredFollowupCount] = useState<number | null>(null);
+  const [reactivatedFromFollowupCount, setReactivatedFromFollowupCount] = useState<number | null>(null);
 
   const range: PeriodRange = useMemo(() => {
     if (preset === "custom" && customStart && customEnd) {
@@ -104,6 +108,14 @@ export function PipelineAnalytics({ pipelineId, pipelineName, stages, deals }: P
   );
   const qualifiedStage = useMemo(
     () => stages.find((s) => s.is_qualified_stage) ?? null,
+    [stages],
+  );
+  const followupStage = useMemo(
+    () => stages.find((s) => s.is_followup_stage) ?? null,
+    [stages],
+  );
+  const lostStage = useMemo(
+    () => stages.find((s) => s.is_lost_stage) ?? null,
     [stages],
   );
 
@@ -136,6 +148,13 @@ export function PipelineAnalytics({ pipelineId, pipelineName, stages, deals }: P
       return created >= range.start && created < range.end;
     }).length;
 
+    // Live snapshot, not period-scoped — same reasoning as totalCount
+    // above: "how many are sitting there right now" has no historical
+    // comparison to make against a date range.
+    const inFollowupCount = followupStage
+      ? deals.filter((d) => d.status === "open" && d.stage_id === followupStage.id).length
+      : 0;
+
     return {
       totalCount,
       totalValue,
@@ -144,8 +163,9 @@ export function PipelineAnalytics({ pipelineId, pipelineName, stages, deals }: P
       wonInPeriod,
       lostInPeriod,
       leadsEntered,
+      inFollowupCount,
     };
-  }, [deals, sortedStages, openStages, range]);
+  }, [deals, sortedStages, openStages, range, followupStage]);
 
   // "Reached qualified" needs deal_stage_history (migration 039) — not
   // part of the `deals` list the page already loaded — so it's the one
@@ -176,6 +196,48 @@ export function PipelineAnalytics({ pipelineId, pipelineName, stages, deals }: P
       cancelled = true;
     };
   }, [pipelineId, qualifiedStage, range]);
+
+  // "Entered follow-up" (deals that landed in the stage during the
+  // period) and "Reactivated" (deals that left it again for anything
+  // but Lost) — same deal_stage_history-backed shape as "reached
+  // qualified" above, since neither is derivable from the already-
+  // loaded `deals` list (current-state only).
+  useEffect(() => {
+    if (!followupStage) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setEnteredFollowupCount(null);
+      setReactivatedFromFollowupCount(null);
+      return;
+    }
+    let cancelled = false;
+    const supabase = createClient();
+    Promise.all([
+      supabase
+        .from("deal_stage_history")
+        .select("deal_id")
+        .eq("pipeline_id", pipelineId)
+        .eq("to_stage_id", followupStage.id)
+        .gte("changed_at", range.start.toISOString())
+        .lt("changed_at", range.end.toISOString())
+        .limit(5000),
+      supabase
+        .from("deal_stage_history")
+        .select("deal_id, to_stage_id")
+        .eq("pipeline_id", pipelineId)
+        .eq("from_stage_id", followupStage.id)
+        .gte("changed_at", range.start.toISOString())
+        .lt("changed_at", range.end.toISOString())
+        .limit(5000),
+    ]).then(([entered, exited]) => {
+      if (cancelled) return;
+      setEnteredFollowupCount(new Set((entered.data ?? []).map((r) => r.deal_id as string)).size);
+      const reactivated = (exited.data ?? []).filter((r) => r.to_stage_id !== lostStage?.id);
+      setReactivatedFromFollowupCount(new Set(reactivated.map((r) => r.deal_id as string)).size);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [pipelineId, followupStage, lostStage, range]);
 
   function handleExportCsv() {
     downloadDealsCsv(deals, stages, range, pipelineName, {
@@ -266,6 +328,15 @@ export function PipelineAnalytics({ pipelineId, pipelineName, stages, deals }: P
             tooltip={t("weightedValueTooltip")}
             t={t}
           />
+          {followupStage && (
+            <Metric
+              icon={<Clock className="h-4 w-4 text-teal-400" />}
+              label={t("inFollowup")}
+              value={String(stats.inFollowupCount)}
+              tooltip={t("inFollowupTooltip")}
+              t={t}
+            />
+          )}
         </div>
 
         {/* Period metrics — activity during the selected window. */}
@@ -340,6 +411,24 @@ export function PipelineAnalytics({ pipelineId, pipelineName, stages, deals }: P
               tooltip={t("lostTooltip")}
               t={t}
             />
+            {followupStage && (
+              <>
+                <Metric
+                  icon={<Clock className="h-4 w-4 text-teal-400" />}
+                  label={t("enteredFollowup")}
+                  value={enteredFollowupCount === null ? "…" : String(enteredFollowupCount)}
+                  tooltip={t("enteredFollowupTooltip")}
+                  t={t}
+                />
+                <Metric
+                  icon={<RotateCcw className="h-4 w-4 text-blue-400" />}
+                  label={t("reactivatedFromFollowup")}
+                  value={reactivatedFromFollowupCount === null ? "…" : String(reactivatedFromFollowupCount)}
+                  tooltip={t("reactivatedFromFollowupTooltip")}
+                  t={t}
+                />
+              </>
+            )}
           </div>
         </div>
       </div>

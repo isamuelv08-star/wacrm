@@ -16,6 +16,7 @@ import type {
   UpdateContactFieldStepConfig,
   WaitStepConfig,
   CreateDealStepConfig,
+  MoveDealStageStepConfig,
   AssignConversationStepConfig,
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
@@ -605,6 +606,76 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       return 'deal created'
     }
 
+    case 'move_deal_stage': {
+      const cfg = step.step_config as MoveDealStageStepConfig
+      if (!cfg.pipeline_id || !cfg.stage_id) {
+        throw new Error('move_deal_stage needs pipeline + stage')
+      }
+      if (!args.contactId) throw new Error('move_deal_stage needs a contact')
+      // Defense in depth, same reasoning as create_deal above.
+      const { data: stageCheck } = await db
+        .from('pipeline_stages')
+        .select('id, pipelines!inner(account_id)')
+        .eq('id', cfg.stage_id)
+        .eq('pipeline_id', cfg.pipeline_id)
+        .eq('pipelines.account_id', args.automation.account_id)
+        .maybeSingle()
+      if (!stageCheck) {
+        throw new Error('move_deal_stage: pipeline/stage does not belong to this account')
+      }
+
+      // Automations carry no deal_id — resolve "the" deal the same way
+      // the AI sales mode does (src/lib/ai/sales-actions.ts): the
+      // contact's single open deal, if any.
+      const { data: openDeal } = await db
+        .from('deals')
+        .select('id')
+        .eq('contact_id', args.contactId)
+        .eq('account_id', args.automation.account_id)
+        .eq('status', 'open')
+        .maybeSingle()
+
+      if (openDeal) {
+        // Update pipeline_id too, not just stage_id — the target stage may
+        // belong to a different pipeline than the deal's current one (e.g.
+        // moving into a dedicated "Postventa" pipeline). The stage-outcome
+        // sync trigger (migration 060) reacts to this UPDATE and keeps
+        // deals.status/closed_at consistent automatically.
+        await db
+          .from('deals')
+          .update({ pipeline_id: cfg.pipeline_id, stage_id: cfg.stage_id })
+          .eq('id', openDeal.id)
+        return `deal moved to stage ${cfg.stage_id}`
+      }
+
+      // No open deal yet for this contact — create one directly in the
+      // target stage, mirroring create_deal's insert, so this same action
+      // also covers "move a fresh contact straight into Seguimiento/
+      // Postventa" without requiring a create_deal step first.
+      const { data: acct } = await db
+        .from('accounts')
+        .select('default_currency')
+        .eq('id', args.automation.account_id)
+        .maybeSingle()
+      const { data: contact } = await db
+        .from('contacts')
+        .select('name, phone')
+        .eq('id', args.contactId)
+        .maybeSingle()
+      await db.from('deals').insert({
+        account_id: args.automation.account_id,
+        user_id: args.automation.user_id,
+        pipeline_id: cfg.pipeline_id,
+        stage_id: cfg.stage_id,
+        contact_id: args.contactId,
+        title: contact?.name || contact?.phone || 'Automation',
+        value: 0,
+        currency: acct?.default_currency ?? 'USD',
+        status: 'open',
+      })
+      return 'no open deal found; created one in target stage'
+    }
+
     case 'send_webhook': {
       const cfg = step.step_config as SendWebhookStepConfig
       if (!cfg.url) throw new Error('send_webhook needs url')
@@ -800,6 +871,37 @@ async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): P
       const f = parse(from)
       const t = parse(to)
       return f <= t ? mins >= f && mins < t : mins >= f || mins < t
+    }
+    case 'no_reply_elapsed': {
+      // operand = hours threshold. True once the last message on the
+      // conversation was sent by the business/bot (not the customer) at
+      // least that many hours ago — same staleness check as
+      // loadHotUnanswered in @/lib/dashboard/queries, reused here so a
+      // "lead went quiet" automation (e.g. move to Seguimiento) agrees
+      // with what the dashboard already calls unanswered.
+      const hours = Number(cfg.operand)
+      if (!Number.isFinite(hours) || hours <= 0) return false
+      let conversationId = args.context.conversation_id
+      if (!conversationId && args.contactId) {
+        const { data } = await db
+          .from('conversations')
+          .select('id')
+          .eq('account_id', args.automation.account_id)
+          .eq('contact_id', args.contactId)
+          .maybeSingle()
+        conversationId = data?.id
+      }
+      if (!conversationId) return false
+      const { data: lastMessage } = await db
+        .from('messages')
+        .select('sender_type, created_at')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (!lastMessage || lastMessage.sender_type === 'customer') return false
+      const elapsedMs = Date.now() - new Date(lastMessage.created_at).getTime()
+      return elapsedMs >= hours * 3_600_000
     }
     default:
       return false

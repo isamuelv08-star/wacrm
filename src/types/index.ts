@@ -518,6 +518,16 @@ export interface PipelineStage {
    */
   is_won_stage?: boolean;
   is_lost_stage?: boolean;
+  /**
+   * Admin-designated "leads that went quiet land here" marker
+   * (migration 077) — a neutral holding stage, not an outcome, so it's
+   * mutually exclusive with is_won_stage/is_lost_stage (same partial
+   * unique index + CHECK pattern as the flags above). Powers the
+   * Dashboard/Pipeline "Seguimiento" cards that group these leads by
+   * lead_score (hot/warm/cold) and the move_deal_stage automation
+   * action.
+   */
+  is_followup_stage?: boolean;
   /** % chance a deal in this stage eventually closes won (migration
    *  053) — weights the CEO dashboard's forecast. Backfilled with a
    *  linear ramp by stage position; null only if the backfill somehow
@@ -668,6 +678,7 @@ export type AutomationStepType =
   | 'assign_conversation'
   | 'update_contact_field'
   | 'create_deal'
+  | 'move_deal_stage'
   | 'wait'
   | 'condition'
   | 'send_webhook'
@@ -759,6 +770,18 @@ export interface CreateDealStepConfig {
   value?: number;
 }
 
+/**
+ * Moves the contact's open deal to a specific stage — e.g. "Seguimiento"
+ * (a lead that went quiet) or a "Ganado"/post-sale stage in a dedicated
+ * pipeline. Unlike `create_deal`, this targets an *existing* deal; the
+ * engine falls back to creating one in pipeline_id/stage_id only if the
+ * contact has no open deal yet (see `runStep` in automations/engine.ts).
+ */
+export interface MoveDealStageStepConfig {
+  pipeline_id: string;
+  stage_id: string;
+}
+
 export interface WaitStepConfig {
   amount: number;
   unit: 'minutes' | 'hours' | 'days';
@@ -768,11 +791,20 @@ export type ConditionSubject =
   | 'contact_field'
   | 'tag_presence'
   | 'message_content'
-  | 'time_of_day';
+  | 'time_of_day'
+  /**
+   * True when the last message on the conversation was sent by the
+   * business/bot (not the customer) more than `operand` hours ago —
+   * i.e. the lead went quiet. Powers "move to Seguimiento after N
+   * hours of silence" automations. Same staleness check as
+   * `loadHotUnanswered` in `@/lib/dashboard/queries`.
+   */
+  | 'no_reply_elapsed';
 
 export interface ConditionStepConfig {
   subject: ConditionSubject;
-  /** e.g. field name, tag id, substring, or "HH:mm-HH:mm" depending on subject */
+  /** e.g. field name, tag id, substring, "HH:mm-HH:mm", or an hours
+   *  threshold (as a numeric string) depending on subject */
   operand?: string;
   /** For contact_field equals / message_content contains — comparison value */
   value?: string;
@@ -793,6 +825,7 @@ export type AutomationStepConfig =
   | AssignConversationStepConfig
   | UpdateContactFieldStepConfig
   | CreateDealStepConfig
+  | MoveDealStageStepConfig
   | WaitStepConfig
   | ConditionStepConfig
   | SendWebhookStepConfig
