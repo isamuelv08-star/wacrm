@@ -47,15 +47,35 @@ const GROUP_BY_DATE_STORAGE_KEY = "saleslid:pipeline:group-by-date";
 // carry their outcome flag straight from creation (migration 060's
 // sync trigger reads it off `pipeline_stages`) so a brand-new pipeline
 // already registers a drag into either one — no trip to Settings
-// needed just to get the default board working.
+// needed just to get the default board working. Same reasoning for
+// `winProbability` (the dashboard forecast skips stages that have
+// none) and `isQualifiedStage` (the pipeline's "reached qualified"
+// metric hides itself entirely without one): a migration can only
+// backfill pipelines that already exist, so the seed has to carry
+// both or every newly created pipeline reappears with those two
+// metrics reading zero. Probabilities follow the same 10%-90% ramp
+// across open stages that computeStageProbability() applies.
 const SPEC_DEFAULT_STAGES = [
-  { name: "New Lead", color: "#3b82f6", position: 0 }, // blue
-  { name: "Qualified", color: "#eab308", position: 1 }, // yellow
-  { name: "Proposal Sent", color: "#f97316", position: 2 }, // orange
-  { name: "Negotiation", color: "#8b5cf6", position: 3 }, // purple
-  { name: "Won", color: "#22c55e", position: 4, isWonStage: true }, // green
-  { name: "Lost", color: "#ef4444", position: 5, isLostStage: true }, // red
+  { name: "New Lead", color: "#3b82f6", position: 0, winProbability: 10 }, // blue
+  { name: "Qualified", color: "#eab308", position: 1, winProbability: 37, isQualifiedStage: true }, // yellow
+  { name: "Proposal Sent", color: "#f97316", position: 2, winProbability: 63 }, // orange
+  { name: "Negotiation", color: "#8b5cf6", position: 3, winProbability: 90 }, // purple
+  { name: "Won", color: "#22c55e", position: 4, isWonStage: true, winProbability: 100 }, // green
+  { name: "Lost", color: "#ef4444", position: 5, isLostStage: true, winProbability: 0 }, // red
 ];
+
+function defaultStageRows(pipelineId: string) {
+  return SPEC_DEFAULT_STAGES.map((s) => ({
+    pipeline_id: pipelineId,
+    name: s.name,
+    color: s.color,
+    position: s.position,
+    is_won_stage: "isWonStage" in s ? s.isWonStage : false,
+    is_lost_stage: "isLostStage" in s ? s.isLostStage : false,
+    is_qualified_stage: "isQualifiedStage" in s ? s.isQualifiedStage : false,
+    win_probability: s.winProbability,
+  }));
+}
 
 export default function PipelinesPage() {
   const t = useTranslations("Pipelines.page");
@@ -183,15 +203,7 @@ export default function PipelinesPage() {
       return null;
     }
 
-    const stagesPayload = SPEC_DEFAULT_STAGES.map((s) => ({
-      pipeline_id: pipeline.id,
-      name: s.name,
-      color: s.color,
-      position: s.position,
-      is_won_stage: "isWonStage" in s ? s.isWonStage : false,
-      is_lost_stage: "isLostStage" in s ? s.isLostStage : false,
-    }));
-    await supabase.from("pipeline_stages").insert(stagesPayload);
+    await supabase.from("pipeline_stages").insert(defaultStageRows(pipeline.id));
 
     return pipeline as Pipeline;
   }, [supabase, accountId]);
@@ -403,15 +415,7 @@ export default function PipelinesPage() {
       return;
     }
 
-    const stagesPayload = SPEC_DEFAULT_STAGES.map((s) => ({
-      pipeline_id: pipeline.id,
-      name: s.name,
-      color: s.color,
-      position: s.position,
-      is_won_stage: "isWonStage" in s ? s.isWonStage : false,
-      is_lost_stage: "isLostStage" in s ? s.isLostStage : false,
-    }));
-    await supabase.from("pipeline_stages").insert(stagesPayload);
+    await supabase.from("pipeline_stages").insert(defaultStageRows(pipeline.id));
 
     setNewPipelineName("");
     setNewPipelineOpen(false);

@@ -228,6 +228,7 @@ export async function loadCeoMetrics(db: DB, range: DateRange): Promise<CeoMetri
   return {
     salesThisMonth: { current: salesCurrentValue, previous: salesPreviousValue },
     goalThisMonth: goalForRange,
+    monthlyGoal,
     goalAttainmentPct: goalForRange ? (salesCurrentValue / goalForRange) * 100 : null,
     pipelineTotal,
     pipelineCoverage: monthlyGoal ? pipelineTotal / monthlyGoal : null,
@@ -406,7 +407,13 @@ export async function loadCeoAlerts(
   staleDays = 7,
   trendWindowDays = 90,
 ): Promise<CeoAlerts> {
-  const forecastGapPct = computeForecastGap(metrics.forecast, metrics.goalThisMonth)
+  // `monthlyGoal`, not `goalThisMonth` — the forecast is a whole-pipeline
+  // snapshot with no date range of its own, so comparing it against a
+  // goal prorated to the selected window made the same pipeline read as
+  // "42% short" on a 7-day range and "on track" on a 1-day one. This is
+  // the ratio `forecastPct` already reports on the Forecast card itself,
+  // so the alert now agrees with the number it's alerting about.
+  const forecastGapPct = computeForecastGap(metrics.forecast, metrics.monthlyGoal)
   const lowPipelineCoverage =
     metrics.pipelineCoverage != null && metrics.pipelineCoverage < HEALTHY_PIPELINE_COVERAGE
       ? metrics.pipelineCoverage

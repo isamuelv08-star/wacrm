@@ -76,8 +76,8 @@ export async function buildAssistantSnapshot(args: {
         [
           'SALES & MONTHLY GOAL (this calendar month):',
           `- Revenue closed this month: ${money(m.salesThisMonth.current)} (previous month: ${money(m.salesThisMonth.previous)})`,
-          m.goalThisMonth != null
-            ? `- Configured monthly goal: ${money(m.goalThisMonth)}`
+          m.monthlyGoal != null
+            ? `- Configured monthly goal: ${money(m.monthlyGoal)}`
             : '- No monthly goal configured for this account.',
           m.goalAttainmentPct != null
             ? `- Goal attainment so far: ${m.goalAttainmentPct.toFixed(1)}%`

@@ -22,8 +22,14 @@ export interface SalesVsGoalPoint {
 export interface CeoMetrics {
   /** Revenue from deals won this month, vs. last month. */
   salesThisMonth: MetricDelta
-  /** This month's account-level goal. Null if never set. */
+  /** The account-level goal prorated to the selected range's day count
+   *  — what `salesThisMonth.current` is compared against. Null if never set. */
   goalThisMonth: number | null
+  /** The unscaled configured monthly goal, the denominator behind
+   *  `pipelineCoverage` and `forecastPct` (both conventional monthly
+   *  sales-ops ratios that a prorated goal would distort). Null if
+   *  never set. */
+  monthlyGoal: number | null
   /** salesThisMonth.current / goalThisMonth, as a 0-100+ percent. Null if no goal is set. */
   goalAttainmentPct: number | null
   /** Sum of value across all open deals. */

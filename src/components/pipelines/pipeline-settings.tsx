@@ -156,6 +156,12 @@ export function PipelineSettings({
         name: trimmed,
         color: newStageColor,
         position: localStages.length,
+        // Never leave this NULL: the dashboard forecast skips deals
+        // whose stage has no probability, so a stage added here would
+        // quietly subtract its deals from the forecast until someone
+        // noticed the empty field. 50 is a neutral placeholder the
+        // admin can tune in the row right above.
+        win_probability: 50,
       })
       .select()
       .single();
