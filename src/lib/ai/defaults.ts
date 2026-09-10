@@ -21,10 +21,17 @@ export const AI_PROVIDER_DEFAULT_MODEL: Record<AiProvider, string> = {
 
 /**
  * Sentinel the model is instructed to emit (in auto-reply mode) when it
- * can't confidently help and a human should take over. Parsed and
- * stripped by `generateReply`.
+ * can't confidently help and a human should take over. This exact
+ * string is what gets interpolated into the prompt (so the model has a
+ * literal example to copy) — detection and stripping in `generateReply`
+ * use `HANDOFF_SENTINEL_PATTERN` below instead, tolerant of the same
+ * casing/whitespace drift every other sentinel already tolerates (a
+ * model writing `[[Handoff]]` or `[[ HANDOFF ]]` used to leak that
+ * literal text into the customer-facing reply — and, sitting on its
+ * own paragraph, get sent as a second WhatsApp message).
  */
 export const HANDOFF_SENTINEL = '[[HANDOFF]]'
+export const HANDOFF_SENTINEL_PATTERN = /\[\[\s*HANDOFF\s*\]\]/i
 
 /**
  * Sentinel the model emits to report its current read on the lead,
@@ -69,8 +76,13 @@ export const HANDOFF_SUMMARY_PATTERN = /\[\[HANDOFF_SUMMARY:\s*([\s\S]*?)\]\]/i
  * a deal from the pipeline board today (DealForm's status buttons).
  */
 export const STAGE_SENTINEL_PATTERN = /\[\[STAGE:\s*([^\]]+?)\s*\]\]/i
+// Same split as HANDOFF_SENTINEL above: the plain string is for the
+// prompt text, the pattern (casing/whitespace-tolerant) is for
+// detection + stripping.
 export const DEAL_WON_SENTINEL = '[[DEAL_WON]]'
+export const DEAL_WON_SENTINEL_PATTERN = /\[\[\s*DEAL_WON\s*\]\]/i
 export const DEAL_LOST_SENTINEL = '[[DEAL_LOST]]'
+export const DEAL_LOST_SENTINEL_PATTERN = /\[\[\s*DEAL_LOST\s*\]\]/i
 
 /**
  * Deal-value sentinel — same sales-mode gating as STAGE/DEAL_WON/
@@ -312,7 +324,7 @@ export function buildSystemPrompt(args: {
         `This lead's deal is on a pipeline with these stages, in order:\n${stageList}\n\n` +
         `After your reply, if this turn clearly moves the lead into a different one of those stages — real buying interest, price/terms negotiation starting, or whatever the stage names describe for this business — append [[STAGE: <exact stage name from the list above>]] on its own, copying the name exactly. Only emit it when you're confident the stage changed; if it stays where it is, emit nothing. If the customer explicitly confirms the purchase (agreed to buy, paid, confirmed the order), append ${DEAL_WON_SENTINEL} — this closes the sale as won. If they clearly and finally decline (not interested, going elsewhere, asked to stop), append ${DEAL_LOST_SENTINEL}. Never emit both in the same turn, and never emit either just because the stage changed — only when the deal is genuinely decided.\n\n` +
         `If the customer confirms or clearly settles on which product, plan, tier, or quantity they want, and you know its price — from the business context above or from a specific amount they themselves stated — append [[DEAL_VALUE: <number>]] with the deal's new total value as a plain number in ${currencyLabel}: digits and at most one decimal point, no currency symbol, no thousands separator (e.g. 149.99, not $149.99 or 1,500). Only emit this when you're confident of the actual amount; never guess or estimate a price you were not given. Update it again later in the conversation if the customer changes what they're buying (adds/removes items, switches plans) so it always reflects the current total.\n\n` +
-        `All of these are separate, independent tags — emit any combination of them (plus [[SCORE:...]] / ${HANDOFF_SENTINEL}) that applies this turn; each is stripped before delivery and never shown to the customer.`,
+        `All of these are separate, independent tags — emit any combination of them (plus ${HANDOFF_SENTINEL}) that applies this turn; each is stripped before delivery and never shown to the customer.`,
     )
   }
 

@@ -7,13 +7,13 @@ import {
   type LeadScore,
 } from './types'
 import {
-  HANDOFF_SENTINEL,
+  HANDOFF_SENTINEL_PATTERN,
   HANDOFF_SUMMARY_PATTERN,
   SCORE_SENTINEL_PATTERN,
   SCORE_REASON_PATTERN,
   STAGE_SENTINEL_PATTERN,
-  DEAL_WON_SENTINEL,
-  DEAL_LOST_SENTINEL,
+  DEAL_WON_SENTINEL_PATTERN,
+  DEAL_LOST_SENTINEL_PATTERN,
   SUMMARY_SENTINEL_PATTERN,
   SCHEDULE_SENTINEL_PATTERN,
   SEND_MEDIA_SENTINEL_PATTERN,
@@ -174,7 +174,7 @@ export function parseGeneration(
   raw: string,
   usage: AiUsage | null = null,
 ): GenerateResult {
-  const handoff = raw.includes(HANDOFF_SENTINEL)
+  const handoff = HANDOFF_SENTINEL_PATTERN.test(raw)
   const scoreMatch = raw.match(SCORE_SENTINEL_PATTERN)
   const score = scoreMatch
     ? (scoreMatch[1].toLowerCase() as LeadScore)
@@ -187,8 +187,8 @@ export function parseGeneration(
 
   const stageMatch = raw.match(STAGE_SENTINEL_PATTERN)
   const stageMove = stageMatch ? stageMatch[1].trim() || null : null
-  const dealWon = raw.includes(DEAL_WON_SENTINEL)
-  const dealLost = raw.includes(DEAL_LOST_SENTINEL)
+  const dealWon = DEAL_WON_SENTINEL_PATTERN.test(raw)
+  const dealLost = DEAL_LOST_SENTINEL_PATTERN.test(raw)
   const crmSummaryMatch = raw.match(SUMMARY_SENTINEL_PATTERN)
   const summary = crmSummaryMatch ? crmSummaryMatch[1].trim() || null : null
 
@@ -211,12 +211,9 @@ export function parseGeneration(
   const dealValue = dealValueMatch ? Number(dealValueMatch[1]) : null
 
   const text = raw
-    .split(HANDOFF_SENTINEL)
-    .join('')
-    .split(DEAL_WON_SENTINEL)
-    .join('')
-    .split(DEAL_LOST_SENTINEL)
-    .join('')
+    .replace(HANDOFF_SENTINEL_PATTERN, '')
+    .replace(DEAL_WON_SENTINEL_PATTERN, '')
+    .replace(DEAL_LOST_SENTINEL_PATTERN, '')
     .replace(SCORE_SENTINEL_PATTERN, '')
     .replace(SCORE_REASON_PATTERN, '')
     .replace(HANDOFF_SUMMARY_PATTERN, '')

@@ -100,6 +100,20 @@ describe('parseGeneration', () => {
     })
   })
 
+  it('tolerates case/whitespace drift in HANDOFF, DEAL_WON, DEAL_LOST — same as every other sentinel (issue: leaked into the customer text as a second WhatsApp message)', () => {
+    const handoffResult = parseGeneration('Let me get a human [[ Handoff ]]')
+    expect(handoffResult.handoff).toBe(true)
+    expect(handoffResult.text).toBe('Let me get a human')
+
+    const wonResult = parseGeneration('Thanks for confirming!\n\n[[deal_won]]')
+    expect(wonResult.dealWon).toBe(true)
+    expect(wonResult.text).toBe('Thanks for confirming!')
+
+    const lostResult = parseGeneration('Understood, no problem.\n\n[[ DEAL_LOST ]]')
+    expect(lostResult.dealLost).toBe(true)
+    expect(lostResult.text).toBe('Understood, no problem.')
+  })
+
   it('passes usage straight through', () => {
     const usage = { promptTokens: 10, completionTokens: 5, totalTokens: 15 }
     expect(parseGeneration('Hi', usage)).toEqual({
