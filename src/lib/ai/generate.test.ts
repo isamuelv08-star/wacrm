@@ -155,6 +155,12 @@ describe('parseGeneration', () => {
     })
   })
 
+  it('tolerates a space after the colon, like every other sentinel (issue: OpenAI emits [[SCORE: HOT]])', () => {
+    const result = parseGeneration('Sounds great! [[SCORE: HOT]]')
+    expect(result.score).toBe('hot')
+    expect(result.text).toBe('Sounds great!')
+  })
+
   it('never leaks the score tag into the customer-facing text', () => {
     const result = parseGeneration('Thanks for reaching out! [[SCORE:COLD]]')
     expect(result.text).not.toContain('SCORE')

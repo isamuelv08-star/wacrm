@@ -33,7 +33,7 @@ export const HANDOFF_SENTINEL = '[[HANDOFF]]'
  * parsed + stripped by `parseGeneration` before the text ever reaches
  * the customer. Only taught when the account has configured criteria.
  */
-export const SCORE_SENTINEL_PATTERN = /\[\[SCORE:(HOT|WARM|COLD)\]\]/i
+export const SCORE_SENTINEL_PATTERN = /\[\[SCORE:\s*(HOT|WARM|COLD)\s*\]\]/i
 
 /**
  * Sentinel carrying a short explanation for the `[[SCORE:...]]` verdict
