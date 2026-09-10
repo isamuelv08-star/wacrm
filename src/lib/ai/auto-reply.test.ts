@@ -351,74 +351,25 @@ describe('dispatchInboundToAiReply — handoff', () => {
 })
 
 describe('dispatchInboundToAiReply — lead scoring', () => {
-  it('passes qualification_criteria into the system prompt', async () => {
+  // Scoring moved to a dedicated call (classifyLeadIfNeeded,
+  // lead-classify.ts, now called unconditionally after this dispatch
+  // regardless of auto-reply/provider — see its doc comment). This
+  // path no longer teaches or acts on a [[SCORE:...]] tag at all, so
+  // qualification_criteria has nothing to add to the reply's own
+  // system prompt any more.
+  it('never mentions scoring in the reply system prompt, regardless of qualification_criteria', async () => {
     h.loadAiConfig.mockResolvedValue(
       aiConfig({ qualificationCriteria: 'HOT if budget + urgency this week.' }),
     )
     await dispatchInboundToAiReply(ARGS)
     const systemPrompt = h.generateReply.mock.calls[0][0].systemPrompt as string
-    expect(systemPrompt).toContain('HOT if budget + urgency this week.')
-    expect(systemPrompt).toContain('[[SCORE:HOT]]')
-  })
-
-  it('omits the scoring instruction when no criteria are configured', async () => {
-    h.loadAiConfig.mockResolvedValue(aiConfig({ qualificationCriteria: null }))
-    await dispatchInboundToAiReply(ARGS)
-    const systemPrompt = h.generateReply.mock.calls[0][0].systemPrompt as string
     expect(systemPrompt).not.toContain('[[SCORE:')
+    expect(systemPrompt).not.toContain('HOT if budget + urgency this week.')
   })
 
-  it('applies the score when the model emits one, alongside the reply', async () => {
-    h.generateReply.mockResolvedValue({
-      text: 'Sounds great!',
-      handoff: false,
-      score: 'hot',
-    })
-    await dispatchInboundToAiReply(ARGS)
-    expect(h.applyLeadScore).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        accountId: 'acct-1',
-        contactId: 'contact-1',
-        configOwnerUserId: 'user-1',
-        score: 'hot',
-      }),
-    )
-    // Still sends the customer-facing reply — scoring never blocks it.
-    expect(h.engineSendText).toHaveBeenCalled()
-  })
-
-  it('applies the score even when the same turn hands off', async () => {
-    h.generateReply.mockResolvedValue({ text: '', handoff: true, score: 'warm' })
-    await dispatchInboundToAiReply(ARGS)
-    expect(h.applyLeadScore).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ score: 'warm' }),
-    )
-    expect(h.engineSendText).not.toHaveBeenCalled()
-  })
-
-  it('does not call applyLeadScore when no score is emitted', async () => {
-    h.generateReply.mockResolvedValue({ text: 'Hi', handoff: false, score: null })
+  it('never calls applyLeadScore from this path', async () => {
+    h.generateReply.mockResolvedValue({ text: 'Sounds great!', handoff: false })
     await dispatchInboundToAiReply(ARGS)
     expect(h.applyLeadScore).not.toHaveBeenCalled()
-  })
-
-  it('passes the model\'s score reason through, tagged as source "ai"', async () => {
-    h.generateReply.mockResolvedValue({
-      text: 'Sounds great!',
-      handoff: false,
-      score: 'hot',
-      scoreReason: 'Confirmed budget and wants to buy this week.',
-    })
-    await dispatchInboundToAiReply(ARGS)
-    expect(h.applyLeadScore).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        score: 'hot',
-        reason: 'Confirmed budget and wants to buy this week.',
-        source: 'ai',
-      }),
-    )
   })
 })

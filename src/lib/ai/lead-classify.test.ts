@@ -98,11 +98,10 @@ describe('classifyLeadIfNeeded', () => {
     expect(h.generateClassification).not.toHaveBeenCalled()
   })
 
-  it('bails when auto-reply is enabled — that path already scores this turn', async () => {
+  it('classifies even when auto-reply is enabled — it is the single scoring path regardless of mode', async () => {
     h.loadAiConfig.mockResolvedValue(aiConfig({ autoReplyEnabled: true }))
     await classifyLeadIfNeeded(ARGS)
-    expect(h.generateClassification).not.toHaveBeenCalled()
-    expect(h.applyLeadScore).not.toHaveBeenCalled()
+    expect(h.generateClassification).toHaveBeenCalled()
   })
 
   it('skips when the account rate limit is exceeded', async () => {

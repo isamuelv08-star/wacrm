@@ -140,16 +140,22 @@ export const SEND_MEDIA_SENTINEL_PATTERN = /\[\[SEND_MEDIA:\s*([a-z0-9_-]{1,60})
  * `needsContactName` — computed once per turn in auto-reply.ts from
  * the current `contacts.name`) — capturing a name the customer already
  * volunteered is basic lead intake, not a new autonomous capability,
- * the same posture as [[SCORE:...]] / [[SUMMARY:...]] needing no
- * separate switch. `contact-actions.ts` re-checks the name is still
+ * the same posture as [[SUMMARY:...]] needing no separate switch.
+ * `contact-actions.ts` re-checks the name is still
  * empty before writing it, so this can never clobber a name a human
  * already set or corrected.
  */
 export const CONTACT_NAME_SENTINEL_PATTERN = /\[\[CONTACT_NAME:\s*([^\]]{1,100}?)\s*\]\]/i
 
 /** Cap on generated reply length — keeps WhatsApp replies short and
- *  bounds token spend on the caller's own key. */
-export const MAX_OUTPUT_TOKENS = 1024
+ *  bounds token spend on the caller's own key. A reasoning model (e.g.
+ *  OpenAI's gpt-5.x family, this codebase's default) spends part of
+ *  this same budget on invisible reasoning tokens before any visible
+ *  output, so a value tuned only against non-reasoning models risks
+ *  truncating a normal-length reply before it reaches a trailing tag
+ *  (STAGE/DEAL_WON/SEND_MEDIA/etc.) — kept a bit above the bare
+ *  minimum a plain chat reply needs as a safety margin for that. */
+export const MAX_OUTPUT_TOKENS = 1536
 
 /** Max number of separate WhatsApp messages one auto-reply can be split
  *  into — mirrors how a person sends a few consecutive texts instead of
@@ -184,14 +190,6 @@ export function buildSystemPrompt(args: {
   mode: 'draft' | 'auto_reply'
   /** Knowledge-base excerpts retrieved for the current question. */
   knowledge?: string[]
-  /**
-   * Account-specific free-text rules for what makes a lead HOT/WARM/
-   * COLD (migration 038). Only meaningful in auto_reply mode — a
-   * human reviews every draft before it sends, so there's no
-   * autonomous moment to hang a score decision on there. When unset,
-   * no scoring instruction is added at all.
-   */
-  qualificationCriteria?: string | null
   /**
    * Sales-mode extension (auto_reply only, opt-in per account via
    * `ai_configs.sales_mode_enabled`). When `enabled` and the
@@ -261,7 +259,6 @@ export function buildSystemPrompt(args: {
     userPrompt,
     mode,
     knowledge,
-    qualificationCriteria,
     salesMode,
     hasOpenDeal,
     scheduling,
@@ -297,15 +294,13 @@ export function buildSystemPrompt(args: {
     parts.push(`Business context and instructions:\n${userPrompt.trim()}`)
   }
 
-  if (mode === 'auto_reply' && qualificationCriteria && qualificationCriteria.trim()) {
-    parts.push(
-      'Lead qualification — this business has its own rules for scoring how qualified a lead is, separate from the reply you write:\n' +
-        `${qualificationCriteria.trim()}\n\n` +
-        'After writing your reply to the customer, if — and only if — this conversation gives you enough new information to confidently (re)assess this lead against the rules above, append one tag on its own at the very end of your output, after all customer-facing text: [[SCORE:HOT]], [[SCORE:WARM]], or [[SCORE:COLD]], immediately followed by [[SCORE_REASON: <short reason, under 20 words, same language as the conversation, for a teammate — not the customer>]]. ' +
-        'If you have nothing new to assess this turn, do not append anything. ' +
-        `Both tags are stripped before delivery — the customer never sees them, so never mention or explain them anywhere except as those exact trailing tags. They are separate from ${HANDOFF_SENTINEL}; you may emit both in the same turn if both apply.`,
-    )
-  }
+  // Lead qualification (migration 038) is scored by a separate,
+  // dedicated classification call (see classifyLeadIfNeeded,
+  // lead-classify.ts) instead of a sentinel taught here — that call's
+  // entire output budget goes to the verdict, so it isn't at risk of
+  // getting silently dropped the way a tag appended after a full reply
+  // was, for a reasoning-heavy model with little budget to spare. This
+  // system prompt no longer needs to teach [[SCORE:...]] at all.
 
   if (mode === 'auto_reply' && salesMode?.enabled && salesMode.stages.length > 0) {
     const stageList = salesMode.stages

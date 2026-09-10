@@ -13,6 +13,7 @@ const ANTHROPIC_VERSION = '2023-06-01'
 
 interface AnthropicResponse {
   content?: { type?: string; text?: string }[]
+  stop_reason?: string
   usage?: { input_tokens?: number; output_tokens?: number }
 }
 
@@ -77,6 +78,13 @@ export async function generateAnthropic(args: ProviderArgs): Promise<ProviderRes
     throw new AiError('Anthropic returned an empty response.', {
       code: 'empty_response',
     })
+  }
+  // Same diagnostic as providers/openai.ts's finish_reason check —
+  // "max_tokens" means generation was cut off before the model was
+  // done, so a trailing tag meant to come after the reply may be
+  // missing from `text`.
+  if (data?.stop_reason === 'max_tokens') {
+    console.warn('[ai anthropic] response was truncated (stop_reason=max_tokens) — consider raising MAX_OUTPUT_TOKENS.')
   }
   // Anthropic reports input/output but no total — normalizeUsage sums.
   const usage = normalizeUsage({

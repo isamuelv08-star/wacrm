@@ -14,7 +14,6 @@ import type { FollowupLeadItem, FollowupSummary } from "@/lib/dashboard/types"
 import { cn } from "@/lib/utils"
 
 const BUCKET_ORDER: Score[] = ["hot", "warm", "cold"]
-const STACK_ROTATION = ["rotate-0", "rotate-6", "-rotate-6"]
 
 function initials(name: string | null, phone: string | null): string {
   const source = (name || phone || "?").trim()
@@ -163,24 +162,27 @@ function FollowupBucketRow({
           </p>
         </div>
 
-        {/* Poker-stack visual: a fanned handful of overlapping cards, one
-            per waiting lead (capped at 3), so the count reads as a pile
-            to pick up rather than just a number. */}
+        {/* Overlapping avatar stack, one per waiting lead (capped at 3 +
+            a "+N" overflow chip) — same "who's in this pile" idea a
+            poker hand or a Slack/GitHub avatar group communicates. */}
         {items.length > 0 && (
-          <div className="relative flex h-8 w-14 flex-shrink-0 items-center justify-end">
-            {items.slice(0, 3).map((it, i) => (
+          <div className="flex flex-shrink-0 items-center -space-x-2.5">
+            {items.slice(0, 3).map((it) => (
               <span
                 key={it.dealId}
                 className={cn(
-                  "absolute flex h-7 w-6 items-center justify-center rounded-md border border-border text-[9px] font-semibold shadow-sm",
+                  "flex h-7 w-7 items-center justify-center rounded-full border-2 border-card text-[10px] font-semibold",
                   className,
-                  STACK_ROTATION[i],
                 )}
-                style={{ right: i * 7, zIndex: 3 - i }}
               >
                 {initials(it.contactName, it.phone)}
               </span>
             ))}
+            {items.length > 3 && (
+              <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-card bg-muted text-[10px] font-semibold text-muted-foreground">
+                +{items.length - 3}
+              </span>
+            )}
           </div>
         )}
       </button>

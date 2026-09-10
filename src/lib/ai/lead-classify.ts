@@ -18,18 +18,24 @@ interface ClassifyArgs {
 
 /**
  * Standalone lead classification for a freshly-arrived inbound message
- * — runs independent of the auto-reply bot, so `qualification_criteria`
- * (migration 038) isn't silently inert for any account that keeps a
- * human writing replies ("draft" mode) instead of enabling full
- * auto-reply. Call unconditionally from the webhook (same posture as
- * `dispatchInboundToAiReply`): every eligibility gate lives inside this
- * function, and it never throws.
+ * — the ONE scoring path, used identically whether auto-reply is on or
+ * off and regardless of AI provider (migration 038's
+ * `qualification_criteria`). Call unconditionally from the webhook
+ * (same posture as `dispatchInboundToAiReply`): every eligibility gate
+ * lives inside this function, and it never throws.
  *
- * Deliberately bails when auto-reply is ON: `dispatchInboundToAiReply`
- * already asks the model to score this same turn (via the
- * `[[SCORE:...]]` sentinel in its one combined reply-generation call),
- * so classifying here too would just be a second, redundant LLM call
- * for the same verdict.
+ * Used to bail when auto-reply was ON, on the theory that
+ * `dispatchInboundToAiReply` could ask the model to self-score in the
+ * same completion as its reply (a trailing `[[SCORE:...]]` sentinel).
+ * That turned out unreliable in practice — a reasoning-heavy model
+ * (e.g. OpenAI's default) can burn its output budget before ever
+ * reaching a tag appended after the customer-facing text, silently
+ * dropping every score for that account. This dedicated JSON-only call
+ * has no reply to interleave with and nothing else competing for its
+ * output budget, so it doesn't have that failure mode — that's why
+ * it's now the single source of truth for scoring in both modes. See
+ * `buildSystemPrompt`'s auto_reply branch (defaults.ts), which no
+ * longer teaches `[[SCORE:...]]` at all.
  */
 export async function classifyLeadIfNeeded(args: ClassifyArgs): Promise<void> {
   const { accountId, conversationId, contactId, configOwnerUserId } = args
@@ -40,7 +46,6 @@ export async function classifyLeadIfNeeded(args: ClassifyArgs): Promise<void> {
     const config = await loadAiConfig(db, accountId)
     if (!config) return
     if (!config.qualificationCriteria || !config.qualificationCriteria.trim()) return
-    if (config.autoReplyEnabled) return // already scored by the auto-reply call this turn
 
     const acctLimit = checkRateLimit(
       `ai-classify:${accountId}`,
@@ -78,12 +83,11 @@ export async function classifyLeadIfNeeded(args: ClassifyArgs): Promise<void> {
 
     if (!score) return // model had nothing new/confident to assess this turn
 
-    // This path only ever runs with auto-reply off (line 43 above), so
-    // a human — not the bot — is the one actually talking to this
-    // lead; if the thread already has one, credit them as the deal
-    // owner too instead of drawing a fresh round-robin pick. Best-
-    // effort: a lookup failure just means no preferred agent, not a
-    // blocked classification.
+    // Credit the conversation's assigned agent as the deal owner, if it
+    // has one, instead of drawing a fresh round-robin pick — same
+    // reasoning as ensureDealInQualifiedStage. Best-effort: a lookup
+    // failure just means no preferred agent, not a blocked
+    // classification.
     const { data: conv } = await db
       .from('conversations')
       .select('assigned_agent_id')

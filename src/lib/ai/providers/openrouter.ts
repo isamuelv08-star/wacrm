@@ -11,7 +11,7 @@ import {
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
 interface OpenRouterResponse {
-  choices?: { message?: { content?: string } }[]
+  choices?: { message?: { content?: string }; finish_reason?: string }[]
   usage?: {
     prompt_tokens?: number
     completion_tokens?: number
@@ -66,6 +66,10 @@ export async function generateOpenRouter(args: ProviderArgs): Promise<ProviderRe
     throw new AiError('OpenRouter returned an empty response.', {
       code: 'empty_response',
     })
+  }
+  // Same diagnostic as providers/openai.ts's finish_reason check.
+  if (data?.choices?.[0]?.finish_reason === 'length') {
+    console.warn('[ai openrouter] response was truncated (finish_reason=length) — consider raising MAX_OUTPUT_TOKENS for this model.')
   }
   const usage = normalizeUsage({
     prompt: data?.usage?.prompt_tokens,

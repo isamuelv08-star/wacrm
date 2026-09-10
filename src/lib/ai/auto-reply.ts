@@ -6,7 +6,7 @@ import { retrieveKnowledge } from './knowledge'
 import { generateReply } from './generate'
 import { buildSystemPrompt, splitReplyIntoMessages } from './defaults'
 import { buildHandoffSummary } from './handoff'
-import { applyLeadScore, ensureDealInQualifiedStage } from './lead-scoring'
+import { ensureDealInQualifiedStage } from './lead-scoring'
 import { applySalesActions, loadDealStageContext } from './sales-actions'
 import { applyContactName } from './contact-actions'
 import { applyScheduledEvent } from './scheduling-actions'
@@ -238,7 +238,6 @@ export async function dispatchInboundToAiReply(
       userPrompt: config.systemPrompt,
       mode: 'auto_reply',
       knowledge,
-      qualificationCriteria: config.qualificationCriteria,
       salesMode: config.salesModeEnabled
         ? { enabled: true, stages: dealContext.stages, currency: dealContext.currency }
         : null,
@@ -260,8 +259,6 @@ export async function dispatchInboundToAiReply(
     const {
       text,
       handoff,
-      score,
-      scoreReason,
       handoffSummary,
       stageMove,
       dealWon,
@@ -296,26 +293,13 @@ export async function dispatchInboundToAiReply(
       usage,
     })
 
-    // Independent of handoff/reply outcome below — the model can score
-    // a lead HOT in the same turn it hands off ("customer wants a
-    // human AND clearly has budget + urgency"). applyLeadScore owns
-    // its own try/catch and never throws.
-    if (score) {
-      await applyLeadScore(db, {
-        accountId,
-        contactId,
-        configOwnerUserId,
-        score,
-        reason: scoreReason,
-        source: 'ai',
-        preferredAgentUserId: conv.assigned_agent_id,
-        leadAutoAssignEnabled: config.leadAutoAssignEnabled,
-        conversationId,
-      })
-    }
+    // Lead scoring no longer happens here — classifyLeadIfNeeded
+    // (lead-classify.ts), called right after this dispatch from the
+    // webhook processor, is now the single scoring path regardless of
+    // auto-reply/provider. See its doc comment for why.
 
-    // Same "independent of handoff/reply outcome" posture as the score
-    // above — a handoff and a stage move/close/summary can all be true
+    // Independent of handoff/reply outcome — a handoff and a stage
+    // move/close/summary can all be true
     // in the same turn ("customer confirmed the order AND wants a
     // human for delivery details"). applySalesActions owns its own
     // try/catch and never throws.
