@@ -93,6 +93,10 @@ export interface AccountContext {
     id: string;
     name: string;
     hot_lead_alert_minutes: number;
+    /** Hours a deal can sit unanswered by the customer before the
+     *  followup-stage cron moves it into is_followup_stage (migration
+     *  078). 0 disables the feature for this account. */
+    followup_after_hours: number;
     timezone: string;
     business_vertical: BusinessVertical | null;
   };
@@ -156,7 +160,7 @@ export async function getCurrentAccount(): Promise<AccountContext> {
   // RLS, so it stays robust against cache staleness and older schemas.
   const { data: account, error: accountErr } = await supabase
     .from("accounts")
-    .select("id, name, hot_lead_alert_minutes, timezone, business_vertical")
+    .select("id, name, hot_lead_alert_minutes, followup_after_hours, timezone, business_vertical")
     .eq("id", data.account_id)
     .maybeSingle();
 
@@ -179,6 +183,7 @@ export async function getCurrentAccount(): Promise<AccountContext> {
       id: account.id,
       name: account.name,
       hot_lead_alert_minutes: account.hot_lead_alert_minutes,
+      followup_after_hours: account.followup_after_hours,
       timezone: account.timezone,
       business_vertical: (account.business_vertical as BusinessVertical | null) ?? null,
     },

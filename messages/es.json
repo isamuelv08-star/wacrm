@@ -205,7 +205,13 @@
       "markLost": "Marcar Perdido",
       "moveError": "No se pudo mover el lead",
       "moveSuccess": "Lead movido",
-      "unknownLead": "Lead sin nombre"
+      "unknownLead": "Lead sin nombre",
+      "noStageBanner": "Estos leads llevan tiempo sin responder. Crea la etapa de Seguimiento para que el sistema los mueva ahí solo.",
+      "createStageFor": "Crear etapa en {pipeline}",
+      "creatingStage": "Creando...",
+      "stageCreated": "Etapa de Seguimiento creada",
+      "stageCreateError": "No se pudo crear la etapa",
+      "candidateBadge": "Candidato"
     },
     "team": {
       "title": "Equipo",
@@ -2137,6 +2143,10 @@
       "hotLeadAlertMinutesLabel": "Alertar después de (minutos)",
       "hotLeadAlertMinutesHint": "Establece 0 para desactivarlo.",
       "hotLeadAlertsSaveFailed": "Error al guardar el umbral de alerta.",
+      "followupAfterHoursTitle": "Seguimiento automático",
+      "followupAfterHoursDesc": "Cuando un lead lleva este tiempo sin responder, se mueve solo a la etapa \"Seguimiento\" del pipeline (si ya la creaste) — mismo mecanismo que ya mueve a los leads Hot a la etapa Calificado.",
+      "followupAfterHoursLabel": "Mover a Seguimiento después de (horas)",
+      "followupAfterHoursHint": "Establece 0 para desactivarlo.",
       "remove": "Quitar",
       "save": "Guardar",
       "missingModel": "Ingresa un nombre de modelo.",

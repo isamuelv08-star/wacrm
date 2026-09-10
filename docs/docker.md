@@ -76,6 +76,12 @@ docker run -d --env-file .env.local -e PORT=3000 -p 3000:3000 wacrm
   header and `AUTOMATION_CRON_SECRET`, every 5 minutes. Off by default —
   it only does anything for an account that set
   `auto_resume_after_minutes` in Settings → AI Assistant.
+- Same story for automatic Seguimiento follow-up (migration 077/078):
+  point the scheduler at `GET /api/cron/followup-stage` too, same
+  `x-cron-secret` header and `AUTOMATION_CRON_SECRET`, every 5 minutes.
+  It only moves deals for accounts that (a) have a pipeline stage
+  marked "Seguimiento" and (b) have `followup_after_hours` set above 0
+  in Settings → AI Assistant (default 24).
 - Database backups are the one exception to "point an external
   scheduler at this deployment" — they run as a GitHub Actions
   workflow instead (`.github/workflows/backup.yml`), deliberately

@@ -2,9 +2,14 @@
 
 import { useState } from "react"
 import { useTranslations } from "next-intl"
+import { Clock, Sparkles } from "lucide-react"
+import { toast } from "sonner"
 import { LEAD_SCORE_STYLES, type Score } from "@/components/leads/lead-score-badge"
 import { ManageFollowupLeadPanel } from "./manage-followup-lead-panel"
 import { Skeleton } from "./skeleton"
+import { Button } from "@/components/ui/button"
+import { createClient } from "@/lib/supabase/client"
+import { createFollowupStage } from "@/lib/pipelines/followup-stage"
 import type { FollowupLeadItem, FollowupSummary } from "@/lib/dashboard/types"
 import { cn } from "@/lib/utils"
 
@@ -37,8 +42,27 @@ interface FollowupCardProps {
 export function FollowupCard({ data, loading, onLeadMoved }: FollowupCardProps) {
   const t = useTranslations("Dashboard.followup")
   const [expanded, setExpanded] = useState<Score | null>(null)
+  const [creatingStageFor, setCreatingStageFor] = useState<string | null>(null)
 
   const total = data ? data.hot.length + data.warm.length + data.cold.length : null
+
+  async function handleCreateStage(pipelineId: string) {
+    setCreatingStageFor(pipelineId)
+    try {
+      const supabase = createClient()
+      const { count } = await supabase
+        .from("pipeline_stages")
+        .select("id", { count: "exact", head: true })
+        .eq("pipeline_id", pipelineId)
+      await createFollowupStage(supabase, pipelineId, count ?? 0)
+      toast.success(t("stageCreated"))
+      onLeadMoved?.()
+    } catch {
+      toast.error(t("stageCreateError"))
+    } finally {
+      setCreatingStageFor(null)
+    }
+  }
 
   return (
     <section className="flex h-full flex-col rounded-xl border border-border bg-card">
@@ -52,6 +76,31 @@ export function FollowupCard({ data, loading, onLeadMoved }: FollowupCardProps) 
       </header>
 
       <div className="flex-1 space-y-2 p-3">
+        {!loading && data && data.pipelinesWithoutStage.length > 0 && (
+          <div className="space-y-2 rounded-lg border border-dashed border-teal-500/40 bg-teal-500/[0.06] p-3">
+            <p className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+              <Sparkles className="h-3.5 w-3.5 text-teal-500" />
+              {t("noStageBanner")}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {data.pipelinesWithoutStage.map((p) => (
+                <Button
+                  key={p.id}
+                  size="sm"
+                  variant="outline"
+                  disabled={creatingStageFor === p.id}
+                  onClick={() => handleCreateStage(p.id)}
+                  className="h-7 border-teal-500/40 text-xs text-teal-600 hover:bg-teal-500/10 dark:text-teal-400"
+                >
+                  {creatingStageFor === p.id
+                    ? t("creatingStage")
+                    : t("createStageFor", { pipeline: p.name })}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {loading || !data ? (
           Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)
         ) : (
@@ -147,11 +196,22 @@ function FollowupBucketRow({
                 trigger={
                   <button
                     type="button"
-                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted/60"
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded-md border px-2 py-1.5 text-left hover:bg-muted/60",
+                      it.isCandidate
+                        ? "border-dashed border-teal-500/40"
+                        : "border-transparent",
+                    )}
                   >
                     <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
                       {it.contactName || it.phone || t("unknownLead")}
                     </span>
+                    {it.isCandidate && (
+                      <span className="flex flex-shrink-0 items-center gap-1 rounded-full bg-teal-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-teal-600 dark:text-teal-400">
+                        <Clock className="h-2.5 w-2.5" />
+                        {t("candidateBadge")}
+                      </span>
+                    )}
                     <span className="flex-shrink-0 text-[11px] text-muted-foreground tabular-nums">
                       {t("daysWaiting", { count: it.daysInStage })}
                     </span>

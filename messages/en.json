@@ -205,7 +205,13 @@
       "markLost": "Mark Lost",
       "moveError": "Couldn't move the lead",
       "moveSuccess": "Lead moved",
-      "unknownLead": "Unnamed lead"
+      "unknownLead": "Unnamed lead",
+      "noStageBanner": "These leads have gone quiet for a while. Create the Seguimiento stage so the system starts moving them there on its own.",
+      "createStageFor": "Create stage in {pipeline}",
+      "creatingStage": "Creating...",
+      "stageCreated": "Seguimiento stage created",
+      "stageCreateError": "Couldn't create the stage",
+      "candidateBadge": "Candidate"
     },
     "team": {
       "title": "Team",
@@ -2137,6 +2143,10 @@
       "hotLeadAlertMinutesLabel": "Alert after (minutes)",
       "hotLeadAlertMinutesHint": "Set to 0 to turn this off.",
       "hotLeadAlertsSaveFailed": "Failed to save the alert threshold.",
+      "followupAfterHoursTitle": "Automatic follow-up",
+      "followupAfterHoursDesc": "Once a lead has gone this long without replying, it moves on its own into the pipeline's \"Seguimiento\" stage (once you've created it) — the same mechanism that already moves HOT leads into the Qualified stage.",
+      "followupAfterHoursLabel": "Move to Seguimiento after (hours)",
+      "followupAfterHoursHint": "Set to 0 to turn this off.",
       "remove": "Remove",
       "save": "Save",
       "missingModel": "Enter a model name.",

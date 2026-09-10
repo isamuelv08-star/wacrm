@@ -3,8 +3,9 @@
 //
 //   GET   — current caller's account + role. Any member.
 //   PATCH — rename the account and/or update the HOT-lead alert
-//           threshold (hot_lead_alert_minutes, migration 040).
-//                                                 Admin+.
+//           threshold (hot_lead_alert_minutes, migration 040) and/or
+//           the Seguimiento auto-move threshold (followup_after_hours,
+//           migration 078).                       Admin+.
 //
 // Why both verbs share a route file
 //   They speak about the same singular resource (the caller's
@@ -56,6 +57,9 @@ const MAX_NAME_LEN = 80;
 // defeats the point of a response-time alert, but the DB only
 // enforces >= 0, so this stays a soft API-level sanity bound.
 const MAX_HOT_LEAD_ALERT_MINUTES = 10_080;
+// 30 days in hours — same soft-ceiling reasoning as above, for the
+// Seguimiento auto-move threshold (migration 078).
+const MAX_FOLLOWUP_AFTER_HOURS = 720;
 
 export async function PATCH(request: Request) {
   try {
@@ -74,6 +78,7 @@ export async function PATCH(request: Request) {
     const body = (await request.json().catch(() => null)) as {
       name?: unknown;
       hot_lead_alert_minutes?: unknown;
+      followup_after_hours?: unknown;
       timezone?: unknown;
       business_vertical?: unknown;
     } | null;
@@ -122,6 +127,24 @@ export async function PATCH(request: Request) {
       update.hot_lead_alert_minutes = raw;
     }
 
+    if (body && "followup_after_hours" in body) {
+      const raw = body.followup_after_hours;
+      if (
+        typeof raw !== "number" ||
+        !Number.isInteger(raw) ||
+        raw < 0 ||
+        raw > MAX_FOLLOWUP_AFTER_HOURS
+      ) {
+        return NextResponse.json(
+          {
+            error: `'followup_after_hours' must be an integer between 0 and ${MAX_FOLLOWUP_AFTER_HOURS}`,
+          },
+          { status: 400 },
+        );
+      }
+      update.followup_after_hours = raw;
+    }
+
     if (body && "timezone" in body) {
       const raw = body.timezone;
       if (typeof raw !== "string" || !isValidTimezone(raw)) {
@@ -158,7 +181,7 @@ export async function PATCH(request: Request) {
       .from("accounts")
       .update(update)
       .eq("id", ctx.accountId)
-      .select("id, name, hot_lead_alert_minutes, timezone, business_vertical")
+      .select("id, name, hot_lead_alert_minutes, followup_after_hours, timezone, business_vertical")
       .single();
 
     if (error) {

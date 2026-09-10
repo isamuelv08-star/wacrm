@@ -619,9 +619,18 @@ export default function PipelinesPage() {
             stages={stages}
             deals={visibleDeals}
           />
-          {stages.some((s) => s.is_followup_stage) && (
-            <FollowupCard data={followup} loading={followupLoading} onLeadMoved={refreshFollowup} />
-          )}
+          <FollowupCard
+            data={followup}
+            loading={followupLoading}
+            onLeadMoved={() => {
+              // Refreshes both: a lead moved/reclassified only changes
+              // `followup`, but a new Seguimiento stage created from the
+              // card's CTA also needs `stages` refreshed so the board
+              // shows the new column right away.
+              void refreshFollowup();
+              void refreshStages();
+            }}
+          />
           <PipelineBoard
             stages={stages}
             deals={visibleDeals}

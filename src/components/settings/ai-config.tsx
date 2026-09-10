@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Sparkles, CheckCircle2, Trash2, Eye, EyeOff, Flame, Handshake, CalendarClock, Users, CalendarCheck2, ImagePlus, MessageSquareText, Target } from 'lucide-react';
+import { Loader2, Sparkles, CheckCircle2, Trash2, Eye, EyeOff, Flame, Handshake, CalendarClock, Users, CalendarCheck2, ImagePlus, MessageSquareText, Target, Clock } from 'lucide-react';
 import { listTimezones } from '@/lib/timezone-list';
 import { useAuth } from '@/hooks/use-auth';
 import { canEditSettings } from '@/lib/auth/roles';
@@ -117,6 +117,14 @@ export function AiConfig() {
   const [hotLeadAlertMinutes, setHotLeadAlertMinutes] = useState(15);
   const loadedHotLeadAlertMinutesRef = useRef(15);
 
+  // Seguimiento auto-move threshold (migration 078) — same posture as
+  // hotLeadAlertMinutes above: lives on `accounts`, fetched/saved
+  // through /api/account. Hours a deal can sit unanswered by the
+  // customer before the followup-stage cron moves it into whichever
+  // stage is flagged is_followup_stage. 0 disables it.
+  const [followupAfterHours, setFollowupAfterHours] = useState(24);
+  const loadedFollowupAfterHoursRef = useRef(24);
+
   // Account timezone (migration 065) — needed for AI scheduling to
   // convert a relative phrase like "tomorrow at 10" into the right
   // absolute time. Same "lives on `accounts`, fetched/saved through
@@ -194,6 +202,10 @@ export function AiConfig() {
       if (res.ok && typeof data?.account?.timezone === 'string') {
         setTimezone(data.account.timezone);
         loadedTimezoneRef.current = data.account.timezone;
+      }
+      if (res.ok && typeof data?.account?.followup_after_hours === 'number') {
+        setFollowupAfterHours(data.account.followup_after_hours);
+        loadedFollowupAfterHoursRef.current = data.account.followup_after_hours;
       }
     } catch {
       // Best-effort — the field just falls back to its default and the
@@ -305,6 +317,9 @@ export function AiConfig() {
       if (timezone !== loadedTimezoneRef.current) {
         accountUpdate.timezone = timezone;
       }
+      if (followupAfterHours !== loadedFollowupAfterHoursRef.current) {
+        accountUpdate.followup_after_hours = followupAfterHours;
+      }
 
       const [configResult, accountResult] = await Promise.all([
         fetch('/api/ai/config', {
@@ -331,6 +346,7 @@ export function AiConfig() {
         if (accountResult.res.ok) {
           loadedHotLeadAlertMinutesRef.current = hotLeadAlertMinutes;
           loadedTimezoneRef.current = timezone;
+          loadedFollowupAfterHoursRef.current = followupAfterHours;
         } else {
           toast.error(accountResult.data.error ?? t('hotLeadAlertsSaveFailed'));
         }
@@ -917,6 +933,41 @@ export function AiConfig() {
                 onChange={(e) =>
                   setHotLeadAlertMinutes(
                     Math.min(10080, Math.max(0, Number(e.target.value) || 0)),
+                  )
+                }
+                disabled={disabled}
+                className="w-20"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Clock className="h-4 w-4 text-teal-500" /> {t('followupAfterHoursTitle')}
+            </CardTitle>
+            <CardDescription>{t('followupAfterHoursDesc')}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <Label htmlFor="followup-after-hours">
+                  {t('followupAfterHoursLabel')}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {t('followupAfterHoursHint')}
+                </p>
+              </div>
+              <Input
+                id="followup-after-hours"
+                type="number"
+                min={0}
+                max={720}
+                value={followupAfterHours}
+                onChange={(e) =>
+                  setFollowupAfterHours(
+                    Math.min(720, Math.max(0, Number(e.target.value) || 0)),
                   )
                 }
                 disabled={disabled}

@@ -87,8 +87,19 @@ export interface FollowupLeadItem {
   stageId: string
   stageName: string
   /** Days since the deal landed in this stage (from `deal_stage_history`,
-   *  migration 039) — how long it's been waiting for a retry. */
+   *  migration 039) — how long it's been waiting for a retry. For a
+   *  candidate item (see below) this is days since the last outbound
+   *  message instead, since there's no real stage placement yet. */
   daysInStage: number
+  /**
+   * True when this pipeline has no stage flagged `is_followup_stage`
+   * yet — the item is a "gone quiet" candidate computed on the fly
+   * (migration 078's `followup_after_hours` threshold), still sitting
+   * in its real current stage (`stageId`/`stageName` reflect that, not
+   * a Seguimiento stage that doesn't exist). Omitted/false for a lead
+   * actually placed in a real Seguimiento stage.
+   */
+  isCandidate?: boolean
 }
 
 export type FollowupScore = 'hot' | 'warm' | 'cold'
@@ -97,4 +108,7 @@ export interface FollowupSummary {
   hot: FollowupLeadItem[]
   warm: FollowupLeadItem[]
   cold: FollowupLeadItem[]
+  /** Pipelines in scope that have no stage flagged `is_followup_stage`
+   *  yet — drives the FollowupCard's one-click "create the stage" CTA. */
+  pipelinesWithoutStage: { id: string; name: string }[]
 }
