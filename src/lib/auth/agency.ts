@@ -39,11 +39,20 @@ export async function requireSuperAdmin(): Promise<{ userId: string }> {
   }
 
   const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  if (error || !user) {
+  // Same guard as getCurrentAccount() (src/lib/auth/account.ts) and
+  // proxy.ts: getUser() throws instead of returning { user: null } when
+  // the refresh token is invalid/missing (stale cookie, rotated token,
+  // project reset) — treat that exactly like "not signed in" rather
+  // than letting it crash the /agency page's server component.
+  let user: Awaited<ReturnType<typeof supabase.auth.getUser>>["data"]["user"] = null;
+  try {
+    const result = await supabase.auth.getUser();
+    if (result.error) throw result.error;
+    user = result.data.user;
+  } catch (err) {
+    console.error("[requireSuperAdmin] auth.getUser() failed:", err);
+  }
+  if (!user) {
     throw new UnauthorizedError();
   }
   if (user.id !== superAdminId) {

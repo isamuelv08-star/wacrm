@@ -117,11 +117,23 @@ export interface AccountContext {
 export async function getCurrentAccount(): Promise<AccountContext> {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-    error: userErr,
-  } = await supabase.auth.getUser();
-  if (userErr || !user) {
+  // supabase-js's getUser() THROWS (rather than returning
+  // { user: null, error }) when the access token is expired and the
+  // refresh token it tries to use turns out invalid/missing — e.g. a
+  // stale cookie from before a token rotation, or a Supabase project
+  // reset. Left unguarded, that exception propagates out of this
+  // function and crashes whatever called it instead of just meaning
+  // "not signed in", which is what should happen here. See the
+  // matching fix in src/proxy.ts and src/lib/auth/agency.ts.
+  let user: Awaited<ReturnType<typeof supabase.auth.getUser>>["data"]["user"] = null;
+  try {
+    const result = await supabase.auth.getUser();
+    if (result.error) throw result.error;
+    user = result.data.user;
+  } catch (err) {
+    console.error("[getCurrentAccount] auth.getUser() failed:", err);
+  }
+  if (!user) {
     throw new UnauthorizedError();
   }
 

@@ -60,7 +60,24 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // getUser() THROWS (rather than returning { user: null, error })
+  // when the access token is expired and the refresh token it tries to
+  // use turns out invalid/missing — e.g. a stale cookie from before a
+  // token rotation, or a Supabase project reset. This proxy runs in
+  // the Node.js runtime (not the sandboxed Edge runtime) and on every
+  // single request, so an unhandled rejection here doesn't just 500
+  // one request — it can crash the whole server process and take the
+  // deployment into a restart loop. Treat the failure exactly like "no
+  // session" instead. Same guard in getCurrentAccount() (account.ts)
+  // and requireSuperAdmin() (agency.ts).
+  let user: Awaited<ReturnType<typeof supabase.auth.getUser>>['data']['user'] = null
+  try {
+    const result = await supabase.auth.getUser()
+    if (result.error) throw result.error
+    user = result.data.user
+  } catch (err) {
+    console.error('[proxy] auth.getUser() failed, treating as signed out:', err)
+  }
 
   // getUser() transparently refreshes an expired access token, which
   // ROTATES the refresh token and writes the new cookies onto
