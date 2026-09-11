@@ -187,6 +187,15 @@ export interface GenerateResult {
    */
   sendMedia: string | null
   /**
+   * True when the model emitted [[SEND_BOOKING_LINK]] this turn
+   * (scheduling opt-in only) — the customer wants to pick their own
+   * appointment time rather than one the bot proposed. Never present
+   * in `text`, never shown to the customer as literal text —
+   * `booking-link-actions.ts` resolves it to the account's public
+   * booking-page URL and sends that as a separate message.
+   */
+  sendBookingLink: boolean
+  /**
    * The customer's own name, from [[CONTACT_NAME: <name>]] — emitted
    * whenever they state it and the contact has none on file yet (see
    * `buildSystemPrompt`'s `needsContactName`). Null when not emitted.

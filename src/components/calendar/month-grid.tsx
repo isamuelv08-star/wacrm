@@ -28,6 +28,7 @@ export const EVENT_TYPE_COLOR: Record<CalendarEventType, string> = {
   meeting: '#8b5cf6',
   follow_up: '#f59e0b',
   task: '#14b8a6',
+  appointment: '#ec4899',
   other: '#94a3b8',
 }
 

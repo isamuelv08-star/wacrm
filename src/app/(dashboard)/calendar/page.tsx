@@ -13,6 +13,7 @@ import type { CalendarEvent, Profile } from '@/types'
 import { MonthGrid } from '@/components/calendar/month-grid'
 import { DayAgenda } from '@/components/calendar/day-agenda'
 import { EventFormDialog } from '@/components/calendar/event-form-dialog'
+import { BookingSetupBanner } from '@/components/calendar/booking-setup-banner'
 
 export default function CalendarPage() {
   const t = useTranslations('Calendar')
@@ -177,6 +178,8 @@ export default function CalendarPage() {
           ))}
         </select>
       </div>
+
+      <BookingSetupBanner />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="rounded-xl border border-border bg-card p-4 lg:col-span-2">

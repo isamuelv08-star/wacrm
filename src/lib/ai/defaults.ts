@@ -130,6 +130,24 @@ export const SCHEDULE_SENTINEL_PATTERN =
   /\[\[SCHEDULE:\s*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?)\s*\|\s*(call|meeting|follow_up)\s*\|\s*([^\]]+?)\s*\]\]/i
 
 /**
+ * Booking-link sentinel — a second, independent extension of scheduling
+ * (same `ai_scheduling_enabled` opt-in as SCHEDULE above, additionally
+ * gated on the account actually having an active booking page —
+ * migration 079). Where SCHEDULE fits "the bot itself states or
+ * confirms a specific date/time," this fits the opposite case: the
+ * customer wants to book something but should pick their own slot from
+ * real availability (multiple staff/services, or they simply didn't
+ * volunteer a time) — instead of guessing a time, the bot hands them
+ * the business's public self-service link. Same contract as every
+ * other sentinel here: appended to the raw reply, parsed + stripped by
+ * `parseGeneration`, never shown to the customer as literal text —
+ * `booking-link-actions.ts` resolves it to the actual URL and sends
+ * that as a follow-up message.
+ */
+export const SEND_BOOKING_LINK_SENTINEL = '[[SEND_BOOKING_LINK]]'
+export const SEND_BOOKING_LINK_SENTINEL_PATTERN = /\[\[\s*SEND_BOOKING_LINK\s*\]\]/i
+
+/**
  * Send-media sentinel (opt-in per account via `ai_configs.media_sending_enabled`,
  * migration 072). Same contract as every other sentinel here: appended
  * to the raw reply, parsed + stripped by `parseGeneration`, never shown
@@ -238,6 +256,16 @@ export function buildSystemPrompt(args: {
    */
   scheduling?: { enabled: boolean; nowLabel: string } | null
   /**
+   * Opt-in extension of `scheduling` (same `ai_scheduling_enabled`
+   * switch, migration 079): when the account has at least one active
+   * public booking page, teaches the model to hand the customer that
+   * link via [[SEND_BOOKING_LINK]] instead of guessing a time when
+   * they want to pick their own slot. Omit/false when there's no
+   * active page — the model is never told the tag exists, same
+   * posture as `mediaLibrary` being empty.
+   */
+  bookingLinkAvailable?: boolean
+  /**
    * Opt-in extension of `scheduling` (`ai_configs.google_calendar_sync_enabled`,
    * migration 071): a short readout of the account's upcoming Google
    * Calendar events, one per line, fed in as reference context — same
@@ -274,6 +302,7 @@ export function buildSystemPrompt(args: {
     salesMode,
     hasOpenDeal,
     scheduling,
+    bookingLinkAvailable,
     calendarContext,
     mediaLibrary,
     needsContactName,
@@ -337,6 +366,12 @@ export function buildSystemPrompt(args: {
   if (mode === 'auto_reply' && scheduling?.enabled) {
     parts.push(
       `Right now it is ${scheduling.nowLabel}. Whenever this reply makes or confirms a concrete future commitment to contact or meet this customer at a specific date/time — someone will call or message them at a stated time, or an appointment/demo/visit is being scheduled or confirmed — append one more tag at the very end of your output: [[SCHEDULE: <local date-time as YYYY-MM-DDTHH:mm, in the local time shown above, no timezone offset>|<call|meeting|follow_up>|<short title, same language as the conversation>]]. Compute the date-time yourself from what you just told the customer, relative to right now (e.g. "tomorrow at 10" said on a Friday means the following Saturday's date at 10:00). Use "meeting" for a customer-facing appointment/demo/visit scheduled or confirmed this turn, "call" when it's specifically a phone call, and "follow_up" for a looser commitment like "someone will reach out to you" with no fixed meeting. Only emit this tag when you stated or confirmed an actual date/time this turn — never guess one, and never emit it just because scheduling came up in general terms. This tag is stripped before delivery and never shown to the customer.`,
+    )
+  }
+
+  if (mode === 'auto_reply' && scheduling?.enabled && bookingLinkAvailable) {
+    parts.push(
+      "This business also has a public self-service booking page where the customer can see real open time slots and pick one themselves. Prefer this over guessing a time with [[SCHEDULE:...]] whenever the customer wants to book something but hasn't stated (or can't easily be pinned to) one specific date/time — for example when they ask \"what times do you have\", want to choose between several staff/services, or the right slot depends on availability you can't see. When that's the case, append one tag at the very end of your output: [[SEND_BOOKING_LINK]]. Don't mention a link or say you're sending one in your reply text — the customer will simply receive it as a follow-up message. Never emit both [[SCHEDULE:...]] and [[SEND_BOOKING_LINK]] in the same turn: use SCHEDULE when you and the customer already settled on an exact date/time, SEND_BOOKING_LINK when they still need to choose one.",
     )
   }
 

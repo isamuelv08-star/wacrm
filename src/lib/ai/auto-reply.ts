@@ -11,6 +11,7 @@ import { applySalesActions, loadDealStageContext } from './sales-actions'
 import { applyContactName } from './contact-actions'
 import { applyScheduledEvent } from './scheduling-actions'
 import { applySentMedia } from './media-actions'
+import { applySentBookingLink } from './booking-link-actions'
 import { buildCalendarContext } from './calendar-context'
 import { describeNowInZone } from './timezone'
 import { logAiUsage } from './usage'
@@ -184,7 +185,7 @@ export async function dispatchInboundToAiReply(
     // image/video messages ever (so `messages` comes back empty and we
     // bail right after), the other four still ran for nothing — a cheap
     // price for cutting real latency on every reply that DOES send.
-    const [messages, dealContext, accountRow, mediaItemsRes, contactRow] = await Promise.all([
+    const [messages, dealContext, accountRow, mediaItemsRes, contactRow, bookingPageRow] = await Promise.all([
       buildConversationContext(db, conversationId),
       // Deal + pipeline-stage context, needed regardless of sales mode:
       // it drives sales mode's [[STAGE:...]] protocol when enabled, AND
@@ -213,12 +214,25 @@ export async function dispatchInboundToAiReply(
       // this contact, so the instruction (and this query) only ever
       // matters early in a lead's lifecycle.
       db.from('contacts').select('name').eq('id', contactId).maybeSingle(),
+      // Same "only when opted in" posture as the media catalog above —
+      // teaches [[SEND_BOOKING_LINK]] only when there's actually a page
+      // to send (see buildSystemPrompt's `bookingLinkAvailable`).
+      config.aiSchedulingEnabled
+        ? db
+            .from('booking_pages')
+            .select('id')
+            .eq('account_id', accountId)
+            .eq('is_active', true)
+            .limit(1)
+            .maybeSingle()
+        : Promise.resolve({ data: null as { id: string } | null }),
     ])
     if (messages.length === 0) return
 
     const accountTimezone = accountRow.data?.timezone ?? 'UTC'
     const mediaLibrary = mediaItemsRes.data ?? []
     const needsContactName = !contactRow.data?.name?.trim()
+    const bookingLinkAvailable = !!bookingPageRow.data
 
     // Knowledge retrieval (its own embeddings API call + one or two DB
     // RPCs) and the Google Calendar readout (an external API round
@@ -245,6 +259,7 @@ export async function dispatchInboundToAiReply(
       scheduling: config.aiSchedulingEnabled
         ? { enabled: true, nowLabel: describeNowInZone(accountTimezone) }
         : null,
+      bookingLinkAvailable,
       calendarContext,
       mediaLibrary,
       needsContactName,
@@ -266,6 +281,7 @@ export async function dispatchInboundToAiReply(
       summary,
       schedule,
       sendMedia,
+      sendBookingLink,
       contactName,
       dealValue,
       usage,
@@ -466,6 +482,18 @@ export async function dispatchInboundToAiReply(
         contactId,
         configOwnerUserId,
         key: sendMedia,
+      })
+    }
+
+    // Same "follow-up after the text reply" placement as the media send
+    // above. applySentBookingLink owns its own try/catch and never throws.
+    if (config.aiSchedulingEnabled && sendBookingLink) {
+      void signalTyping(db, accountId, conversationId)
+      await applySentBookingLink(db, {
+        accountId,
+        conversationId,
+        contactId,
+        configOwnerUserId,
       })
     }
   } catch (err) {

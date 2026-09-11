@@ -98,6 +98,14 @@ export interface Account {
   hot_lead_alert_minutes?: number;
   /** Null until chosen in onboarding (migration 070). */
   business_vertical?: BusinessVertical | null;
+  /** IANA zone name, defaults to 'UTC' (migration 065). */
+  timezone?: string;
+  /** APPROVED message_templates row used for the "your appointment is
+   *  confirmed" WhatsApp send (migration 079) — null until an admin
+   *  picks one in Settings, since Meta must approve it first. */
+  appointment_confirmation_template_id?: string | null;
+  /** Same as above, for the pre-appointment reminder send. */
+  appointment_reminder_template_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -909,8 +917,12 @@ export interface QuickReply {
 // Calendar — calls, meetings, follow-ups, tasks (migration 057)
 // ============================================================
 
-export type CalendarEventType = 'call' | 'meeting' | 'follow_up' | 'task' | 'other';
+export type CalendarEventType = 'call' | 'meeting' | 'follow_up' | 'task' | 'appointment' | 'other';
 export type CalendarEventStatus = 'pending' | 'completed' | 'cancelled';
+/** Where an appointment-type event came from — a staff member booking
+ *  it by hand, the AI bot filing a [[SCHEDULE:...]] commitment, or a
+ *  visitor self-booking through a public booking page (migration 079). */
+export type CalendarEventSource = 'manual' | 'ai_bot' | 'public_link';
 
 export interface CalendarEvent {
   id: string;
@@ -918,6 +930,7 @@ export interface CalendarEvent {
   /** profiles.id, NOT auth.users.id — matches deals.assigned_to's
    *  convention (see migration 057's header note). */
   created_by?: string | null;
+  /** For type='appointment', this is the booked staff/specialist. */
   assigned_to?: string | null;
   contact_id?: string | null;
   deal_id?: string | null;
@@ -937,10 +950,88 @@ export interface CalendarEvent {
    *  later edits so they update the same Google event instead of
    *  duplicating it. */
   google_event_id?: string | null;
+  /** Service booked (type='appointment' only), migration 079. */
+  service_id?: string | null;
+  /** Booking page this appointment was filed through, or null for a
+   *  manually- or AI-scheduled one (migration 079). */
+  booking_page_id?: string | null;
+  source: CalendarEventSource;
+  /** When the WhatsApp confirmation to the customer went out, or null
+   *  if none was sent yet (no phone, WhatsApp not configured, or send
+   *  failed — best-effort, never blocks the booking itself). */
+  confirmation_sent_at?: string | null;
   created_at: string;
   updated_at: string;
   /** Hydrated by queries that embed the relation — absent otherwise. */
   contact?: Contact;
   deal?: Deal;
   assignee?: Profile;
+  service?: Service;
+}
+
+// ============================================================
+// Booking — services, staff availability, and public booking pages
+// (migration 079). See that migration's header for the full model.
+// ============================================================
+
+export interface Service {
+  id: string;
+  account_id: string;
+  name: string;
+  description?: string | null;
+  duration_minutes: number;
+  price?: number | null;
+  color?: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StaffAvailability {
+  id: string;
+  account_id: string;
+  /** profiles.id */
+  profile_id: string;
+  /** 0=Sunday..6=Saturday, JS Date#getDay() convention. */
+  weekday: number;
+  /** "HH:mm:ss", wall-clock in the account's timezone. */
+  start_time: string;
+  end_time: string;
+  created_at: string;
+}
+
+export interface StaffAvailabilityException {
+  id: string;
+  account_id: string;
+  profile_id: string;
+  /** "YYYY-MM-DD" */
+  date: string;
+  /** false = day off entirely; true = a one-off window that overrides
+   *  the weekly rule for this date (start_time/end_time then apply). */
+  is_available: boolean;
+  start_time?: string | null;
+  end_time?: string | null;
+  reason?: string | null;
+  created_at: string;
+}
+
+export interface BookingPage {
+  id: string;
+  account_id: string;
+  /** Public URL path segment: /agendar/<slug>. */
+  slug: string;
+  name: string;
+  description?: string | null;
+  is_active: boolean;
+  /** IANA zone name, or null to fall back to accounts.timezone. */
+  timezone?: string | null;
+  buffer_minutes: number;
+  min_notice_hours: number;
+  booking_window_days: number;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  /** Hydrated by the settings UI — absent otherwise. */
+  services?: Service[];
+  staff?: Profile[];
 }

@@ -15,9 +15,17 @@ import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { resolveProfileId } from '@/lib/ai/profile-id'
 import { syncEventToGoogle } from '@/lib/calendar/google-sync'
 import { googleCalendarAdmin } from '@/lib/google-calendar/admin-client'
+import { sendAppointmentNotification } from '@/lib/booking/notify'
 import type { CalendarEventType } from '@/types'
 
-const EVENT_TYPES: readonly CalendarEventType[] = ['call', 'meeting', 'follow_up', 'task', 'other']
+const EVENT_TYPES: readonly CalendarEventType[] = [
+  'call',
+  'meeting',
+  'follow_up',
+  'task',
+  'appointment',
+  'other',
+]
 
 function bad(message: string) {
   return NextResponse.json({ error: message }, { status: 400 })
@@ -52,6 +60,7 @@ export async function POST(request: Request) {
     const assignedTo = typeof body.assignedTo === 'string' && body.assignedTo ? body.assignedTo : null
     const reminderMinutesBefore =
       typeof body.reminderMinutesBefore === 'number' ? body.reminderMinutesBefore : null
+    const serviceId = typeof body.serviceId === 'string' && body.serviceId ? body.serviceId : null
 
     const createdBy = await resolveProfileId(ctx.supabase, ctx.userId)
 
@@ -69,6 +78,7 @@ export async function POST(request: Request) {
         starts_at: startsAt,
         ends_at: endsAt,
         reminder_minutes_before: reminderMinutesBefore,
+        service_id: serviceId,
       })
       .select('*, contact:contacts(id, name, phone), deal:deals(id, title)')
       .single()
@@ -90,6 +100,45 @@ export async function POST(request: Request) {
       ends_at: data.ends_at,
       google_event_id: data.google_event_id,
     })
+
+    // A manually-booked appointment with a contact phone gets the same
+    // WhatsApp confirmation a public-link booking would — best-effort,
+    // see notify.ts. Only fires for type='appointment' (a call/meeting/
+    // task isn't a customer-facing commitment in the same sense).
+    if (type === 'appointment' && data.contact?.phone) {
+      let staffName = ''
+      if (assignedTo) {
+        const { data: assignee } = await ctx.supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', assignedTo)
+          .maybeSingle()
+        staffName = assignee?.full_name ?? ''
+      }
+      const { data: account } = await ctx.supabase
+        .from('accounts')
+        .select('timezone')
+        .eq('id', ctx.accountId)
+        .maybeSingle()
+      const sent = await sendAppointmentNotification(ctx.supabase, {
+        accountId: ctx.accountId,
+        contactId: data.contact.id,
+        contactName: data.contact.name || data.contact.phone,
+        contactPhone: data.contact.phone,
+        serviceName: title,
+        staffName,
+        startsAt: data.starts_at,
+        timezone: account?.timezone ?? 'UTC',
+        kind: 'confirmation',
+      })
+      if (sent) {
+        await ctx.supabase
+          .from('calendar_events')
+          .update({ confirmation_sent_at: new Date().toISOString() })
+          .eq('id', data.id)
+        data.confirmation_sent_at = new Date().toISOString()
+      }
+    }
 
     return NextResponse.json({ event: data })
   } catch (err) {

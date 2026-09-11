@@ -3,6 +3,7 @@ import type { CalendarEventType } from '@/types'
 import { localDateTimeToUtcIso } from './timezone'
 import { resolveProfileId } from './profile-id'
 import { syncEventToGoogle } from '@/lib/calendar/google-sync'
+import { sendAppointmentNotification } from '@/lib/booking/notify'
 
 // ============================================================
 // Applies the [[SCHEDULE:...]] sentinel the AI auto-reply bot emitted
@@ -124,6 +125,7 @@ export async function applyScheduledEvent(
         starts_at: startsAt,
         ends_at: null,
         reminder_minutes_before: REMINDER_MINUTES_BEFORE,
+        source: 'ai_bot',
       })
       .select('id')
       .single()
@@ -141,6 +143,38 @@ export async function applyScheduledEvent(
         ends_at: null,
         google_event_id: null,
       })
+    }
+
+    // A "meeting" is the one SCHEDULE type that's a customer-facing
+    // appointment/demo/visit (see the type's own doc comment above) —
+    // the other two ("call", "follow_up") are internal commitments with
+    // nothing for the customer to confirm. Best-effort, same posture as
+    // the rest of this function.
+    if (type === 'meeting') {
+      const { data: contact } = await db
+        .from('contacts')
+        .select('name, phone')
+        .eq('id', contactId)
+        .maybeSingle()
+      if (contact?.phone) {
+        const sent = await sendAppointmentNotification(db, {
+          accountId,
+          contactId,
+          contactName: contact.name || contact.phone,
+          contactPhone: contact.phone,
+          serviceName: eventTitle,
+          staffName: '',
+          startsAt,
+          timezone,
+          kind: 'confirmation',
+        })
+        if (sent) {
+          await db
+            .from('calendar_events')
+            .update({ confirmation_sent_at: new Date().toISOString() })
+            .eq('id', inserted.id)
+        }
+      }
     }
   } catch (err) {
     console.error('[ai scheduling] applyScheduledEvent failed:', err)

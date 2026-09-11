@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { sendAppointmentNotification } from '@/lib/booking/notify'
 
 // ============================================================
 // Calendar event reminders.
@@ -28,6 +29,7 @@ interface DueEventRow {
   created_by: string | null
   contact_id: string | null
   title: string
+  type: string
   starts_at: string
   reminder_minutes_before: number
   contacts: { name: string | null; phone: string } | null
@@ -49,7 +51,7 @@ export async function runEventReminderScan(
   const { data: candidates, error } = await db
     .from('calendar_events')
     .select(
-      'id, account_id, assigned_to, created_by, contact_id, title, starts_at, reminder_minutes_before, contacts(name, phone)',
+      'id, account_id, assigned_to, created_by, contact_id, title, type, starts_at, reminder_minutes_before, contacts(name, phone)',
     )
     .eq('status', 'pending')
     .not('reminder_minutes_before', 'is', null)
@@ -131,6 +133,31 @@ export async function runEventReminderScan(
         .eq('id', event.id)
       if (markErr) {
         console.error('[event-reminders] failed to mark event reminded:', markErr.message)
+      }
+
+      // An 'appointment' is a customer-facing commitment, unlike the
+      // other event types (a call/task/follow_up is internal to the
+      // business) — best-effort WhatsApp reminder alongside the staff
+      // notification above, using whichever APPROVED template the
+      // account picked in Settings (see notify.ts; no-ops silently if
+      // none is set yet).
+      if (event.type === 'appointment' && event.contacts?.phone) {
+        const { data: account } = await db
+          .from('accounts')
+          .select('timezone')
+          .eq('id', event.account_id)
+          .maybeSingle()
+        await sendAppointmentNotification(db, {
+          accountId: event.account_id,
+          contactId: event.contact_id!,
+          contactName: event.contacts.name || event.contacts.phone,
+          contactPhone: event.contacts.phone,
+          serviceName: event.title,
+          staffName: '',
+          startsAt: event.starts_at,
+          timezone: account?.timezone ?? 'UTC',
+          kind: 'reminder',
+        })
       }
 
       notified++

@@ -5,6 +5,7 @@ import { format } from 'date-fns'
 import { useTranslations } from 'next-intl'
 import {
   Briefcase,
+  CalendarCheck,
   Check,
   ClipboardList,
   Phone,
@@ -23,6 +24,7 @@ const EVENT_TYPE_ICON: Record<CalendarEventType, typeof Phone> = {
   meeting: Users,
   follow_up: ClipboardList,
   task: Briefcase,
+  appointment: CalendarCheck,
   other: ClipboardList,
 }
 

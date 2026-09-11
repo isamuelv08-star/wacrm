@@ -194,6 +194,15 @@ export const RATE_LIMITS = {
    *  a longer window than the per-IP one since the threat here is
    *  sustained targeting of one account, not a quick burst. */
   loginEmail: { limit: 8, windowMs: 5 * 60_000 },
+  /** Public booking page (view + slot lookup), per IP. Generous — a
+   *  visitor flipping through days/services on a Calendly-style picker
+   *  can easily fire a dozen requests, and this endpoint only reads. */
+  bookingPageView: { limit: 60, windowMs: 60_000 },
+  /** Public booking submit, per IP. Tighter than the view budget —
+   *  each call creates a contact/appointment row and triggers a
+   *  WhatsApp send, so the abuse surface is "spam fake bookings," same
+   *  posture as invitationRedeem. */
+  bookingSubmit: { limit: 10, windowMs: 60_000 },
 } as const;
 
 /** Test-only helper. Clears the in-memory state so unit tests don't

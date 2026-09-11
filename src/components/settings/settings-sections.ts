@@ -1,4 +1,5 @@
 import {
+  CalendarClock,
   Coins,
   FileText,
   KeyRound,
@@ -33,6 +34,7 @@ export const SETTINGS_SECTIONS = [
   'fields',
   'deals',
   'goals',
+  'booking',
   'members',
   'api',
 ] as const;
@@ -60,6 +62,7 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   fields: { id: 'fields', label: 'Fields & tags', icon: Tags, group: 'workspace' },
   deals: { id: 'deals', label: 'Deals & currency', icon: Coins, group: 'workspace' },
   goals: { id: 'goals', label: 'Sales goals', icon: Target, group: 'workspace' },
+  booking: { id: 'booking', label: 'Booking', icon: CalendarClock, group: 'workspace' },
   members: { id: 'members', label: 'Team members', icon: UsersRound, group: 'workspace' },
   api: { id: 'api', label: 'API keys', icon: KeyRound, group: 'workspace' },
 };

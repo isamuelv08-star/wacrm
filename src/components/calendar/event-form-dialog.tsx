@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 
-const EVENT_TYPES: CalendarEventType[] = ['call', 'meeting', 'follow_up', 'task', 'other']
+const EVENT_TYPES: CalendarEventType[] = ['call', 'meeting', 'follow_up', 'task', 'appointment', 'other']
 const REMINDER_OPTIONS = [15, 30, 60, 1440] as const
 
 interface EventFormDialogProps {
