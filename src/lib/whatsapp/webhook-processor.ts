@@ -319,7 +319,7 @@ function ladderLevel(s: string): number {
  *   - `failed` is accepted only from `pending` or `sent`; it's refused
  *     once the recipient has reached any of the success states.
  */
-function isValidStatusTransition(current: string, incoming: string): boolean {
+export function isValidStatusTransition(current: string, incoming: string): boolean {
   if (incoming === 'failed') {
     return current === 'pending' || current === 'sent'
   }
@@ -333,6 +333,63 @@ function isValidStatusTransition(current: string, incoming: string): boolean {
   return ii > ci
 }
 
+/**
+ * Apply a delivery-status update to every `messages` row matching
+ * `messageId` (0..N — see the doc comment below), skipping any row
+ * whose current status is already >= the incoming one on
+ * `RECIPIENT_STATUS_LADDER` (a redelivered/out-of-order webhook must
+ * never visibly downgrade an inbox tick, e.g. read -> delivered).
+ *
+ * Logs a warning — not silence — when NO row matches at all. This is
+ * the one signal that would otherwise be invisible: an inbox stuck
+ * showing a single grey check forever, with the webhook itself firing
+ * correctly, almost always means the `message_id` this status event
+ * carries doesn't match what was stored when the message was SENT
+ * (e.g. a bridge/provider returning a different id space than the one
+ * it later reports status against) — a log line naming both ids is
+ * what makes that diagnosable instead of a silent, un-investigatable
+ * "it just doesn't work".
+ */
+export async function applyMessageStatusUpdate(
+  messageId: string,
+  incomingStatus: string,
+  logPrefix: string,
+): Promise<void> {
+  const { data: rows, error: findErr } = await supabaseAdmin()
+    .from('messages')
+    .select('id, status')
+    .eq('message_id', messageId)
+
+  if (findErr) {
+    console.error(`${logPrefix} status lookup failed:`, findErr.message)
+    return
+  }
+
+  if (!rows || rows.length === 0) {
+    console.warn(
+      `${logPrefix} status update for message_id="${messageId}" (-> ${incomingStatus}) matched NO rows in messages — ` +
+        `either this message was never persisted with that id, or it was sent through a path that stored a different ` +
+        `id for it than the one this status event reports. Ticks for this message cannot update.`,
+    )
+    return
+  }
+
+  const idsToUpdate = (rows as { id: string; status: string }[])
+    .filter((r) => isValidStatusTransition(r.status, incomingStatus))
+    .map((r) => r.id)
+
+  if (idsToUpdate.length === 0) return // every match is already >= this status — nothing to do
+
+  const { error: updateErr } = await supabaseAdmin()
+    .from('messages')
+    .update({ status: incomingStatus })
+    .in('id', idsToUpdate)
+
+  if (updateErr) {
+    console.error(`${logPrefix} status update failed:`, updateErr.message)
+  }
+}
+
 async function handleStatusUpdate(status: {
   id: string
   status: string
@@ -340,18 +397,12 @@ async function handleStatusUpdate(status: {
   recipient_id: string
 }) {
   // 1) Mirror onto messages (legacy behavior) — Meta's status values
-  //    already match the CHECK constraint on messages.status. No
-  //    `.select()`: message_id is NOT unique (migration 009 — Meta ids
-  //    repeat across numbers), so this updates 0..N rows and must not
-  //    assume a single row.
-  const { error: msgErr } = await supabaseAdmin()
-    .from('messages')
-    .update({ status: status.status })
-    .eq('message_id', status.id)
-
-  if (msgErr) {
-    console.error('Error updating message status:', msgErr)
-  }
+  //    already match the CHECK constraint on messages.status.
+  //    message_id is NOT unique (migration 009 — Meta ids repeat
+  //    across numbers), so this can touch 0..N rows; see
+  //    applyMessageStatusUpdate's doc comment for the forward-only
+  //    ladder guard and the "matched nothing" diagnostic.
+  await applyMessageStatusUpdate(status.id, status.status, '[webhook]')
 
   // Webhook fan-out for this status change happens at the END of this
   // handler (after the broadcast mirror below), so a slow subscriber

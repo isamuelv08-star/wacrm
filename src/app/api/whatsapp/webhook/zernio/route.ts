@@ -3,6 +3,7 @@ import { NextResponse, after } from 'next/server'
 import {
   processMessage,
   supabaseAdmin,
+  applyMessageStatusUpdate,
   type WhatsAppMessage,
 } from '@/lib/whatsapp/webhook-processor'
 import { ingestMessengerMessage } from '@/lib/messenger/webhook-processor'
@@ -302,24 +303,21 @@ const ZERNIO_STATUS_EVENT: Record<string, 'delivered' | 'read' | 'failed'> = {
  * knows how to render (see message-bubble.tsx's `StatusIcon`) never
  * had anything to render them FROM.
  *
- * Matches `messages.message_id` against `platformMessageId`, same
- * correlation key and same "message_id isn't unique, updates 0..N
- * rows" posture as the direct-Meta path (migration 009 — Meta ids can
- * repeat across numbers).
+ * Matches `messages.message_id` against `platformMessageId` via the
+ * shared `applyMessageStatusUpdate` (forward-only ladder guard, same
+ * "message_id isn't unique, updates 0..N rows" posture as the
+ * direct-Meta path — migration 009, Meta ids can repeat across
+ * numbers — plus a loud warning when nothing matches at all, which is
+ * the one signal worth watching if ticks are reported stuck: it means
+ * `sendViaZernio`'s stored `message_id` and this webhook's
+ * `platformMessageId` disagree for that message).
  */
 async function handleZernioStatusUpdate(payload: ZernioWebhookPayload) {
   const status = ZERNIO_STATUS_EVENT[payload.event]
   const platformMessageId = payload.message?.platformMessageId
   if (!status || !platformMessageId) return
 
-  const { error } = await supabaseAdmin()
-    .from('messages')
-    .update({ status })
-    .eq('message_id', platformMessageId)
-
-  if (error) {
-    console.error('[webhook/zernio] status update failed:', error.message)
-  }
+  await applyMessageStatusUpdate(platformMessageId, status, '[webhook/zernio]')
 }
 
 /**
