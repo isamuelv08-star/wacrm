@@ -115,6 +115,13 @@ async function deliverOne(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-Saleslid-Event': event,
+        'X-Saleslid-Webhook-Id': row.id,
+        'X-Saleslid-Signature': buildSignatureHeader(payload, secret, tsSeconds),
+        // Pre-rename header names, sent alongside the ones above with
+        // the exact same values — free backward compatibility for any
+        // receiver already built against the old `X-Wacrm-*` names.
+        // Safe to drop once nothing depends on them anymore.
         'X-Wacrm-Event': event,
         'X-Wacrm-Webhook-Id': row.id,
         'X-Wacrm-Signature': buildSignatureHeader(payload, secret, tsSeconds),

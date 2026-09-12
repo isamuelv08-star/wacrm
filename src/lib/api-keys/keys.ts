@@ -12,17 +12,26 @@
 //   only slow the per-request auth lookup. A fast hash with a UNIQUE
 //   index is the correct, indexable choice for opaque secrets.
 //
-// Why the `wacrm_live_` prefix
+// Why the `saleslid_live_` prefix
 //   - Self-identifying: a leaked string is instantly recognisable as
-//     a wacrm key (handy for secret-scanners like GitGuardian).
-//   - Forward-compatible: leaves room for a `wacrm_test_` variant if
+//     a Saleslid key (handy for secret-scanners like GitGuardian).
+//   - Forward-compatible: leaves room for a `saleslid_test_` variant if
 //     a sandbox mode is ever added, without reshaping the format.
 // ============================================================
 
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
-/** Secret prefix on every key. Part of the plaintext, not a secret. */
-export const API_KEY_PREFIX = 'wacrm_live_';
+/** Secret prefix on every newly-generated key. Part of the plaintext, not a secret. */
+export const API_KEY_PREFIX = 'saleslid_live_';
+
+/**
+ * Prefixes from before the Saleslid rename — a key generated under
+ * the old `wacrm_live_` prefix is still live (only its SHA-256 hash is
+ * stored, so there's no way to "migrate" it in place) and must keep
+ * authenticating. `looksLikeApiKey` accepts either; new keys are only
+ * ever minted with `API_KEY_PREFIX`.
+ */
+const LEGACY_API_KEY_PREFIXES = ['wacrm_live_'] as const;
 
 /**
  * Length of the non-secret display prefix stored in `key_prefix` and
@@ -73,8 +82,11 @@ export function hashApiKey(plaintext: string): string {
  * malformed `Authorization` headers (e.g. a stale invite token).
  */
 export function looksLikeApiKey(value: string): boolean {
-  return (
-    value.startsWith(API_KEY_PREFIX) && value.length > API_KEY_PREFIX.length
+  if (value.startsWith(API_KEY_PREFIX) && value.length > API_KEY_PREFIX.length) {
+    return true;
+  }
+  return LEGACY_API_KEY_PREFIXES.some(
+    (prefix) => value.startsWith(prefix) && value.length > prefix.length,
   );
 }
 

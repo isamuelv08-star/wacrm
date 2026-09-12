@@ -35,11 +35,11 @@ describe('generateApiKey', () => {
 
 describe('hashApiKey', () => {
   it('is deterministic', () => {
-    expect(hashApiKey('wacrm_live_abc')).toBe(hashApiKey('wacrm_live_abc'));
+    expect(hashApiKey('saleslid_live_abc')).toBe(hashApiKey('saleslid_live_abc'));
   });
 
   it('differs for different inputs', () => {
-    expect(hashApiKey('wacrm_live_abc')).not.toBe(hashApiKey('wacrm_live_abd'));
+    expect(hashApiKey('saleslid_live_abc')).not.toBe(hashApiKey('saleslid_live_abd'));
   });
 });
 
@@ -53,11 +53,19 @@ describe('looksLikeApiKey', () => {
     expect(looksLikeApiKey('')).toBe(false);
     expect(looksLikeApiKey('some-invite-token')).toBe(false);
   });
+
+  it('still accepts a key minted under the pre-rename wacrm_live_ prefix', () => {
+    // Only the hash is ever persisted, so an already-issued key can't
+    // be "migrated" — it must keep authenticating forever under its
+    // original prefix. See LEGACY_API_KEY_PREFIXES in keys.ts.
+    expect(looksLikeApiKey('wacrm_live_abcdefgh')).toBe(true);
+    expect(looksLikeApiKey('wacrm_live_')).toBe(false);
+  });
 });
 
 describe('timingSafeHexEqual', () => {
   it('is true for identical digests', () => {
-    const h = hashApiKey('wacrm_live_xyz');
+    const h = hashApiKey('saleslid_live_xyz');
     expect(timingSafeHexEqual(h, h)).toBe(true);
   });
 

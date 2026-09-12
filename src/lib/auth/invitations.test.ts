@@ -192,7 +192,7 @@ describe("getBaseUrl", () => {
         host: "phishing.example",
       },
     });
-    expect(getBaseUrl(req, "test")).toBe("https://wacrm.tech");
+    expect(getBaseUrl(req, "test")).toBe("https://app.saleslid.com");
   });
 
   it("allows a forwarded host that matches ALLOWED_INVITE_HOSTS", () => {

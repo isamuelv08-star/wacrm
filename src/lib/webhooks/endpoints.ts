@@ -10,7 +10,7 @@ import { randomBytes } from 'node:crypto';
 
 import { isDeliverableUrl } from '@/lib/webhooks/ssrf';
 
-/** Secret prefix — self-identifying, like `wacrm_live_` for keys. */
+/** Secret prefix — self-identifying, like `saleslid_live_` for keys. */
 export const WEBHOOK_SECRET_PREFIX = 'whsec_';
 
 /**

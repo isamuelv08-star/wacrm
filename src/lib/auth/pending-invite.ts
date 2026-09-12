@@ -26,7 +26,7 @@
 // account.
 // ============================================================
 
-const PENDING_INVITE_KEY = "wacrm_pending_invite_token";
+const PENDING_INVITE_KEY = "saleslid_pending_invite_token";
 
 function safeLocalStorage(): Storage | null {
   try {

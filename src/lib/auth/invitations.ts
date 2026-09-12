@@ -143,7 +143,7 @@ export function clampExpiryDays(expiresInDays: number | undefined): number {
 //
 //   When `ALLOWED_INVITE_HOSTS` is set (comma-separated hostnames),
 //   we validate the derived host against the list. Anything not
-//   on the list falls through to the wacrm.tech fallback with a
+//   on the list falls through to the app.saleslid.com fallback with a
 //   loud console.warn. Operators who care about this attack
 //   surface should set this to their canonical hostnames; everyone
 //   else gets today's permissive behavior.
@@ -206,8 +206,8 @@ export function getBaseUrl(request: Request, logPrefix: string): string {
     });
   } else {
     console.warn(
-      `[${logPrefix}] could not derive base URL from request; falling back to marketing domain`,
+      `[${logPrefix}] could not derive base URL from request; falling back to the app's own domain`,
     );
   }
-  return "https://wacrm.tech";
+  return "https://app.saleslid.com";
 }

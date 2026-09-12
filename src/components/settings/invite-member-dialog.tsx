@@ -32,7 +32,7 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Copy, Loader2, MessageCircle, Sparkles } from 'lucide-react';
+import { Check, Copy, Link2, Loader2, MessageCircle, Sparkles } from 'lucide-react';
 
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
@@ -106,6 +106,10 @@ export function InviteMemberDialog({
   const [permissionOverrides, setPermissionOverrides] = useState<DashboardPermissions>({});
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<CreatedInvite | null>(null);
+  // Brief "Copied ✓" swap on the link chip's copy button — purely
+  // cosmetic confirmation, separate from the toast so the visual
+  // feedback sits right where the click happened.
+  const [justCopied, setJustCopied] = useState(false);
 
   function reset() {
     setRole('agent');
@@ -114,6 +118,7 @@ export function InviteMemberDialog({
     setPermissionOverrides({});
     setResult(null);
     setSubmitting(false);
+    setJustCopied(false);
   }
 
   function isPermissionChecked(key: DashboardPermissionKey): boolean {
@@ -193,6 +198,8 @@ export function InviteMemberDialog({
     try {
       await navigator.clipboard.writeText(result.url);
       toast.success(t('copied'));
+      setJustCopied(true);
+      setTimeout(() => setJustCopied(false), 1500);
     } catch {
       // Most likely "not in a secure context" — happens on http://
       // local IPs. Surface the link in the toast so the admin can
@@ -240,22 +247,45 @@ export function InviteMemberDialog({
 
             <div className="space-y-3 py-2">
               <Label className="text-muted-foreground">{t('inviteLink')}</Label>
-              <div className="flex gap-2">
-                <Input
-                  readOnly
-                  value={result.url}
-                  className="bg-muted border-border text-foreground font-mono text-xs"
-                  onFocus={(e) => e.currentTarget.select()}
-                />
-                <Button
-                  type="button"
-                  onClick={copyToClipboard}
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground shrink-0"
+              {/* "Link chip" instead of a raw <Input>: the invite URL is a
+                  full base64url token (~70+ chars all in), which in a
+                  bare readonly input just cuts off mid-character with no
+                  visual cue — reads as broken, not "there's more, scroll
+                  to see it". A single clickable row (icon + ellipsis-
+                  truncated text + a copy affordance) reads as "here's
+                  your link" rather than a form field the admin might
+                  think they're meant to edit. `title` surfaces the full
+                  URL on hover for anyone who wants to eyeball it. */}
+              <button
+                type="button"
+                onClick={copyToClipboard}
+                title={result.url}
+                className="group flex w-full items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2.5 text-left transition-colors hover:border-primary/50 hover:bg-muted/80"
+              >
+                <Link2 className="size-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">
+                  {result.url}
+                </span>
+                <span
+                  className={`flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                    justCopied
+                      ? 'text-emerald-400'
+                      : 'text-primary group-hover:text-primary/80'
+                  }`}
                 >
-                  <Copy className="size-4" />
-                  {t('copy')}
-                </Button>
-              </div>
+                  {justCopied ? (
+                    <>
+                      <Check className="size-3.5" />
+                      {t('copiedShort')}
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="size-3.5" />
+                      {t('copy')}
+                    </>
+                  )}
+                </span>
+              </button>
 
               {/* Higher-contrast amber than the original 10% / amber-200.
                   Reviewed against slate-900 to meet WCAG AAA for body
@@ -270,7 +300,7 @@ export function InviteMemberDialog({
               </div>
 
               {/* Anchor styled with `buttonVariants` rather than wrapping
-                  in <Button asChild>. The wacrm Button is the Base UI
+                  in <Button asChild>. This app's Button is the Base UI
                   ButtonPrimitive — it has no Radix-style asChild slot.
                   Direct anchor preserves right-click "Open in new tab"
                   behaviour too. */}
