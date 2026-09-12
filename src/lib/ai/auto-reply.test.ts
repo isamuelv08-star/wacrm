@@ -18,12 +18,15 @@ const h = vi.hoisted(() => ({
     roundRobinAgentId: null as string | null,
     updatePayload: null as Record<string, unknown> | null,
     rpcCalls: [] as { name: string; args: unknown }[],
-    // Consumed in order by the debounce's two `countCustomerMessages`
-    // reads (before/after the wait). A single value means "no change" —
-    // the common case every existing test wants. A test asserting the
-    // stand-down behaviour pushes [1, 2] so the second read sees a
-    // newer message that "arrived" during the wait.
-    customerMsgCounts: [1, 1] as number[],
+    // Consumed in order by the three `countCustomerMessages` reads:
+    // before the debounce wait, after it, and after the provider call
+    // resolves (the second race-check fix — see auto-reply.ts). All
+    // three equal means "no new message the whole way through", the
+    // common case every existing test wants. A test asserting a
+    // stand-down bumps the count at whichever read should see the
+    // "arrival" (and every read after it, since the count never goes
+    // back down).
+    customerMsgCounts: [1, 1, 1] as number[],
   },
 }))
 
@@ -135,7 +138,7 @@ beforeEach(() => {
   h.state.roundRobinAgentId = null
   h.state.updatePayload = null
   h.state.rpcCalls = []
-  h.state.customerMsgCounts = [1, 1]
+  h.state.customerMsgCounts = [1, 1, 1]
   h.loadAiConfig.mockResolvedValue(aiConfig())
   h.buildConversationContext.mockResolvedValue([{ role: 'user', content: 'hi' }])
   h.retrieveKnowledge.mockResolvedValue([])
@@ -178,6 +181,20 @@ describe('dispatchInboundToAiReply — eligibility gates', () => {
     h.state.customerMsgCounts = [1, 2] // count went up between the two reads
     await dispatchInboundToAiReply(ARGS)
     expect(h.generateReply).not.toHaveBeenCalled()
+    expect(h.engineSendText).not.toHaveBeenCalled()
+  })
+
+  it('stands down (does not send) when a newer customer message arrives WHILE the provider call is running — the double-reply race fix', async () => {
+    // Both debounce reads agree (no change), so the first check passes
+    // and the provider call runs — but a message lands during that
+    // call, seen by the third read.
+    h.state.customerMsgCounts = [1, 1, 2]
+    await dispatchInboundToAiReply(ARGS)
+    // The model WAS called (that's the whole point — the race happens
+    // only once the slow provider call is already in flight) but the
+    // reply is never sent, since the newer message's own dispatch will
+    // cover it with fuller context instead.
+    expect(h.generateReply).toHaveBeenCalled()
     expect(h.engineSendText).not.toHaveBeenCalled()
   })
 

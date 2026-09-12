@@ -432,6 +432,31 @@ export async function dispatchInboundToAiReply(
       return
     }
 
+    // Second debounce check — this is the fix for the intermittent
+    // "double reply" bug: the FIRST check (above, before the LLM call)
+    // only catches a customer message that arrives during the ~12s
+    // debounce sleep. It says nothing about a message that arrives
+    // WHILE the provider call itself is running, which for a
+    // reasoning-heavy model can easily take longer than the debounce
+    // window. Without this, that later message spins up its OWN
+    // dispatch (own debounce, own context build, own LLM call) that
+    // runs concurrently with this one — and BOTH independently claim a
+    // slot and send, since claim_ai_reply_slot only enforces the
+    // per-conversation cap, not "is another dispatch already mid-flight
+    // for this same customer turn." The result was two bot messages
+    // landing back to back: one answering only the earlier message
+    // (already stale by the time it sends), one answering everything.
+    // Standing down here is safe — the newer message's own dispatch
+    // will generate a fresh reply covering both, with the fuller
+    // context this one no longer has.
+    const customerMsgCountAfterLlm = await countCustomerMessages(db, conversationId)
+    if (customerMsgCountAfterLlm > customerMsgCountAfterWait) {
+      console.log(
+        `[ai auto-reply] conversation ${conversationId}: a newer customer message arrived during the provider call — standing down instead of sending a stale reply.`,
+      )
+      return
+    }
+
     // Atomically claim a reply slot: the cap check + increment happen in
     // one UPDATE, so concurrent inbounds can never overshoot the cap. If
     // another inbound just took the last slot, `claimed` is false and we

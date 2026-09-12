@@ -446,7 +446,10 @@ export function buildClassificationPrompt(args: {
     'Read the full conversation and decide whether there is enough information — new since a casual reading of the whole thread — to confidently classify this lead against the rules above. ' +
       'Respond with EXACTLY one JSON object and nothing else — no markdown code fences, no commentary, no text before or after it:\n' +
       '{"score": "hot" | "warm" | "cold" | null, "reason": string | null}\n\n' +
-      'Set "score" to null (with "reason": null) when there is not yet enough signal to confidently classify. ' +
+      'IMPORTANT: "cold" is just as much a confident, positive verdict as "hot" or "warm" — it is NOT the same thing as "not enough information yet", and you should not default to null just because the signal points away from interest. ' +
+      'Disengagement IS a signal: going quiet after an initial reply, giving short or non-committal answers, asking only about price with no follow-through, stalling ("I\'ll think about it", "maybe later"), or otherwise showing no real intent to move forward all justify a confident "cold" verdict on their own — you do not need an explicit "not interested" statement. ' +
+      'Reserve "score": null for the narrow case where the conversation genuinely has not gone far enough yet to tell ANY of the three apart (e.g. only a greeting so far, or a question with no reaction to the answer yet) — once there is enough conversation to read a direction one way or the other, pick "hot", "warm", or "cold" rather than null. ' +
+      'Re-evaluate on every call: a lead scored "hot" or "warm" earlier that has since gone quiet or cooled off should be re-scored "cold" now — do not stay anchored to a prior turn\'s verdict. ' +
       'Otherwise set "score" to "hot", "warm", or "cold" per the rules above, and "reason" to a short (under 20 words) explanation, in the same language as the conversation, of what in the conversation justifies it.',
   )
 
