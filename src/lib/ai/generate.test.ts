@@ -11,6 +11,7 @@ function config(overrides: Partial<AiConfig> = {}): AiConfig {
     qualificationCriteria: null,
     isActive: true,
     autoReplyEnabled: false,
+    autoreplyChannels: ['whatsapp'],
     salesModeEnabled: false,
     aiSchedulingEnabled: false,
     googleCalendarSyncEnabled: false,

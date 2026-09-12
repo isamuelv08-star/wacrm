@@ -22,6 +22,14 @@ export function WhatsAppGlyph(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function MessengerGlyph(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>
+      <path d="M12 2C6.28 2 1.75 6.24 1.75 11.55c0 2.9 1.36 5.5 3.5 7.26v3.44l3.2-1.76c.86.24 1.78.37 2.75.37 5.72 0 10.25-4.24 10.25-9.55C21.45 6.24 16.72 2 12 2Zm1.02 12.86-2.61-2.79-5.1 2.79 5.6-5.95 2.68 2.79 5.03-2.79-5.6 5.95Z" />
+    </svg>
+  )
+}
+
 export function InstagramGlyph(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>

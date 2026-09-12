@@ -28,7 +28,11 @@ import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { getPublicOrigin } from '@/lib/http/request-origin'
 import { zernioClient } from '@/lib/whatsapp/zernio-client'
 
-const PLATFORMS = ['whatsapp', 'instagram'] as const
+// 'facebook' is Zernio's own name for a connected Facebook Page
+// (Messenger) — matched verbatim so the `connected={platform}` value
+// Zernio echoes back on /api/zernio/callback lines up. The app's own
+// `conversations.platform` value is 'messenger' regardless.
+const PLATFORMS = ['whatsapp', 'instagram', 'facebook'] as const
 type Platform = (typeof PLATFORMS)[number]
 
 function isPlatform(value: string): value is Platform {
@@ -389,7 +393,12 @@ export async function DELETE(
 
     const ctx = await requireRole('admin')
 
-    const column = platform === 'whatsapp' ? 'whatsapp_account_id' : 'instagram_account_id'
+    const column =
+      platform === 'whatsapp'
+        ? 'whatsapp_account_id'
+        : platform === 'facebook'
+          ? 'facebook_account_id'
+          : 'instagram_account_id'
 
     const admin = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,

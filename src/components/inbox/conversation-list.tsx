@@ -10,7 +10,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus, Tag } from "@/types";
 import { Search, ChevronDown, X, Inbox } from "lucide-react";
-import { InstagramGlyph, WhatsAppGlyph } from "@/components/icons/brand-icons";
+import { InstagramGlyph, MessengerGlyph, WhatsAppGlyph } from "@/components/icons/brand-icons";
 import { formatDistanceToNow } from "date-fns";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/hooks/use-auth";
@@ -30,6 +30,7 @@ import {
   platformSoftBackground,
   WHATSAPP_TINT,
   INSTAGRAM_GRADIENT,
+  MESSENGER_GRADIENT,
   type ConversationPlatform,
 } from "@/lib/inbox/platform";
 
@@ -65,7 +66,7 @@ type LeadScoreFilter = Score | "unscored" | "all";
 const PLATFORM_FILTER_STORAGE_KEY = "saleslid:inbox:platform-filter";
 const LEAD_SCORE_FILTER_STORAGE_KEY = "saleslid:inbox:lead-score-filter";
 
-const PLATFORM_TAB_ORDER: PlatformFilter[] = ["whatsapp", "instagram", "all"];
+const PLATFORM_TAB_ORDER: PlatformFilter[] = ["whatsapp", "messenger", "instagram", "all"];
 // Hottest first — a salesperson opening the inbox should see HOT leads
 // as the leftmost, most natural first click.
 const LEAD_SCORE_TAB_ORDER: LeadScoreFilter[] = ["hot", "warm", "cold", "unscored", "all"];
@@ -174,7 +175,12 @@ export function ConversationList({
   useEffect(() => {
     try {
       const stored = sessionStorage.getItem(PLATFORM_FILTER_STORAGE_KEY);
-      if (stored === "all" || stored === "whatsapp" || stored === "instagram") {
+      if (
+        stored === "all" ||
+        stored === "whatsapp" ||
+        stored === "instagram" ||
+        stored === "messenger"
+      ) {
         setPlatformFilter(stored);
       }
     } catch {
@@ -430,8 +436,17 @@ export function ConversationList({
               ? t("platformWhatsapp")
               : tab === "instagram"
                 ? t("platformInstagram")
-                : t("platformAll");
-          const Icon = tab === "whatsapp" ? WhatsAppGlyph : tab === "instagram" ? InstagramGlyph : Inbox;
+                : tab === "messenger"
+                  ? t("platformMessenger")
+                  : t("platformAll");
+          const Icon =
+            tab === "whatsapp"
+              ? WhatsAppGlyph
+              : tab === "instagram"
+                ? InstagramGlyph
+                : tab === "messenger"
+                  ? MessengerGlyph
+                  : Inbox;
           return (
             <button
               key={tab}
@@ -447,7 +462,12 @@ export function ConversationList({
                 isActive
                   ? {
                       backgroundColor: tab === "whatsapp" ? WHATSAPP_TINT : undefined,
-                      backgroundImage: tab === "instagram" ? INSTAGRAM_GRADIENT : undefined,
+                      backgroundImage:
+                        tab === "instagram"
+                          ? INSTAGRAM_GRADIENT
+                          : tab === "messenger"
+                            ? MESSENGER_GRADIENT
+                            : undefined,
                       ...(tab === "all"
                         ? { backgroundColor: "var(--primary)", color: "var(--primary-foreground)" }
                         : null),

@@ -27,6 +27,7 @@ import { InteractivePreview } from "@/components/interactive/interactive-preview
 import { useTranslations } from "next-intl";
 import {
   INSTAGRAM_STOPS,
+  MESSENGER_STOPS,
   WHATSAPP_TINT,
   type ConversationPlatform,
 } from "@/lib/inbox/platform";
@@ -54,9 +55,10 @@ interface MessageBubbleProps {
 // gradient. Both pair with `text-foreground`, which already adapts to
 // light/dark, rather than the theme's `--primary-foreground`.
 function outgoingBubbleStyle(platform: ConversationPlatform): React.CSSProperties {
-  if (platform === "instagram") {
+  if (platform === "instagram" || platform === "messenger") {
+    const stops = platform === "messenger" ? MESSENGER_STOPS : INSTAGRAM_STOPS;
     return {
-      backgroundImage: `linear-gradient(135deg, ${INSTAGRAM_STOPS.map(
+      backgroundImage: `linear-gradient(135deg, ${stops.map(
         (stop) => `color-mix(in oklch, ${stop} 26%, var(--card))`,
       ).join(", ")})`,
     };

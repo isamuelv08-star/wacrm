@@ -1,6 +1,7 @@
-import { InstagramGlyph, WhatsAppGlyph } from "@/components/icons/brand-icons";
+import { InstagramGlyph, MessengerGlyph, WhatsAppGlyph } from "@/components/icons/brand-icons";
 import {
   INSTAGRAM_GRADIENT,
+  MESSENGER_GRADIENT,
   WHATSAPP_TINT,
   type ConversationPlatform,
 } from "@/lib/inbox/platform";
@@ -29,6 +30,17 @@ export function PlatformIcon({
         style={{ backgroundImage: INSTAGRAM_GRADIENT }}
       >
         <InstagramGlyph className={className} />
+      </span>
+    );
+  }
+  if (platform === "messenger") {
+    return (
+      <span
+        aria-label="Messenger"
+        className="flex items-center justify-center rounded-full p-[3px] text-white shadow-sm ring-2 ring-card"
+        style={{ backgroundImage: MESSENGER_GRADIENT }}
+      >
+        <MessengerGlyph className={className} />
       </span>
     );
   }
@@ -66,11 +78,11 @@ export function AvatarRing({
   sizeClass: string;
   children: React.ReactNode;
 }) {
-  if (platform === "instagram") {
+  if (platform === "instagram" || platform === "messenger") {
     return (
       <span
         className={`flex shrink-0 items-center justify-center rounded-full p-[2px] ${sizeClass}`}
-        style={{ backgroundImage: INSTAGRAM_GRADIENT }}
+        style={{ backgroundImage: platform === "messenger" ? MESSENGER_GRADIENT : INSTAGRAM_GRADIENT }}
       >
         <span className="flex h-full w-full items-center justify-center rounded-full bg-card p-[1.5px]">
           {children}

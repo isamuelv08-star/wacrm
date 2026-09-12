@@ -18,10 +18,22 @@
 //
 // Idempotent: checks for an existing webhook pointed at the same URL
 // before creating a new one, so re-running this after a redeploy is
-// safe (Zernio caps accounts at 50 webhook subscriptions total).
+// safe (Zernio caps accounts at 50 webhook subscriptions total). Also
+// self-heals an EXISTING webhook that's missing one of the events
+// below (e.g. a deployment set up before message.delivered/read/failed
+// were added here) by PATCHing its event list in place — no need to
+// delete and recreate it in the Zernio dashboard.
 // ============================================================
 
 const Zernio = require('@zernio/node').default
+
+// message.received: inbound messages. message.delivered/read/failed:
+// delivery-tick updates for messages WE sent — without these,
+// src/app/api/whatsapp/webhook/zernio/route.ts never learns a sent
+// message was delivered/read, so the inbox gets stuck showing a
+// single grey check forever instead of progressing to the double
+// check (delivered) / blue double check (read) WhatsApp itself shows.
+const REQUIRED_EVENTS = ['message.received', 'message.delivered', 'message.read', 'message.failed']
 
 async function main() {
   const apiKey = process.env.ZERNIO_API_KEY
@@ -46,18 +58,33 @@ async function main() {
 
   const already = (existing?.webhooks || []).find((w) => w.url === webhookUrl)
   if (already) {
-    console.log(`A webhook already points at ${webhookUrl} (id ${already._id}). Nothing to do.`)
-    console.log(
-      'If you rotated ZERNIO_WEBHOOK_SECRET, delete that webhook in the Zernio dashboard and re-run this script.',
-    )
+    const currentEvents = already.events || []
+    const missing = REQUIRED_EVENTS.filter((e) => !currentEvents.includes(e))
+    if (missing.length === 0) {
+      console.log(`A webhook already points at ${webhookUrl} (id ${already._id}) with every required event. Nothing to do.`)
+      console.log(
+        'If you rotated ZERNIO_WEBHOOK_SECRET, delete that webhook in the Zernio dashboard and re-run this script.',
+      )
+      return
+    }
+
+    console.log(`Webhook ${already._id} is missing: ${missing.join(', ')}. Updating its event list...`)
+    const { data, error } = await zernio.webhooks.updateWebhookSettings({
+      body: { _id: already._id, events: REQUIRED_EVENTS },
+    })
+    if (error || !data?.success) {
+      console.error('Failed to update webhook:', error || data)
+      process.exit(1)
+    }
+    console.log(`Webhook ${already._id} updated — now subscribed to: ${REQUIRED_EVENTS.join(', ')}`)
     return
   }
 
   const { data, error } = await zernio.webhooks.createWebhookSettings({
     body: {
-      name: 'wacrm inbound (message.received)',
+      name: 'wacrm inbound (message.received + status)',
       url: webhookUrl,
-      events: ['message.received'],
+      events: REQUIRED_EVENTS,
       secret,
     },
   })
@@ -68,7 +95,7 @@ async function main() {
   }
 
   console.log(`Webhook created (id ${data.webhook?._id}) → ${webhookUrl}`)
-  console.log('Inbound WhatsApp messages from Zernio-connected accounts should now flow into the inbox.')
+  console.log('Inbound WhatsApp messages and delivery/read status from Zernio-connected accounts should now flow into the inbox.')
 }
 
 main().catch((err) => {

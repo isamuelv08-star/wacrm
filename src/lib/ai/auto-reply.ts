@@ -66,6 +66,16 @@ interface DispatchArgs {
   /** The account's WhatsApp config owner, used for the outbound send's
    *  audit columns (mirrors how the flow runner passes it through). */
   configOwnerUserId: string
+  /**
+   * The channel this inbound message arrived on (migration 082).
+   * Checked against `config.autoreplyChannels` as an extra eligibility
+   * gate below — an account can enable auto-reply overall but still
+   * restrict which channels it's allowed to answer on. Defaults to
+   * 'whatsapp' so the existing WhatsApp webhook call site (which
+   * predates this param) keeps its exact current behavior without
+   * having to be touched.
+   */
+  platform?: 'whatsapp' | 'messenger'
 }
 
 /**
@@ -90,7 +100,7 @@ interface DispatchArgs {
 export async function dispatchInboundToAiReply(
   args: DispatchArgs,
 ): Promise<void> {
-  const { accountId, conversationId, contactId, configOwnerUserId } = args
+  const { accountId, conversationId, contactId, configOwnerUserId, platform = 'whatsapp' } = args
   // Diagnostic only — logs how long the dispatch spent on DB/knowledge
   // work vs. the provider call itself, so a "the AI replies too slowly"
   // report can be traced to a specific stage instead of guessed at.
@@ -101,6 +111,7 @@ export async function dispatchInboundToAiReply(
 
     const config = await loadAiConfig(db, accountId)
     if (!config || !config.autoReplyEnabled) return
+    if (!config.autoreplyChannels.includes(platform)) return
 
     // Deterministic, user-configured responders win over the LLM — the
     // caller already excludes messages a Flow consumed. Message-level
@@ -451,7 +462,7 @@ export async function dispatchInboundToAiReply(
     // to redo the same contact + whatsapp_config lookups (and decrypt)
     // part 1 already did. See `resolveSendContext`'s doc comment.
     const parts = splitReplyIntoMessages(text)
-    const sendContext = await resolveSendContext(db, accountId, contactId)
+    const sendContext = await resolveSendContext(db, accountId, contactId, conversationId)
     for (let i = 0; i < parts.length; i++) {
       if (i > 0) {
         // Sending a message clears the platform's typing bubble, so

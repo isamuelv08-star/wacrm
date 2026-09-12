@@ -30,7 +30,7 @@ export async function GET() {
       // `api_key` is selected only to derive `has_key` — it is stripped
       // out below and never returned to the client.
       .select(
-        'provider, model, system_prompt, qualification_criteria, is_active, auto_reply_enabled, sales_mode_enabled, ai_scheduling_enabled, google_calendar_sync_enabled, media_sending_enabled, auto_reply_max_per_conversation, auto_resume_after_minutes, handoff_agent_id, lead_auto_assign_enabled, api_key, embeddings_api_key, transcription_api_key',
+        'provider, model, system_prompt, qualification_criteria, is_active, auto_reply_enabled, autoreply_channels, sales_mode_enabled, ai_scheduling_enabled, google_calendar_sync_enabled, media_sending_enabled, auto_reply_max_per_conversation, auto_resume_after_minutes, handoff_agent_id, lead_auto_assign_enabled, api_key, embeddings_api_key, transcription_api_key',
       )
       .eq('account_id', accountId)
       .maybeSingle()
@@ -95,6 +95,18 @@ export async function POST(request: Request) {
         : null
     const isActive = body.is_active === true
     const autoReplyEnabled = body.auto_reply_enabled === true
+    // Which channels the bot may auto-reply on (migration 082). Falls
+    // back to WhatsApp-only when omitted/malformed rather than
+    // rejecting the save — same "don't block on this" posture as
+    // maxPer's fallback below — and silently drops any value that
+    // isn't one of the two channels the pipeline actually knows how to
+    // send through today.
+    const ALLOWED_AUTOREPLY_CHANNELS = new Set(['whatsapp', 'messenger'])
+    const autoreplyChannels = Array.isArray(body.autoreply_channels)
+      ? body.autoreply_channels.filter(
+          (c: unknown): c is string => typeof c === 'string' && ALLOWED_AUTOREPLY_CHANNELS.has(c),
+        )
+      : ['whatsapp']
     const salesModeEnabled = body.sales_mode_enabled === true
     const aiSchedulingEnabled = body.ai_scheduling_enabled === true
     const googleCalendarSyncEnabled = body.google_calendar_sync_enabled === true
@@ -209,6 +221,7 @@ export async function POST(request: Request) {
           qualificationCriteria,
           isActive,
           autoReplyEnabled,
+          autoreplyChannels,
           salesModeEnabled,
           aiSchedulingEnabled,
           googleCalendarSyncEnabled,
@@ -256,6 +269,7 @@ export async function POST(request: Request) {
       qualification_criteria: qualificationCriteria,
       is_active: isActive,
       auto_reply_enabled: autoReplyEnabled,
+      autoreply_channels: autoreplyChannels,
       sales_mode_enabled: salesModeEnabled,
       ai_scheduling_enabled: aiSchedulingEnabled,
       google_calendar_sync_enabled: googleCalendarSyncEnabled,

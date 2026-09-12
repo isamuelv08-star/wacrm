@@ -1,18 +1,19 @@
 import type { Conversation } from "@/types";
 
-export type ConversationPlatform = "whatsapp" | "instagram";
+export type ConversationPlatform = "whatsapp" | "instagram" | "messenger";
 
 /**
- * The channel a conversation arrived on. Every conversation today comes
- * through WhatsApp — there is no Instagram integration wired up yet, so
- * `conversation.platform` is never actually populated — but reading it
- * first (rather than hardcoding "whatsapp") keeps every consumer of this
- * helper forward-compatible with a real multi-channel backend later.
+ * The channel a conversation arrived on. `conversation.platform` is a
+ * real DB column since migration 080 (Messenger); Instagram still has
+ * no backend behind it and is never actually populated, but reading it
+ * here rather than hardcoding "whatsapp" keeps this helper ready for it.
  */
 export function getConversationPlatform(
   conversation: Pick<Conversation, "platform"> | null | undefined,
 ): ConversationPlatform {
-  return conversation?.platform === "instagram" ? "instagram" : "whatsapp";
+  if (conversation?.platform === "instagram") return "instagram";
+  if (conversation?.platform === "messenger") return "messenger";
+  return "whatsapp";
 }
 
 /**
@@ -35,6 +36,17 @@ export const INSTAGRAM_GRADIENT = `linear-gradient(135deg, ${INSTAGRAM_STOPS[0]}
 /** Single mid-gradient hue, for spots that need one flat accent color. */
 export const INSTAGRAM_ACCENT = INSTAGRAM_STOPS[1];
 
+// blue -> violet, a muted nod to Messenger's own gradient bubble mark.
+export const MESSENGER_STOPS = [
+  "oklch(0.62 0.19 258)",
+  "oklch(0.58 0.22 295)",
+] as const;
+
+export const MESSENGER_GRADIENT = `linear-gradient(135deg, ${MESSENGER_STOPS[0]}, ${MESSENGER_STOPS[1]})`;
+
+/** Single mid-gradient hue, for spots that need one flat accent color. */
+export const MESSENGER_ACCENT = MESSENGER_STOPS[0];
+
 /**
  * A soft, mode-adaptive background tint for the given platform, blended
  * against a surface token (defaults to `--background`) so it stays subtle
@@ -49,7 +61,8 @@ export function platformSoftBackground(
   if (platform === "whatsapp") {
     return `color-mix(in oklch, ${WHATSAPP_TINT} ${strength}%, var(${surfaceVar}))`;
   }
-  return `linear-gradient(135deg, ${INSTAGRAM_STOPS.map(
+  const stops = platform === "messenger" ? MESSENGER_STOPS : INSTAGRAM_STOPS;
+  return `linear-gradient(135deg, ${stops.map(
     (stop) => `color-mix(in oklch, ${stop} ${strength}%, var(${surfaceVar}))`,
   ).join(", ")})`;
 }

@@ -5,6 +5,7 @@ import {
   supabaseAdmin,
   type WhatsAppMessage,
 } from '@/lib/whatsapp/webhook-processor'
+import { ingestMessengerMessage } from '@/lib/messenger/webhook-processor'
 
 // ============================================================
 // Inbound webhook for WhatsApp accounts connected through Zernio.
@@ -32,6 +33,11 @@ import {
 // description all work (see downloadInboundMedia in
 // src/lib/whatsapp/inbound-media.ts for how the latter two reach
 // Zernio-bridged media too).
+//
+// Also handles `message.delivered` / `message.read` / `message.failed`
+// (see handleZernioStatusUpdate below) — these carry the delivery-tick
+// state the inbox already renders (single check → sent, double check
+// → delivered, blue double check → read).
 // ============================================================
 
 // Same headroom reasoning as the direct-Meta/Dualhook routes: AI
@@ -122,21 +128,32 @@ export async function POST(request: Request) {
 }
 
 async function processZernioEvent(payload: ZernioWebhookPayload) {
+  if (payload.event === 'message.delivered' || payload.event === 'message.read' || payload.event === 'message.failed') {
+    await handleZernioStatusUpdate(payload)
+    return
+  }
+
   if (payload.event !== 'message.received') return
   const message = payload.message
   const account = payload.account
   if (!message || !account?.id) return
-
-  // Only WhatsApp is bridged today (Instagram connect exists in
-  // Settings but has no send/receive pipeline yet either — out of
-  // scope for this pass).
-  if (message.platform !== 'whatsapp') return
 
   // Echoes of our own outbound sends (or a reply typed from Zernio's
   // own native dashboard, outside this CRM). Skipping avoids inserting
   // a duplicate of a message sendMessageToConversation already
   // persisted when it sent via the Zernio bridge.
   if (message.direction !== 'incoming') return
+
+  // Facebook (Messenger) is a separate, narrower pipeline — see
+  // processZernioFacebookMessage below for why it doesn't reuse
+  // processMessage() the way WhatsApp does. Instagram connect exists
+  // in Settings but has no send/receive pipeline yet either — out of
+  // scope for this pass.
+  if (message.platform === 'facebook') {
+    await processZernioFacebookMessage(payload, message, account)
+    return
+  }
+  if (message.platform !== 'whatsapp') return
 
   const { data: zernioAccount, error: zernioAccountError } = await supabaseAdmin()
     .from('client_zernio_accounts')
@@ -186,6 +203,123 @@ async function processZernioEvent(payload: ZernioWebhookPayload) {
     'zernio',
     payload.conversation?.id ?? null,
   )
+}
+
+const ZERNIO_ATTACHMENT_TO_CONTENT_TYPE: Record<string, string> = {
+  image: 'image',
+  sticker: 'image',
+  video: 'video',
+  audio: 'audio',
+}
+
+/**
+ * A Facebook Page connected through Zernio. Deliberately does NOT go
+ * through processMessage() the way the WhatsApp branch above does —
+ * that pipeline's contact/conversation model is phone-number-keyed
+ * throughout (normalizePhone, wa_id, findOrCreateContact-by-phone),
+ * which doesn't fit a Messenger PSID. Instead this reuses the exact
+ * same ingestion core the direct Graph API Messenger webhook uses
+ * (src/lib/messenger/webhook-processor.ts's ingestMessengerMessage),
+ * so a Facebook Page behaves identically whether it's bridged through
+ * Zernio or connected directly with a Page Access Token — same known
+ * gap either way: no automations/Flows/AI auto-reply yet, since those
+ * engines currently only know how to reply over WhatsApp (meta-api.ts
+ * / zernio-send.ts). See src/lib/messenger/ for the rest of that
+ * pipeline's scope notes.
+ */
+async function processZernioFacebookMessage(
+  payload: ZernioWebhookPayload,
+  message: NonNullable<ZernioWebhookPayload['message']>,
+  account: NonNullable<ZernioWebhookPayload['account']>,
+) {
+  const psid = message.sender?.id
+  if (!psid) {
+    console.warn('[webhook/zernio] Facebook message has no resolvable sender psid; skipping')
+    return
+  }
+
+  const { data: zernioAccount, error: zernioAccountError } = await supabaseAdmin()
+    .from('client_zernio_accounts')
+    .select('account_id, connected_by_user_id')
+    .eq('facebook_account_id', account.id)
+    .maybeSingle()
+
+  if (zernioAccountError) {
+    console.error('[webhook/zernio] facebook account lookup failed:', zernioAccountError.message)
+    return
+  }
+  if (!zernioAccount) {
+    console.warn('[webhook/zernio] no account matches Zernio facebook accountId:', account.id)
+    return
+  }
+  if (!zernioAccount.connected_by_user_id) {
+    console.error(
+      '[webhook/zernio] facebook account has no connected_by_user_id — reconnect Messenger in Settings to fix:',
+      account.id,
+    )
+    return
+  }
+
+  const attachment = message.attachments?.[0]
+  const contentType = attachment ? (ZERNIO_ATTACHMENT_TO_CONTENT_TYPE[attachment.type] ?? 'document') : 'text'
+  // Same proxy-token trick as WhatsApp's Zernio bridge below
+  // (adaptZernioMessage) — Zernio's attachment URL needs the Zernio
+  // API key attached server-side, so it's never handed to the browser
+  // directly. /api/whatsapp/media/zernio/[token]/route.ts is generic
+  // despite its path (decodes + fetches + streams), so it's reused
+  // as-is here.
+  const mediaUrl = attachment
+    ? `/api/whatsapp/media/zernio/${Buffer.from(attachment.url, 'utf8').toString('base64url')}`
+    : null
+
+  await ingestMessengerMessage({
+    accountId: zernioAccount.account_id,
+    configOwnerUserId: zernioAccount.connected_by_user_id,
+    psid,
+    displayName: message.sender?.name ?? null,
+    mid: message.platformMessageId || '',
+    contentType,
+    contentText: message.text ?? null,
+    mediaUrl,
+    occurredAt: message.sentAt ? new Date(message.sentAt) : new Date(),
+    zernioConversationId: payload.conversation?.id ?? null,
+  })
+}
+
+const ZERNIO_STATUS_EVENT: Record<string, 'delivered' | 'read' | 'failed'> = {
+  'message.delivered': 'delivered',
+  'message.read': 'read',
+  'message.failed': 'failed',
+}
+
+/**
+ * Delivery-state updates for a message we already sent — the Zernio
+ * counterpart to the direct-Meta path's `handleStatusUpdate` in
+ * webhook-processor.ts. Without this, every Zernio-bridged message
+ * stayed on "sent" (single check) forever: this route used to drop
+ * every event that wasn't `message.received`, so the double-check
+ * (delivered) and blue double-check (read) ticks the inbox already
+ * knows how to render (see message-bubble.tsx's `StatusIcon`) never
+ * had anything to render them FROM.
+ *
+ * Matches `messages.message_id` against `platformMessageId`, same
+ * correlation key and same "message_id isn't unique, updates 0..N
+ * rows" posture as the direct-Meta path (migration 009 — Meta ids can
+ * repeat across numbers).
+ */
+async function handleZernioStatusUpdate(payload: ZernioWebhookPayload) {
+  const status = ZERNIO_STATUS_EVENT[payload.event]
+  const platformMessageId = payload.message?.platformMessageId
+  if (!status || !platformMessageId) return
+
+  const { error } = await supabaseAdmin()
+    .from('messages')
+    .update({ status })
+    .eq('message_id', platformMessageId)
+
+  if (error) {
+    console.error('[webhook/zernio] status update failed:', error.message)
+  }
 }
 
 /**

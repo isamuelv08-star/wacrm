@@ -59,12 +59,26 @@ import {
   platformSoftBackground,
   WHATSAPP_TINT,
   INSTAGRAM_GRADIENT,
+  MESSENGER_GRADIENT,
 } from "@/lib/inbox/platform";
 
 interface ReplyDraft {
   id: string;
   authorLabel: string;
   preview: string;
+}
+
+/**
+ * Text and media sends share one request shape between channels (see
+ * /api/whatsapp/send and /api/messenger/send) — only the endpoint
+ * differs, picked off the conversation's own platform rather than a
+ * prop threaded down, since every caller here already has the
+ * conversation in scope.
+ */
+function sendEndpointFor(conversation: Pick<Conversation, "platform">): string {
+  return getConversationPlatform(conversation) === "messenger"
+    ? "/api/messenger/send"
+    : "/api/whatsapp/send";
 }
 
 function renderTemplateBody(body: string, params: string[]): string {
@@ -185,16 +199,16 @@ const STATUS_OPTIONS: { label: string; value: ConversationStatus; color: string 
 ];
 
 /**
- * WhatsApp-style doodle background applied to the chat area (both the
- * active thread and the empty state). The SVG tile lives at
- * `/public/inbox-doodle.svg`; the slate-950 colour sits underneath so
- * the doodles read as a subtle pattern rather than a stark grid.
- *
- * Defined once at module scope so the two render paths can't drift —
- * if we ever switch the asset, both spots update together.
+ * Chat-area background, empty-state variant: no conversation selected
+ * yet, so there's no platform to tint the wash with — flat surface
+ * color only. (Previously a repeating WhatsApp-style doodle SVG; that
+ * pattern read as visual noise behind message bubbles, so both this
+ * and the active-thread background below are a plain wash now — solid
+ * for WhatsApp, the platform's own soft gradient for Instagram, same
+ * `platformSoftBackground` helper the platform badges/tabs already
+ * use elsewhere in the inbox.)
  */
-const DOODLE_BG_CLASSES =
-  "bg-background bg-[url('/inbox-doodle.svg')] bg-repeat";
+const EMPTY_STATE_BG_CLASS = "bg-background";
 
 export function MessageThread({
   conversation,
@@ -622,7 +636,7 @@ export function MessageThread({
       setReplyTo(null);
 
       try {
-        const res = await fetch("/api/whatsapp/send", {
+        const res = await fetch(sendEndpointFor(conversation), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -686,7 +700,7 @@ export function MessageThread({
       setReplyTo(null);
 
       try {
-        const res = await fetch("/api/whatsapp/send", {
+        const res = await fetch(sendEndpointFor(conversation), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -998,12 +1012,10 @@ export function MessageThread({
     [conversation, onAssignChange],
   );
 
-  // Empty state — same WhatsApp-style doodle background as the active
-  // thread below, so swapping between empty/selected doesn't change the
-  // pattern under the user's eye.
+  // Empty state — flat surface, no platform to wash it with yet.
   if (!conversation || !contact) {
     return (
-      <div className={cn("flex flex-1 flex-col items-center justify-center", DOODLE_BG_CLASSES)}>
+      <div className={cn("flex flex-1 flex-col items-center justify-center", EMPTY_STATE_BG_CLASS)}>
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
           <MessageSquare className="h-8 w-8 text-muted-foreground" />
         </div>
@@ -1039,11 +1051,16 @@ export function MessageThread({
     // root shrink lets the bubbles' break-words / max-w caps apply.
     // Issue #257.
     <div
-      className={cn("flex min-w-0 flex-1 flex-col", DOODLE_BG_CLASSES)}
-      // Full-window wash only for WhatsApp — Instagram's accent stays on
-      // the top bar + avatar ring below rather than tinting the whole
-      // chat surface, per the "just a nod, not the full gradient" brief.
-      style={platform === "whatsapp" ? { backgroundColor: platformSoftBackground("whatsapp", 5) } : undefined}
+      className="flex min-w-0 flex-1 flex-col bg-background"
+      // Full-window wash — solid for WhatsApp (platformSoftBackground
+      // returns a flat color-mix, a `background-color`), the platform's
+      // own gradient for Instagram (a `background-image`). Replaces the
+      // old repeating doodle SVG, which read as noise behind bubbles.
+      style={
+        platform === "whatsapp"
+          ? { backgroundColor: platformSoftBackground("whatsapp", 5) }
+          : { backgroundImage: platformSoftBackground(platform, 5) }
+      }
     >
       {/* Platform accent — thin colored bar identifying the conversation's
           channel (green for WhatsApp, the IG gradient for Instagram) atop
@@ -1053,7 +1070,12 @@ export function MessageThread({
         className="h-[3px] shrink-0"
         style={{
           backgroundColor: platform === "whatsapp" ? WHATSAPP_TINT : undefined,
-          backgroundImage: platform === "instagram" ? INSTAGRAM_GRADIENT : undefined,
+          backgroundImage:
+            platform === "instagram"
+              ? INSTAGRAM_GRADIENT
+              : platform === "messenger"
+                ? MESSENGER_GRADIENT
+                : undefined,
         }}
       />
       {/* Header — solid card surface sits on top of the doodle so the

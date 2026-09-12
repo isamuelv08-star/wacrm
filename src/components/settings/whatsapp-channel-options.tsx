@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/use-auth';
 import { ConnectPlatformButton } from './connect-platform-button';
 import { WhatsAppApiConnectCard } from './whatsapp-api-connect-card';
+import { MessengerConnectCard } from './messenger-connect-card';
 import { PlatformIcon } from '@/components/inbox/platform-accent';
 
 /**
@@ -32,6 +33,20 @@ export function WhatsAppChannelOptions() {
         {accountId ? <ConnectPlatformButton platform="whatsapp" profileId={accountId} /> : null}
       </div>
       <WhatsAppApiConnectCard />
+      <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-4">
+        <div className="flex items-center gap-3">
+          <PlatformIcon platform="messenger" className="h-4 w-4" />
+          <div>
+            <p className="text-sm font-medium text-foreground">{t('platform.facebook')}</p>
+            <p className="text-xs text-muted-foreground">{t('facebookHint')}</p>
+          </div>
+        </div>
+        {/* Zernio's own name for this channel is "facebook" (a Facebook
+            Page connection) — see connect-platform-button.tsx's doc
+            comment. */}
+        {accountId ? <ConnectPlatformButton platform="facebook" profileId={accountId} /> : null}
+      </div>
+      <MessengerConnectCard />
     </div>
   );
 }

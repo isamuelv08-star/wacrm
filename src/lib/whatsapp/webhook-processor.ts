@@ -475,7 +475,13 @@ async function flagBroadcastReplyIfAny(accountId: string, contactId: string) {
  * rather than blocking the inbound message or auto-seeding a pipeline
  * of its own.
  */
-async function ensureLeadDeal(
+/**
+ * Exported so the Messenger inbound pipeline (src/lib/messenger/
+ * webhook-processor.ts) can reuse it — pipeline-lead creation is
+ * provider-agnostic, only the inbound message parsing above it differs
+ * per channel.
+ */
+export async function ensureLeadDeal(
   accountId: string,
   configOwnerUserId: string,
   contact: { id: string; name?: string; phone: string },

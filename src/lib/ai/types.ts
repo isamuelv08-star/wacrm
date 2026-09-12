@@ -33,6 +33,15 @@ export interface AiConfig {
   isActive: boolean
   autoReplyEnabled: boolean
   /**
+   * Which inbound channels the bot is allowed to answer on (migration
+   * 082). Defaults to `['whatsapp']` — Messenger only replies once an
+   * account explicitly adds it in Settings → AI Assistant. Checked
+   * alongside `autoReplyEnabled` in dispatchInboundToAiReply's
+   * eligibility gates, and by the Messenger inbound pipelines before
+   * they even attempt a dispatch.
+   */
+  autoreplyChannels: string[]
+  /**
    * Opt-in extension of auto-reply: when true, the bot is taught the
    * sales-mode sentinel protocol ([[STAGE:...]] / [[DEAL_WON]] /
    * [[DEAL_LOST]]) and actively drives a lead's open deal through its

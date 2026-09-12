@@ -10,6 +10,7 @@ interface AiConfigRow {
   qualification_criteria: string | null
   is_active: boolean
   auto_reply_enabled: boolean
+  autoreply_channels: string[]
   sales_mode_enabled: boolean
   ai_scheduling_enabled: boolean
   google_calendar_sync_enabled: boolean
@@ -22,7 +23,7 @@ interface AiConfigRow {
 }
 
 const CONFIG_COLUMNS =
-  'provider, model, api_key, system_prompt, qualification_criteria, is_active, auto_reply_enabled, sales_mode_enabled, ai_scheduling_enabled, google_calendar_sync_enabled, media_sending_enabled, auto_reply_max_per_conversation, handoff_agent_id, lead_auto_assign_enabled, embeddings_api_key, transcription_api_key'
+  'provider, model, api_key, system_prompt, qualification_criteria, is_active, auto_reply_enabled, autoreply_channels, sales_mode_enabled, ai_scheduling_enabled, google_calendar_sync_enabled, media_sending_enabled, auto_reply_max_per_conversation, handoff_agent_id, lead_auto_assign_enabled, embeddings_api_key, transcription_api_key'
 
 /**
  * Load and decrypt the account's AI config for *use* (draft or
@@ -99,6 +100,11 @@ export async function loadAiConfig(
     qualificationCriteria: row.qualification_criteria,
     isActive: row.is_active,
     autoReplyEnabled: row.auto_reply_enabled,
+    // Defensive fallback: a row written before migration 082 (or a
+    // manual DB edit) could have this null/empty — treat that the same
+    // as the column default rather than silently disabling WhatsApp
+    // auto-reply for an account that never touched this setting.
+    autoreplyChannels: row.autoreply_channels?.length ? row.autoreply_channels : ['whatsapp'],
     salesModeEnabled: row.sales_mode_enabled,
     aiSchedulingEnabled: row.ai_scheduling_enabled,
     googleCalendarSyncEnabled: row.google_calendar_sync_enabled,

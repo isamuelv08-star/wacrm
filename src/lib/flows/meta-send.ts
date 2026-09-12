@@ -16,6 +16,12 @@ import {
   isRecipientNotAllowedError,
 } from '@/lib/whatsapp/phone-utils'
 import { resolveZernioSocialAccountId, sendViaZernio } from '@/lib/whatsapp/zernio-send'
+import {
+  sendTextMessage as sendMessengerText,
+  sendAttachmentMessage as sendMessengerAttachment,
+  type MessengerAttachmentKind,
+} from '@/lib/messenger/graph-api'
+import { resolveZernioFacebookAccountId, sendViaZernioMessenger } from '@/lib/messenger/zernio-send'
 import { supabaseAdmin } from './admin-client'
 
 /**
@@ -106,19 +112,27 @@ interface SendTextEngineArgs {
 }
 
 export interface ResolvedSendContext {
-  sanitizedPhone: string
+  platform: 'whatsapp' | 'messenger'
   contactRowId: string
-  zernioSocialAccountId: string | null
+  // WhatsApp branch (platform === 'whatsapp')
+  sanitizedPhone?: string
+  zernioSocialAccountId?: string | null
   /** Null when Zernio-bridged (zernioSocialAccountId is set instead). */
-  whatsappConfig: { phone_number_id: string; send_api_base: string | null } | null
+  whatsappConfig?: { phone_number_id: string; send_api_base: string | null } | null
   /** Decrypted access token. Null when Zernio-bridged. */
-  accessToken: string | null
+  accessToken?: string | null
+  // Messenger branch (platform === 'messenger')
+  messengerPsid?: string
+  messengerZernioAccountId?: string | null
+  /** Decrypted Page Access Token. Null when Zernio-bridged instead. */
+  messengerPageAccessToken?: string | null
 }
 
 /**
- * Resolve everything about "how do we reach this contact" once: their
- * phone, whether the account is Zernio-bridged, and — if not — the
- * account's WhatsApp config plus its decrypted access token.
+ * Resolve everything about "how do we reach this contact" once: which
+ * channel the conversation is on, and — per channel — whether the
+ * account is Zernio-bridged or connected directly, plus whatever
+ * credentials that path needs.
  *
  * `engineSendText` used to redo these 2-3 DB reads (+ a decrypt) on
  * every single call, which is fine for one-off Flow sends but wasteful
@@ -131,7 +145,55 @@ export async function resolveSendContext(
   db: ReturnType<typeof supabaseAdmin>,
   accountId: string,
   contactId: string,
+  conversationId: string,
 ): Promise<ResolvedSendContext> {
+  const { data: conv } = await db
+    .from('conversations')
+    .select('platform')
+    .eq('id', conversationId)
+    .maybeSingle()
+  const platform: 'whatsapp' | 'messenger' = conv?.platform === 'messenger' ? 'messenger' : 'whatsapp'
+
+  if (platform === 'messenger') {
+    const { data: contact, error: contactErr } = await db
+      .from('contacts')
+      .select('id, messenger_psid')
+      .eq('id', contactId)
+      .eq('account_id', accountId)
+      .maybeSingle()
+    if (contactErr || !contact?.messenger_psid) {
+      throw new Error('contact has no Messenger PSID on file')
+    }
+
+    const zernioFacebookAccountId = await resolveZernioFacebookAccountId(db, accountId)
+    if (zernioFacebookAccountId) {
+      return {
+        platform: 'messenger',
+        contactRowId: contact.id,
+        messengerPsid: contact.messenger_psid,
+        messengerZernioAccountId: zernioFacebookAccountId,
+        messengerPageAccessToken: null,
+      }
+    }
+
+    const { data: config, error: configErr } = await db
+      .from('messenger_config')
+      .select('page_access_token')
+      .eq('account_id', accountId)
+      .maybeSingle()
+    if (configErr || !config) {
+      throw new Error('Messenger not configured for this account')
+    }
+
+    return {
+      platform: 'messenger',
+      contactRowId: contact.id,
+      messengerPsid: contact.messenger_psid,
+      messengerZernioAccountId: null,
+      messengerPageAccessToken: decrypt(config.page_access_token),
+    }
+  }
+
   const { data: contact, error: contactErr } = await db
     .from('contacts')
     .select('id, phone')
@@ -150,6 +212,7 @@ export async function resolveSendContext(
   const zernioSocialAccountId = await resolveZernioSocialAccountId(db, accountId)
   if (zernioSocialAccountId) {
     return {
+      platform: 'whatsapp',
       sanitizedPhone: sanitized,
       contactRowId: contact.id,
       zernioSocialAccountId,
@@ -168,6 +231,7 @@ export async function resolveSendContext(
   }
 
   return {
+    platform: 'whatsapp',
     sanitizedPhone: sanitized,
     contactRowId: contact.id,
     zernioSocialAccountId: null,
@@ -193,8 +257,58 @@ export async function engineSendText(
 ): Promise<{ whatsapp_message_id: string }> {
   const db = supabaseAdmin()
 
-  const ctx = args.resolved ?? (await resolveSendContext(db, args.accountId, args.contactId))
-  const sanitized = ctx.sanitizedPhone
+  const ctx =
+    args.resolved ?? (await resolveSendContext(db, args.accountId, args.contactId, args.conversationId))
+
+  if (ctx.platform === 'messenger') {
+    let messageId: string
+    if (ctx.messengerZernioAccountId) {
+      const { data: conv } = await db
+        .from('conversations')
+        .select('zernio_conversation_id')
+        .eq('id', args.conversationId)
+        .maybeSingle()
+      const result = await sendViaZernioMessenger(
+        ctx.messengerZernioAccountId,
+        (conv?.zernio_conversation_id as string | null) ?? null,
+        { messageType: 'text', contentText: args.text },
+      )
+      messageId = result.messageId
+    } else {
+      const result = await sendMessengerText({
+        pageAccessToken: ctx.messengerPageAccessToken!,
+        recipientPsid: ctx.messengerPsid!,
+        text: args.text,
+      })
+      messageId = result.messageId
+    }
+
+    const { error: msgErr } = await db.from('messages').insert({
+      conversation_id: args.conversationId,
+      sender_type: 'bot',
+      content_type: 'text',
+      content_text: args.text,
+      message_id: messageId,
+      status: 'sent',
+      ai_generated: args.aiGenerated ?? false,
+    })
+    if (msgErr) {
+      throw new Error(`sent to Messenger but DB insert failed: ${msgErr.message}`)
+    }
+
+    await db
+      .from('conversations')
+      .update({
+        last_message_text: args.text,
+        last_message_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', args.conversationId)
+
+    return { whatsapp_message_id: messageId }
+  }
+
+  const sanitized = ctx.sanitizedPhone!
 
   let waMessageId: string
   if (ctx.zernioSocialAccountId) {
@@ -303,22 +417,62 @@ export async function engineSendMedia(
 ): Promise<{ whatsapp_message_id: string }> {
   const db = supabaseAdmin()
 
-  const { data: contact, error: contactErr } = await db
-    .from('contacts')
-    .select('id, phone')
-    .eq('id', args.contactId)
-    .eq('account_id', args.accountId)
-    .maybeSingle()
-  if (contactErr || !contact?.phone) {
-    throw new Error('contact not found for this account')
+  const ctx = await resolveSendContext(db, args.accountId, args.contactId, args.conversationId)
+
+  if (ctx.platform === 'messenger') {
+    const kind = args.kind === 'document' ? 'file' : args.kind
+    let messageId: string
+    if (ctx.messengerZernioAccountId) {
+      const { data: conv } = await db
+        .from('conversations')
+        .select('zernio_conversation_id')
+        .eq('id', args.conversationId)
+        .maybeSingle()
+      const result = await sendViaZernioMessenger(
+        ctx.messengerZernioAccountId,
+        (conv?.zernio_conversation_id as string | null) ?? null,
+        { messageType: args.kind, contentText: args.caption, mediaUrl: args.link, filename: args.filename },
+      )
+      messageId = result.messageId
+    } else {
+      const result = await sendMessengerAttachment({
+        pageAccessToken: ctx.messengerPageAccessToken!,
+        recipientPsid: ctx.messengerPsid!,
+        kind: kind as MessengerAttachmentKind,
+        url: args.link,
+      })
+      messageId = result.messageId
+    }
+
+    const preview = args.caption?.trim() || `[${args.kind}]`
+    const { error: msgErr } = await db.from('messages').insert({
+      conversation_id: args.conversationId,
+      sender_type: 'bot',
+      content_type: args.kind,
+      content_text: args.caption ?? null,
+      message_id: messageId,
+      status: 'sent',
+      ai_generated: args.aiGenerated ?? false,
+    })
+    if (msgErr) {
+      throw new Error(`sent to Messenger but DB insert failed: ${msgErr.message}`)
+    }
+
+    await db
+      .from('conversations')
+      .update({
+        last_message_text: preview,
+        last_message_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', args.conversationId)
+
+    return { whatsapp_message_id: messageId }
   }
 
-  const sanitized = sanitizePhoneForMeta(contact.phone)
-  if (!isValidE164(sanitized)) {
-    throw new Error(`contact phone invalid: ${contact.phone}`)
-  }
-
-  const zernioSocialAccountId = await resolveZernioSocialAccountId(db, args.accountId)
+  const sanitized = ctx.sanitizedPhone!
+  const contact = { id: ctx.contactRowId }
+  const zernioSocialAccountId = ctx.zernioSocialAccountId ?? null
 
   let waMessageId: string
   if (zernioSocialAccountId) {

@@ -110,6 +110,7 @@ function aiConfig(overrides: Partial<AiConfig> = {}): AiConfig {
     qualificationCriteria: null,
     isActive: true,
     autoReplyEnabled: true,
+    autoreplyChannels: ['whatsapp'],
     salesModeEnabled: false,
     aiSchedulingEnabled: false,
     googleCalendarSyncEnabled: false,
@@ -206,6 +207,25 @@ describe('dispatchInboundToAiReply — eligibility gates', () => {
     h.loadAiConfig.mockResolvedValue(aiConfig({ autoReplyEnabled: false }))
     await dispatchInboundToAiReply(ARGS)
     expect(h.engineSendText).not.toHaveBeenCalled()
+  })
+
+  it('skips a Messenger inbound when the account has not opted Messenger into autoreply_channels (migration 082)', async () => {
+    h.loadAiConfig.mockResolvedValue(aiConfig({ autoreplyChannels: ['whatsapp'] }))
+    await dispatchInboundToAiReply({ ...ARGS, platform: 'messenger' })
+    expect(h.generateReply).not.toHaveBeenCalled()
+    expect(h.engineSendText).not.toHaveBeenCalled()
+  })
+
+  it('replies on Messenger once the account opts it into autoreply_channels', async () => {
+    h.loadAiConfig.mockResolvedValue(aiConfig({ autoreplyChannels: ['whatsapp', 'messenger'] }))
+    await dispatchInboundToAiReply({ ...ARGS, platform: 'messenger' })
+    expect(h.engineSendText).toHaveBeenCalled()
+  })
+
+  it('defaults an inbound with no platform argument to the WhatsApp gate (existing call site behavior)', async () => {
+    h.loadAiConfig.mockResolvedValue(aiConfig({ autoreplyChannels: ['whatsapp'] }))
+    await dispatchInboundToAiReply(ARGS)
+    expect(h.engineSendText).toHaveBeenCalled()
   })
 
   it('skips when a human agent is assigned', async () => {

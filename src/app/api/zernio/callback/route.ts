@@ -19,7 +19,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { getPublicOrigin } from '@/lib/http/request-origin'
 
-const PLATFORMS = ['whatsapp', 'instagram'] as const
+const PLATFORMS = ['whatsapp', 'instagram', 'facebook'] as const
 type Platform = (typeof PLATFORMS)[number]
 
 function isPlatform(value: string | null): value is Platform {
@@ -105,7 +105,11 @@ export async function GET(request: NextRequest) {
   )
 
   const column =
-    platform === 'whatsapp' ? 'whatsapp_account_id' : 'instagram_account_id'
+    platform === 'whatsapp'
+      ? 'whatsapp_account_id'
+      : platform === 'facebook'
+        ? 'facebook_account_id'
+        : 'instagram_account_id'
 
   const { data, error } = await admin
     .from('client_zernio_accounts')

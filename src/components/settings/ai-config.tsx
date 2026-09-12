@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PromptCard } from './prompt-card';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Card,
   CardContent,
@@ -88,6 +89,10 @@ export function AiConfig() {
   const [qualificationCriteria, setQualificationCriteria] = useState('');
   const [isActive, setIsActive] = useState(false);
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(false);
+  // Which inbound channels the bot may answer on (migration 082).
+  // Defaults to WhatsApp-only so an account that never touches this
+  // keeps its exact current behavior.
+  const [autoreplyChannels, setAutoreplyChannels] = useState<string[]>(['whatsapp']);
   const [salesModeEnabled, setSalesModeEnabled] = useState(false);
   const [aiSchedulingEnabled, setAiSchedulingEnabled] = useState(false);
   const [googleCalendarSyncEnabled, setGoogleCalendarSyncEnabled] = useState(false);
@@ -155,6 +160,11 @@ export function AiConfig() {
         setQualificationCriteria(data.qualification_criteria ?? '');
         setIsActive(data.is_active);
         setAutoReplyEnabled(data.auto_reply_enabled);
+        setAutoreplyChannels(
+          Array.isArray(data.autoreply_channels) && data.autoreply_channels.length
+            ? data.autoreply_channels
+            : ['whatsapp'],
+        );
         setSalesModeEnabled(Boolean(data.sales_mode_enabled));
         setAiSchedulingEnabled(Boolean(data.ai_scheduling_enabled));
         setGoogleCalendarSyncEnabled(Boolean(data.google_calendar_sync_enabled));
@@ -267,6 +277,7 @@ export function AiConfig() {
     qualification_criteria: qualificationCriteria.trim() || null,
     is_active: isActive,
     auto_reply_enabled: autoReplyEnabled,
+    autoreply_channels: autoreplyChannels,
     sales_mode_enabled: salesModeEnabled,
     ai_scheduling_enabled: aiSchedulingEnabled,
     google_calendar_sync_enabled: googleCalendarSyncEnabled,
@@ -374,6 +385,7 @@ export function AiConfig() {
         setKeyEdited(false);
         setIsActive(false);
         setAutoReplyEnabled(false);
+        setAutoreplyChannels(['whatsapp']);
         setSalesModeEnabled(false);
         setAiSchedulingEnabled(false);
         setGoogleCalendarSyncEnabled(false);
@@ -666,6 +678,40 @@ export function AiConfig() {
                 disabled={disabled || !isActive}
               />
             </div>
+
+            {autoReplyEnabled && (
+              <div className="rounded-md border border-border p-3">
+                <p className="text-sm font-medium text-foreground">
+                  {t('autoreplyChannels')}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t('autoreplyChannelsDesc')}
+                </p>
+                <div className="mt-3 space-y-2">
+                  {(['whatsapp', 'messenger'] as const).map((channel) => (
+                    <label
+                      key={channel}
+                      className="flex cursor-pointer items-center gap-2.5"
+                    >
+                      <Checkbox
+                        checked={autoreplyChannels.includes(channel)}
+                        onCheckedChange={(checked) =>
+                          setAutoreplyChannels((prev) =>
+                            checked === true
+                              ? [...prev, channel]
+                              : prev.filter((c) => c !== channel),
+                          )
+                        }
+                        disabled={disabled}
+                      />
+                      <span className="text-sm text-foreground">
+                        {channel === 'whatsapp' ? t('channelWhatsapp') : t('channelMessenger')}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="flex items-center justify-between gap-4 rounded-md border border-border p-3">
               <div>

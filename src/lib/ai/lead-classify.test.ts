@@ -53,6 +53,7 @@ function aiConfig(overrides: Partial<AiConfig> = {}): AiConfig {
     qualificationCriteria: 'Score HOT when the lead has budget and urgency.',
     isActive: true,
     autoReplyEnabled: false,
+    autoreplyChannels: ['whatsapp'],
     salesModeEnabled: false,
     aiSchedulingEnabled: false,
     googleCalendarSyncEnabled: false,

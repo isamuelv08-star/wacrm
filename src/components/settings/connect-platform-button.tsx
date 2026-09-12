@@ -9,11 +9,19 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 
-export type ZernioPlatform = 'whatsapp' | 'instagram';
+// 'facebook' is Zernio's own name for a connected Facebook Page
+// (Messenger) — see the connect/callback routes' comments for why the
+// literal string has to match Zernio's, not our internal "messenger"
+// platform name.
+export type ZernioPlatform = 'whatsapp' | 'instagram' | 'facebook';
 
-const ACCOUNT_ID_COLUMN: Record<ZernioPlatform, 'whatsapp_account_id' | 'instagram_account_id'> = {
+const ACCOUNT_ID_COLUMN: Record<
+  ZernioPlatform,
+  'whatsapp_account_id' | 'instagram_account_id' | 'facebook_account_id'
+> = {
   whatsapp: 'whatsapp_account_id',
   instagram: 'instagram_account_id',
+  facebook: 'facebook_account_id',
 };
 
 /**
