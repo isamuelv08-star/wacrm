@@ -7,10 +7,9 @@ import { useTranslations } from 'next-intl';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { SettingsPanelHead } from './settings-panel-head';
-import { ConnectPlatformButton } from './connect-platform-button';
 import { WhatsAppChannelOptions } from './whatsapp-channel-options';
 import { GoogleCalendarConnect } from './google-calendar-connect';
-import { useAuth } from '@/hooks/use-auth';
+import { PlatformIcon } from '@/components/inbox/platform-accent';
 
 /**
  * Integrations tab — one "Channels" list, three ways to connect
@@ -31,7 +30,6 @@ export function IntegrationsPanel() {
   const t = useTranslations('Settings.integrations');
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { accountId } = useAuth();
   const handledRef = useRef(false);
 
   useEffect(() => {
@@ -91,14 +89,19 @@ export function IntegrationsPanel() {
           {/* Both ways to connect WhatsApp, grouped together. */}
           <WhatsAppChannelOptions />
 
-          <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-4">
-            <div>
-              <p className="text-sm font-medium text-foreground">{t('platform.instagram')}</p>
-              <p className="text-xs text-muted-foreground">{t('instagramHint')}</p>
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-4 opacity-75">
+            <div className="flex items-center gap-3">
+              <PlatformIcon platform="instagram" className="h-4 w-4" />
+              <div>
+                <p className="flex items-center gap-2 text-sm font-medium text-foreground">
+                  {t('platform.instagram')}
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                    {t('comingSoon')}
+                  </span>
+                </p>
+                <p className="text-xs text-muted-foreground">{t('instagramComingSoonHint')}</p>
+              </div>
             </div>
-            {accountId ? (
-              <ConnectPlatformButton platform="instagram" profileId={accountId} />
-            ) : null}
           </div>
         </CardContent>
       </Card>

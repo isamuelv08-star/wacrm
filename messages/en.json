@@ -1921,6 +1921,8 @@
       },
       "whatsappHint": "Connect a WhatsApp Business account via Zernio.",
       "instagramHint": "Connect an Instagram professional account via Zernio.",
+      "comingSoon": "Coming soon",
+      "instagramComingSoonHint": "We're building message sending/receiving for Instagram. Don't connect it yet — nothing would happen with the messages for now.",
       "connect": "Connect",
       "connected": "Connected ✓",
       "adminOnly": "Only account admins can connect a channel.",

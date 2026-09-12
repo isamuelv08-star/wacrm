@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/use-auth';
 import { ConnectPlatformButton } from './connect-platform-button';
 import { WhatsAppApiConnectCard } from './whatsapp-api-connect-card';
+import { PlatformIcon } from '@/components/inbox/platform-accent';
 
 /**
  * The two ways to connect a WhatsApp number, as a plain list of rows
@@ -21,9 +22,12 @@ export function WhatsAppChannelOptions() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-4">
-        <div>
-          <p className="text-sm font-medium text-foreground">{t('platform.whatsapp')}</p>
-          <p className="text-xs text-muted-foreground">{t('whatsappHint')}</p>
+        <div className="flex items-center gap-3">
+          <PlatformIcon platform="whatsapp" className="h-4 w-4" />
+          <div>
+            <p className="text-sm font-medium text-foreground">{t('platform.whatsapp')}</p>
+            <p className="text-xs text-muted-foreground">{t('whatsappHint')}</p>
+          </div>
         </div>
         {accountId ? <ConnectPlatformButton platform="whatsapp" profileId={accountId} /> : null}
       </div>

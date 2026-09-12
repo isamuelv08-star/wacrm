@@ -9,7 +9,8 @@ import {
 } from "@/lib/inbox/conversations";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus, Tag } from "@/types";
-import { Search, ChevronDown, X, Inbox, MessageCircle, Camera } from "lucide-react";
+import { Search, ChevronDown, X, Inbox } from "lucide-react";
+import { InstagramGlyph, WhatsAppGlyph } from "@/components/icons/brand-icons";
 import { formatDistanceToNow } from "date-fns";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/hooks/use-auth";
@@ -430,7 +431,7 @@ export function ConversationList({
               : tab === "instagram"
                 ? t("platformInstagram")
                 : t("platformAll");
-          const Icon = tab === "whatsapp" ? MessageCircle : tab === "instagram" ? Camera : Inbox;
+          const Icon = tab === "whatsapp" ? WhatsAppGlyph : tab === "instagram" ? InstagramGlyph : Inbox;
           return (
             <button
               key={tab}

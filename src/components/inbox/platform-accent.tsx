@@ -1,4 +1,4 @@
-import { Camera, MessageCircle } from "lucide-react";
+import { InstagramGlyph, WhatsAppGlyph } from "@/components/icons/brand-icons";
 import {
   INSTAGRAM_GRADIENT,
   WHATSAPP_TINT,
@@ -8,9 +8,8 @@ import {
 /**
  * Small filled icon chip identifying a conversation's platform — used on
  * the "Todas" tab so each row's origin is recognizable at a glance without
- * fully tinting the row. Lucide dropped brand marks a while back, so
- * Instagram is represented by a camera glyph on the gradient rather than
- * the literal logo.
+ * fully tinting the row. Uses each platform's actual glyph mark (see
+ * @/components/icons/brand-icons), not a generic lucide stand-in.
  */
 export function PlatformIcon({
   platform,
@@ -29,7 +28,7 @@ export function PlatformIcon({
         className="flex items-center justify-center rounded-full p-[3px] text-white shadow-sm ring-2 ring-card"
         style={{ backgroundImage: INSTAGRAM_GRADIENT }}
       >
-        <Camera className={className} />
+        <InstagramGlyph className={className} />
       </span>
     );
   }
@@ -39,7 +38,7 @@ export function PlatformIcon({
       className="flex items-center justify-center rounded-full p-[3px] text-white shadow-sm ring-2 ring-card"
       style={{ backgroundColor: WHATSAPP_TINT }}
     >
-      <MessageCircle className={className} />
+      <WhatsAppGlyph className={className} />
     </span>
   );
 }
