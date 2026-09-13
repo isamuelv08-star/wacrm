@@ -550,7 +550,7 @@ export default function DashboardPage() {
           compact unit. The selector drives Response Time below and the
           whole Sales section — NOT the four "Today" KPI cards, which
           stay on their own fixed daily window (see loadAll). */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">
             {t('welcome', { name: profile?.full_name || t('defaultUser') })}

@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useTheme } from "@/hooks/use-theme";
 import type { Mode } from "@/lib/themes";
 import {
+  ChevronDown,
   Globe,
   LogOut,
   Menu,
@@ -143,6 +144,7 @@ export function Header({ onOpenSidebar }: HeaderProps) {
           <span className="hidden text-sm font-medium text-foreground sm:inline">
             {profile?.full_name ?? t("defaultUser")}
           </span>
+          <ChevronDown className="hidden size-4 text-muted-foreground sm:inline" />
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="end"

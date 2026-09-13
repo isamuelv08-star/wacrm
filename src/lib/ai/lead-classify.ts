@@ -61,6 +61,16 @@ export async function classifyLeadIfNeeded(args: ClassifyArgs): Promise<void> {
     const messages = await buildConversationContext(db, conversationId)
     if (messages.length === 0) return
 
+    // Snapshot BEFORE the (slow) provider call — see the re-check right
+    // after it for why. Missing row / column just means "no baseline
+    // yet", never a reason to skip.
+    const { data: beforeRow } = await db
+      .from('contacts')
+      .select('lead_score_assessed_at')
+      .eq('id', contactId)
+      .maybeSingle()
+    const assessedAtBeforeCall = beforeRow?.lead_score_assessed_at ?? null
+
     const systemPrompt = buildClassificationPrompt({
       userPrompt: config.systemPrompt,
       qualificationCriteria: config.qualificationCriteria,
@@ -82,6 +92,28 @@ export async function classifyLeadIfNeeded(args: ClassifyArgs): Promise<void> {
     })
 
     if (!score) return // model had nothing new/confident to assess this turn
+
+    // Same race this fixes for auto-reply's double-send bug: a customer
+    // sending several messages in quick succession fires one
+    // classifyLeadIfNeeded per inbound, each running its OWN provider
+    // call independently and with no ordering guarantee between them.
+    // Without this check, an EARLIER message's classification (built
+    // from less conversation, arguably the less-informed verdict) can
+    // finish AFTER a later message's and silently overwrite it — which
+    // read as "the AI activity feed said HOT, but the contact's badge
+    // never changed / went back to warm". Bail if a newer assessment
+    // has already landed while this one's provider call was in flight.
+    const { data: afterRow } = await db
+      .from('contacts')
+      .select('lead_score_assessed_at')
+      .eq('id', contactId)
+      .maybeSingle()
+    if ((afterRow?.lead_score_assessed_at ?? null) !== assessedAtBeforeCall) {
+      console.log(
+        `[ai lead-classify] contact ${contactId}: a newer assessment landed while this one was in flight — standing down instead of overwriting it.`,
+      )
+      return
+    }
 
     // Credit the conversation's assigned agent as the deal owner, if it
     // has one, instead of drawing a fresh round-robin pick — same
