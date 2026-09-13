@@ -544,11 +544,13 @@ export default function DashboardPage() {
   return (
     <div className="space-y-5">
       {/* Header — greets the signed-in user by name (falls back to a
-          generic label while the profile is still loading / unset).
-          The period selector on the right drives Response Time below
-          and the whole Sales section — NOT the four "Today" KPI cards,
-          which stay on their own fixed daily window (see loadAll). */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          generic label while the profile is still loading / unset),
+          with the period selector grouped right beside it (not pushed
+          to the far right via justify-between) so the two read as one
+          compact unit. The selector drives Response Time below and the
+          whole Sales section — NOT the four "Today" KPI cards, which
+          stay on their own fixed daily window (see loadAll). */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">
             {t('welcome', { name: profile?.full_name || t('defaultUser') })}
@@ -557,7 +559,7 @@ export default function DashboardPage() {
             {t('description')}
           </p>
         </div>
-        <div className="flex flex-col items-start gap-1 sm:items-end">
+        <div className="flex flex-col items-start gap-1">
           <PeriodSelector
             preset={preset}
             customStart={customStart}

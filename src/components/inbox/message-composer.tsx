@@ -662,10 +662,6 @@ export function MessageComposer({
                 <FileText className="mr-2 h-4 w-4" />
                 {t("document")}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => void startRecording()}>
-                <Mic className="mr-2 h-4 w-4" />
-                {t("voiceNote")}
-              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -749,6 +745,27 @@ export function MessageComposer({
               (sessionExpired || readOnly) && "cursor-not-allowed opacity-50"
             )}
           />
+
+          {/* Voice note — its own button next to the message bar rather
+              than buried inside the attach menu, so recording a voice
+              note is a single click like it is in WhatsApp itself. Only
+              shown with nothing typed yet (mirrors send's own visibility
+              logic below) — once there's text, Send is the one action
+              that makes sense here. */}
+          {!text.trim() && (
+            <GatedButton
+              variant="ghost"
+              size="sm"
+              canAct={!readOnly}
+              gateReason="send messages"
+              disabled={sessionExpired}
+              title={readOnly ? undefined : t("voiceNote")}
+              className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground"
+              onClick={() => void startRecording()}
+            >
+              <Mic className="h-4 w-4" />
+            </GatedButton>
+          )}
 
           <GatedButton
             size="sm"

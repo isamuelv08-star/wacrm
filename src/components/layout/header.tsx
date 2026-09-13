@@ -24,6 +24,7 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
@@ -181,48 +182,52 @@ export function Header({ onOpenSidebar }: HeaderProps) {
           </DropdownMenuItem>
 
           <DropdownMenuSeparator className="bg-border" />
-          <DropdownMenuLabel className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Globe className="size-3.5" />
-            {t("menuLanguage")}
-          </DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={currentLocale}
-            onValueChange={(value) => handleLocaleChange(value as SupportedLocale)}
-          >
-            {SUPPORTED_LOCALES.map((locale) => (
-              <DropdownMenuRadioItem
-                key={locale}
-                value={locale}
-                disabled={localePending}
-                className="text-popover-foreground focus:bg-accent focus:text-accent-foreground"
-              >
-                {LOCALE_LABELS[locale]}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Globe className="size-3.5" />
+              {t("menuLanguage")}
+            </DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={currentLocale}
+              onValueChange={(value) => handleLocaleChange(value as SupportedLocale)}
+            >
+              {SUPPORTED_LOCALES.map((locale) => (
+                <DropdownMenuRadioItem
+                  key={locale}
+                  value={locale}
+                  disabled={localePending}
+                  className="text-popover-foreground focus:bg-accent focus:text-accent-foreground"
+                >
+                  {LOCALE_LABELS[locale]}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuGroup>
 
           <DropdownMenuSeparator className="bg-border" />
-          <DropdownMenuLabel className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            {mode === "dark" ? <Moon className="size-3.5" /> : <Sun className="size-3.5" />}
-            {t("menuAppearance")}
-          </DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={mode}
-            onValueChange={(value) => setMode(value as Mode)}
-          >
-            <DropdownMenuRadioItem
-              value="light"
-              className="text-popover-foreground focus:bg-accent focus:text-accent-foreground"
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              {mode === "dark" ? <Moon className="size-3.5" /> : <Sun className="size-3.5" />}
+              {t("menuAppearance")}
+            </DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={mode}
+              onValueChange={(value) => setMode(value as Mode)}
             >
-              {t("modeLight")}
-            </DropdownMenuRadioItem>
-            <DropdownMenuRadioItem
-              value="dark"
-              className="text-popover-foreground focus:bg-accent focus:text-accent-foreground"
-            >
-              {t("modeDark")}
-            </DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
+              <DropdownMenuRadioItem
+                value="light"
+                className="text-popover-foreground focus:bg-accent focus:text-accent-foreground"
+              >
+                {t("modeLight")}
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem
+                value="dark"
+                className="text-popover-foreground focus:bg-accent focus:text-accent-foreground"
+              >
+                {t("modeDark")}
+              </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuGroup>
 
           <DropdownMenuSeparator className="bg-border" />
           <DropdownMenuItem

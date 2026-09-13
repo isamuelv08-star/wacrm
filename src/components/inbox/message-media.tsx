@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import type { Message } from "@/types";
 import { downloadMediaMessage } from "@/lib/media/download";
 import { useMediaBlobUrl } from "@/hooks/use-media-blob-url";
+import { useAudioWaveform } from "@/hooks/use-audio-waveform";
 
 /**
  * The media renderers behind `<MessageBubble>`'s image / video / audio /
@@ -119,7 +120,7 @@ function MediaPlaceholder({
   return (
     <div
       className={cn(
-        "flex h-40 w-60 items-center justify-center rounded-lg bg-muted",
+        "flex h-40 w-60 items-center justify-center rounded-xl bg-muted",
         pulse && "animate-pulse",
       )}
     >
@@ -166,7 +167,7 @@ export function MediaImageBubble({
       alt={t("imageAlt")}
       className={cn(
         MEDIA_BOX,
-        "animate-in fade-in rounded-lg object-contain ring-1 ring-inset ring-foreground/10 duration-300",
+        "animate-in fade-in rounded-xl object-contain shadow-md ring-1 ring-inset ring-foreground/10 duration-300",
       )}
       onError={() => setBroken(true)}
     />
@@ -222,7 +223,7 @@ export function MediaVideoBubble({
         src={message.media_url}
         controls
         preload="metadata"
-        className={cn(MEDIA_BOX, "animate-in fade-in rounded-lg ring-1 ring-inset ring-foreground/10 duration-300")}
+        className={cn(MEDIA_BOX, "animate-in fade-in rounded-xl shadow-md ring-1 ring-inset ring-foreground/10 duration-300")}
       />
       {/* Top-right, clear of the native controls — and always visible, since
           expanding is the only way to watch a clip capped at 15rem wide and
@@ -262,9 +263,11 @@ function formatAudioTime(seconds: number): string {
  * The `<audio>` element itself is kept (muted of its native UI via
  * `controls={false}`) purely as the playback engine, driven through a
  * ref; play/pause, seek, and the elapsed/total time readout are all
- * custom-rendered so a voice note reads like the rest of the inbox —
- * a compact pill with a play button, a slim progress track, and a mic
- * glyph to distinguish it from other bubble types at a glance.
+ * custom-rendered. The scrub track is a real waveform (see
+ * `useAudioWaveform`) rather than a flat progress bar — bars already
+ * played fill with the primary color, the rest stay a soft neutral
+ * tint, same visual language WhatsApp/most modern chat apps use for a
+ * voice note, and a click anywhere on it seeks.
  */
 export function MediaAudioBubble({
   message,
@@ -275,9 +278,11 @@ export function MediaAudioBubble({
 }) {
   const { downloading, download } = useMediaDownload(message, t);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const waveformRef = useRef<HTMLDivElement>(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const { peaks } = useAudioWaveform(message.media_url);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -310,18 +315,32 @@ export function MediaAudioBubble({
     }
   }
 
-  function seek(e: React.ChangeEvent<HTMLInputElement>) {
+  function seekToFraction(fraction: number) {
     const audio = audioRef.current;
-    if (!audio) return;
-    const next = Number(e.target.value);
+    if (!audio || !duration) return;
+    const next = Math.min(duration, Math.max(0, fraction * duration));
     audio.currentTime = next;
     setCurrentTime(next);
   }
 
+  function handleWaveformClick(e: React.MouseEvent<HTMLDivElement>) {
+    const el = waveformRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    seekToFraction((e.clientX - rect.left) / rect.width);
+  }
+
+  const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
+  // Skeleton bars — a fixed short/tall/short pattern reads as "a
+  // waveform is coming" rather than a suspicious flat line, for the
+  // moment before decoding finishes (or if it fails entirely; the
+  // click-to-seek behavior still works off `duration` either way).
+  const displayPeaks = peaks.length > 0 ? peaks : Array.from({ length: 40 }, (_, i) => (i % 3 === 0 ? 0.35 : 0.6));
+
   return (
     <div className="flex items-center gap-2">
       <audio ref={audioRef} src={message.media_url} preload="metadata" className="hidden" />
-      <div className="flex w-56 items-center gap-2.5 rounded-full bg-background/50 px-2 py-1.5">
+      <div className="flex w-60 items-center gap-2.5 rounded-full bg-background/50 px-2 py-1.5">
         <button
           type="button"
           onClick={togglePlay}
@@ -335,16 +354,31 @@ export function MediaAudioBubble({
           )}
         </button>
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <input
-            type="range"
-            min={0}
-            max={duration || 0}
-            step={0.1}
-            value={Math.min(currentTime, duration || 0)}
-            onChange={seek}
+          <div
+            ref={waveformRef}
+            onClick={handleWaveformClick}
+            role="slider"
             aria-label={t("audio")}
-            className="h-1 w-full cursor-pointer appearance-none rounded-full bg-foreground/15 accent-primary"
-          />
+            aria-valuemin={0}
+            aria-valuemax={duration || 0}
+            aria-valuenow={currentTime}
+            className="flex h-5 flex-1 cursor-pointer items-center gap-[2px]"
+          >
+            {displayPeaks.map((peak, i) => (
+              <span
+                key={i}
+                className={cn(
+                  "w-full min-w-[2px] rounded-full transition-colors",
+                  i / displayPeaks.length <= progress
+                    ? "bg-primary"
+                    : peaks.length > 0
+                      ? "bg-foreground/20"
+                      : "animate-pulse bg-foreground/10",
+                )}
+                style={{ height: `${Math.max(15, peak * 100)}%` }}
+              />
+            ))}
+          </div>
           <span className="flex items-center gap-1 text-[10px] tabular-nums text-muted-foreground">
             <Mic className="h-2.5 w-2.5 shrink-0" />
             {formatAudioTime(playing || currentTime > 0 ? currentTime : duration)}

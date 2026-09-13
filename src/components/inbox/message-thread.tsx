@@ -1307,6 +1307,11 @@ export function MessageThread({
                           onToggleReaction={handlePillToggle}
                           onOpenMedia={handleMediaChange}
                           platform={platform}
+                          senderLabel={
+                            msg.sender_type === "agent" || msg.sender_type === "bot"
+                              ? t("me")
+                              : contactDisplayName
+                          }
                         />
                       </MessageActions>
                     );

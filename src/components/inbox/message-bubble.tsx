@@ -47,6 +47,13 @@ interface MessageBubbleProps {
   onOpenMedia?: (messageId: string) => void;
   /** Drives the outgoing-bubble accent color; defaults to "whatsapp". */
   platform?: ConversationPlatform;
+  /** Shown above the bubble — "You"/agent name for outbound, the
+   *  contact's name for inbound. Every bubble gets one (no consecutive-
+   *  message grouping yet), which reads a little repetitive in a long
+   *  back-and-forth but is unambiguous, and is what actually makes the
+   *  thread look like a real multi-line chat instead of a stack of
+   *  timestamps-only bubbles. */
+  senderLabel?: string;
 }
 
 // Soft, mode-adaptive fill for the agent's own bubbles — blended against
@@ -245,11 +252,23 @@ export function MessageBubble({
   onToggleReaction,
   onOpenMedia,
   platform = "whatsapp",
+  senderLabel,
 }: MessageBubbleProps) {
   const t = useTranslations("Inbox.bubble");
 
   const isAgent = message.sender_type === "agent" || message.sender_type === "bot";
   const time = format(new Date(message.created_at), "HH:mm");
+
+  // A bare photo/video (no caption, not a reply) gets the "native
+  // attachment" treatment instead of sitting padded inside the tinted
+  // bubble fill: no background/padding around the image itself, with
+  // the timestamp overlaid bottom-right on a small scrim — the same
+  // convention WhatsApp itself (and the reference design) uses, versus
+  // a text bubble that always keeps its colored fill.
+  const isBarePhotoOrVideo =
+    (message.content_type === "image" || message.content_type === "video") &&
+    !message.content_text &&
+    !reply;
 
   // Row alignment + width cap are owned by <MessageActions> so its hover
   // group matches the bubble's content area, not the full row.
@@ -260,53 +279,72 @@ export function MessageBubble({
         isAgent ? "items-end" : "items-start",
       )}
     >
-      <div
-        className={cn(
-          "relative rounded-[20px] px-4 py-2.5 shadow-sm",
-          isAgent ? "text-foreground" : "bg-muted text-foreground",
-        )}
-        style={isAgent ? outgoingBubbleStyle(platform) : undefined}
-      >
-        {reply && (
-          <ReplyQuote
-            authorLabel={reply.authorLabel}
-            preview={reply.preview}
-            onPrimary={isAgent}
-          />
-        )}
-        <MessageContent message={message} t={t} onOpenMedia={onOpenMedia} />
-        <div
+      {senderLabel && (
+        <span
           className={cn(
-            "mt-1 flex items-center gap-1",
-            isAgent ? "justify-end" : "justify-start",
+            "mb-1 px-1 text-[11px] font-medium text-muted-foreground",
+            isAgent ? "text-right" : "text-left",
           )}
         >
-          {/* AI badge — only on replies the auto-reply bot generated
-              (always outbound). Outbound bubbles now sit on a soft
-              platform-tinted fill (not the solid primary color), so this
-              reads against `text-foreground` like the rest of the bubble
-              rather than `text-primary-foreground`. Lets agents tell an
-              AI reply from their own / a Flow's at a glance. */}
-          {message.ai_generated && (
-            <span
-              className="inline-flex items-center gap-0.5 rounded-full bg-foreground/10 px-1.5 py-px text-[9px] font-semibold uppercase leading-none tracking-wide text-foreground/80"
-              title={t("aiBadgeTitle")}
-            >
-              <Sparkles className="h-2.5 w-2.5" />
-              {t("aiBadge")}
-            </span>
-          )}
-          <span
-            className={cn(
-              "text-[10px]",
-              isAgent ? "text-foreground/60" : "text-muted-foreground",
-            )}
-          >
+          {senderLabel}
+        </span>
+      )}
+      {isBarePhotoOrVideo ? (
+        <div className="relative overflow-hidden rounded-[20px] shadow-sm">
+          <MessageContent message={message} t={t} onOpenMedia={onOpenMedia} />
+          <span className="pointer-events-none absolute bottom-1.5 right-1.5 rounded-full bg-black/45 px-2 py-0.5 text-[10px] text-white/90 backdrop-blur-sm">
             {time}
           </span>
-          {isAgent && <StatusIcon status={message.status} />}
         </div>
-      </div>
+      ) : (
+        <div
+          className={cn(
+            "relative rounded-[20px] px-4 py-2.5 shadow-sm",
+            isAgent ? "text-foreground" : "bg-muted text-foreground",
+          )}
+          style={isAgent ? outgoingBubbleStyle(platform) : undefined}
+        >
+          {reply && (
+            <ReplyQuote
+              authorLabel={reply.authorLabel}
+              preview={reply.preview}
+              onPrimary={isAgent}
+            />
+          )}
+          <MessageContent message={message} t={t} onOpenMedia={onOpenMedia} />
+          <div
+            className={cn(
+              "mt-1 flex items-center gap-1",
+              isAgent ? "justify-end" : "justify-start",
+            )}
+          >
+            {/* AI badge — only on replies the auto-reply bot generated
+                (always outbound). Outbound bubbles now sit on a soft
+                platform-tinted fill (not the solid primary color), so this
+                reads against `text-foreground` like the rest of the bubble
+                rather than `text-primary-foreground`. Lets agents tell an
+                AI reply from their own / a Flow's at a glance. */}
+            {message.ai_generated && (
+              <span
+                className="inline-flex items-center gap-0.5 rounded-full bg-foreground/10 px-1.5 py-px text-[9px] font-semibold uppercase leading-none tracking-wide text-foreground/80"
+                title={t("aiBadgeTitle")}
+              >
+                <Sparkles className="h-2.5 w-2.5" />
+                {t("aiBadge")}
+              </span>
+            )}
+            <span
+              className={cn(
+                "text-[10px]",
+                isAgent ? "text-foreground/60" : "text-muted-foreground",
+              )}
+            >
+              {time}
+            </span>
+            {isAgent && <StatusIcon status={message.status} />}
+          </div>
+        </div>
+      )}
       {reactions && reactions.length > 0 && onToggleReaction && (
         <MessageReactions
           reactions={reactions}
