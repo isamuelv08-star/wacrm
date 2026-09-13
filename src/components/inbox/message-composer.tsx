@@ -536,7 +536,7 @@ export function MessageComposer({
   // ---- Render --------------------------------------------------------
 
   return (
-    <div className="border-t border-border bg-card p-3">
+    <div className="bg-card p-3 shadow-[0_-1px_8px_-2px_rgb(0_0_0_/_0.08)]">
       {replyTo && (
         <div className="mb-2">
           <ReplyQuote

@@ -780,6 +780,7 @@ function InboxPageInner() {
               onAiAutoReplyChange={handleAiAutoReplyChange}
               open={contactPanelOpen}
               onToggle={handleToggleContactPanel}
+              messages={messages}
             />
           </div>
         </div>

@@ -4,23 +4,26 @@ import { useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
+import { CalendarClock } from 'lucide-react';
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { SettingsPanelHead } from './settings-panel-head';
-import { WhatsAppChannelOptions } from './whatsapp-channel-options';
+import { ConnectPlatformButton } from './connect-platform-button';
+import { WhatsAppApiConnectCard } from './whatsapp-api-connect-card';
+import { MessengerConnectCard } from './messenger-connect-card';
 import { GoogleCalendarConnect } from './google-calendar-connect';
+import { IntegrationCard } from './integration-card';
 import { PlatformIcon } from '@/components/inbox/platform-accent';
+import { useAuth } from '@/hooks/use-auth';
 
 /**
- * Integrations tab — one "Channels" list, three ways to connect
- * WhatsApp/Instagram: Zernio's guided Meta OAuth flow (no manual
- * credentials), or your own Meta Cloud API credentials / a
- * Coexistence provider like Dualhook (the "WhatsApp (API)" card,
- * whose full form now opens in a dialog instead of always sitting
- * inline on the page). The two WhatsApp options are grouped together
- * via <WhatsAppChannelOptions> — shared with the onboarding wizard so
- * both surfaces offer the same choice instead of onboarding hardcoding
- * just the API form.
+ * Integrations tab — an app-store-style grid of connection tiles
+ * instead of a stacked list of full-width rows: WhatsApp and Messenger
+ * each have two ways to connect (Zernio's guided Meta OAuth flow via
+ * <ConnectPlatformButton>, or your own credentials via
+ * <WhatsAppApiConnectCard> / <MessengerConnectCard> — both rendered
+ * with `variant="card"` here; onboarding's linear list still uses
+ * their default row variant), plus Instagram (coming soon) and Google
+ * Calendar.
  *
  * Also picks up the `zernio_*` query params that /api/zernio/callback
  * redirects back with and surfaces them as a toast, then strips them
@@ -28,6 +31,7 @@ import { PlatformIcon } from '@/components/inbox/platform-accent';
  */
 export function IntegrationsPanel() {
   const t = useTranslations('Settings.integrations');
+  const { accountId } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const handledRef = useRef(false);
@@ -78,51 +82,46 @@ export function IntegrationsPanel() {
   return (
     <section className="animate-in fade-in-50 duration-200">
       <SettingsPanelHead title={t('title')} description={t('description')} />
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-foreground">{t('channelsTitle')}</CardTitle>
-          <CardDescription className="text-muted-foreground">
-            {t('channelsDesc')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Both ways to connect WhatsApp, grouped together. */}
-          <WhatsAppChannelOptions />
 
-          <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-4 opacity-75">
-            <div className="flex items-center gap-3">
-              <PlatformIcon platform="instagram" className="h-4 w-4" />
-              <div>
-                <p className="flex items-center gap-2 text-sm font-medium text-foreground">
-                  {t('platform.instagram')}
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                    {t('comingSoon')}
-                  </span>
-                </p>
-                <p className="text-xs text-muted-foreground">{t('instagramComingSoonHint')}</p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <IntegrationCard
+          icon={<PlatformIcon platform="whatsapp" />}
+          name={t('platform.whatsapp')}
+          subtitle={t('whatsappHint')}
+          action={accountId ? <ConnectPlatformButton platform="whatsapp" profileId={accountId} /> : null}
+        />
 
-      <Card className="mt-4">
-        <CardHeader>
-          <CardTitle className="text-foreground">{t('googleCalendar.title')}</CardTitle>
-          <CardDescription className="text-muted-foreground">
-            {t('googleCalendar.description')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-4">
-            <div>
-              <p className="text-sm font-medium text-foreground">{t('googleCalendar.title')}</p>
-              <p className="text-xs text-muted-foreground">{t('googleCalendar.hint')}</p>
-            </div>
-            <GoogleCalendarConnect />
-          </div>
-        </CardContent>
-      </Card>
+        <WhatsAppApiConnectCard variant="card" />
+
+        <IntegrationCard
+          icon={<PlatformIcon platform="messenger" />}
+          name={t('platform.facebook')}
+          subtitle={t('facebookHint')}
+          action={accountId ? <ConnectPlatformButton platform="facebook" profileId={accountId} /> : null}
+        />
+
+        <MessengerConnectCard variant="card" />
+
+        <IntegrationCard
+          icon={<PlatformIcon platform="instagram" />}
+          name={t('platform.instagram')}
+          badge={
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+              {t('comingSoon')}
+            </span>
+          }
+          subtitle={t('instagramComingSoonHint')}
+          action={null}
+          muted
+        />
+
+        <IntegrationCard
+          icon={<CalendarClock />}
+          name={t('googleCalendar.title')}
+          subtitle={t('googleCalendar.hint')}
+          action={<GoogleCalendarConnect />}
+        />
+      </div>
     </section>
   );
 }

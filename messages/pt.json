@@ -101,6 +101,10 @@
     "defaultAvatar": "Avatar",
     "menuProfile": "Perfil",
     "menuSettings": "Configurações",
+    "menuLanguage": "Idioma",
+    "menuAppearance": "Aparência",
+    "modeLight": "Claro",
+    "modeDark": "Escuro",
     "menuSignOut": "Sair",
     "ceo": "Painel CEO"
   },
@@ -465,6 +469,7 @@
     },
     "sidebar": {
       "contactInfo": "Informações do contato",
+      "media": "Mídia",
       "tags": "Tags",
       "notes": "Notas",
       "deals": "Negócios",

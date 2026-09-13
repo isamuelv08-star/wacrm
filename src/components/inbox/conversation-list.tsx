@@ -428,7 +428,7 @@ export function ConversationList({
           fit their intrinsic content width, and without this they simply
           overflowed the column and rendered on top of the thread panel
           to its right instead of scrolling within their own row. */}
-      <div className="flex items-center gap-1.5 overflow-x-auto border-b border-border px-3 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex items-center gap-1.5 overflow-x-auto px-3 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {PLATFORM_TAB_ORDER.map((tab) => {
           const isActive = platformFilter === tab;
           const label =
@@ -490,7 +490,7 @@ export function ConversationList({
           scroll (scrollbar hidden — this is a compact tab strip, not a
           scroll area anyone needs a visible track for) instead of
           letting it fall to a second line at narrower widths. */}
-      <div className="flex items-center gap-1 overflow-x-auto border-b border-border px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex items-center gap-1 overflow-x-auto px-3 pb-2.5 pt-0.5 shadow-[0_1px_8px_-4px_rgb(0_0_0_/_0.15)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {LEAD_SCORE_TAB_ORDER.map((tab) => {
           const isActive = leadScoreFilter === tab;
           const count = leadScoreCounts[tab];
@@ -534,14 +534,14 @@ export function ConversationList({
       </div>
 
       {/* Search + Filter */}
-      <div className="space-y-2 border-b border-border p-3">
+      <div className="space-y-2 p-3">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
             onChange={handleSearchChange}
             placeholder={t("searchPlaceholder")}
-            className="border-border bg-muted pl-9 text-sm text-foreground placeholder-muted-foreground focus:border-primary/50"
+            className="rounded-full border-transparent bg-muted pl-10 text-sm text-foreground placeholder-muted-foreground focus:border-primary/50 focus:bg-card"
           />
         </div>
 

@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
-import type { Contact, Deal, ContactNote, Tag, PipelineStage } from "@/types";
+import type { Contact, Deal, ContactNote, Tag, PipelineStage, Message } from "@/types";
+import { collectMediaGallery } from "@/lib/media/gallery";
+import { MediaLightbox } from "./media-lightbox";
 import {
   Phone,
   Mail,
@@ -19,6 +21,8 @@ import {
   SlidersHorizontal,
   PanelRightOpen,
   PanelRightClose,
+  Images,
+  PlayCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,6 +73,10 @@ interface ContactSidebarProps {
   open?: boolean;
   /** Flips `open`. Omit to render the panel with no collapse control. */
   onToggle?: () => void;
+  /** The active thread's messages — drives the "Media" tray below (every
+   *  image/video the customer sent or we sent, newest first). Absent
+   *  (no thread loaded yet) just hides that section. */
+  messages?: Message[];
 }
 
 export function ContactSidebar({
@@ -79,6 +87,7 @@ export function ContactSidebar({
   onAiAutoReplyChange,
   open = true,
   onToggle,
+  messages,
 }: ContactSidebarProps) {
   const tSidebar = useTranslations("Inbox.sidebar");
   const tThread = useTranslations("Inbox.messageThread");
@@ -91,6 +100,20 @@ export function ContactSidebar({
   const [tags, setTags] = useState<(Tag & { contact_tag_id: string })[]>([]);
   const [newNote, setNewNote] = useState("");
   const [addingNote, setAddingNote] = useState(false);
+
+  // Media tray — every image/video in the thread, newest first (the
+  // gallery helper itself returns thread order, oldest first, which is
+  // what the lightbox's ← / → expects; reverse only for the grid so the
+  // most recent share is the first thumbnail). Own lightbox instance
+  // rather than sharing MessageThread's — simpler than lifting that
+  // state up to the page, and having two mounted (only one ever "open")
+  // is harmless.
+  const mediaGallery = useMemo(() => collectMediaGallery(messages ?? []), [messages]);
+  const mediaGalleryNewestFirst = useMemo(
+    () => [...mediaGallery].reverse(),
+    [mediaGallery],
+  );
+  const [openMediaId, setOpenMediaId] = useState<string | null>(null);
 
   // Inline-editable contact fields. Local drafts re-seed whenever the
   // selected contact changes; saved on blur (only when actually dirty)
@@ -545,6 +568,58 @@ export function ContactSidebar({
             </>
           )}
 
+          {/* Media tray — every photo/video from this conversation, newest
+              first. Same lightbox the message bubbles open, so a thumbnail
+              here pages through the exact same set ← / →. */}
+          {mediaGalleryNewestFirst.length > 0 && (
+            <>
+              <div>
+                <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <Images className="h-3 w-3" />
+                  {tSidebar("media")}
+                  <span className="text-muted-foreground/70">
+                    {mediaGalleryNewestFirst.length}
+                  </span>
+                </div>
+                <div className="mt-2 grid grid-cols-4 gap-1.5">
+                  {mediaGalleryNewestFirst.map((item) => (
+                    <button
+                      key={item.messageId}
+                      type="button"
+                      onClick={() => setOpenMediaId(item.messageId)}
+                      className="group relative aspect-square overflow-hidden rounded-md bg-muted"
+                    >
+                      {item.kind === "video" ? (
+                        <>
+                          <video
+                            src={item.url}
+                            className="h-full w-full object-cover"
+                            muted
+                            playsInline
+                            preload="metadata"
+                          />
+                          <span className="absolute inset-0 flex items-center justify-center bg-black/20 transition-colors group-hover:bg-black/35">
+                            <PlayCircle className="h-5 w-5 text-white drop-shadow" />
+                          </span>
+                        </>
+                      ) : (
+                        <img
+                          src={item.url}
+                          alt={item.caption || ""}
+                          loading="lazy"
+                          className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                        />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="my-4 border-t border-border" />
+            </>
+          )}
+
           {/* Tags */}
           <div>
             <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -673,6 +748,13 @@ export function ContactSidebar({
         stages={editingDealStages}
         defaultStageId={editingDeal?.stage_id}
         onSaved={fetchContactData}
+      />
+
+      <MediaLightbox
+        items={mediaGallery}
+        activeId={openMediaId}
+        onActiveIdChange={setOpenMediaId}
+        contactLabel={displayName}
       />
     </div>
   );

@@ -1079,8 +1079,10 @@ export function MessageThread({
         }}
       />
       {/* Header — solid card surface sits on top of the doodle so the
-          name/avatar/dropdowns stay legible. */}
-      <div className="flex items-center justify-between gap-2 border-b border-border bg-card px-3 py-3 sm:px-4">
+          name/avatar/dropdowns stay legible. A soft shadow (not a hard
+          border line) separates it from the thread below — same "no
+          divider" direction as the app's top header. */}
+      <div className="z-10 flex items-center justify-between gap-2 bg-card px-3 py-3.5 shadow-sm sm:px-5">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           {/* Back-to-list button — mobile only. Hidden on lg+ where the
               conversation list is always visible next to the thread. */}
@@ -1094,13 +1096,13 @@ export function MessageThread({
               <ArrowLeft className="h-5 w-5" />
             </button>
           )}
-          <AvatarRing platform={platform} sizeClass="h-9 w-9">
+          <AvatarRing platform={platform} sizeClass="h-10 w-10">
             <div className="flex h-full w-full items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
               {displayName.charAt(0).toUpperCase()}
             </div>
           </AvatarRing>
           <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold text-foreground">{displayName}</h2>
+            <h2 className="truncate text-[15px] font-semibold tracking-tight text-foreground">{displayName}</h2>
             <p className="truncate text-xs text-muted-foreground">{contact.phone}</p>
           </div>
           {/* Session timer badge — hidden on the narrowest phones so
@@ -1235,7 +1237,7 @@ export function MessageThread({
       {/* Messages Area — `chat-scroll` swaps the browser's default (thick,
           square, mismatched-with-theme) scrollbar for a thin themed one,
           same treatment pipeline-board.tsx's horizontal scroll uses. */}
-      <div ref={scrollRef} className="chat-scroll flex-1 overflow-y-auto px-4 py-4">
+      <div ref={scrollRef} className="chat-scroll flex-1 overflow-y-auto px-4 py-5 sm:px-6">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -1248,17 +1250,17 @@ export function MessageThread({
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-6">
             {messageGroups.map((group) => (
               <div key={group.date}>
                 {/* Date separator */}
                 <div className="mb-4 flex items-center justify-center">
-                  <span className="rounded-full bg-muted px-3 py-1 text-[10px] font-medium text-muted-foreground">
+                  <span className="rounded-full bg-card/80 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground shadow-sm backdrop-blur-sm">
                     {formatDateSeparator(group.date, t)}
                   </span>
                 </div>
                 {/* Messages + inline AI activity markers */}
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {group.items.map((item) => {
                     if (item.kind === "event") {
                       return <AiActivityPill key={item.event.id} event={item.event} />;

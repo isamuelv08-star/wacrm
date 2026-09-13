@@ -101,6 +101,10 @@
     "defaultAvatar": "아바타",
     "menuProfile": "프로필",
     "menuSettings": "설정",
+    "menuLanguage": "언어",
+    "menuAppearance": "화면 모드",
+    "modeLight": "라이트",
+    "modeDark": "다크",
     "menuSignOut": "로그아웃",
     "ceo": "CEO 대시보드"
   },
@@ -465,6 +469,7 @@
     },
     "sidebar": {
       "contactInfo": "연락처 정보",
+      "media": "미디어",
       "tags": "태그",
       "notes": "메모",
       "deals": "딜",
