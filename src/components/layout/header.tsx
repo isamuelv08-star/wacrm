@@ -38,6 +38,7 @@ import {
   LOCALE_LABELS,
   type SupportedLocale,
 } from "@/lib/i18n/locales";
+import { useDashboardHeaderSlot } from "@/components/layout/dashboard-header-slot";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "dashboard",
@@ -74,6 +75,8 @@ export function Header({ onOpenSidebar }: HeaderProps) {
   const pathname = usePathname();
   const { profile, signOut } = useAuth();
   const titleKey = getPageTitleKey(pathname);
+  const isDashboard = pathname === "/dashboard";
+  const { setSlotEl } = useDashboardHeaderSlot();
 
   // Language + appearance now live inside the account dropdown below
   // (see its DropdownMenuRadioGroup sections) instead of as separate
@@ -114,17 +117,31 @@ export function Header({ onOpenSidebar }: HeaderProps) {
         >
           <Menu className="h-5 w-5" />
         </button>
-        {/* The dashboard page renders its own "Welcome back" heading in
-            the body, so the header's generic page title would just
-            duplicate it — omit it there only. */}
-        {titleKey !== "dashboard" && (
+        {/* The dashboard page's own greeting lives HERE now (compact,
+            one line) instead of as its own separate heading further
+            down in the page body — that used to leave the account menu
+            stranded alone up top with nothing else on its row. The
+            page still portals its <PeriodSelector> into the slot div
+            below, onto this same line, via useDashboardHeaderSlot. */}
+        {isDashboard ? (
           <h1 className="truncate text-base font-semibold text-foreground sm:text-lg">
-            {t(titleKey as string)}
+            {t("welcome", { name: profile?.full_name || t("defaultUser") })}
           </h1>
+        ) : (
+          titleKey !== "dashboard" && (
+            <h1 className="truncate text-base font-semibold text-foreground sm:text-lg">
+              {t(titleKey as string)}
+            </h1>
+          )
         )}
       </div>
 
-      <div className="flex items-center gap-1 sm:gap-2">
+      <div className="flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-3">
+        {isDashboard && (
+          <div ref={setSlotEl} className="flex min-w-0 items-center gap-2" />
+        )}
+
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
         <DropdownMenu>
         <DropdownMenuTrigger
           className="flex items-center gap-2 rounded-md px-1 py-1 transition-colors hover:bg-muted/70 focus:bg-muted/70 focus:outline-none data-popup-open:bg-muted/70 sm:gap-3 sm:pl-1 sm:pr-3"
@@ -241,6 +258,7 @@ export function Header({ onOpenSidebar }: HeaderProps) {
           </DropdownMenuItem>
         </DropdownMenuContent>
         </DropdownMenu>
+        </div>
       </div>
     </header>
   );

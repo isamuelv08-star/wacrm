@@ -1,7 +1,9 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { usePathname } from 'next/navigation'
+import { useDashboardHeaderSlot } from '@/components/layout/dashboard-header-slot'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
 import { formatCurrency } from '@/lib/currency'
@@ -113,7 +115,7 @@ export default function DashboardPage() {
   const t = useTranslations('Dashboard.page')
   const tCeo = useTranslations('Dashboard.ceo.page')
   const tPeriod = useTranslations('Common.period')
-  const { profile, defaultCurrency, accountId, canViewDashboardSection } = useAuth()
+  const { defaultCurrency, accountId, canViewDashboardSection } = useAuth()
 
   // One /dashboard for everyone — what used to be a separate
   // owner-only /ceo page is now just a section of this page, gated
@@ -541,35 +543,34 @@ export default function DashboardPage() {
     [applyPeriodRange],
   )
 
+  // The greeting itself now renders in the shared Header (same line as
+  // the account menu — see header.tsx's `isDashboard` branch); this
+  // page only owns the period-selector's state, portaled onto that
+  // same line via the slot Header mounts for it. `slotEl` is null for
+  // one render on first mount (before Header's ref callback fires) —
+  // the portal just renders nothing that instant instead of erroring.
+  const { slotEl } = useDashboardHeaderSlot()
+
   return (
     <div className="space-y-5">
-      {/* Header — greets the signed-in user by name (falls back to a
-          generic label while the profile is still loading / unset),
-          with the period selector grouped right beside it (not pushed
-          to the far right via justify-between) so the two read as one
-          compact unit. The selector drives Response Time below and the
-          whole Sales section — NOT the four "Today" KPI cards, which
-          stay on their own fixed daily window (see loadAll). */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">
-            {t('welcome', { name: profile?.full_name || t('defaultUser') })}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t('description')}
-          </p>
-        </div>
-        <div className="flex flex-col items-start gap-1">
-          <PeriodSelector
-            preset={preset}
-            customStart={customStart}
-            customEnd={customEnd}
-            onPresetChange={handlePresetChange}
-            onCustomChange={handleCustomChange}
-          />
-          <span className="text-xs text-muted-foreground">{periodRangeLabel}</span>
-        </div>
-      </div>
+      {slotEl &&
+        createPortal(
+          <>
+            <PeriodSelector
+              preset={preset}
+              customStart={customStart}
+              customEnd={customEnd}
+              onPresetChange={handlePresetChange}
+              onCustomChange={handleCustomChange}
+            />
+            <span className="hidden truncate text-xs text-muted-foreground md:inline">
+              {periodRangeLabel}
+            </span>
+          </>,
+          slotEl,
+        )}
+
+      <p className="text-sm text-muted-foreground">{t('description')}</p>
 
       {/* Metric cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

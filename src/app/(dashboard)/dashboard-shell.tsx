@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
+import { DashboardHeaderSlotProvider } from "@/components/layout/dashboard-header-slot";
 import { PresenceHeartbeat } from "@/components/presence/presence-heartbeat";
 import { NewNotificationToastListener } from "@/components/notifications/new-notification-toast-listener";
 import { consumePendingInviteToken } from "@/lib/auth/pending-invite";
@@ -82,11 +83,13 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
           Headless — renders nothing. */}
       <NewNotificationToastListener />
       <Sidebar open={sidebarOpen} onClose={closeSidebar} />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Header onOpenSidebar={() => setSidebarOpen(true)} />
-        {/* Thinner horizontal padding on mobile so cards have room to breathe. */}
-        <main className="themed-scrollbar flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
-      </div>
+      <DashboardHeaderSlotProvider>
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <Header onOpenSidebar={() => setSidebarOpen(true)} />
+          {/* Thinner horizontal padding on mobile so cards have room to breathe. */}
+          <main className="themed-scrollbar flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
+        </div>
+      </DashboardHeaderSlotProvider>
     </div>
   );
 }

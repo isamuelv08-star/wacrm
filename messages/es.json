@@ -97,6 +97,7 @@
     "settings": "Configuración",
     "openMenu": "Abrir menú",
     "openAccountMenu": "Abrir menú de cuenta",
+    "welcome": "Bienvenido, {name}",
     "defaultUser": "Usuario",
     "defaultAvatar": "Avatar",
     "menuProfile": "Perfil",
