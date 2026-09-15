@@ -12,6 +12,7 @@ import { WhatsAppApiConnectCard } from './whatsapp-api-connect-card';
 import { GoogleCalendarConnect } from './google-calendar-connect';
 import { IntegrationCard } from './integration-card';
 import { PlatformLogoMono } from './platform-logo-mono';
+import { WhatsAppModeCard } from './whatsapp-mode-card';
 import { useAuth } from '@/hooks/use-auth';
 
 /**
@@ -34,7 +35,8 @@ import { useAuth } from '@/hooks/use-auth';
  */
 export function IntegrationsPanel() {
   const t = useTranslations('Settings.integrations');
-  const { accountId } = useAuth();
+  const { accountId, account } = useAuth();
+  const isMultiWhatsApp = account?.whatsapp_mode === 'multiwhatsapp';
   const router = useRouter();
   const searchParams = useSearchParams();
   const handledRef = useRef(false);
@@ -94,7 +96,17 @@ export function IntegrationsPanel() {
           action={accountId ? <ConnectPlatformButton platform="whatsapp" profileId={accountId} /> : null}
         />
 
-        <WhatsAppApiConnectCard variant="card" />
+        {/* Hidden once multi-WhatsApp is active: this card's whole
+            save/status flow assumes "the account's one number"
+            (.maybeSingle() throws on 2+ rows) — once there can be
+            several, WhatsAppModeCard's dialog is the only supported
+            way to add/edit/remove a direct-API number. The number(s)
+            connected before switching modes keep working either way;
+            this only hides the entry point that could otherwise
+            silently create a 3rd row instead of editing one. */}
+        {!isMultiWhatsApp && <WhatsAppApiConnectCard variant="card" />}
+
+        <WhatsAppModeCard />
 
         <IntegrationCard
           icon={<PlatformLogoMono platform="messenger" />}

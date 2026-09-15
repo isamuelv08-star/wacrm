@@ -194,13 +194,53 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { phone_number_id, waba_id, access_token, verify_token, pin, send_api_base } = body
+    const {
+      phone_number_id,
+      waba_id,
+      access_token,
+      verify_token,
+      pin,
+      send_api_base,
+      // Multi-number-per-account (migration 083/085) — all three
+      // optional and unused by every existing caller (the single-
+      // number Settings/onboarding flow never sends them), so this
+      // whole block is a no-op for anyone not explicitly opting in.
+      //   add_new     — insert a brand-new row instead of finding
+      //                 and overwriting the account's one existing
+      //                 row. Only allowed when the account is in
+      //                 'multiwhatsapp' mode (checked below) — a
+      //                 'shared' account can never end up with two
+      //                 rows through this route.
+      //   owner_user_id / label — which seller this number belongs
+      //                 to and its display name. Stored as-is; no
+      //                 validation that owner_user_id is actually a
+      //                 member of this account beyond RLS's own
+      //                 account-scoping (the numbers-management UI is
+      //                 the only caller that ever sends these).
+      add_new,
+      owner_user_id: bodyOwnerUserId,
+      label: bodyLabel,
+    } = body
 
     if (!access_token || !phone_number_id) {
       return NextResponse.json(
         { error: 'access_token and phone_number_id are required' },
         { status: 400 }
       )
+    }
+
+    if (add_new) {
+      const { data: accountRow, error: accountModeError } = await supabase
+        .from('accounts')
+        .select('whatsapp_mode')
+        .eq('id', accountId)
+        .maybeSingle()
+      if (accountModeError || accountRow?.whatsapp_mode !== 'multiwhatsapp') {
+        return NextResponse.json(
+          { error: 'Adding another number requires multi-WhatsApp mode to be active first.' },
+          { status: 400 },
+        )
+      }
     }
 
     // Optional per-connection override for outbound sends (e.g. a
@@ -306,11 +346,17 @@ export async function POST(request: Request) {
     // Look up any pre-existing row for this account so we know whether
     // this number is already registered with Meta — if so we can skip
     // /register when the user didn't provide a PIN this time around.
-    const { data: existing } = await supabase
-      .from('whatsapp_config')
-      .select('id, registered_at, phone_number_id')
-      .eq('account_id', accountId)
-      .maybeSingle()
+    // Skipped for add_new: once an account has more than one number,
+    // "the account's one row" is no longer a coherent question to ask
+    // (`.maybeSingle()` would throw on 2+ matches), and add_new always
+    // means "insert fresh" regardless of what else already exists.
+    const { data: existing } = add_new
+      ? { data: null }
+      : await supabase
+          .from('whatsapp_config')
+          .select('id, registered_at, phone_number_id')
+          .eq('account_id', accountId)
+          .maybeSingle()
 
     const sameNumber =
       existing?.phone_number_id === phone_number_id &&
@@ -409,6 +455,13 @@ export async function POST(request: Request) {
       subscribed_apps_at: subscribedAppsAt ?? null,
       last_registration_error: registrationError,
       updated_at: new Date().toISOString(),
+      // Only included when the caller actually sent them (the
+      // multi-number management dialog) — omitted entirely for the
+      // single-number Settings/onboarding flow, so a routine
+      // credential re-save there can never accidentally clear an
+      // existing owner_user_id/label.
+      ...(bodyOwnerUserId !== undefined ? { owner_user_id: bodyOwnerUserId } : {}),
+      ...(bodyLabel !== undefined ? { label: bodyLabel } : {}),
     }
 
     if (existing) {
