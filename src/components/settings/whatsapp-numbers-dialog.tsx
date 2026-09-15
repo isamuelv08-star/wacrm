@@ -29,6 +29,7 @@ import { CheckCircle2, Loader2, Plus, Trash2, TriangleAlert } from 'lucide-react
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   Dialog,
   DialogContent,
@@ -72,6 +73,7 @@ export function WhatsAppNumbersDialog({
   const [loading, setLoading] = useState(false);
   const [reassigningId, setReassigningId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<WhatsAppNumber | null>(null);
 
   const [addOpen, setAddOpen] = useState(false);
   const [addLabel, setAddLabel] = useState('');
@@ -143,8 +145,9 @@ export function WhatsAppNumbersDialog({
     }
   }
 
-  async function handleRemove(numberId: string) {
-    if (!window.confirm(t('removeConfirm'))) return;
+  async function handleRemove() {
+    if (!removeTarget) return;
+    const numberId = removeTarget.id;
     setRemovingId(numberId);
     try {
       const res = await fetch(`/api/whatsapp/numbers/${numberId}`, { method: 'DELETE' });
@@ -155,6 +158,7 @@ export function WhatsAppNumbersDialog({
       }
       setNumbers((prev) => prev?.filter((n) => n.id !== numberId) ?? prev);
       toast.success(t('removeSuccess'));
+      setRemoveTarget(null);
     } catch {
       toast.error(t('removeError'));
     } finally {
@@ -203,6 +207,7 @@ export function WhatsAppNumbersDialog({
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="themed-scrollbar max-h-[85vh] overflow-y-auto bg-popover border-border sm:max-w-lg">
         <DialogHeader>
@@ -273,7 +278,7 @@ export function WhatsAppNumbersDialog({
                     variant="ghost"
                     size="icon-sm"
                     disabled={removingId === n.id}
-                    onClick={() => handleRemove(n.id)}
+                    onClick={() => setRemoveTarget(n)}
                     className="text-muted-foreground hover:text-destructive"
                     aria-label={t('removeAction')}
                     title={t('removeAction')}
@@ -369,5 +374,18 @@ export function WhatsAppNumbersDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <ConfirmDialog
+      open={removeTarget !== null}
+      onOpenChange={(next) => !next && setRemoveTarget(null)}
+      title={removeTarget?.label || removeTarget?.phone_number_id || ''}
+      description={t('removeConfirm')}
+      confirmLabel={t('removeAction')}
+      cancelLabel={t('cancel')}
+      onConfirm={handleRemove}
+      variant="destructive"
+      loading={removingId === removeTarget?.id}
+    />
+    </>
   );
 }

@@ -35,6 +35,7 @@ import { toast } from 'sonner';
 import { Check, Copy, Link2, Loader2, MessageCircle, Sparkles } from 'lucide-react';
 
 import { Button, buttonVariants } from '@/components/ui/button';
+import { BrandMark } from '@/components/ui/brand-mark';
 import {
   Dialog,
   DialogContent,
@@ -232,7 +233,8 @@ export function InviteMemberDialog({
       <DialogContent className="themed-scrollbar bg-popover border-border sm:max-w-md max-h-[85vh] overflow-y-auto">
         {result ? (
           <>
-            <DialogHeader>
+            <BrandMark className="mx-auto" />
+            <DialogHeader className="items-center text-center">
               <DialogTitle className="flex items-center gap-2 text-popover-foreground">
                 <Sparkles className="size-4 text-primary" />
                 {t('inviteCreated')}
@@ -330,7 +332,8 @@ export function InviteMemberDialog({
           </>
         ) : (
           <>
-            <DialogHeader>
+            <BrandMark className="mx-auto" />
+            <DialogHeader className="items-center text-center">
               <DialogTitle className="text-popover-foreground">{t('dialogTitle')}</DialogTitle>
               <DialogDescription className="text-muted-foreground">
                 {t('dialogDesc')}

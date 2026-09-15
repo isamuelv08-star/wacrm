@@ -12,6 +12,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -74,6 +75,7 @@ export function CustomFieldsPanel() {
   const [newOptionDraft, setNewOptionDraft] = useState('');
   const [creating, setCreating] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CustomField | null>(null);
 
   function addNewOption() {
     const opt = newOptionDraft.trim();
@@ -201,14 +203,9 @@ export function CustomFieldsPanel() {
     return true;
   }
 
-  async function handleDelete(field: CustomField) {
-    if (
-      !window.confirm(
-        t('deleteConfirm', { name: field.field_name })
-      )
-    ) {
-      return;
-    }
+  async function performDelete() {
+    const field = deleteTarget;
+    if (!field) return;
     setBusyId(field.id);
     const { error } = await supabase
       .from('custom_fields')
@@ -220,6 +217,7 @@ export function CustomFieldsPanel() {
       return;
     }
     toast.success(t('toastDeleted', { name: field.field_name }));
+    setDeleteTarget(null);
     await fetchFields();
   }
 
@@ -329,13 +327,25 @@ export function CustomFieldsPanel() {
                 field={field}
                 busy={busyId === field.id}
                 onRename={handleRename}
-                onDelete={handleDelete}
+                onDelete={setDeleteTarget}
                 onUpdateOptions={handleUpdateOptions}
               />
             ))}
           </ul>
         )}
       </div>
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(next) => !next && setDeleteTarget(null)}
+        title={deleteTarget ? t('deleteTitle') : ''}
+        description={deleteTarget ? t('deleteConfirm', { name: deleteTarget.field_name }) : ''}
+        confirmLabel={t('deleteTitle')}
+        cancelLabel={t('cancel')}
+        onConfirm={performDelete}
+        variant="destructive"
+        loading={!!deleteTarget && busyId === deleteTarget.id}
+      />
     </div>
   );
 }

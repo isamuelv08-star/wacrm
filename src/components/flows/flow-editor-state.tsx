@@ -399,11 +399,9 @@ export function FlowEditorProvider({
   );
 
   // ---- Delete ----
+  // No confirmation here — the caller (EditorHeader) shows a styled
+  // ConfirmDialog first and only calls this once the user confirms.
   const deleteFlow = useCallback(async () => {
-    const yes = window.confirm(
-      `Delete "${state.name}"? Any active runs end immediately. This can't be undone.`,
-    );
-    if (!yes) return;
     try {
       const res = await fetch(`/api/flows/${initialFlow.id}`, {
         method: "DELETE",
@@ -414,7 +412,7 @@ export function FlowEditorProvider({
       const msg = err instanceof Error ? err.message : "Delete failed";
       toast.error(msg);
     }
-  }, [initialFlow.id, router, state.name]);
+  }, [initialFlow.id, router]);
 
   // ---- Node mutations ----
   const updateNode = useCallback(

@@ -22,6 +22,7 @@ import { useTranslations } from "next-intl";
 import { useCan } from "@/hooks/use-can";
 import { Button } from "@/components/ui/button";
 import { GatedButton } from "@/components/ui/gated-button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Dialog,
   DialogContent,
@@ -93,6 +94,8 @@ export default function FlowsPage() {
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
   const [templates, setTemplates] = useState<TemplateSummary[]>([]);
+  const [deleteTarget, setDeleteTarget] = useState<FlowRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -178,17 +181,20 @@ export default function FlowsPage() {
     }
   }
 
-  async function handleDelete(flow: FlowRow) {
-    const yes = window.confirm(t("deleteConfirm", { name: flow.name }));
-    if (!yes) return;
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      const res = await fetch(`/api/flows/${flow.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/flows/${deleteTarget.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
-      setFlows((prev) => prev.filter((f) => f.id !== flow.id));
+      setFlows((prev) => prev.filter((f) => f.id !== deleteTarget.id));
       toast.success(t("deleteSuccess"));
+      setDeleteTarget(null);
     } catch (err) {
       console.error(err);
       toast.error(t("deleteError"));
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -234,7 +240,7 @@ export default function FlowsPage() {
               key={flow.id}
               flow={flow}
               onEdit={() => router.push(`/flows/${flow.id}`)}
-              onDelete={() => handleDelete(flow)}
+              onDelete={() => setDeleteTarget(flow)}
               t={t}
             />
           ))}
@@ -317,6 +323,18 @@ export default function FlowsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(next) => !next && setDeleteTarget(null)}
+        title={t("delete")}
+        description={deleteTarget ? t("deleteConfirm", { name: deleteTarget.name }) : ""}
+        confirmLabel={t("delete")}
+        cancelLabel={t("cancel")}
+        onConfirm={handleDelete}
+        variant="destructive"
+        loading={deleting}
+      />
     </div>
   );
 }

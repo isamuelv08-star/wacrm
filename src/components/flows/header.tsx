@@ -22,6 +22,7 @@
  * /flows/[id]/runs) — those don't belong in the hook.
  */
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
@@ -37,6 +38,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import {
   useFlowEditor,
@@ -58,6 +60,17 @@ export function EditorHeader() {
     setStatus,
     deleteFlow,
   } = useFlowEditor();
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function confirmDelete() {
+    setDeleting(true);
+    try {
+      await deleteFlow();
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-1.5 px-6 pt-5">
@@ -111,7 +124,7 @@ export function EditorHeader() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => void deleteFlow()}
+            onClick={() => setDeleteOpen(true)}
             className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -171,6 +184,18 @@ export function EditorHeader() {
         placeholder={t("descriptionPlaceholder")}
         aria-label={t("descriptionPlaceholder")}
         className="w-full max-w-[78ch] rounded-md border border-transparent bg-transparent px-2 py-1 text-[13px] text-muted-foreground outline-none transition-colors placeholder:text-muted-foreground/60 hover:bg-muted/50 focus:border-primary focus:bg-transparent focus:text-foreground"
+      />
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title={`${t("delete")} "${state.name}"?`}
+        description={t("deleteConfirmDesc")}
+        confirmLabel={t("delete")}
+        cancelLabel={t("cancel")}
+        onConfirm={confirmDelete}
+        variant="destructive"
+        loading={deleting}
       />
     </div>
   );

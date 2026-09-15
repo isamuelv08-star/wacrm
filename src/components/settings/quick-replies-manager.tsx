@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SettingsPanelHead } from "./settings-panel-head";
 import {
   InteractiveBuilder,
@@ -49,6 +50,8 @@ export function QuickRepliesManager() {
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<QuickReply | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -114,13 +117,18 @@ export function QuickRepliesManager() {
 
   const remove = useCallback(
     async (id: string) => {
-      if (!window.confirm(t("deleteConfirm"))) return;
-      const res = await fetch(`/api/quick-replies/${id}`, { method: "DELETE" });
-      if (!res.ok) {
-        toast.error(t("deleteError"));
-        return;
+      setDeleting(true);
+      try {
+        const res = await fetch(`/api/quick-replies/${id}`, { method: "DELETE" });
+        if (!res.ok) {
+          toast.error(t("deleteError"));
+          return;
+        }
+        setDeleteTarget(null);
+        await load();
+      } finally {
+        setDeleting(false);
       }
-      await load();
     },
     [load, t],
   );
@@ -173,7 +181,7 @@ export function QuickRepliesManager() {
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  onClick={() => remove(qr.id)}
+                  onClick={() => setDeleteTarget(qr)}
                   className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -238,6 +246,18 @@ export function QuickRepliesManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(next) => !next && setDeleteTarget(null)}
+        title={deleteTarget?.title ?? ""}
+        description={t("deleteConfirm")}
+        confirmLabel={t("deleteAction")}
+        cancelLabel={t("cancel")}
+        onConfirm={() => deleteTarget && remove(deleteTarget.id)}
+        variant="destructive"
+        loading={deleting}
+      />
     </div>
   );
 }

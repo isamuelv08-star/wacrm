@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 // 'facebook' is Zernio's own name for a connected Facebook Page
 // (Messenger) — see the connect/callback routes' comments for why the
@@ -50,6 +51,7 @@ export function ConnectPlatformButton({
   const [status, setStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
   const [redirecting, setRedirecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [disconnectOpen, setDisconnectOpen] = useState(false);
   const loadedAccountIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -87,7 +89,6 @@ export function ConnectPlatformButton({
   }
 
   async function handleDisconnect() {
-    if (!window.confirm(t('disconnectConfirm', { platform: label }))) return;
     setDisconnecting(true);
     try {
       const res = await fetch(`/api/zernio/connect/${platform}`, { method: 'DELETE' });
@@ -98,6 +99,7 @@ export function ConnectPlatformButton({
       }
       setStatus('disconnected');
       toast.success(t('disconnected', { platform: label }));
+      setDisconnectOpen(false);
       if (body?.zernioRevoked === false) {
         toast.warning(t('disconnectPartial'));
       }
@@ -119,7 +121,7 @@ export function ConnectPlatformButton({
           {t('connected', { platform: label })}
         </span>
         <Button
-          onClick={handleDisconnect}
+          onClick={() => setDisconnectOpen(true)}
           disabled={disconnecting || !canEditSettings}
           variant="outline"
           size="sm"
@@ -133,6 +135,18 @@ export function ConnectPlatformButton({
           )}
           {t('disconnect')}
         </Button>
+
+        <ConfirmDialog
+          open={disconnectOpen}
+          onOpenChange={setDisconnectOpen}
+          title={label}
+          description={t('disconnectConfirm', { platform: label })}
+          confirmLabel={t('disconnect')}
+          cancelLabel={t('cancel')}
+          onConfirm={handleDisconnect}
+          variant="destructive"
+          loading={disconnecting}
+        />
       </div>
     );
   }

@@ -36,7 +36,7 @@ export function SettingsOverview({
 }: {
   onSelect: (section: SettingsSection) => void;
 }) {
-  const { user, profile, accountId, accountRole, defaultCurrency, canManageMembers } =
+  const { user, profile, account, accountId, accountRole, defaultCurrency, canManageMembers } =
     useAuth();
   const { mode, theme } = useTheme();
   const t = useTranslations('Settings.overview');
@@ -184,6 +184,18 @@ export function SettingsOverview({
           <StatusDot tone="muted" /> {t('needsReconnecting')}
         </>
       ),
+    },
+    {
+      section: 'multiwhatsapp',
+      loading: false,
+      subtitle:
+        account?.whatsapp_mode === 'multiwhatsapp' ? (
+          <>
+            <StatusDot tone="ok" /> {t('multiWhatsAppActive')}
+          </>
+        ) : (
+          t('multiWhatsAppInactive')
+        ),
     },
     {
       section: 'members',

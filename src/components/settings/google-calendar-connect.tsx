@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 /**
  * Connect/disconnect Google Calendar for the caller's account. Same
@@ -24,6 +25,7 @@ export function GoogleCalendarConnect() {
   const [googleEmail, setGoogleEmail] = useState<string | null>(null);
   const [redirecting, setRedirecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [disconnectOpen, setDisconnectOpen] = useState(false);
   const loadedRef = useRef(false);
 
   const fetchStatus = async () => {
@@ -53,7 +55,6 @@ export function GoogleCalendarConnect() {
   }
 
   async function handleDisconnect() {
-    if (!window.confirm(t('googleCalendar.disconnectConfirm'))) return;
     setDisconnecting(true);
     try {
       const res = await fetch('/api/integrations/google-calendar', { method: 'DELETE' });
@@ -65,6 +66,7 @@ export function GoogleCalendarConnect() {
       setStatus('disconnected');
       setGoogleEmail(null);
       toast.success(t('googleCalendar.disconnected'));
+      setDisconnectOpen(false);
       if (body?.googleRevoked === false) {
         toast.warning(t('disconnectPartial'));
       }
@@ -83,7 +85,7 @@ export function GoogleCalendarConnect() {
           {googleEmail ? t('googleCalendar.connectedAs', { email: googleEmail }) : t('googleCalendar.connected')}
         </span>
         <Button
-          onClick={handleDisconnect}
+          onClick={() => setDisconnectOpen(true)}
           disabled={disconnecting || !canEditSettings}
           variant="outline"
           size="sm"
@@ -93,6 +95,18 @@ export function GoogleCalendarConnect() {
           {disconnecting ? <Loader2 className="size-4 animate-spin" /> : <Unlink className="size-4" />}
           {t('disconnect')}
         </Button>
+
+        <ConfirmDialog
+          open={disconnectOpen}
+          onOpenChange={setDisconnectOpen}
+          title={t('googleCalendar.title')}
+          description={t('googleCalendar.disconnectConfirm')}
+          confirmLabel={t('disconnect')}
+          cancelLabel={t('cancel')}
+          onConfirm={handleDisconnect}
+          variant="destructive"
+          loading={disconnecting}
+        />
       </div>
     );
   }
