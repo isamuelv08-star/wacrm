@@ -8,6 +8,7 @@ import { Search, Loader2, MessageCircle, User } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
+import { sanitizeOrSearchTerm } from "@/lib/search";
 
 interface SearchResult {
   contactId: string;
@@ -47,7 +48,7 @@ export function SmartSearch() {
     setLoading(true);
     const timer = setTimeout(async () => {
       const supabase = createClient();
-      const escaped = trimmed.replace(/[%_]/g, (c) => `\\${c}`);
+      const escaped = sanitizeOrSearchTerm(trimmed).replace(/[%_]/g, (c) => `\\${c}`);
       const { data, error } = await supabase
         .from("contacts")
         .select("id, name, phone, email, conversations(id, updated_at)")

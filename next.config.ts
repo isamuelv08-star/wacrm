@@ -6,10 +6,19 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 /**
  * Baseline security headers applied to every response.
  *
- * CSP ships as `Content-Security-Policy-Report-Only` so the browser
- * surfaces violations in the console without blocking anything — once
- * we have confidence nothing legit trips it (two deploys, a pass on
- * every route), flip the key to `Content-Security-Policy` to enforce.
+ * CSP is now enforced (`Content-Security-Policy`, not
+ * `-Report-Only`) — flipped as part of the pre-launch security pass.
+ * No third-party client-side scripts/analytics were found anywhere in
+ * `src/` that would need an extra allow-listed origin (grep for
+ * sentry/posthog/analytics/gtag/mixpanel/amplitude turned up only the
+ * CRM's own in-app "pipeline analytics" pages, not a tracking SDK),
+ * and every WhatsApp/Meta API call happens server-side — so
+ * `connect-src 'self' https://*.supabase.co wss://*.supabase.co`
+ * should already cover everything the browser itself calls. Still,
+ * click through the app once after this deploys and watch the
+ * console for CSP violations before trusting this blind — a gap
+ * missed by grep (a dynamically-loaded font, an embed, etc.) would
+ * now actually block instead of just logging.
  *
  * The rest of the headers are straight blocks, safe to enforce today:
  *   - HSTS: only meaningful on HTTPS (no-op on http://localhost).
@@ -36,7 +45,7 @@ const SECURITY_HEADERS = [
     value: "camera=(), microphone=(self), geolocation=(), payment=(), usb=()",
   },
   {
-    key: "Content-Security-Policy-Report-Only",
+    key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
       // Next.js needs 'unsafe-inline' for its inline hydration script
@@ -68,6 +77,10 @@ const nextConfig: NextConfig = {
   // Docker image can run without node_modules or the Next CLI.
   // Harmless outside Docker: `next start` keeps working as before.
   output: "standalone",
+
+  // Drop the `X-Powered-By: Next.js` header — trivial stack
+  // fingerprinting, no functional cost to disabling it.
+  poweredByHeader: false,
 
   /**
    * Cross-origin dev access (Next.js 16).

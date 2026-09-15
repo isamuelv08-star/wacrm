@@ -59,6 +59,7 @@ import { useCan } from '@/hooks/use-can';
 import { GatedButton } from '@/components/ui/gated-button';
 import { useTranslations } from 'next-intl';
 import { LeadScoreBadge } from '@/components/leads/lead-score-badge';
+import { sanitizeOrSearchTerm } from '@/lib/search';
 
 const PAGE_SIZE = 25;
 
@@ -135,7 +136,7 @@ export default function ContactsPage() {
 
     const from = page * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
-    const term = search.trim();
+    const term = sanitizeOrSearchTerm(search);
 
     let contactRows: Contact[];
     let count: number;

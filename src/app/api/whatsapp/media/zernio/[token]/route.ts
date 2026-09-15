@@ -41,9 +41,16 @@ export async function GET(
 
     // Any signed-in account member may view inbox media — same bar as
     // the direct-Meta proxy (it doesn't check role beyond "has a
-    // profile"). The account itself isn't otherwise used below since
-    // the Zernio API key is global to this instance, not per-account;
-    // this check just confirms the caller is a real logged-in user.
+    // profile"). The Zernio API key itself is global to this instance,
+    // not per-account, so it can't be used to scope the request — but
+    // the `token` (the base64url-encoded Zernio attachment URL,
+    // webhook/zernio/route.ts) is NOT a secret; anyone who guesses or
+    // captures another account's token could otherwise fetch its
+    // private media just by having any valid session here. Since
+    // parseMessageContent() (webhook-processor.ts) stores this exact
+    // "/api/whatsapp/media/zernio/<token>" string on the owning
+    // message's `media_url`, confirm a message in the CALLER's own
+    // account actually references this token before proxying anything.
     const { data: profile } = await supabase
       .from('profiles')
       .select('account_id')
@@ -54,6 +61,17 @@ export async function GET(
         { error: 'Your profile is not linked to an account.' },
         { status: 403 },
       )
+    }
+
+    const { data: owningMessage } = await supabase
+      .from('messages')
+      .select('id, conversations!inner(account_id)')
+      .eq('media_url', `/api/whatsapp/media/zernio/${token}`)
+      .eq('conversations.account_id', profile.account_id)
+      .limit(1)
+      .maybeSingle()
+    if (!owningMessage) {
+      return NextResponse.json({ error: 'Media not found' }, { status: 404 })
     }
 
     // Forward the browser's Range header (video/audio scrubbing) and

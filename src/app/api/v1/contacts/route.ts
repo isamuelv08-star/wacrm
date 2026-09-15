@@ -24,13 +24,7 @@ import {
   resolveAuditUserId,
   ContactError,
 } from '@/lib/api/v1/contacts';
-
-// PostgREST filter values are comma/paren-delimited; strip anything
-// that could break the `.or()` grammar before interpolating a search
-// term. Leaves the characters a phone or name legitimately contains.
-function sanitizeSearch(raw: string): string {
-  return raw.replace(/[^\p{L}\p{N} +@.\-_]/gu, '').trim();
-}
+import { sanitizeOrSearchTerm as sanitizeSearch } from '@/lib/search';
 
 const MAX_NAME_LEN = 120;
 const MAX_EMAIL_LEN = 254; // RFC 5321 mailbox length cap

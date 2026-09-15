@@ -39,6 +39,12 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Supabase CLI local state (session/link metadata, never real secrets
+# today, but this is exactly the directory the CLI writes ephemeral
+# auth state into over its lifetime — keep it out of version control)
+/supabase/.temp/
+/supabase/.branches/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

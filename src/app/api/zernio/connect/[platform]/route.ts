@@ -71,10 +71,14 @@ class ZernioRequestError extends Error {
 }
 
 /**
- * fetch() against Zernio with a shared timeout + full request/response
- * logging (TEMP — see the 400-diagnostics note below). Throws
+ * fetch() against Zernio with a shared timeout. Throws
  * ZernioRequestError with a user-safe message on any failure; callers
- * catch once and redirect.
+ * catch once and redirect. On failure, the response body is attached
+ * to the thrown error (not logged directly — it can carry
+ * account-identifying data from Zernio's response) so a caller that
+ * needs to root-cause a specific integration error can inspect
+ * `err.body` in a debugger rather than it sitting in plaintext server
+ * logs indefinitely.
  */
 async function zernioFetch(
   url: URL,
@@ -82,7 +86,6 @@ async function zernioFetch(
 ): Promise<unknown> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), ZERNIO_TIMEOUT_MS)
-  console.log(`[zernio] ${init.method} ${url.toString()}`, init.body ?? '')
 
   try {
     const res = await fetch(url, {
@@ -95,15 +98,10 @@ async function zernioFetch(
       signal: controller.signal,
     })
 
-    // TEMP diagnostic — full response, not just the status, while
-    // we're root-causing Zernio integration errors. The body usually
-    // carries the actual reason (bad key, unknown profileId, a field
-    // validation error, etc.) that the status code alone hides.
     const rawBody = await res.text()
-    console.log(`[zernio] ${res.status} ${url.pathname}`, {
-      headers: Object.fromEntries(res.headers.entries()),
-      body: rawBody,
-    })
+    if (!res.ok) {
+      console.error(`[zernio] ${init.method} ${url.pathname} failed: ${res.status}`)
+    }
 
     let parsed: unknown
     let validJson = true

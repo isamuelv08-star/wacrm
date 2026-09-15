@@ -176,4 +176,51 @@ describe("getCurrentAccount", () => {
       "Profile is not linked to an account",
     );
   });
+
+  // Migration 089 security fix: a 'pending' (self-signed-up, not yet
+  // approved by the agency owner) or 'suspended' account must not be
+  // able to reach ANY route that goes through getCurrentAccount() —
+  // DashboardShell's redirect to /acceso-restringido is client-side
+  // UX only, not access control, so this is the real enforcement
+  // point. See migration 088_restricted_access.sql / 089's own header.
+  it.each(["pending", "suspended"] as const)(
+    "rejects a %s account with ForbiddenError",
+    async (status) => {
+      const { client } = makeClient({
+        user: { id: "user-1" },
+        byTable: {
+          profiles: {
+            data: { account_id: "acct-1", account_role: "owner" },
+            error: null,
+          },
+          accounts: {
+            data: { id: "acct-1", name: "Acme", status },
+            error: null,
+          },
+        },
+      });
+      createClient.mockReturnValue(client);
+      const err = await getCurrentAccount().catch((e) => e);
+      expect(err).toBeInstanceOf(ForbiddenError);
+      expect(err.message).toBe("Account access is restricted");
+    },
+  );
+
+  it("treats a missing status column as active (backward compat, matches the DB column's own DEFAULT)", async () => {
+    const { client } = makeClient({
+      user: { id: "user-1" },
+      byTable: {
+        profiles: {
+          data: { account_id: "acct-1", account_role: "owner" },
+          error: null,
+        },
+        // No `status` field at all — the shape every other test in
+        // this file already uses.
+        accounts: { data: { id: "acct-1", name: "Acme" }, error: null },
+      },
+    });
+    createClient.mockReturnValue(client);
+    const ctx = await getCurrentAccount();
+    expect(ctx.account.status).toBe("active");
+  });
 });

@@ -189,6 +189,26 @@ export async function getCurrentAccount(): Promise<AccountContext> {
     throw new ForbiddenError("Profile is not linked to an account");
   }
 
+  // Same missing-column fallback as every other optional field below
+  // (whatsapp_mode, business_vertical, ...) — a row/mock that doesn't
+  // carry `status` (older schema-cache snapshot, or a test double)
+  // reads as 'active', matching the DB column's own DEFAULT rather
+  // than tripping the restricted-access gate below on absence alone.
+  const accountStatus = (account.status as "pending" | "active" | "suspended" | null) ?? "active";
+
+  // Restricted-access gate (migration 088) — enforced here, not just
+  // in DashboardShell's client-side redirect. Without this, a
+  // 'pending' (self-signed-up, not yet approved) or 'suspended'
+  // account's own valid session cookie could still call every API
+  // route directly (curl/Postman, or simply beating the browser's
+  // useEffect redirect), completely bypassing the "only the agency
+  // owner grants access" feature — the redirect alone is UX, not
+  // access control. This is the actual enforcement point for all
+  // ~85 routes that go through requireRole()/getCurrentAccount().
+  if (accountStatus !== "active") {
+    throw new ForbiddenError("Account access is restricted");
+  }
+
   return {
     supabase,
     userId: user.id,
@@ -202,7 +222,7 @@ export async function getCurrentAccount(): Promise<AccountContext> {
       timezone: account.timezone,
       business_vertical: (account.business_vertical as BusinessVertical | null) ?? null,
       whatsapp_mode: (account.whatsapp_mode as 'shared' | 'multiwhatsapp' | null) ?? 'shared',
-      status: (account.status as 'pending' | 'active' | 'suspended' | null) ?? 'active',
+      status: accountStatus,
     },
   };
 }
