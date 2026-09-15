@@ -948,6 +948,7 @@
       "avgDealSizeTooltip": "Pipeline Value divided by Total Deals — the average value of a single non-lost deal.",
       "weightedValue": "Weighted Value",
       "weightedValueTooltip": "Expected revenue: each open deal's value × its stage probability. First stage ≈ 10%, stages progress up to 90%, Won = 100%. Lost deals are excluded.",
+      "snapshotTitle": "Snapshot",
       "periodLabel": "Period",
       "downloadCsv": "Export CSV",
       "downloadPdf": "Export PDF",
@@ -1956,9 +1957,9 @@
     },
     "integrations": {
       "title": "Integrations",
-      "description": "Connect WhatsApp and Instagram through Zernio's guided Meta connect flow.",
+      "description": "Connect WhatsApp, Instagram, and Messenger through the guided Meta connect flow.",
       "channelsTitle": "Channels",
-      "channelsDesc": "Connect WhatsApp through Zernio's guided Meta flow, or with your own Cloud API credentials.",
+      "channelsDesc": "Connect WhatsApp through the guided connect flow, or with your own Cloud API credentials.",
       "platform": {
         "whatsapp": "WhatsApp",
         "instagram": "Instagram",
@@ -1966,9 +1967,9 @@
         "messenger": "Messenger",
         "facebook": "Messenger"
       },
-      "whatsappHint": "Connect a WhatsApp Business account via Zernio.",
-      "instagramHint": "Connect an Instagram professional account via Zernio.",
-      "facebookHint": "Connect a Facebook Page via Zernio.",
+      "whatsappHint": "Connect your WhatsApp Business account through the guided connect flow.",
+      "instagramHint": "Connect your Instagram professional account through the guided connect flow.",
+      "facebookHint": "Connect your Facebook Page through the guided connect flow.",
       "messengerHint": "Connect a Facebook Page with your own Meta credentials.",
       "comingSoon": "Coming soon",
       "instagramComingSoonHint": "We're building message sending/receiving for Instagram. Don't connect it yet — nothing would happen with the messages for now.",
@@ -1983,7 +1984,7 @@
       "disconnectConfirm": "Disconnect {platform}? Messages will stop flowing into this CRM until you reconnect.",
       "disconnected": "{platform} disconnected.",
       "disconnectError": "Could not disconnect. Please try again.",
-      "disconnectPartial": "Disconnected here, but Zernio could not be reached to revoke it there too — check the Zernio dashboard.",
+      "disconnectPartial": "Disconnected here, but the provider's own access couldn't be revoked — you may need to revoke it there too.",
       "manage": "Manage",
       "whatsappApiHint": "Connect with your own Meta Cloud API credentials, or a Coexistence provider like Dualhook.",
       "googleCalendar": {

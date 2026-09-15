@@ -5,16 +5,17 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/use-auth';
 import { ConnectPlatformButton } from './connect-platform-button';
 import { WhatsAppApiConnectCard } from './whatsapp-api-connect-card';
-import { MessengerConnectCard } from './messenger-connect-card';
-import { PlatformIcon } from '@/components/inbox/platform-accent';
+import { PlatformLogoMono } from './platform-logo-mono';
 
 /**
  * The two ways to connect a WhatsApp number, as a plain list of rows
  * (no outer <Card> — callers own their own container). Extracted out
  * of <IntegrationsPanel> so the onboarding wizard's WhatsApp step can
- * show the same simplified "Zernio guided OAuth, or your own API
+ * show the same simplified "guided OAuth, or your own API
  * credentials" choice instead of always dropping the full
- * <WhatsAppConfig /> credentials form inline.
+ * <WhatsAppConfig /> credentials form inline. Messenger only offers
+ * the guided flow (no "bring your own Meta credentials" row, unlike
+ * WhatsApp), same as the Settings → Integrations grid.
  */
 export function WhatsAppChannelOptions() {
   const t = useTranslations('Settings.integrations');
@@ -24,7 +25,7 @@ export function WhatsAppChannelOptions() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-4">
         <div className="flex items-center gap-3">
-          <PlatformIcon platform="whatsapp" className="h-4 w-4" />
+          <PlatformLogoMono platform="whatsapp" className="h-4 w-4" />
           <div>
             <p className="text-sm font-medium text-foreground">{t('platform.whatsapp')}</p>
             <p className="text-xs text-muted-foreground">{t('whatsappHint')}</p>
@@ -35,18 +36,17 @@ export function WhatsAppChannelOptions() {
       <WhatsAppApiConnectCard />
       <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-4">
         <div className="flex items-center gap-3">
-          <PlatformIcon platform="messenger" className="h-4 w-4" />
+          <PlatformLogoMono platform="messenger" className="h-4 w-4" />
           <div>
             <p className="text-sm font-medium text-foreground">{t('platform.facebook')}</p>
             <p className="text-xs text-muted-foreground">{t('facebookHint')}</p>
           </div>
         </div>
-        {/* Zernio's own name for this channel is "facebook" (a Facebook
-            Page connection) — see connect-platform-button.tsx's doc
-            comment. */}
+        {/* The OAuth provider's own name for this channel is "facebook"
+            (a Facebook Page connection) — see connect-platform-button.tsx's
+            doc comment. */}
         {accountId ? <ConnectPlatformButton platform="facebook" profileId={accountId} /> : null}
       </div>
-      <MessengerConnectCard />
     </div>
   );
 }

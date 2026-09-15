@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { WhatsAppConfig } from './whatsapp-config';
 import { IntegrationCard } from './integration-card';
-import { PlatformIcon } from '@/components/inbox/platform-accent';
+import { PlatformLogoMono } from './platform-logo-mono';
 
 /**
  * The manual "WhatsApp via API" connection. Two layouts sharing the
@@ -114,7 +114,7 @@ export function WhatsAppApiConnectCard({ variant = 'row' }: { variant?: 'row' | 
     <>
       {variant === 'card' ? (
         <IntegrationCard
-          icon={<PlatformIcon platform="whatsapp" />}
+          icon={<PlatformLogoMono platform="whatsapp" />}
           name={t('platform.whatsappApi')}
           subtitle={t('whatsappApiHint')}
           action={action}

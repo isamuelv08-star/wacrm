@@ -17,7 +17,9 @@ import {
   Printer,
   Clock,
   RotateCcw,
+  ChevronDown,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   Tooltip,
   TooltipContent,
@@ -73,10 +75,46 @@ function todayIso(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+// Device-scoped, like the sidebar's own collapse preference — the two
+// metrics cards default to their compact, one-line summary (matches
+// the "don't eat the whole top of the page" ask) and remember
+// whichever state the agent last left them in.
+const SNAPSHOT_OPEN_KEY = "saleslid:pipeline-snapshot-open";
+const PERIOD_OPEN_KEY = "saleslid:pipeline-period-open";
+
+function usePersistedOpen(storageKey: string): [boolean, () => void] {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(storageKey);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time read of the persisted preference on mount
+      if (stored !== null) setOpen(stored === "true");
+    } catch {
+      // localStorage can throw in private-browsing / sandboxed contexts.
+    }
+  }, [storageKey]);
+
+  function toggle() {
+    setOpen((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(storageKey, String(next));
+      } catch {
+        // Persistence is best-effort; ignore storage failures.
+      }
+      return next;
+    });
+  }
+
+  return [open, toggle];
+}
+
 export function PipelineAnalytics({ pipelineId, pipelineName, stages, deals }: PipelineAnalyticsProps) {
   const t = useTranslations("Pipelines.analytics");
   const tPeriod = useTranslations("Common.period");
   const { defaultCurrency } = useAuth();
+  const [snapshotOpen, toggleSnapshot] = usePersistedOpen(SNAPSHOT_OPEN_KEY);
+  const [periodOpen, togglePeriod] = usePersistedOpen(PERIOD_OPEN_KEY);
   const [preset, setPreset] = useState<PeriodPreset>("thisMonth");
   // Seeded to today so flipping to "Custom" always starts from a valid
   // (if trivial) range instead of two empty date inputs.
@@ -298,54 +336,113 @@ export function PipelineAnalytics({ pipelineId, pipelineName, stages, deals }: P
   return (
     <TooltipProvider>
       <div className="space-y-3">
-        {/* Snapshot metrics — current state, not affected by the period selector. */}
-        <div className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-card/60 p-4 sm:grid-cols-4">
-          <Metric
-            icon={<BarChart3 className="h-4 w-4 text-muted-foreground" />}
-            label={t("totalDeals")}
-            value={String(stats.totalCount)}
-            tooltip={t("totalDealsTooltip")}
-            t={t}
-          />
-          <Metric
-            icon={<DollarSign className="h-4 w-4 text-primary" />}
-            label={t("pipelineValue")}
-            value={formatCurrency(stats.totalValue, defaultCurrency)}
-            tooltip={t("pipelineValueTooltip")}
-            t={t}
-          />
-          <Metric
-            icon={<Target className="h-4 w-4 text-blue-400" />}
-            label={t("avgDealSize")}
-            value={formatCurrency(stats.avgValue, defaultCurrency)}
-            tooltip={t("avgDealSizeTooltip")}
-            t={t}
-          />
-          <Metric
-            icon={<TrendingUp className="h-4 w-4 text-purple-400" />}
-            label={t("weightedValue")}
-            value={formatCurrency(stats.weightedValue, defaultCurrency)}
-            tooltip={t("weightedValueTooltip")}
-            t={t}
-          />
-          {followupStage && (
-            <Metric
-              icon={<Clock className="h-4 w-4 text-teal-400" />}
-              label={t("inFollowup")}
-              value={String(stats.inFollowupCount)}
-              tooltip={t("inFollowupTooltip")}
-              t={t}
+        {/* Snapshot metrics — current state, not affected by the period selector.
+            Collapsed by default (persisted per device) to a single minimal
+            summary line; the chevron reveals the full tile breakdown. */}
+        <div className="rounded-xl border border-border bg-card/60 p-3">
+          <button
+            type="button"
+            onClick={toggleSnapshot}
+            aria-expanded={snapshotOpen}
+            className="flex w-full items-center justify-between gap-3 text-left"
+          >
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="shrink-0 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                {t("snapshotTitle")}
+              </span>
+              {!snapshotOpen && (
+                <span className="truncate text-xs text-muted-foreground">
+                  <span className="font-semibold text-foreground">{stats.totalCount}</span> {t("totalDeals").toLowerCase()}
+                  {" · "}
+                  <span className="font-semibold text-foreground">
+                    {formatCurrency(stats.totalValue, defaultCurrency)}
+                  </span>{" "}
+                  {t("pipelineValue").toLowerCase()}
+                </span>
+              )}
+            </div>
+            <ChevronDown
+              className={cn(
+                "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform",
+                snapshotOpen && "rotate-180",
+              )}
             />
+          </button>
+
+          {snapshotOpen && (
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+              <Metric
+                icon={<BarChart3 className="h-3.5 w-3.5 text-muted-foreground" />}
+                label={t("totalDeals")}
+                value={String(stats.totalCount)}
+                tooltip={t("totalDealsTooltip")}
+                t={t}
+              />
+              <Metric
+                icon={<DollarSign className="h-3.5 w-3.5 text-primary" />}
+                label={t("pipelineValue")}
+                value={formatCurrency(stats.totalValue, defaultCurrency)}
+                tooltip={t("pipelineValueTooltip")}
+                t={t}
+              />
+              <Metric
+                icon={<Target className="h-3.5 w-3.5 text-blue-400" />}
+                label={t("avgDealSize")}
+                value={formatCurrency(stats.avgValue, defaultCurrency)}
+                tooltip={t("avgDealSizeTooltip")}
+                t={t}
+              />
+              <Metric
+                icon={<TrendingUp className="h-3.5 w-3.5 text-purple-400" />}
+                label={t("weightedValue")}
+                value={formatCurrency(stats.weightedValue, defaultCurrency)}
+                tooltip={t("weightedValueTooltip")}
+                t={t}
+              />
+              {followupStage && (
+                <Metric
+                  icon={<Clock className="h-3.5 w-3.5 text-teal-400" />}
+                  label={t("inFollowup")}
+                  value={String(stats.inFollowupCount)}
+                  tooltip={t("inFollowupTooltip")}
+                  t={t}
+                />
+              )}
+            </div>
           )}
         </div>
 
-        {/* Period metrics — activity during the selected window. */}
-        <div className="rounded-xl border border-border bg-card/60 p-4">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        {/* Period metrics — activity during the selected window. Same
+            collapse-by-default treatment as the snapshot card above. */}
+        <div className="rounded-xl border border-border bg-card/60 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={togglePeriod}
+              aria-expanded={periodOpen}
+              className="flex min-w-0 flex-1 items-center gap-2 text-left"
+            >
+              <ChevronDown
+                className={cn(
+                  "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform",
+                  periodOpen && "rotate-180",
+                )}
+              />
+              <span className="shrink-0 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 {t("periodLabel")}
               </span>
+              {!periodOpen && (
+                <span className="truncate text-xs text-muted-foreground">
+                  <span className="font-semibold text-foreground">{stats.wonInPeriod}</span> {t("won").toLowerCase()}
+                  {" · "}
+                  <span className="font-semibold text-foreground">{stats.lostInPeriod}</span> {t("lost").toLowerCase()}
+                  {" · "}
+                  <span className="font-semibold text-foreground">{stats.leadsEntered}</span>{" "}
+                  {t("leadsEntered").toLowerCase()}
+                </span>
+              )}
+            </button>
+            <div className="flex shrink-0 items-center gap-2">
               <PeriodSelector
                 preset={preset}
                 customStart={customStart}
@@ -356,80 +453,81 @@ export function PipelineAnalytics({ pipelineId, pipelineName, stages, deals }: P
                   setCustomEnd(end);
                 }}
               />
-            </div>
-            <div className="flex items-center gap-1.5">
               <button
                 type="button"
                 onClick={handleExportCsv}
-                className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                title={t("downloadCsv")}
+                className="flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 <Download className="h-3.5 w-3.5" />
-                {t("downloadCsv")}
               </button>
               <button
                 type="button"
                 onClick={handleExportPdf}
-                className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                title={t("downloadPdf")}
+                className="flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 <Printer className="h-3.5 w-3.5" />
-                {t("downloadPdf")}
               </button>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Metric
-              icon={<UserPlus className="h-4 w-4 text-blue-400" />}
-              label={t("leadsEntered")}
-              value={String(stats.leadsEntered)}
-              tooltip={t("leadsEnteredTooltip")}
-              t={t}
-            />
-            {qualifiedStage ? (
+
+          {periodOpen && (
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
               <Metric
-                icon={<Award className="h-4 w-4 text-amber-400" />}
-                label={t("reachedQualified")}
-                value={reachedQualifiedCount === null ? "…" : String(reachedQualifiedCount)}
-                tooltip={t("reachedQualifiedTooltip")}
+                icon={<UserPlus className="h-3.5 w-3.5 text-blue-400" />}
+                label={t("leadsEntered")}
+                value={String(stats.leadsEntered)}
+                tooltip={t("leadsEnteredTooltip")}
                 t={t}
               />
-            ) : (
-              <div className="rounded-lg bg-muted/50 p-3 text-[11px] leading-snug text-muted-foreground">
-                {t("noQualifiedStage")}
-              </div>
-            )}
-            <Metric
-              icon={<Trophy className="h-4 w-4 text-primary" />}
-              label={t("won")}
-              value={String(stats.wonInPeriod)}
-              tooltip={t("wonTooltip")}
-              t={t}
-            />
-            <Metric
-              icon={<XCircle className="h-4 w-4 text-red-400" />}
-              label={t("lost")}
-              value={String(stats.lostInPeriod)}
-              tooltip={t("lostTooltip")}
-              t={t}
-            />
-            {followupStage && (
-              <>
+              {qualifiedStage ? (
                 <Metric
-                  icon={<Clock className="h-4 w-4 text-teal-400" />}
-                  label={t("enteredFollowup")}
-                  value={enteredFollowupCount === null ? "…" : String(enteredFollowupCount)}
-                  tooltip={t("enteredFollowupTooltip")}
+                  icon={<Award className="h-3.5 w-3.5 text-amber-400" />}
+                  label={t("reachedQualified")}
+                  value={reachedQualifiedCount === null ? "…" : String(reachedQualifiedCount)}
+                  tooltip={t("reachedQualifiedTooltip")}
                   t={t}
                 />
-                <Metric
-                  icon={<RotateCcw className="h-4 w-4 text-blue-400" />}
-                  label={t("reactivatedFromFollowup")}
-                  value={reactivatedFromFollowupCount === null ? "…" : String(reactivatedFromFollowupCount)}
-                  tooltip={t("reactivatedFromFollowupTooltip")}
-                  t={t}
-                />
-              </>
-            )}
-          </div>
+              ) : (
+                <div className="rounded-lg bg-muted/50 p-2.5 text-[11px] leading-snug text-muted-foreground">
+                  {t("noQualifiedStage")}
+                </div>
+              )}
+              <Metric
+                icon={<Trophy className="h-3.5 w-3.5 text-primary" />}
+                label={t("won")}
+                value={String(stats.wonInPeriod)}
+                tooltip={t("wonTooltip")}
+                t={t}
+              />
+              <Metric
+                icon={<XCircle className="h-3.5 w-3.5 text-red-400" />}
+                label={t("lost")}
+                value={String(stats.lostInPeriod)}
+                tooltip={t("lostTooltip")}
+                t={t}
+              />
+              {followupStage && (
+                <>
+                  <Metric
+                    icon={<Clock className="h-3.5 w-3.5 text-teal-400" />}
+                    label={t("enteredFollowup")}
+                    value={enteredFollowupCount === null ? "…" : String(enteredFollowupCount)}
+                    tooltip={t("enteredFollowupTooltip")}
+                    t={t}
+                  />
+                  <Metric
+                    icon={<RotateCcw className="h-3.5 w-3.5 text-blue-400" />}
+                    label={t("reactivatedFromFollowup")}
+                    value={reactivatedFromFollowupCount === null ? "…" : String(reactivatedFromFollowupCount)}
+                    tooltip={t("reactivatedFromFollowupTooltip")}
+                    t={t}
+                  />
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </TooltipProvider>
@@ -451,17 +549,17 @@ function Metric({
   t: any;
 }) {
   return (
-    <div className="rounded-lg bg-muted/50 p-3">
+    <div className="rounded-lg bg-muted/50 p-2.5">
       <div className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
         {icon}
-        <span>{label}</span>
+        <span className="truncate">{label}</span>
         <Tooltip>
           <TooltipTrigger
             render={
               <button
                 type="button"
                 aria-label={t("howCalculated", { label })}
-                className="ml-auto text-muted-foreground hover:text-foreground focus:outline-none"
+                className="ml-auto shrink-0 text-muted-foreground hover:text-foreground focus:outline-none"
               />
             }
           >
@@ -472,7 +570,7 @@ function Metric({
           </TooltipContent>
         </Tooltip>
       </div>
-      <p className="mt-1 text-base font-semibold text-foreground">{value}</p>
+      <p className="mt-1 truncate text-sm font-semibold text-foreground">{value}</p>
     </div>
   );
 }

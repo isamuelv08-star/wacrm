@@ -948,6 +948,7 @@
       "avgDealSizeTooltip": "파이프라인 금액을 전체 딜 수로 나눈 값 — 실패하지 않은 개별 딜의 평균 금액입니다.",
       "weightedValue": "가중 금액",
       "weightedValueTooltip": "예상 매출: 진행 중인 각 딜의 금액 × 단계별 성사 확률. 첫 단계는 약 10%, 이후 단계는 최대 90%까지 상승하며, 성사 시 100%입니다. 실패한 딜은 제외됩니다.",
+      "snapshotTitle": "요약",
       "periodLabel": "기간",
       "downloadCsv": "CSV 내보내기",
       "downloadPdf": "PDF 내보내기",
@@ -1956,9 +1957,9 @@
     },
     "integrations": {
       "title": "연동",
-      "description": "Zernio의 안내형 Meta 연결 흐름으로 WhatsApp과 Instagram을 연결하세요.",
+      "description": "안내형 Meta 연결 흐름으로 WhatsApp, Instagram, Messenger를 연결하세요.",
       "channelsTitle": "채널",
-      "channelsDesc": "Zernio의 안내된 흐름으로, 또는 직접 발급받은 Cloud API 자격 증명으로 WhatsApp을 연결하세요.",
+      "channelsDesc": "안내된 연결 흐름으로, 또는 직접 발급받은 Cloud API 자격 증명으로 WhatsApp을 연결하세요.",
       "platform": {
         "whatsapp": "WhatsApp",
         "instagram": "Instagram",
@@ -1966,9 +1967,9 @@
         "messenger": "메신저",
         "facebook": "메신저"
       },
-      "whatsappHint": "Zernio를 통해 WhatsApp Business 계정을 연결하세요.",
-      "instagramHint": "Zernio를 통해 Instagram 프로페셔널 계정을 연결하세요.",
-      "facebookHint": "Zernio를 통해 페이스북 페이지를 연결하세요.",
+      "whatsappHint": "안내된 연결 흐름으로 WhatsApp Business 계정을 연결하세요.",
+      "instagramHint": "안내된 연결 흐름으로 Instagram 프로페셔널 계정을 연결하세요.",
+      "facebookHint": "안내된 연결 흐름으로 페이스북 페이지를 연결하세요.",
       "messengerHint": "직접 발급받은 Meta 자격 증명으로 페이스북 페이지를 연결하세요.",
       "comingSoon": "출시 예정",
       "instagramComingSoonHint": "Instagram 메시지 송수신 기능을 준비 중입니다. 아직 연결하지 마세요 — 지금 연결해도 메시지는 작동하지 않습니다.",
@@ -1983,7 +1984,7 @@
       "disconnectConfirm": "{platform} 연결을 해제할까요? 다시 연결할 때까지 이 CRM으로 메시지가 들어오지 않습니다.",
       "disconnected": "{platform} 연결이 해제되었습니다.",
       "disconnectError": "연결을 해제할 수 없습니다. 다시 시도하세요.",
-      "disconnectPartial": "여기서는 연결이 해제되었지만 Zernio에서도 해제하려면 연결할 수 없었습니다 — Zernio 대시보드를 확인하세요.",
+      "disconnectPartial": "여기서는 연결이 해제되었지만 제공업체 측 액세스는 취소하지 못했습니다 — 그쪽에서도 직접 취소해야 할 수 있습니다.",
       "manage": "관리",
       "whatsappApiHint": "자체 Meta Cloud API 자격 증명 또는 Dualhook과 같은 코엑시스턴스 공급자로 연결하세요.",
       "googleCalendar": {

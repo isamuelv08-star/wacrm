@@ -948,6 +948,7 @@
       "avgDealSizeTooltip": "Valor do Pipeline dividido pelo Total de Negócios — o valor médio de um único negócio não perdido.",
       "weightedValue": "Valor Ponderado",
       "weightedValueTooltip": "Receita esperada: o valor de cada negócio aberto × a probabilidade da sua etapa. A primeira etapa é ≈ 10%, as etapas progridem até 90%, Ganho = 100%. Negócios Perdidos são excluídos.",
+      "snapshotTitle": "Resumo",
       "periodLabel": "Período",
       "downloadCsv": "Exportar CSV",
       "downloadPdf": "Exportar PDF",
@@ -1956,9 +1957,9 @@
     },
     "integrations": {
       "title": "Integrações",
-      "description": "Conecte WhatsApp e Instagram pelo fluxo guiado de conexão da Meta via Zernio.",
+      "description": "Conecte WhatsApp, Instagram e Messenger pelo fluxo guiado de conexão da Meta.",
       "channelsTitle": "Canais",
-      "channelsDesc": "Conecte o WhatsApp com o fluxo guiado da Zernio, ou com suas próprias credenciais da Cloud API.",
+      "channelsDesc": "Conecte o WhatsApp com o fluxo guiado de conexão, ou com suas próprias credenciais da Cloud API.",
       "platform": {
         "whatsapp": "WhatsApp",
         "instagram": "Instagram",
@@ -1966,9 +1967,9 @@
         "messenger": "Messenger",
         "facebook": "Messenger"
       },
-      "whatsappHint": "Conecte uma conta do WhatsApp Business via Zernio.",
-      "instagramHint": "Conecte uma conta profissional do Instagram via Zernio.",
-      "facebookHint": "Conecte uma Página do Facebook via Zernio.",
+      "whatsappHint": "Conecte sua conta do WhatsApp Business com o fluxo guiado de conexão.",
+      "instagramHint": "Conecte sua conta profissional do Instagram com o fluxo guiado de conexão.",
+      "facebookHint": "Conecte sua Página do Facebook com o fluxo guiado de conexão.",
       "messengerHint": "Conecte uma Página do Facebook com suas próprias credenciais da Meta.",
       "comingSoon": "Em breve",
       "instagramComingSoonHint": "Estamos construindo o envio e recebimento de mensagens do Instagram. Ainda não conecte — por enquanto nada aconteceria com as mensagens.",
@@ -1983,7 +1984,7 @@
       "disconnectConfirm": "Desconectar {platform}? As mensagens vão parar de chegar a este CRM até você reconectar.",
       "disconnected": "{platform} desconectado.",
       "disconnectError": "Não foi possível desconectar. Tente novamente.",
-      "disconnectPartial": "Desconectado aqui, mas não foi possível contatar a Zernio para revogar também lá — verifique o painel da Zernio.",
+      "disconnectPartial": "Desconectado aqui, mas não foi possível revogar o acesso do lado do provedor — talvez seja necessário revogá-lo também por lá.",
       "manage": "Gerenciar",
       "whatsappApiHint": "Conecte com suas próprias credenciais da Meta Cloud API, ou com um provedor de coexistência como o Dualhook.",
       "googleCalendar": {

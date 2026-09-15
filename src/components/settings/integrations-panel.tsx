@@ -9,25 +9,28 @@ import { CalendarClock } from 'lucide-react';
 import { SettingsPanelHead } from './settings-panel-head';
 import { ConnectPlatformButton } from './connect-platform-button';
 import { WhatsAppApiConnectCard } from './whatsapp-api-connect-card';
-import { MessengerConnectCard } from './messenger-connect-card';
 import { GoogleCalendarConnect } from './google-calendar-connect';
 import { IntegrationCard } from './integration-card';
-import { PlatformIcon } from '@/components/inbox/platform-accent';
+import { PlatformLogoMono } from './platform-logo-mono';
 import { useAuth } from '@/hooks/use-auth';
 
 /**
- * Integrations tab — an app-store-style grid of connection tiles
- * instead of a stacked list of full-width rows: WhatsApp and Messenger
- * each have two ways to connect (Zernio's guided Meta OAuth flow via
+ * Integrations tab — an app-store-style grid of connection tiles.
+ * WhatsApp has two ways to connect (the guided Meta OAuth flow via
  * <ConnectPlatformButton>, or your own credentials via
- * <WhatsAppApiConnectCard> / <MessengerConnectCard> — both rendered
- * with `variant="card"` here; onboarding's linear list still uses
- * their default row variant), plus Instagram (coming soon) and Google
- * Calendar.
+ * <WhatsAppApiConnectCard>, rendered with `variant="card"` here;
+ * onboarding's linear list still uses its default row variant).
+ * Messenger and Instagram are guided-OAuth only — no "bring your own
+ * Meta credentials" card for either, unlike WhatsApp — plus Google
+ * Calendar. Card icons use the monochrome <PlatformLogoMono> mark
+ * rather than the inbox's brand-colored badges, matching this grid's
+ * plainer, less "chat app" visual language.
  *
- * Also picks up the `zernio_*` query params that /api/zernio/callback
+ * Also picks up the `zernio_*` query params that the OAuth callback
  * redirects back with and surfaces them as a toast, then strips them
- * from the URL so a refresh doesn't re-fire it.
+ * from the URL so a refresh doesn't re-fire it. Nothing in this panel
+ * names the OAuth provider — the guided flow is presented as "the
+ * app's own" connection method, not a third party's.
  */
 export function IntegrationsPanel() {
   const t = useTranslations('Settings.integrations');
@@ -85,7 +88,7 @@ export function IntegrationsPanel() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <IntegrationCard
-          icon={<PlatformIcon platform="whatsapp" />}
+          icon={<PlatformLogoMono platform="whatsapp" />}
           name={t('platform.whatsapp')}
           subtitle={t('whatsappHint')}
           action={accountId ? <ConnectPlatformButton platform="whatsapp" profileId={accountId} /> : null}
@@ -94,25 +97,17 @@ export function IntegrationsPanel() {
         <WhatsAppApiConnectCard variant="card" />
 
         <IntegrationCard
-          icon={<PlatformIcon platform="messenger" />}
+          icon={<PlatformLogoMono platform="messenger" />}
           name={t('platform.facebook')}
           subtitle={t('facebookHint')}
           action={accountId ? <ConnectPlatformButton platform="facebook" profileId={accountId} /> : null}
         />
 
-        <MessengerConnectCard variant="card" />
-
         <IntegrationCard
-          icon={<PlatformIcon platform="instagram" />}
+          icon={<PlatformLogoMono platform="instagram" />}
           name={t('platform.instagram')}
-          badge={
-            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-              {t('comingSoon')}
-            </span>
-          }
-          subtitle={t('instagramComingSoonHint')}
-          action={null}
-          muted
+          subtitle={t('instagramHint')}
+          action={accountId ? <ConnectPlatformButton platform="instagram" profileId={accountId} /> : null}
         />
 
         <IntegrationCard
