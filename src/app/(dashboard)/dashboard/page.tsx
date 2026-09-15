@@ -25,6 +25,15 @@ import {
   loadPipelineDonut,
   loadResponseTime,
 } from '@/lib/dashboard/queries'
+import {
+  loadSellerBreakdown,
+  loadSellerOptions,
+  resolveSellerScope,
+  type SellerBreakdownRow,
+  type SellerOption,
+  type SellerScope,
+} from '@/lib/dashboard/seller-scope'
+import { SellerBreakdownCard } from '@/components/dashboard/seller-breakdown-card'
 import { rangeForPreset, formatRangeLabel, type PeriodPreset, type PeriodRange } from '@/lib/period'
 import { PeriodSelector } from '@/components/period-selector'
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback'
@@ -112,7 +121,9 @@ export default function DashboardPage() {
   const t = useTranslations('Dashboard.page')
   const tCeo = useTranslations('Dashboard.ceo.page')
   const tPeriod = useTranslations('Common.period')
-  const { profile, defaultCurrency, accountId, canViewDashboardSection } = useAuth()
+  const { user, profile, account, accountRole, defaultCurrency, accountId, canViewDashboardSection } = useAuth()
+  const isMultiWhatsApp = account?.whatsapp_mode === 'multiwhatsapp'
+  const isSellerAdmin = accountRole === 'owner' || accountRole === 'admin'
 
   // One /dashboard for everyone — what used to be a separate
   // owner-only /ceo page is now just a section of this page, gated
@@ -138,6 +149,21 @@ export default function DashboardPage() {
 
   const [metrics, setMetrics] = useState<MetricsBundle | null>(null)
   const [metricsLoading, setMetricsLoading] = useState(true)
+
+  // Multiwhatsapp (085) seller scoping — "cada vendedor ve solo sus
+  // propias métricas; el dueño ve todo consolidado con la opción de
+  // ver el detalle de cada uno" (phase 7). Read inside `loadAll` via a
+  // ref (not state) for the same reason periodRangeRef/rangeRef below
+  // are refs — loadAll must NOT depend on it, or every scope change
+  // would recreate the callback and re-trip the pathname/visibility
+  // effects that already call it. A non-admin's own scope is resolved
+  // once and never changes; an admin/owner's selection (via
+  // SellerBreakdownCard) drives the same ref instead.
+  const sellerScopeRef = useRef<SellerScope | null>(null)
+  const [selectedSellerId, setSelectedSellerId] = useState<string | null>(null)
+  const [sellerOptions, setSellerOptions] = useState<SellerOption[]>([])
+  const [sellerBreakdown, setSellerBreakdown] = useState<SellerBreakdownRow[] | null>(null)
+  const [sellerBreakdownLoading, setSellerBreakdownLoading] = useState(false)
 
   // Global period selector — same calendar-based preset + custom-range
   // picker as Pipeline Analytics (see `@/lib/period`), so "this month"
@@ -244,7 +270,7 @@ export default function DashboardPage() {
     // Kick everything off in parallel. Each block has its own
     // setState + finally so a slow query doesn't hold up faster
     // sections — each widget shows its own skeleton independently.
-    void loadMetrics(db, 1)
+    void loadMetrics(db, 1, sellerScopeRef.current ?? undefined)
       .then((m) => setMetrics(m))
       .catch((err) => console.error('[dashboard] metrics failed:', err))
       .finally(() => setMetricsLoading(false))
@@ -323,6 +349,72 @@ export default function DashboardPage() {
         setAlertsLoading(false)
       })
   }, [hasAnySalesAccess])
+
+  // A non-admin's own scope: resolved once and applied silently (no
+  // selector shown to them — see SellerBreakdownCard, admin/owner
+  // only). Re-runs loadAll after resolving so the very first paint's
+  // cards, which fired before this effect had a chance to set the
+  // ref, get corrected immediately rather than showing unscoped
+  // numbers until the next natural reload.
+  useEffect(() => {
+    if (!isMultiWhatsApp || isSellerAdmin || !user?.id || !accountId) return
+    let cancelled = false
+    void resolveSellerScope(createClient(), user.id).then((scope) => {
+      if (cancelled) return
+      sellerScopeRef.current = scope
+      loadAll()
+    })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadAll is stable enough here (deps: [hasAnySalesAccess]); including it would refire this on every unrelated change
+  }, [isMultiWhatsApp, isSellerAdmin, user?.id, accountId])
+
+  // Admin/owner: load the pickable seller roster + today's per-seller
+  // breakdown table. Independent of loadAll/loadMetrics entirely — a
+  // slow breakdown fetch never blocks the main cards, and vice versa.
+  useEffect(() => {
+    if (!isMultiWhatsApp || !isSellerAdmin || !accountId) return
+    let cancelled = false
+    const db = createClient()
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- kicks off a fresh fetch whenever this account/role combo first qualifies
+    setSellerBreakdownLoading(true)
+    void Promise.all([loadSellerOptions(db, accountId), loadSellerBreakdown(db, accountId)])
+      .then(([options, breakdown]) => {
+        if (cancelled) return
+        setSellerOptions(options)
+        setSellerBreakdown(breakdown)
+      })
+      .catch((err) => console.error('[dashboard] seller breakdown failed:', err))
+      .finally(() => {
+        if (!cancelled) setSellerBreakdownLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isMultiWhatsApp, isSellerAdmin, accountId])
+
+  // Admin/owner picking a specific seller from SellerBreakdownCard (or
+  // clearing back to "Todos"/consolidated) — resolve that seller's
+  // scope into the ref loadAll reads and reload the main cards under
+  // it. Only meaningful for an admin; a non-admin's selectedSellerId
+  // never changes (no selector shown to them).
+  const handleSelectSeller = useCallback(
+    (sellerId: string | null) => {
+      setSelectedSellerId(sellerId)
+      if (!sellerId) {
+        sellerScopeRef.current = null
+        loadAll()
+        return
+      }
+      const option = sellerOptions.find((o) => o.userId === sellerId)
+      sellerScopeRef.current = option
+        ? { userId: option.userId, whatsappConfigIds: option.whatsappConfigIds }
+        : null
+      loadAll()
+    },
+    [sellerOptions, loadAll],
+  )
 
   // Realtime-triggered reload — unlike the mount/pathname/visibility
   // triggers below (which are fine reading a still-warm cache), a
@@ -653,6 +745,16 @@ export default function DashboardPage() {
           </>
         )}
       </div>
+
+      {isMultiWhatsApp && isSellerAdmin && (
+        <SellerBreakdownCard
+          rows={sellerBreakdown}
+          loading={sellerBreakdownLoading}
+          selectedSellerId={selectedSellerId}
+          onSelectSeller={handleSelectSeller}
+          currency={defaultCurrency}
+        />
+      )}
 
       {/* Charts row — Conversations, Pipeline Value, and Response Time
           together. items-stretch (the grid default) stretches every

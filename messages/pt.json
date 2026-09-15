@@ -238,6 +238,12 @@
       "active": "Ativo",
       "inactive": "Inativo"
     },
+    "sellerBreakdown": {
+      "title": "Detalhe por vendedor",
+      "subtitle": "Toque em um vendedor para ver suas próprias métricas — toque de novo para voltar à visão consolidada.",
+      "viewAll": "Ver todos",
+      "activeConversations": "{count} ativas"
+    },
     "ceo": {
       "page": {
         "title": "Painel CEO",

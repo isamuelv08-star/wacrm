@@ -238,6 +238,12 @@
       "active": "활성",
       "inactive": "비활성"
     },
+    "sellerBreakdown": {
+      "title": "영업사원별 상세",
+      "subtitle": "영업사원을 탭하면 그 사람의 지표만 볼 수 있어요 — 다시 탭하면 통합 보기로 돌아갑니다.",
+      "viewAll": "전체 보기",
+      "activeConversations": "활성 {count}개"
+    },
     "ceo": {
       "page": {
         "title": "CEO 대시보드",

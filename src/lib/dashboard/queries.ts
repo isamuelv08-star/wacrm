@@ -40,10 +40,55 @@ type DB = SupabaseClient
  * deliberately stay range-independent — there's no historical
  * snapshot to compare a live count against, only the deltas can be
  * windowed.
+ *
+ * `seller` (multiwhatsapp accounts, 085/087 only) narrows every card
+ * to one seller's own number(s) instead of the whole account — passed
+ * by the Dashboard for a non-admin viewer's OWN automatic scope, or
+ * by an admin/owner explicitly drilling into one seller via the
+ * breakdown selector. `whatsappConfigIds` are that seller's owned
+ * whatsapp_config rows (resolveSellerScope below); conversations,
+ * contacts, and messages (via its parent conversation) all carry that
+ * column (084), but deals don't — those are scoped by `userId`
+ * (deals.assigned_to) instead, the same attribution a closed sale
+ * already uses. Omitted (undefined) for every 'shared'-mode account —
+ * every query below then runs exactly as it did before this feature,
+ * account-wide via RLS alone, same as the file header describes.
  */
-export async function loadMetrics(db: DB, rangeDays: number): Promise<MetricsBundle> {
+export async function loadMetrics(
+  db: DB,
+  rangeDays: number,
+  seller?: { userId: string; whatsappConfigIds: string[] },
+): Promise<MetricsBundle> {
   const currentStart = daysAgoStart(rangeDays - 1).toISOString()
   const previousStart = daysAgoStart(rangeDays * 2 - 1).toISOString()
+
+  const convBase = () => {
+    let q = db.from('conversations').select('id', { count: 'exact', head: true }).eq('status', 'open')
+    if (seller) q = q.in('whatsapp_config_id', seller.whatsappConfigIds)
+    return q
+  }
+  const contactBase = () => {
+    let q = db.from('contacts').select('id', { count: 'exact', head: true })
+    if (seller) q = q.in('whatsapp_config_id', seller.whatsappConfigIds)
+    return q
+  }
+  const dealBase = () => {
+    let q = db.from('deals').select('value, status').eq('status', 'open')
+    if (seller) q = q.eq('assigned_to', seller.userId)
+    return q
+  }
+  const messageBase = () => {
+    // Messages don't carry whatsapp_config_id themselves — filter via
+    // the parent conversation, same embed-and-filter pattern
+    // loadHotUnanswered below uses for contacts.lead_score.
+    const q = seller
+      ? db
+          .from('messages')
+          .select('id, conversations!inner(whatsapp_config_id)', { count: 'exact', head: true })
+          .in('conversations.whatsapp_config_id', seller.whatsappConfigIds)
+      : db.from('messages').select('id', { count: 'exact', head: true })
+    return q.eq('sender_type', 'agent')
+  }
 
   const [
     openConvCur,
@@ -55,36 +100,14 @@ export async function loadMetrics(db: DB, rangeDays: number): Promise<MetricsBun
     messagesCurrent,
     messagesPrevious,
   ] = await Promise.all([
-    db.from('conversations').select('id', { count: 'exact', head: true }).eq('status', 'open'),
-    db
-      .from('conversations')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'open')
-      .gte('created_at', currentStart),
-    db
-      .from('conversations')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'open')
-      .gte('created_at', previousStart)
-      .lt('created_at', currentStart),
-    db.from('contacts').select('id', { count: 'exact', head: true }).gte('created_at', currentStart),
-    db
-      .from('contacts')
-      .select('id', { count: 'exact', head: true })
-      .gte('created_at', previousStart)
-      .lt('created_at', currentStart),
-    db.from('deals').select('value, status').eq('status', 'open'),
-    db
-      .from('messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('sender_type', 'agent')
-      .gte('created_at', currentStart),
-    db
-      .from('messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('sender_type', 'agent')
-      .gte('created_at', previousStart)
-      .lt('created_at', currentStart),
+    convBase(),
+    convBase().gte('created_at', currentStart),
+    convBase().gte('created_at', previousStart).lt('created_at', currentStart),
+    contactBase().gte('created_at', currentStart),
+    contactBase().gte('created_at', previousStart).lt('created_at', currentStart),
+    dealBase(),
+    messageBase().gte('created_at', currentStart),
+    messageBase().gte('created_at', previousStart).lt('created_at', currentStart),
   ])
 
   const openDealsRows = (openDeals.data ?? []) as { value: number | null }[]

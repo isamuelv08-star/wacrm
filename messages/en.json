@@ -238,6 +238,12 @@
       "active": "Active",
       "inactive": "Inactive"
     },
+    "sellerBreakdown": {
+      "title": "Breakdown by seller",
+      "subtitle": "Tap a seller to see their own metrics — tap again to go back to the consolidated view.",
+      "viewAll": "View all",
+      "activeConversations": "{count} active"
+    },
     "ceo": {
       "page": {
         "title": "CEO Dashboard",
