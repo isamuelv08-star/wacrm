@@ -18,14 +18,17 @@ import { AiConfig } from "@/components/settings/ai-config";
 import { GoogleCalendarConnect } from "@/components/settings/google-calendar-connect";
 import { InviteMemberDialog } from "@/components/settings/invite-member-dialog";
 import { BusinessTypeStep } from "./business-type-step";
+import { WhatsAppModeStep, type WhatsAppMode } from "./whatsapp-mode-step";
 import { useAuth } from "@/hooks/use-auth";
 import { APPOINTMENT_BASED_VERTICALS, type BusinessVertical } from "@/types";
 
 // Order matters — business type first (decides whether "calendar"
-// below is shown at all), then WhatsApp because nothing else in the
-// product works without it (inbox/broadcasts/AI auto-reply are all
-// inert with no channel connected). The rest are informational/optional.
-const BASE_STEP_KEYS = ["businessType", "whatsapp", "pipeline", "ai"] as const;
+// below is shown at all), then the WhatsApp setup choice (shared
+// number vs. one per seller), then the connect step itself, since
+// nothing else in the product works without a channel connected
+// (inbox/broadcasts/AI auto-reply are all inert without one). The
+// rest are informational/optional.
+const BASE_STEP_KEYS = ["businessType", "whatsappMode", "whatsapp", "pipeline", "ai"] as const;
 const TAIL_STEP_KEYS = ["invite", "done"] as const;
 type StepKey =
   | (typeof BASE_STEP_KEYS)[number]
@@ -41,6 +44,9 @@ export function OnboardingWizard() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [businessVertical, setBusinessVertical] = useState<BusinessVertical | null>(
     account?.business_vertical ?? null,
+  );
+  const [whatsappMode, setWhatsappMode] = useState<WhatsAppMode>(
+    account?.whatsapp_mode ?? "shared",
   );
 
   // "calendar" only shows up for appointment-driven verticals (clinics,
@@ -72,6 +78,16 @@ export function OnboardingWizard() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ business_vertical: vertical }),
+    });
+  }
+
+  function handleSelectWhatsAppMode(mode: WhatsAppMode) {
+    setWhatsappMode(mode);
+    // Same best-effort, fire-and-forget posture as handleSelectVertical.
+    void fetch("/api/account", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ whatsapp_mode: mode }),
     });
   }
 
@@ -140,7 +156,20 @@ export function OnboardingWizard() {
             <BusinessTypeStep value={businessVertical} onChange={handleSelectVertical} />
           )}
 
-          {step === "whatsapp" && <WhatsAppChannelOptions />}
+          {step === "whatsappMode" && (
+            <WhatsAppModeStep value={whatsappMode} onChange={handleSelectWhatsAppMode} />
+          )}
+
+          {step === "whatsapp" && (
+            <div className="flex flex-col gap-3">
+              {whatsappMode === "multiwhatsapp" && (
+                <p className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
+                  {t("whatsapp.multiwhatsappHint")}
+                </p>
+              )}
+              <WhatsAppChannelOptions />
+            </div>
+          )}
 
           {step === "pipeline" && (
             <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm">

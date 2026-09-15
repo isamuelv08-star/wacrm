@@ -40,6 +40,9 @@ const BUSINESS_VERTICALS: readonly BusinessVertical[] = [
   "other",
 ];
 
+const WHATSAPP_MODES = ["shared", "multiwhatsapp"] as const;
+type WhatsAppMode = (typeof WHATSAPP_MODES)[number];
+
 export async function GET() {
   try {
     const ctx = await getCurrentAccount();
@@ -81,6 +84,7 @@ export async function PATCH(request: Request) {
       followup_after_hours?: unknown;
       timezone?: unknown;
       business_vertical?: unknown;
+      whatsapp_mode?: unknown;
     } | null;
 
     const update: Record<string, unknown> = {};
@@ -167,6 +171,23 @@ export async function PATCH(request: Request) {
       update.business_vertical = raw;
     }
 
+    if (body && "whatsapp_mode" in body) {
+      const raw = body.whatsapp_mode;
+      // Only ever a widening move in practice (shared -> multiwhatsapp,
+      // from onboarding or Settings) — but nothing here forbids
+      // switching back, since the schema underneath (083/084) never
+      // requires the flag, it only gates which UI/matching behavior
+      // the app applies. Downgrading just stops offering the
+      // multi-number UI; any numbers already connected keep working.
+      if (!WHATSAPP_MODES.includes(raw as WhatsAppMode)) {
+        return NextResponse.json(
+          { error: `'whatsapp_mode' must be one of: ${WHATSAPP_MODES.join(", ")}` },
+          { status: 400 },
+        );
+      }
+      update.whatsapp_mode = raw;
+    }
+
     if (Object.keys(update).length === 0) {
       return NextResponse.json(
         { error: "Nothing to update" },
@@ -181,7 +202,7 @@ export async function PATCH(request: Request) {
       .from("accounts")
       .update(update)
       .eq("id", ctx.accountId)
-      .select("id, name, hot_lead_alert_minutes, followup_after_hours, timezone, business_vertical")
+      .select("id, name, hot_lead_alert_minutes, followup_after_hours, timezone, business_vertical, whatsapp_mode")
       .single();
 
     if (error) {

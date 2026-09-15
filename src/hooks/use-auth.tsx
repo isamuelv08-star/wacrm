@@ -59,6 +59,9 @@ interface AccountSummary {
    *  set — used only to decide whether onboarding suggests connecting
    *  Google Calendar. */
   business_vertical: BusinessVertical | null;
+  /** 'shared' (default) or 'multiwhatsapp' (migration 085) — see
+   *  Account.whatsapp_mode's doc comment in @/types. */
+  whatsapp_mode: 'shared' | 'multiwhatsapp';
 }
 
 interface AuthContextValue {
@@ -195,7 +198,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .from("accounts")
             // default_currency added in migration 021; narrowed to the
             // USD fallback below for older schemas where it reads null.
-            .select("id, name, default_currency, onboarding_completed_at, business_vertical")
+            .select("id, name, default_currency, onboarding_completed_at, business_vertical, whatsapp_mode")
             .eq("id", data.account_id)
             .maybeSingle();
           if (accountErr) {
@@ -212,6 +215,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               default_currency: account.default_currency ?? DEFAULT_CURRENCY,
               onboarding_completed_at: account.onboarding_completed_at ?? null,
               business_vertical: (account.business_vertical as BusinessVertical | null) ?? null,
+              whatsapp_mode: (account.whatsapp_mode as 'shared' | 'multiwhatsapp' | null) ?? 'shared',
             };
           }
         }

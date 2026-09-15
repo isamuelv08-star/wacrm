@@ -2769,9 +2769,24 @@
         "other": "기타"
       }
     },
+    "whatsappMode": {
+      "title": "WhatsApp을 어떻게 사용하고 싶으신가요?",
+      "description": "나중에 설정에서 언제든지 변경할 수 있어요.",
+      "options": {
+        "shared": {
+          "title": "공유 번호 하나",
+          "description": "팀 전체가 같은 WhatsApp 번호로 작업하고, 채팅은 자동으로 에이전트들에게 분배됩니다."
+        },
+        "multiwhatsapp": {
+          "title": "영업사원별 번호",
+          "description": "각 영업사원이 자신만의 번호, 연락처, 캠페인을 관리하고, 사장님은 하나의 대시보드에서 모든 것을 한눈에 봅니다."
+        }
+      }
+    },
     "whatsapp": {
       "title": "WhatsApp 연결하기",
-      "description": "받은메시지함, 대량 발송, AI 답장이 모두 이 연결을 통해 동작합니다 — 설정하기 전까지는 아무것도 작동하지 않아요."
+      "description": "받은메시지함, 대량 발송, AI 답장이 모두 이 연결을 통해 동작합니다 — 설정하기 전까지는 아무것도 작동하지 않아요.",
+      "multiwhatsappHint": "영업사원별 번호를 선택하셨어요 — 우선 여기서 첫 번째 번호를 연결하세요. 나머지는 설정에서 추가할 수 있어요."
     },
     "pipeline": {
       "title": "영업 파이프라인",

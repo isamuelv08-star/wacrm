@@ -2769,9 +2769,24 @@
         "other": "Otro"
       }
     },
+    "whatsappMode": {
+      "title": "¿Cómo querés usar WhatsApp?",
+      "description": "Podés cambiar esto después desde Configuración cuando quieras.",
+      "options": {
+        "shared": {
+          "title": "Un número compartido",
+          "description": "Todo tu equipo trabaja desde el mismo número de WhatsApp — los chats se reparten entre tus agentes automáticamente."
+        },
+        "multiwhatsapp": {
+          "title": "Un número por vendedor",
+          "description": "Cada vendedor conecta su propio número, con sus propios contactos y campañas — vos ves todo consolidado en un solo panel."
+        }
+      }
+    },
     "whatsapp": {
       "title": "Conectá tu WhatsApp",
-      "description": "Tu bandeja de entrada, difusiones y respuestas con IA dependen de esta conexión — nada funciona hasta que la configures."
+      "description": "Tu bandeja de entrada, difusiones y respuestas con IA dependen de esta conexión — nada funciona hasta que la configures.",
+      "multiwhatsappHint": "Elegiste un número por vendedor — por ahora conectá el primero acá; vas a poder sumar el resto desde Configuración."
     },
     "pipeline": {
       "title": "Tu pipeline de ventas",

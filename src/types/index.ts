@@ -106,6 +106,14 @@ export interface Account {
   appointment_confirmation_template_id?: string | null;
   /** Same as above, for the pre-appointment reminder send. */
   appointment_reminder_template_id?: string | null;
+  /**
+   * 'shared' (default) — one WhatsApp number for the whole team, same
+   * mechanism whether there's one person or several round-robinned
+   * across it. 'multiwhatsapp' — each seller connects their own
+   * number (migration 085). Chosen in onboarding for a new account,
+   * switchable later from Settings for an existing one.
+   */
+  whatsapp_mode?: 'shared' | 'multiwhatsapp';
   created_at: string;
   updated_at: string;
 }

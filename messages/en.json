@@ -2769,9 +2769,24 @@
         "other": "Other"
       }
     },
+    "whatsappMode": {
+      "title": "How do you want to use WhatsApp?",
+      "description": "You can change this later from Settings whenever you want.",
+      "options": {
+        "shared": {
+          "title": "One shared number",
+          "description": "Your whole team works from the same WhatsApp number — chats get distributed among your agents automatically."
+        },
+        "multiwhatsapp": {
+          "title": "One number per seller",
+          "description": "Each seller connects their own number, with their own contacts and campaigns — you see everything consolidated in one dashboard."
+        }
+      }
+    },
     "whatsapp": {
       "title": "Connect WhatsApp",
-      "description": "Your inbox, broadcasts, and AI replies all run through this connection — nothing works until it's set up."
+      "description": "Your inbox, broadcasts, and AI replies all run through this connection — nothing works until it's set up.",
+      "multiwhatsappHint": "You picked one number per seller — connect the first one here for now; you'll be able to add the rest from Settings."
     },
     "pipeline": {
       "title": "Your sales pipeline",
