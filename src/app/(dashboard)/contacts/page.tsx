@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag } from '@/types';
@@ -71,9 +72,14 @@ export default function ContactsPage() {
   const canEdit = useCan('send-messages');
   const canEditSettings = useCan('edit-settings');
 
+  const searchParams = useSearchParams();
+
   const [contacts, setContacts] = useState<ContactWithTags[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  // Prefilled from ?q=... — the header's smart search sends contacts
+  // here (instead of the inbox) when a match has no open conversation
+  // to jump straight into.
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   // Tag filter — contacts shown must have ANY of these tags (OR).

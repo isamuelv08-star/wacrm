@@ -1,9 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { usePathname } from 'next/navigation'
-import { useDashboardHeaderSlot } from '@/components/layout/dashboard-header-slot'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
 import { formatCurrency } from '@/lib/currency'
@@ -53,7 +51,6 @@ import { MetricCard } from '@/components/dashboard/metric-card'
 import { AnimatedNumber } from '@/components/dashboard/animated-number'
 import { RevealSection } from '@/components/dashboard/reveal-section'
 import { SkeletonCard } from '@/components/dashboard/skeleton'
-import { QuickActions } from '@/components/dashboard/quick-actions'
 import { ConversationsChart } from '@/components/dashboard/conversations-chart'
 import { PipelineDonut } from '@/components/dashboard/pipeline-donut'
 import { ResponseTimeCard } from '@/components/dashboard/response-time-card'
@@ -115,7 +112,7 @@ export default function DashboardPage() {
   const t = useTranslations('Dashboard.page')
   const tCeo = useTranslations('Dashboard.ceo.page')
   const tPeriod = useTranslations('Common.period')
-  const { defaultCurrency, accountId, canViewDashboardSection } = useAuth()
+  const { profile, defaultCurrency, accountId, canViewDashboardSection } = useAuth()
 
   // One /dashboard for everyone — what used to be a separate
   // owner-only /ceo page is now just a section of this page, gated
@@ -543,32 +540,50 @@ export default function DashboardPage() {
     [applyPeriodRange],
   )
 
-  // The greeting itself now renders in the shared Header (same line as
-  // the account menu — see header.tsx's `isDashboard` branch); this
-  // page only owns the period-selector's state, portaled onto that
-  // same line via the slot Header mounts for it. `slotEl` is null for
-  // one render on first mount (before Header's ref callback fires) —
-  // the portal just renders nothing that instant instead of erroring.
-  const { slotEl } = useDashboardHeaderSlot()
+  // A rotating slogan instead of one fixed subtitle — stable for the
+  // whole day (keyed off day-of-year) so it doesn't change under the
+  // user between renders/navigations, but still varies day to day.
+  // Computed in an effect (not useMemo) since picking it needs
+  // Date.now(), which isn't pure enough to call during render — the
+  // static description renders first and swaps in a moment later.
+  const [slogan, setSlogan] = useState<string | null>(null)
+  useEffect(() => {
+    const slogans = t.raw('slogans') as string[] | undefined
+    if (!slogans || slogans.length === 0) return
+    const dayOfYear = Math.floor(
+      (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86_400_000,
+    )
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- picks today's slogan once on mount
+    setSlogan(slogans[dayOfYear % slogans.length])
+  }, [t])
 
   return (
     <div className="space-y-5">
-      {slotEl &&
-        createPortal(
-          <>
-            <PeriodSelector
-              preset={preset}
-              customStart={customStart}
-              customEnd={customEnd}
-              onPresetChange={handlePresetChange}
-              onCustomChange={handleCustomChange}
-            />
-            <span className="hidden truncate text-xs text-muted-foreground md:inline">
-              {periodRangeLabel}
-            </span>
-          </>,
-          slotEl,
-        )}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground sm:text-3xl">
+            {t.rich('welcome', {
+              name: profile?.full_name || t('defaultUser'),
+              grad: (chunks) => (
+                <span className="bg-gradient-to-r from-primary via-primary to-primary/55 bg-clip-text text-transparent">
+                  {chunks}
+                </span>
+              ),
+            })}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">{slogan ?? t('description')}</p>
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          <PeriodSelector
+            preset={preset}
+            customStart={customStart}
+            customEnd={customEnd}
+            onPresetChange={handlePresetChange}
+            onCustomChange={handleCustomChange}
+          />
+          <span className="hidden text-xs text-muted-foreground sm:inline">{periodRangeLabel}</span>
+        </div>
+      </div>
 
       <p className="text-sm text-muted-foreground">{t('description')}</p>
 
@@ -640,9 +655,6 @@ export default function DashboardPage() {
           </>
         )}
       </div>
-
-      {/* Quick actions */}
-      <QuickActions />
 
       {/* Charts row — Conversations, Pipeline Value, and Response Time
           together. items-stretch (the grid default) stretches every

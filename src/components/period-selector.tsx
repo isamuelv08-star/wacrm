@@ -17,7 +17,7 @@ import {
   startOfWeek,
   subMonths,
 } from "date-fns";
-import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { Calendar, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { rangeForPreset, formatRangeLabel, type PeriodPreset } from "@/lib/period";
 import { cn } from "@/lib/utils";
@@ -29,13 +29,14 @@ import { cn } from "@/lib/utils";
 // today".
 const QUICK_PRESETS: PeriodPreset[] = [
   "today",
-  "yesterday",
   "last7Days",
-  "last30Days",
+  "last15Days",
+  "thisMonth",
+  "yesterday",
   "thisWeek",
   "lastWeek",
-  "thisMonth",
   "lastMonth",
+  "last30Days",
   "thisQuarter",
   "thisYear",
   "allTime",
@@ -45,6 +46,7 @@ const PRESET_LABEL_KEY: Record<PeriodPreset, string> = {
   today: "presetToday",
   yesterday: "presetYesterday",
   last7Days: "presetLast7Days",
+  last15Days: "presetLast15Days",
   last30Days: "presetLast30Days",
   thisWeek: "presetThisWeek",
   lastWeek: "presetLastWeek",
@@ -98,9 +100,20 @@ export function PeriodSelector({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger className="flex items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted">
-        <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
-        {triggerLabel}
+      {/* Two visual segments sharing one popover — a quick-preset pill
+          plus a separate calendar-icon button for the custom range,
+          matching the reference design. Both live inside a single
+          Trigger (rendered as a plain div, not a button) so a click on
+          either bubbles up to the same open/close control instead of
+          needing two independently-anchored popovers. */}
+      <PopoverTrigger render={<div className="flex items-center gap-2" />}>
+        <span className="flex cursor-pointer items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted">
+          {triggerLabel}
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+        </span>
+        <span className="flex h-[30px] w-[30px] cursor-pointer items-center justify-center rounded-md border border-border bg-muted/50 text-muted-foreground transition-colors hover:bg-muted">
+          <Calendar className="h-4 w-4" />
+        </span>
       </PopoverTrigger>
 
       <PopoverContent align="end" className="w-auto p-0">

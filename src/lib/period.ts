@@ -9,6 +9,7 @@ export type PeriodPreset =
   | "today"
   | "yesterday"
   | "last7Days"
+  | "last15Days"
   | "last30Days"
   | "thisWeek"
   | "lastWeek"
@@ -79,6 +80,10 @@ export function rangeForPreset(preset: PeriodPreset, custom?: { start: Date; end
       // Inclusive of today — a 7-day window ending today, not yesterday.
       const start = addDays(startOfDay(now), -6);
       return { start, end: addDays(startOfDay(now), 1), label: "last7Days" };
+    }
+    case "last15Days": {
+      const start = addDays(startOfDay(now), -14);
+      return { start, end: addDays(startOfDay(now), 1), label: "last15Days" };
     }
     case "last30Days": {
       const start = addDays(startOfDay(now), -29);
@@ -155,6 +160,7 @@ export function formatRangeLabel(range: PeriodRange, t: (key: string) => string)
     case "allTime":
       return t("presetAllTime");
     case "last7Days":
+    case "last15Days":
     case "last30Days":
     case "custom": {
       const inclusiveEnd = new Date(range.end.getTime() - 1);
