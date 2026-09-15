@@ -303,6 +303,10 @@ export async function processWebhookPayload(body: { entry?: WhatsAppWebhookEntry
           // per-account phase 2, migration 084).
           config.id,
           splitByNumber,
+          // whatsapp_config.owner_user_id (083) — who a brand-new
+          // conversation on this number should be assigned to instead
+          // of round-robinned, when splitByNumber is true (087).
+          config.owner_user_id ?? null,
         )
       }
     }
@@ -749,6 +753,9 @@ export async function processMessage(
   // findOrCreateConversation's doc comment (086). Resolved once by the
   // caller (processWebhookPayload) rather than re-queried per message.
   splitByNumber: boolean = false,
+  // whatsapp_config.owner_user_id for whatsappConfigId, when known —
+  // see findOrCreateConversation's doc comment (087).
+  numberOwnerUserId: string | null = null,
 ) {
   const senderPhone = normalizePhone(message.from)
   const contactName = contact.profile.name
@@ -771,6 +778,7 @@ export async function processMessage(
     contactRecord.id,
     whatsappConfigId,
     splitByNumber,
+    numberOwnerUserId,
   )
   if (!convResult) return
   const conversation = convResult.conversation
@@ -1478,6 +1486,14 @@ async function findOrCreateConversation(
   // default) always passes false, making this byte-for-byte the same
   // lookup/insert as before this feature existed.
   splitByNumber: boolean = false,
+  // The specific number's owner (whatsapp_config.owner_user_id, 083) —
+  // when set and splitByNumber is true, a brand-new conversation is
+  // assigned straight to them instead of round-robinned account-wide.
+  // Without this, round-robin could hand a lead on Vendedor 1's number
+  // to Vendedor 2, who — correctly per 087's RLS — then can't even see
+  // their own "assigned" conversation. null (round-robin as before)
+  // for a 'shared' account or an unassigned/shared number.
+  numberOwnerUserId: string | null = null,
 ) {
   const numberFilter = splitByNumber && whatsappConfigId ? whatsappConfigId : null
 
@@ -1515,11 +1531,15 @@ async function findOrCreateConversation(
     return { conversation: existingRows[0], created: false }
   }
 
-  // Brand-new lead — round-robin it to an eligible agent up front so
-  // the insert and the assignment notification (on_conversation_assigned,
-  // 027/042) land in one statement. Returns null (left unassigned) when
-  // the account has no eligible agents, same as before this feature.
-  const assignedAgentId = await pickRoundRobinAgent(supabaseAdmin(), accountId)
+  // Brand-new lead. On a multiwhatsapp number with a specific owner,
+  // it's already unambiguous who this goes to — skip round-robin
+  // entirely and assign straight to them. Otherwise, round-robin
+  // across the account's eligible agents as before (returns null,
+  // left unassigned, when there are none).
+  const assignedAgentId =
+    splitByNumber && numberOwnerUserId
+      ? numberOwnerUserId
+      : await pickRoundRobinAgent(supabaseAdmin(), accountId)
 
   // Create new conversation. Same tenancy + audit split as
   // findOrCreateContact above.
