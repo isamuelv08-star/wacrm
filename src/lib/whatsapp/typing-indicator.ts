@@ -33,11 +33,28 @@ export async function signalTyping(
       return
     }
 
-    const { data: config } = await db
-      .from('whatsapp_config')
-      .select('phone_number_id, access_token, send_api_base')
-      .eq('account_id', accountId)
+    // Prefer the specific number this conversation is tagged with
+    // (migration 084) — same reasoning as send-message.ts, required
+    // once an account has more than one direct-Meta number
+    // (multiwhatsapp, 085). Untagged conversations fall through
+    // unchanged.
+    const { data: taggedConv } = await db
+      .from('conversations')
+      .select('whatsapp_config_id')
+      .eq('id', conversationId)
       .maybeSingle()
+
+    const { data: config } = taggedConv?.whatsapp_config_id
+      ? await db
+          .from('whatsapp_config')
+          .select('phone_number_id, access_token, send_api_base')
+          .eq('id', taggedConv.whatsapp_config_id as string)
+          .maybeSingle()
+      : await db
+          .from('whatsapp_config')
+          .select('phone_number_id, access_token, send_api_base')
+          .eq('account_id', accountId)
+          .maybeSingle()
     if (!config) return
 
     // The customer's most recent inbound message — Meta requires its

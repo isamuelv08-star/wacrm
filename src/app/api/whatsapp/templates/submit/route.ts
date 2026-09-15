@@ -138,11 +138,18 @@ export async function POST(request: Request) {
       metaTemplateId = `dry-run-${crypto.randomUUID()}`
       metaStatus = 'PENDING'
     } else {
-      const { data: config, error: configError } = await supabase
+      // Templates are per-WABA on Meta's side, and this action has no
+      // specific number/conversation to prefer — same stopgap as
+      // broadcast-core.ts: always the oldest connected number for a
+      // multiwhatsapp account (085) rather than crashing. Zero change
+      // for a 'shared' account (only ever one row).
+      const { data: configRows, error: configError } = await supabase
         .from('whatsapp_config')
         .select('*')
         .eq('account_id', accountId)
-        .single()
+        .order('created_at', { ascending: true })
+        .limit(1)
+      const config = configRows?.[0] ?? null
       if (configError || !config) {
         return NextResponse.json(
           {

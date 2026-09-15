@@ -48,12 +48,22 @@ export async function GET(
       )
     }
 
-    // Fetch and decrypt WhatsApp config
-    const { data: config, error: configError } = await supabase
+    // Fetch and decrypt WhatsApp config. This route only gets a bare
+    // Meta mediaId (no conversation/message context to resolve which
+    // specific number received it), so — same stopgap as broadcast-
+    // core.ts/booking/notify.ts — a multiwhatsapp account (085) always
+    // tries its oldest connected number here rather than crashing; a
+    // media id that actually belongs to a DIFFERENT number on the same
+    // account would still fail to load (Meta scopes media access per
+    // number/app), tracked as a follow-up once messages carry enough
+    // to resolve this properly. Zero change for a 'shared' account.
+    const { data: configRows, error: configError } = await supabase
       .from('whatsapp_config')
       .select('*')
       .eq('account_id', accountId)
-      .single()
+      .order('created_at', { ascending: true })
+      .limit(1)
+    const config = configRows?.[0] ?? null
 
     if (configError || !config) {
       return NextResponse.json(

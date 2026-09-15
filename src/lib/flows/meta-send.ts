@@ -221,11 +221,31 @@ export async function resolveSendContext(
     }
   }
 
-  const { data: config, error: configErr } = await db
-    .from('whatsapp_config')
-    .select('*')
+  // Prefer the specific number this conversation is tagged with
+  // (migration 084) — same reasoning as send-message.ts: required
+  // once an account has more than one direct-Meta number
+  // (multiwhatsapp mode, 085), since the account-wide .single() below
+  // throws on 2+ rows. Untagged conversations fall through to the
+  // original lookup, same row/behavior as before.
+  const { data: taggedConv } = await db
+    .from('conversations')
+    .select('whatsapp_config_id')
+    .eq('id', conversationId)
     .eq('account_id', accountId)
-    .single()
+    .maybeSingle()
+
+  const { data: config, error: configErr } = taggedConv?.whatsapp_config_id
+    ? await db
+        .from('whatsapp_config')
+        .select('*')
+        .eq('id', taggedConv.whatsapp_config_id as string)
+        .eq('account_id', accountId)
+        .maybeSingle()
+    : await db
+        .from('whatsapp_config')
+        .select('*')
+        .eq('account_id', accountId)
+        .single()
   if (configErr || !config) {
     throw new Error('WhatsApp not configured for this account')
   }
@@ -485,27 +505,26 @@ export async function engineSendMedia(
       filename: args.filename,
     })
   } else {
-    const { data: config, error: configErr } = await db
-      .from('whatsapp_config')
-      .select('*')
-      .eq('account_id', args.accountId)
-      .single()
-    if (configErr || !config) {
+    // Reuse what resolveSendContext already resolved above (correctly
+    // scoped to this conversation's specific number as of the fix
+    // there) instead of a second, redundant account-wide query that
+    // wouldn't have benefited from that fix.
+    if (!ctx.whatsappConfig || !ctx.accessToken) {
       throw new Error('WhatsApp not configured for this account')
     }
-
-    const accessToken = decrypt(config.access_token)
+    const { phone_number_id, send_api_base } = ctx.whatsappConfig
+    const accessToken = ctx.accessToken
 
     const attempt = async (phone: string): Promise<string> => {
       const r = await sendMediaMessage({
-        phoneNumberId: config.phone_number_id,
+        phoneNumberId: phone_number_id,
         accessToken,
         to: phone,
         kind: args.kind,
         link: args.link,
         caption: args.caption,
         filename: args.filename,
-        apiBase: config.send_api_base ?? undefined,
+        apiBase: send_api_base ?? undefined,
       })
       return r.messageId
     }
@@ -670,11 +689,27 @@ async function sendInteractiveViaMeta(
       interactivePayload,
     })
   } else {
-    const { data: config, error: configErr } = await db
-      .from('whatsapp_config')
-      .select('*')
+    // Same conversation-tagged lookup as resolveSendContext above —
+    // this function doesn't go through it, so it needs its own copy.
+    const { data: taggedConv } = await db
+      .from('conversations')
+      .select('whatsapp_config_id')
+      .eq('id', input.conversationId)
       .eq('account_id', input.accountId)
-      .single()
+      .maybeSingle()
+
+    const { data: config, error: configErr } = taggedConv?.whatsapp_config_id
+      ? await db
+          .from('whatsapp_config')
+          .select('*')
+          .eq('id', taggedConv.whatsapp_config_id as string)
+          .eq('account_id', input.accountId)
+          .maybeSingle()
+      : await db
+          .from('whatsapp_config')
+          .select('*')
+          .eq('account_id', input.accountId)
+          .single()
     if (configErr || !config) {
       throw new Error('WhatsApp not configured for this account')
     }

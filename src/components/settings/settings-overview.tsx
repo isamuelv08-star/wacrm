@@ -129,7 +129,7 @@ export function SettingsOverview({
           .from('whatsapp_config')
           .select('phone_number_id')
           .eq('account_id', acctId)
-          .maybeSingle(),
+          .limit(1),
         fetch('/api/whatsapp/config', { cache: 'no-store' }).then((r) => r.json()),
         supabase
           .from('client_zernio_accounts')
@@ -140,7 +140,7 @@ export function SettingsOverview({
       if (cancelled) return;
       const zernioConnected =
         zernioRow.status === 'fulfilled' && !!zernioRow.value.data?.whatsapp_account_id;
-      const apiConfigured = row.status === 'fulfilled' && !!row.value.data?.phone_number_id;
+      const apiConfigured = row.status === 'fulfilled' && !!row.value.data?.[0]?.phone_number_id;
       setWhatsapp({
         configured: apiConfigured || zernioConnected,
         connected: (health.status === 'fulfilled' && !!health.value?.connected) || zernioConnected,

@@ -113,11 +113,25 @@ export async function createBroadcast(
 
   // Config (fail fast + provides the audit trail owner already resolved
   // by the caller). Meta send needs phone_number_id + decrypted token.
-  const { data: config, error: configError } = await db
+  //
+  // A broadcast targets many recipients at once, not one conversation,
+  // so — unlike the per-conversation sends in send-message.ts/
+  // meta-send.ts — there's no specific number to prefer yet for a
+  // multiwhatsapp account (085): this always sends from the oldest
+  // connected number. `.limit(1).order(...)` instead of `.single()` so
+  // that account merely doesn't crash the whole broadcast (`.single()`
+  // throws on 2+ rows); it does NOT yet let a seller broadcast from
+  // their own specific number — needs broadcasts to carry their own
+  // whatsapp_config_id before that's correct, tracked as follow-up.
+  // Zero behavior change for a 'shared' account, which only ever has
+  // the one row this already picked.
+  const { data: configRows, error: configError } = await db
     .from('whatsapp_config')
     .select('*')
     .eq('account_id', accountId)
-    .single();
+    .order('created_at', { ascending: true })
+    .limit(1);
+  const config = configRows?.[0] ?? null;
   if (configError || !config) {
     throw new BroadcastError(
       'whatsapp_not_configured',

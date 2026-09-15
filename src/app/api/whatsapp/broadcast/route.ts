@@ -120,11 +120,18 @@ export async function POST(request: Request) {
       )
     }
 
-    const { data: config, error: configError } = await supabase
+    // Same stopgap as broadcast-core.ts — a broadcast sends to many
+    // recipients, no specific number/conversation to prefer, so a
+    // multiwhatsapp account (085) always uses its oldest connected
+    // number here rather than crashing. Zero change for a 'shared'
+    // account (only ever one row).
+    const { data: configRows, error: configError } = await supabase
       .from('whatsapp_config')
       .select('*')
       .eq('account_id', accountId)
-      .single()
+      .order('created_at', { ascending: true })
+      .limit(1)
+    const config = configRows?.[0] ?? null
 
     if (configError || !config) {
       return NextResponse.json(

@@ -74,12 +74,18 @@ export async function resolveAuditUserId(
   db: SupabaseClient,
   accountId: string
 ): Promise<string> {
-  const { data: config } = await db
+  // Just picking someone to attribute the row to — any connected
+  // number's saver works equally well, so order+limit(1) instead of
+  // .maybeSingle() only to avoid it erroring (and silently skipping
+  // to the fallback below) for a multiwhatsapp account (085) with 2+
+  // direct-Meta numbers.
+  const { data: configRows } = await db
     .from('whatsapp_config')
     .select('user_id')
     .eq('account_id', accountId)
-    .maybeSingle();
-  const configOwner = config?.user_id as string | undefined;
+    .order('created_at', { ascending: true })
+    .limit(1);
+  const configOwner = configRows?.[0]?.user_id as string | undefined;
   if (configOwner) return configOwner;
 
   const { data: account } = await db

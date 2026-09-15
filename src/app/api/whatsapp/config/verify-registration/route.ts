@@ -55,11 +55,19 @@ export async function GET() {
     })
   }
 
-  const { data: config } = await supabase
+  // Same stopgap as the other account-wide (no conversation context)
+  // whatsapp_config lookups — oldest connected number for a
+  // multiwhatsapp account (085). This diagnostic is also only reached
+  // through the single-number connect card, itself hidden once
+  // multiwhatsapp is active (see integrations-panel.tsx), so this is
+  // belt-and-suspenders more than a live path today.
+  const { data: configRows } = await supabase
     .from('whatsapp_config')
     .select('*')
     .eq('account_id', accountId)
-    .maybeSingle()
+    .order('created_at', { ascending: true })
+    .limit(1)
+  const config = configRows?.[0] ?? null
 
   if (!config) {
     return NextResponse.json({

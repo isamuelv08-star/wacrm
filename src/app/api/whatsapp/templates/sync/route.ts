@@ -135,11 +135,16 @@ export async function POST() {
     // Resolving account_id off the profile only proved membership.
     const { supabase, accountId, userId } = await requireRole('admin')
 
-    const { data: config, error: configError } = await supabase
+    // Same stopgap as templates/submit — no specific number/conversation
+    // to prefer for an account-wide sync; always the oldest connected
+    // number for a multiwhatsapp account (085) rather than crashing.
+    const { data: configRows, error: configError } = await supabase
       .from('whatsapp_config')
       .select('*')
       .eq('account_id', accountId)
-      .single()
+      .order('created_at', { ascending: true })
+      .limit(1)
+    const config = configRows?.[0] ?? null
 
     if (configError || !config) {
       return NextResponse.json(

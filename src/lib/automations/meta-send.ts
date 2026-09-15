@@ -163,11 +163,30 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
         .eq('id', input.conversationId)
     }
   } else {
-    const { data: config, error: configErr } = await db
-      .from('whatsapp_config')
-      .select('*')
+    // Prefer the specific number this conversation is tagged with
+    // (migration 084) — same reasoning as src/lib/whatsapp/send-message.ts:
+    // required once an account has more than one direct-Meta number
+    // (multiwhatsapp mode, 085), since the account-wide .single() below
+    // throws on 2+ rows. Untagged conversations fall through unchanged.
+    const { data: taggedConv } = await db
+      .from('conversations')
+      .select('whatsapp_config_id')
+      .eq('id', input.conversationId)
       .eq('account_id', input.accountId)
-      .single()
+      .maybeSingle()
+
+    const { data: config, error: configErr } = taggedConv?.whatsapp_config_id
+      ? await db
+          .from('whatsapp_config')
+          .select('*')
+          .eq('id', taggedConv.whatsapp_config_id as string)
+          .eq('account_id', input.accountId)
+          .maybeSingle()
+      : await db
+          .from('whatsapp_config')
+          .select('*')
+          .eq('account_id', input.accountId)
+          .single()
     if (configErr || !config) {
       throw new Error('WhatsApp not configured for this account')
     }

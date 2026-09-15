@@ -66,7 +66,7 @@ export async function POST(request: Request) {
 
     const { data: conversation, error: convError } = await supabase
       .from('conversations')
-      .select('id, account_id, contact:contacts(phone)')
+      .select('id, account_id, whatsapp_config_id, contact:contacts(phone)')
       .eq('id', targetMessage.conversation_id)
       .eq('account_id', accountId)
       .maybeSingle();
@@ -88,12 +88,23 @@ export async function POST(request: Request) {
       );
     }
 
-    // WhatsApp config + access token. Account-scoped post-multi-user.
-    const { data: config, error: configError } = await supabase
-      .from('whatsapp_config')
-      .select('phone_number_id, access_token, send_api_base')
-      .eq('account_id', accountId)
-      .single();
+    // WhatsApp config + access token. Prefer the specific number this
+    // conversation is tagged with (migration 084) — required once an
+    // account has more than one direct-Meta number (multiwhatsapp,
+    // 085), since the account-wide .single() below throws on 2+ rows.
+    // Untagged conversations fall through unchanged.
+    const { data: config, error: configError } = conversation.whatsapp_config_id
+      ? await supabase
+          .from('whatsapp_config')
+          .select('phone_number_id, access_token, send_api_base')
+          .eq('id', conversation.whatsapp_config_id as string)
+          .eq('account_id', accountId)
+          .maybeSingle()
+      : await supabase
+          .from('whatsapp_config')
+          .select('phone_number_id, access_token, send_api_base')
+          .eq('account_id', accountId)
+          .single();
 
     if (configError || !config) {
       return NextResponse.json(

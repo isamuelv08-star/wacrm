@@ -82,10 +82,18 @@ export async function sendAppointmentNotification(
         : account?.appointment_reminder_template_id
     if (!templateId) return false // admin hasn't picked a template yet
 
-    const [{ data: config }, { data: rawTemplate }] = await Promise.all([
-      db.from('whatsapp_config').select('*').eq('account_id', args.accountId).maybeSingle(),
+    // No per-seller number to prefer here (booking notifications are
+    // keyed by contact, not a conversation) — same stopgap as
+    // broadcast-core.ts: order+limit(1) instead of .maybeSingle() so a
+    // multiwhatsapp account (085) with 2+ numbers doesn't silently
+    // skip every confirmation/reminder, even though it always uses the
+    // oldest connected number rather than a specific seller's. Zero
+    // change for a 'shared' account, which only ever has the one row.
+    const [{ data: configRows }, { data: rawTemplate }] = await Promise.all([
+      db.from('whatsapp_config').select('*').eq('account_id', args.accountId).order('created_at', { ascending: true }).limit(1),
       db.from('message_templates').select('*').eq('id', templateId).maybeSingle(),
     ])
+    const config = configRows?.[0] ?? null
     if (!config) {
       console.warn('[booking notify] WhatsApp not configured — skipping', args.kind)
       return false

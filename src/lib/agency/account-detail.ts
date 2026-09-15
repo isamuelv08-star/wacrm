@@ -73,7 +73,7 @@ export async function loadAgencyAccountDetail(
   }
   if (!account) return null
 
-  const [{ data: profiles }, { data: presenceRows }, { data: config }, { data: zernio }, { data: usageRows }] =
+  const [{ data: profiles }, { data: presenceRows }, { data: configRows }, { data: zernio }, { data: usageRows }] =
     await Promise.all([
       db
         .from('profiles')
@@ -91,7 +91,8 @@ export async function loadAgencyAccountDetail(
           'status, phone_number_id, waba_id, send_api_base, registered_at, last_registration_error',
         )
         .eq('account_id', accountId)
-        .maybeSingle(),
+        .order('created_at', { ascending: true })
+        .limit(1),
       db
         .from('client_zernio_accounts')
         .select('whatsapp_account_id, connected_at')
@@ -106,6 +107,12 @@ export async function loadAgencyAccountDetail(
           new Date(Date.now() - AI_USAGE_WINDOW_DAYS * 86_400_000).toISOString(),
         ),
     ])
+
+  // Oldest connected direct-Meta number — same stopgap as the app's
+  // other account-wide (no specific conversation) whatsapp_config
+  // lookups, so a multiwhatsapp client (085) with 2+ numbers still
+  // shows *a* connection here instead of "not connected".
+  const config = configRows?.[0] ?? null
 
   const presenceByUser = new Map(
     (presenceRows ?? []).map((p) => [p.user_id as string, p.last_seen_at as string]),

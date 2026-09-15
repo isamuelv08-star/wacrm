@@ -364,12 +364,26 @@ export async function sendMessageToConversation(
         .eq('id', conversationId);
     }
   } else {
-    // WhatsApp config, account-scoped.
-    const { data: config, error: configError } = await db
-      .from('whatsapp_config')
-      .select('*')
-      .eq('account_id', accountId)
-      .single();
+    // WhatsApp config. Prefer the SPECIFIC number this conversation is
+    // tagged with (migration 084) — required once an account has more
+    // than one direct-Meta number (multiwhatsapp mode, migration 085),
+    // since the plain account-scoped .single() below throws on 2+
+    // rows. Untagged conversations (everything before 084, or an
+    // account that's never had more than one number) fall through to
+    // the original account-wide lookup unchanged — same row, same
+    // behavior as before this existed.
+    const { data: config, error: configError } = conversation.whatsapp_config_id
+      ? await db
+          .from('whatsapp_config')
+          .select('*')
+          .eq('id', conversation.whatsapp_config_id as string)
+          .eq('account_id', accountId)
+          .maybeSingle()
+      : await db
+          .from('whatsapp_config')
+          .select('*')
+          .eq('account_id', accountId)
+          .single();
 
     if (configError || !config) {
       throw new SendMessageError(
