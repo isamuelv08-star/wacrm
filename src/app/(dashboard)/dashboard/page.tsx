@@ -540,12 +540,12 @@ export default function DashboardPage() {
     [applyPeriodRange],
   )
 
-  // A rotating slogan instead of one fixed subtitle — stable for the
-  // whole day (keyed off day-of-year) so it doesn't change under the
-  // user between renders/navigations, but still varies day to day.
-  // Computed in an effect (not useMemo) since picking it needs
-  // Date.now(), which isn't pure enough to call during render — the
-  // static description renders first and swaps in a moment later.
+  // A rotating slogan — stable for the whole day (keyed off
+  // day-of-year) so it doesn't change under the user between renders/
+  // navigations, but still varies day to day. No static fallback
+  // anymore: the old fixed description read as filler once every page
+  // had its own real heading, so it's gone rather than shown while
+  // this resolves.
   const [slogan, setSlogan] = useState<string | null>(null)
   useEffect(() => {
     const slogans = t.raw('slogans') as string[] | undefined
@@ -561,7 +561,7 @@ export default function DashboardPage() {
     <div className="space-y-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground sm:text-3xl">
+          <h1 className="text-3xl font-bold text-foreground sm:text-4xl">
             {t.rich('welcome', {
               name: profile?.full_name || t('defaultUser'),
               grad: (chunks) => (
@@ -571,7 +571,7 @@ export default function DashboardPage() {
               ),
             })}
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">{slogan ?? t('description')}</p>
+          {slogan && <p className="mt-1 text-sm text-muted-foreground">{slogan}</p>}
         </div>
         <div className="flex flex-col items-end gap-1">
           <PeriodSelector

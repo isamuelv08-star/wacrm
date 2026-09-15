@@ -385,7 +385,7 @@
       "templates": "Plantillas",
       "readOnlyPlaceholder": "Solo lectura — los visualizadores pueden explorar pero no responder",
       "sessionExpiredPlaceholder": "Sesión expirada - usa una plantilla",
-      "typeMessagePlaceholder": "Escribe un mensaje... (Shift+Enter para nueva línea)",
+      "typeMessagePlaceholder": "Escribe un mensaje...",
       "readOnlyTitle": "Solo lectura — tu rol no puede enviar mensajes",
       "recording": "Grabando… {current} / {max}",
       "cancel": "Cancelar",

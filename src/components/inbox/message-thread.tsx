@@ -57,9 +57,6 @@ import { AvatarRing } from "./platform-accent";
 import {
   getConversationPlatform,
   platformSoftBackground,
-  WHATSAPP_TINT,
-  INSTAGRAM_GRADIENT,
-  MESSENGER_GRADIENT,
 } from "@/lib/inbox/platform";
 
 interface ReplyDraft {
@@ -1062,22 +1059,6 @@ export function MessageThread({
           : { backgroundImage: platformSoftBackground(platform, 5) }
       }
     >
-      {/* Platform accent — thin colored bar identifying the conversation's
-          channel (green for WhatsApp, the IG gradient for Instagram) atop
-          the header, same treatment as the pipeline stage cards' accent. */}
-      <div
-        aria-hidden
-        className="h-[3px] shrink-0"
-        style={{
-          backgroundColor: platform === "whatsapp" ? WHATSAPP_TINT : undefined,
-          backgroundImage:
-            platform === "instagram"
-              ? INSTAGRAM_GRADIENT
-              : platform === "messenger"
-                ? MESSENGER_GRADIENT
-                : undefined,
-        }}
-      />
       {/* Header — solid card surface sits on top of the doodle so the
           name/avatar/dropdowns stay legible. A soft shadow (not a hard
           border line) separates it from the thread below — same "no

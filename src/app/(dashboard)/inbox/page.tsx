@@ -669,7 +669,24 @@ function InboxPageInner() {
   const hasActiveConv = !!activeConversation;
 
   return (
-    <div className="-m-4 flex h-[calc(100vh-3.5rem)] flex-col overflow-hidden sm:-m-6">
+    <div
+      className={cn(
+        // Mobile: edge-to-edge, same as before — screen space is
+        // precious there and the single-pane list/thread swap already
+        // reads as "the whole screen is this app". Desktop: a floating
+        // rounded card (same idiom as the main Sidebar's lg:m-3 +
+        // rounded-2xl) instead of a flush rectangle, so the panel
+        // doesn't read as a leftover square slab against the rest of
+        // the app's rounded-card language. `<main>` keeps its own
+        // sm:p-6 (1.5rem) at lg+ — this only cancels PART of that
+        // (-0.75rem, not the full -1.5rem sm:-m-6 does) so a clean
+        // 0.75rem gap remains on every side, matching the Sidebar's
+        // own inset exactly; the height drops by that same 1.5rem
+        // (0.75rem top + bottom) so the card doesn't overflow.
+        "-m-4 flex h-[calc(100vh-3.5rem)] flex-col overflow-hidden sm:-m-6",
+        "lg:-m-3 lg:h-[calc(100vh-3.5rem-1.5rem)] lg:rounded-2xl lg:border lg:border-border lg:shadow-lg lg:shadow-black/5",
+      )}
+    >
       {/* WhatsApp connection banner — in the flex column, not absolute,
           so it pushes the panels down instead of overlapping them. */}
       {whatsappConnected === false && (
