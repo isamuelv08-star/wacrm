@@ -284,7 +284,13 @@ export async function processWebhookPayload(body: { entry?: WhatsAppWebhookEntry
           // inserts that need it for NOT NULL FK compliance. Always
           // the admin who saved the WhatsApp config.
           config.user_id,
-          decryptedAccessToken
+          decryptedAccessToken,
+          'meta',
+          undefined,
+          // Tags any newly-created contact/conversation with the
+          // specific number this message came in on (multi-number-
+          // per-account phase 2, migration 084).
+          config.id,
         )
       }
     }
@@ -721,6 +727,12 @@ export async function processMessage(
   // right after `conversation` resolves below for why this can't wait
   // until after this function returns).
   zernioConversationId?: string | null,
+  // The whatsapp_config row this message arrived through — direct-Meta
+  // path only (multi-number-per-account phase 2, migration 084). The
+  // Zernio path doesn't pass this (stays null): its numbers live on
+  // client_zernio_accounts/client_zernio_channels, not whatsapp_config,
+  // so there's no row here to point at yet.
+  whatsappConfigId: string | null = null,
 ) {
   const senderPhone = normalizePhone(message.from)
   const contactName = contact.profile.name
@@ -730,7 +742,8 @@ export async function processMessage(
     accountId,
     configOwnerUserId,
     senderPhone,
-    contactName
+    contactName,
+    whatsappConfigId,
   )
   if (!contactOutcome) return
   const contactRecord = contactOutcome.contact
@@ -739,7 +752,8 @@ export async function processMessage(
   const convResult = await findOrCreateConversation(
     accountId,
     configOwnerUserId,
-    contactRecord.id
+    contactRecord.id,
+    whatsappConfigId,
   )
   if (!convResult) return
   const conversation = convResult.conversation
@@ -1365,7 +1379,16 @@ async function findOrCreateContact(
   accountId: string,
   configOwnerUserId: string,
   phone: string,
-  name: string
+  name: string,
+  // Which whatsapp_config row this inbound message arrived through —
+  // multi-number-per-account phase 2 (migration 084). Only stamped on
+  // a brand-new contact; an existing one keeps whichever number (if
+  // any) it was first tagged with, since the matching logic below is
+  // unchanged — this never affects WHICH contact a message resolves
+  // to, only what a newly-created one is labeled with. null for the
+  // Zernio path, which doesn't have a whatsapp_config row to point at
+  // (see the client_zernio_channels note in migration 083).
+  whatsappConfigId: string | null = null,
 ): Promise<ContactOutcome | null> {
   // Find an existing contact for this account by phone. The shared
   // helper pre-filters in SQL by the last-8-digit suffix (so we don't
@@ -1401,6 +1424,7 @@ async function findOrCreateContact(
       user_id: configOwnerUserId,
       phone,
       name: name || phone,
+      whatsapp_config_id: whatsappConfigId,
     })
     .select()
     .single()
@@ -1425,6 +1449,12 @@ async function findOrCreateConversation(
   accountId: string,
   configOwnerUserId: string,
   contactId: string,
+  // Same tagging as findOrCreateContact above — only stamped when
+  // this call creates a brand-new conversation row; the lookup a few
+  // lines down (by account_id + contact_id, migration 036) is
+  // completely unchanged, so this can never split or merge
+  // conversations differently than before.
+  whatsappConfigId: string | null = null,
 ) {
   // Look for an existing conversation in this account, oldest-first.
   //
@@ -1471,6 +1501,7 @@ async function findOrCreateConversation(
       user_id: configOwnerUserId,
       contact_id: contactId,
       assigned_agent_id: assignedAgentId,
+      whatsapp_config_id: whatsappConfigId,
     })
     .select()
     .single()

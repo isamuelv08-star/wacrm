@@ -212,6 +212,14 @@ export interface Contact {
   /** Hydrated by queries that embed `contact_tags(tags(*))` (e.g. the
    *  Inbox conversation list, for tag filtering). Absent otherwise. */
   tags?: Tag[];
+  /**
+   * Which WhatsApp number this contact first messaged in (migration
+   * 084, multi-number-per-account phase 2). NULL for every contact
+   * created before this migration, and for ones created through a
+   * channel other than a direct-Meta whatsapp_config row (Zernio,
+   * Messenger, ...) — not wired up for those yet.
+   */
+  whatsapp_config_id?: string | null;
 }
 
 export interface Tag {
@@ -301,6 +309,13 @@ export interface Conversation {
    * but has no backend behind it yet; every row defaults to 'whatsapp'.
    */
   platform?: "whatsapp" | "instagram" | "messenger";
+  /**
+   * Which WhatsApp number this conversation came in on (migration
+   * 084, multi-number-per-account phase 2). Same caveats as
+   * Contact.whatsapp_config_id — null for anything pre-migration or
+   * off a non-direct-Meta channel.
+   */
+  whatsapp_config_id?: string | null;
 }
 
 // ============================================================
