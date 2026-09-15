@@ -439,6 +439,16 @@ export interface WhatsAppConfig {
    * means "send straight to Meta" — see migration 037.
    */
   send_api_base?: string | null;
+  /**
+   * Which seller/agent this specific number belongs to (migration
+   * 083, multi-number-per-account phase 1). NULL means "the
+   * account's shared/default number" — every row from before this
+   * migration reads this way, so a single-number account behaves
+   * exactly as before.
+   */
+  owner_user_id?: string | null;
+  /** Display name for this number ("Vendedor 1", ...). NULL falls back to the phone number itself. */
+  label?: string | null;
 }
 
 /** Facebook Messenger connection for the account. See migration 080. */
@@ -467,6 +477,29 @@ export interface ClientZernioAccount {
   whatsapp_account_id: string | null;
   instagram_account_id: string | null;
   connected_at: string | null;
+}
+
+/**
+ * One Zernio-connected channel (a WhatsApp number, an Instagram
+ * account, or a Facebook Page) — migration 083, multi-number-per-
+ * account phase 1. Not wired into any app code yet: existing
+ * connections still live on ClientZernioAccount's scalar
+ * whatsapp_account_id/instagram_account_id/facebook_account_id until
+ * a later phase migrates them here and repoints the webhook/connect
+ * routes at this table.
+ */
+export interface ClientZernioChannel {
+  id: string;
+  account_id: string;
+  platform: 'whatsapp' | 'instagram' | 'facebook';
+  zernio_account_id: string;
+  /** Which seller/agent this channel belongs to. NULL = the account's shared/default channel. */
+  owner_user_id: string | null;
+  label: string | null;
+  connected_at: string | null;
+  connected_by_user_id: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // Raw Meta status enum. We persist this verbatim from Meta (sync + webhook)
