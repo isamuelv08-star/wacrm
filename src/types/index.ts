@@ -114,6 +114,13 @@ export interface Account {
    * switchable later from Settings for an existing one.
    */
   whatsapp_mode?: 'shared' | 'multiwhatsapp';
+  /**
+   * 'active' (default) — full access. 'pending' — created by a
+   * from-scratch signup with no owner invite (migration 088);
+   * blocked from the dashboard until the agency owner activates it.
+   * 'suspended' — was active, access revoked.
+   */
+  status?: 'pending' | 'active' | 'suspended';
   created_at: string;
   updated_at: string;
 }

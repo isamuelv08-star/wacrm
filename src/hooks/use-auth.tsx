@@ -62,6 +62,11 @@ interface AccountSummary {
   /** 'shared' (default) or 'multiwhatsapp' (migration 085) — see
    *  Account.whatsapp_mode's doc comment in @/types. */
   whatsapp_mode: 'shared' | 'multiwhatsapp';
+  /** 'active' (default) | 'pending' | 'suspended' (migration 088).
+   *  A from-scratch /signup with no owner invite starts 'pending' —
+   *  DashboardShell redirects anything non-'active' to
+   *  /acceso-restringido instead of the dashboard/onboarding. */
+  status: 'pending' | 'active' | 'suspended';
 }
 
 interface AuthContextValue {
@@ -198,7 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .from("accounts")
             // default_currency added in migration 021; narrowed to the
             // USD fallback below for older schemas where it reads null.
-            .select("id, name, default_currency, onboarding_completed_at, business_vertical, whatsapp_mode")
+            .select("id, name, default_currency, onboarding_completed_at, business_vertical, whatsapp_mode, status")
             .eq("id", data.account_id)
             .maybeSingle();
           if (accountErr) {
@@ -216,6 +221,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               onboarding_completed_at: account.onboarding_completed_at ?? null,
               business_vertical: (account.business_vertical as BusinessVertical | null) ?? null,
               whatsapp_mode: (account.whatsapp_mode as 'shared' | 'multiwhatsapp' | null) ?? 'shared',
+              status: (account.status as 'pending' | 'active' | 'suspended' | null) ?? 'active',
             };
           }
         }

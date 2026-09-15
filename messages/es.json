@@ -2734,6 +2734,7 @@
     "page": {
       "title": "Panel de agencia",
       "subtitle": "Vista de todas las cuentas administradas — {count, plural, =1 {# cliente} other {# clientes}}.",
+      "pendingCount": "{count, plural, =1 {# pendiente} other {# pendientes}}",
       "empty": "Todavía no hay cuentas dadas de alta."
     },
     "card": {
@@ -2753,7 +2754,9 @@
       "connectionCoexistence": "Proveedor de coexistencia",
       "connectionZernio": "Vía Zernio",
       "neverUsed": "Vacía",
-      "memberCount": "{count, plural, =1 {# usuario} other {# usuarios}}"
+      "memberCount": "{count, plural, =1 {# usuario} other {# usuarios}}",
+      "statusPending": "Pendiente",
+      "statusSuspended": "Suspendida"
     },
     "detail": {
       "subtitle": "Usuarios, conexión de WhatsApp y uso de IA de esta cuenta.",
@@ -2800,7 +2803,20 @@
       "deleteAccountConfirmLabel": "Escribí \"{name}\" para confirmar",
       "deleting": "Eliminando…",
       "deleteAccountSuccess": "{name} fue eliminada",
-      "deleteAccountError": "No se pudo eliminar la cuenta"
+      "deleteAccountError": "No se pudo eliminar la cuenta",
+      "statusPendingTitle": "Pendiente de aprobación",
+      "statusPendingDesc": "Esta cuenta se registró sola y todavía no tiene acceso a la app.",
+      "statusSuspendedTitle": "Cuenta suspendida",
+      "statusSuspendedDesc": "El acceso de esta cuenta está desactivado.",
+      "activateAction": "Activar cuenta",
+      "reactivateAction": "Reactivar cuenta",
+      "suspendAction": "Suspender cuenta",
+      "activateConfirmTitle": "¿Activar esta cuenta?",
+      "reactivateConfirmTitle": "¿Reactivar esta cuenta?",
+      "suspendConfirmTitle": "¿Suspender esta cuenta?",
+      "suspendConfirmDesc": "{name} y todos sus usuarios van a perder el acceso a la app hasta que la reactives.",
+      "statusUpdateSuccess": "Estado de la cuenta actualizado",
+      "statusUpdateError": "No se pudo actualizar el estado de la cuenta"
     },
     "createDialog": {
       "trigger": "Crear cliente",
@@ -2835,6 +2851,13 @@
   },
   "DashboardShell": {
     "loading": "Cargando..."
+  },
+  "RestrictedAccess": {
+    "pendingTitle": "Tu cuenta está en revisión",
+    "pendingDesc": "Por ahora trabajamos con un grupo cerrado de clientes. Ya registramos tu cuenta — escribinos y te damos acceso.",
+    "suspendedTitle": "Tu cuenta fue suspendida",
+    "suspendedDesc": "El acceso a esta cuenta fue suspendido temporalmente. Escribinos si creés que es un error.",
+    "signOut": "Cerrar sesión"
   },
   "Onboarding": {
     "skipSetup": "Saltar configuración",

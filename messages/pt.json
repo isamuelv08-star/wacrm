@@ -2734,6 +2734,7 @@
     "page": {
       "title": "Painel da agência",
       "subtitle": "Visão de todas as contas administradas — {count, plural, =1 {# cliente} other {# clientes}}.",
+      "pendingCount": "{count, plural, =1 {# pendente} other {# pendentes}}",
       "empty": "Ainda não há contas cadastradas."
     },
     "card": {
@@ -2753,7 +2754,9 @@
       "connectionCoexistence": "Provedor de coexistência",
       "connectionZernio": "Via Zernio",
       "neverUsed": "Vazia",
-      "memberCount": "{count, plural, =1 {# usuário} other {# usuários}}"
+      "memberCount": "{count, plural, =1 {# usuário} other {# usuários}}",
+      "statusPending": "Pendente",
+      "statusSuspended": "Suspensa"
     },
     "detail": {
       "subtitle": "Usuários, conexão do WhatsApp e uso de IA desta conta.",
@@ -2800,7 +2803,20 @@
       "deleteAccountConfirmLabel": "Digite \"{name}\" para confirmar",
       "deleting": "Excluindo…",
       "deleteAccountSuccess": "{name} foi excluída",
-      "deleteAccountError": "Não foi possível excluir a conta"
+      "deleteAccountError": "Não foi possível excluir a conta",
+      "statusPendingTitle": "Pendente de aprovação",
+      "statusPendingDesc": "Esta conta se cadastrou sozinha e ainda não tem acesso ao app.",
+      "statusSuspendedTitle": "Conta suspensa",
+      "statusSuspendedDesc": "O acesso desta conta está desativado.",
+      "activateAction": "Ativar conta",
+      "reactivateAction": "Reativar conta",
+      "suspendAction": "Suspender conta",
+      "activateConfirmTitle": "Ativar esta conta?",
+      "reactivateConfirmTitle": "Reativar esta conta?",
+      "suspendConfirmTitle": "Suspender esta conta?",
+      "suspendConfirmDesc": "{name} e todos os seus usuários vão perder o acesso ao app até você reativá-la.",
+      "statusUpdateSuccess": "Status da conta atualizado",
+      "statusUpdateError": "Não foi possível atualizar o status da conta"
     },
     "createDialog": {
       "trigger": "Criar cliente",
@@ -2835,6 +2851,13 @@
   },
   "DashboardShell": {
     "loading": "Carregando..."
+  },
+  "RestrictedAccess": {
+    "pendingTitle": "Sua conta está em análise",
+    "pendingDesc": "Por enquanto trabalhamos com um grupo fechado de clientes. Já registramos sua conta — fale conosco e liberamos seu acesso.",
+    "suspendedTitle": "Sua conta foi suspensa",
+    "suspendedDesc": "O acesso a esta conta foi suspenso temporariamente. Fale conosco se achar que isso é um erro.",
+    "signOut": "Sair"
   },
   "Onboarding": {
     "skipSetup": "Pular configuração",

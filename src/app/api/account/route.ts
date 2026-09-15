@@ -12,6 +12,14 @@
 //   account) and reuse the same `requireRole` plumbing. Splitting
 //   them across files would duplicate the `account_id` lookup
 //   without buying anything.
+//
+// PATCH deliberately never accepts `status` (migration 088 —
+// pending/active/suspended). Every field this route writes is an
+// explicit `"field" in body` check against a known allow-list, not a
+// blind spread of the request body, so an account's own admin can
+// never self-activate or un-suspend it through here — only
+// updateAgencyAccountStatus() (src/lib/agency/account-detail.ts),
+// reachable solely through requireSuperAdmin(), may change it.
 // ============================================================
 
 import { NextResponse } from "next/server";

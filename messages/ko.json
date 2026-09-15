@@ -2734,6 +2734,7 @@
     "page": {
       "title": "에이전시 패널",
       "subtitle": "관리 중인 모든 계정 보기 — {count}개 고객.",
+      "pendingCount": "대기 중 {count}개",
       "empty": "아직 등록된 계정이 없습니다."
     },
     "card": {
@@ -2753,7 +2754,9 @@
       "connectionCoexistence": "코이그지스턴스 제공업체",
       "connectionZernio": "Zernio 경유",
       "neverUsed": "비어 있음",
-      "memberCount": "사용자 {count}명"
+      "memberCount": "사용자 {count}명",
+      "statusPending": "대기 중",
+      "statusSuspended": "정지됨"
     },
     "detail": {
       "subtitle": "이 계정의 사용자, WhatsApp 연결, AI 사용량입니다.",
@@ -2800,7 +2803,20 @@
       "deleteAccountConfirmLabel": "확인하려면 \"{name}\"을(를) 입력하세요",
       "deleting": "삭제 중…",
       "deleteAccountSuccess": "{name}이(가) 삭제되었습니다",
-      "deleteAccountError": "계정을 삭제하지 못했습니다"
+      "deleteAccountError": "계정을 삭제하지 못했습니다",
+      "statusPendingTitle": "승인 대기 중",
+      "statusPendingDesc": "이 계정은 스스로 가입했으며 아직 앱에 접근할 수 없습니다.",
+      "statusSuspendedTitle": "계정 정지됨",
+      "statusSuspendedDesc": "이 계정의 접근 권한이 현재 비활성화되어 있습니다.",
+      "activateAction": "계정 활성화",
+      "reactivateAction": "계정 재활성화",
+      "suspendAction": "계정 정지",
+      "activateConfirmTitle": "이 계정을 활성화할까요?",
+      "reactivateConfirmTitle": "이 계정을 다시 활성화할까요?",
+      "suspendConfirmTitle": "이 계정을 정지할까요?",
+      "suspendConfirmDesc": "{name}과 모든 사용자가 다시 활성화할 때까지 앱에 접근할 수 없게 됩니다.",
+      "statusUpdateSuccess": "계정 상태가 업데이트되었습니다",
+      "statusUpdateError": "계정 상태를 업데이트하지 못했습니다"
     },
     "createDialog": {
       "trigger": "고객 만들기",
@@ -2835,6 +2851,13 @@
   },
   "DashboardShell": {
     "loading": "로딩 중..."
+  },
+  "RestrictedAccess": {
+    "pendingTitle": "계정이 검토 중입니다",
+    "pendingDesc": "현재 선별된 고객들과 함께 운영하고 있습니다. 계정은 이미 등록되었습니다 — 연락 주시면 접근 권한을 드리겠습니다.",
+    "suspendedTitle": "계정이 정지되었습니다",
+    "suspendedDesc": "이 계정에 대한 접근이 일시적으로 정지되었습니다. 오류라고 생각되시면 연락해 주세요.",
+    "signOut": "로그아웃"
   },
   "Onboarding": {
     "skipSetup": "설정 건너뛰기",

@@ -9,12 +9,17 @@ export const AGENCY_INACTIVITY_DAYS = 3
 
 export type WhatsAppConnectionMethod = 'meta' | 'coexistence' | 'zernio' | null
 
+export type AgencyAccountStatus = 'pending' | 'active' | 'suspended'
+
 export interface AgencyAccountOverview {
   accountId: string
   accountName: string
   accountCreatedAt: string
   defaultCurrency: string
   ownerUserId: string
+  /** 'active' (default) | 'pending' (self-signed-up, awaiting approval
+   *  — migration 088) | 'suspended'. */
+  accountStatus: AgencyAccountStatus
   memberCount: number
   /** True when the account has zero contacts, zero conversations, and
    *  was never connected to WhatsApp by any path — never actually used,
@@ -52,6 +57,7 @@ interface AgencyOverviewRow {
   account_created_at: string
   default_currency: string
   owner_user_id: string
+  account_status: AgencyAccountStatus
   member_count: number
   never_used: boolean
   whatsapp_status: 'connected' | 'disconnected' | null
@@ -111,6 +117,7 @@ export async function loadAgencyOverview(): Promise<AgencyAccountOverview[]> {
       accountCreatedAt: row.account_created_at,
       defaultCurrency: row.default_currency,
       ownerUserId: row.owner_user_id,
+      accountStatus: row.account_status ?? 'active',
       memberCount: row.member_count,
       neverUsed: row.never_used,
       whatsappStatus: row.whatsapp_status,
@@ -123,7 +130,11 @@ export async function loadAgencyOverview(): Promise<AgencyAccountOverview[]> {
       openPipelineValue: row.open_pipeline_value,
       lastActivityAt: row.last_activity_at,
       staleness,
-      hasAlert: row.whatsapp_status !== 'connected' || staleness !== null,
+      // A non-'active' account (awaiting approval, or suspended) is
+      // as much "needs me right now" as a disconnected/stale one —
+      // sorts to the top alongside them, see this function's doc
+      // comment on the default order.
+      hasAlert: row.whatsapp_status !== 'connected' || staleness !== null || row.account_status !== 'active',
     }
   })
 

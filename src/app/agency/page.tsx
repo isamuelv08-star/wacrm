@@ -31,6 +31,7 @@ export default async function AgencyPage() {
 
   const accounts = await loadAgencyOverview();
   const t = await getTranslations("Agency.page");
+  const pendingCount = accounts.filter((a) => a.accountStatus === "pending").length;
 
   return (
     <div className="min-h-screen bg-background p-6">
@@ -43,6 +44,11 @@ export default async function AgencyPage() {
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
               {t("subtitle", { count: accounts.length })}
+              {pendingCount > 0 && (
+                <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-600 dark:text-amber-400">
+                  {t("pendingCount", { count: pendingCount })}
+                </span>
+              )}
             </p>
           </div>
           <CreateClientDialog />

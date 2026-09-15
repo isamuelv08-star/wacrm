@@ -31,6 +31,7 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   Sheet,
   SheetContent,
@@ -69,10 +70,13 @@ interface DetailConnection {
   lastRegistrationError: string | null;
 }
 
+type AccountStatus = 'pending' | 'active' | 'suspended';
+
 interface DetailData {
   accountId: string;
   accountName: string;
   ownerUserId: string;
+  status: AccountStatus;
   members: DetailMember[];
   connection: DetailConnection | null;
   aiUsage: {
@@ -118,6 +122,9 @@ export function AccountDetailSheet({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
+  // Target status of the pending confirm dialog — null means closed.
+  const [statusTarget, setStatusTarget] = useState<AccountStatus | null>(null);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   async function fetchDetail() {
     setLoading(true);
@@ -211,6 +218,31 @@ export function AccountDetailSheet({
     }
   }
 
+  async function handleUpdateStatus() {
+    if (!statusTarget) return;
+    setUpdatingStatus(true);
+    try {
+      const res = await fetch(`/api/agency/accounts/${accountId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: statusTarget }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        toast.error(payload.error || t('statusUpdateError'));
+        return;
+      }
+      toast.success(t('statusUpdateSuccess'));
+      setDetail((prev) => (prev ? { ...prev, status: statusTarget } : prev));
+      setStatusTarget(null);
+      router.refresh();
+    } catch {
+      toast.error(t('statusUpdateError'));
+    } finally {
+      setUpdatingStatus(false);
+    }
+  }
+
   return (
     <>
       <Sheet open={open} onOpenChange={handleOpenChange}>
@@ -244,6 +276,37 @@ export function AccountDetailSheet({
 
             {detail && (
               <>
+                {/* ---- Access status (migration 088) ---- */}
+                {detail.status !== 'active' && (
+                  <section
+                    className={
+                      detail.status === 'pending'
+                        ? 'rounded-xl border border-amber-500/25 bg-amber-500/[0.05] p-3'
+                        : 'rounded-xl border border-red-500/25 bg-red-500/[0.05] p-3'
+                    }
+                  >
+                    <p
+                      className={
+                        detail.status === 'pending'
+                          ? 'text-sm font-medium text-amber-700 dark:text-amber-400'
+                          : 'text-sm font-medium text-red-600 dark:text-red-400'
+                      }
+                    >
+                      {detail.status === 'pending' ? t('statusPendingTitle') : t('statusSuspendedTitle')}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {detail.status === 'pending' ? t('statusPendingDesc') : t('statusSuspendedDesc')}
+                    </p>
+                    <Button
+                      size="sm"
+                      className="mt-2.5 w-full"
+                      onClick={() => setStatusTarget('active')}
+                    >
+                      {detail.status === 'pending' ? t('activateAction') : t('reactivateAction')}
+                    </Button>
+                  </section>
+                )}
+
                 {/* ---- Members ---- */}
                 <section>
                   <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -399,6 +462,16 @@ export function AccountDetailSheet({
                     {t('dangerZoneTitle')}
                   </h3>
                   <p className="mt-1 text-xs text-muted-foreground">{t('dangerZoneDesc')}</p>
+                  {detail.status === 'active' && (
+                    <Button
+                      variant="outline"
+                      className="mt-2.5 w-full border-red-500/40 text-red-600 hover:bg-red-500/10 dark:text-red-400"
+                      onClick={() => setStatusTarget('suspended')}
+                    >
+                      <ShieldAlert className="h-4 w-4" />
+                      {t('suspendAction')}
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     className="mt-2.5 w-full border-red-500/40 text-red-600 hover:bg-red-500/10 dark:text-red-400"
@@ -498,6 +571,33 @@ export function AccountDetailSheet({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ---- Status-change confirm (activate / reactivate / suspend) ---- */}
+      <ConfirmDialog
+        open={statusTarget !== null}
+        onOpenChange={(next) => !next && setStatusTarget(null)}
+        title={
+          statusTarget === 'suspended'
+            ? t('suspendConfirmTitle')
+            : detail?.status === 'pending'
+              ? t('activateConfirmTitle')
+              : t('reactivateConfirmTitle')
+        }
+        description={
+          statusTarget === 'suspended' ? t('suspendConfirmDesc', { name: accountName }) : undefined
+        }
+        confirmLabel={
+          statusTarget === 'suspended'
+            ? t('suspendAction')
+            : detail?.status === 'pending'
+              ? t('activateAction')
+              : t('reactivateAction')
+        }
+        cancelLabel={t('cancel')}
+        onConfirm={handleUpdateStatus}
+        variant={statusTarget === 'suspended' ? 'destructive' : 'default'}
+        loading={updatingStatus}
+      />
     </>
   );
 }

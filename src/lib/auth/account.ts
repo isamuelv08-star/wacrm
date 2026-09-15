@@ -100,6 +100,8 @@ export interface AccountContext {
     timezone: string;
     business_vertical: BusinessVertical | null;
     whatsapp_mode: 'shared' | 'multiwhatsapp';
+    /** 'active' (default) | 'pending' | 'suspended' (migration 088). */
+    status: 'pending' | 'active' | 'suspended';
   };
 }
 
@@ -173,7 +175,7 @@ export async function getCurrentAccount(): Promise<AccountContext> {
   // RLS, so it stays robust against cache staleness and older schemas.
   const { data: account, error: accountErr } = await supabase
     .from("accounts")
-    .select("id, name, hot_lead_alert_minutes, followup_after_hours, timezone, business_vertical, whatsapp_mode")
+    .select("id, name, hot_lead_alert_minutes, followup_after_hours, timezone, business_vertical, whatsapp_mode, status")
     .eq("id", data.account_id)
     .maybeSingle();
 
@@ -200,6 +202,7 @@ export async function getCurrentAccount(): Promise<AccountContext> {
       timezone: account.timezone,
       business_vertical: (account.business_vertical as BusinessVertical | null) ?? null,
       whatsapp_mode: (account.whatsapp_mode as 'shared' | 'multiwhatsapp' | null) ?? 'shared',
+      status: (account.status as 'pending' | 'active' | 'suspended' | null) ?? 'active',
     },
   };
 }

@@ -31,28 +31,41 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
     }
   }, [user, loading, router]);
 
-  // First-run onboarding gate (migration 063). Account-scoped, not
-  // per-user — a teammate invited after the owner finishes it never
-  // sees this. Gated on `profileLoading` so we don't redirect during
-  // the brief window before the account row has loaded.
+  // First-run onboarding gate (migration 063), plus the restricted-
+  // access gate (migration 088) — both account-scoped, not per-user.
+  // Gated on `profileLoading` so we don't redirect during the brief
+  // window before the account row has loaded.
   //
-  // Before sending an un-onboarded account into the wizard, check for
-  // a pending invite token (see @/lib/auth/pending-invite). A visitor
-  // who arrived via /join/<token> should never see "set up your
-  // business" — that page's normal flow is signup/login → back to
-  // /join/<token> → accept, but if that redirect chain got dropped
-  // (email-confirmation redirect not on Supabase's allow-list, link
-  // opened in a new tab, ...) they land here instead, on a fresh
-  // personal account. Route them back to finish accepting the invite
-  // rather than onboarding a throwaway account. One-shot (`consume`
-  // clears it): if accepting fails, the next visit falls through to
-  // the normal wizard instead of looping.
+  // Before acting on either gate, check for a pending invite token
+  // (see @/lib/auth/pending-invite). A visitor who arrived via
+  // /join/<token> should never see "set up your business" OR
+  // "access restricted" — that page's normal flow is signup/login →
+  // back to /join/<token> → accept, but if that redirect chain got
+  // dropped (email-confirmation redirect not on Supabase's allow-
+  // list, link opened in a new tab, ...) they land here instead, on
+  // a fresh personal account that a from-scratch signup would also
+  // produce (status 'pending', onboarding_completed_at NULL). Route
+  // them back to finish accepting the invite rather than treating
+  // that throwaway account as either un-onboarded or un-approved.
+  // One-shot (`consume` clears it): if accepting fails, the next
+  // visit falls through to the normal gates below instead of
+  // looping.
+  //
+  // Only once there's no pending invite to resume: a non-'active'
+  // account (self-signed-up, not yet approved — or suspended) goes
+  // to /acceso-restringido instead of onboarding; an 'active' but
+  // un-onboarded account goes to /onboarding as before.
   useEffect(() => {
-    if (!loading && user && !profileLoading && account && !account.onboarding_completed_at) {
-      const pendingInviteToken = consumePendingInviteToken();
-      router.push(
-        pendingInviteToken ? `/join/${encodeURIComponent(pendingInviteToken)}` : "/onboarding",
-      );
+    if (loading || !user || profileLoading || !account) return;
+    if (account.status === "active" && account.onboarding_completed_at) return;
+
+    const pendingInviteToken = consumePendingInviteToken();
+    if (pendingInviteToken) {
+      router.push(`/join/${encodeURIComponent(pendingInviteToken)}`);
+    } else if (account.status !== "active") {
+      router.push("/acceso-restringido");
+    } else {
+      router.push("/onboarding");
     }
   }, [loading, user, profileLoading, account, router]);
 
@@ -70,8 +83,10 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   if (!user) return null;
 
   // Avoid a one-frame flash of dashboard chrome while the onboarding
-  // redirect above is in flight.
-  if (!profileLoading && account && !account.onboarding_completed_at) return null;
+  // or restricted-access redirect above is in flight.
+  if (!profileLoading && account && (account.status !== "active" || !account.onboarding_completed_at)) {
+    return null;
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">

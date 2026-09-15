@@ -2734,6 +2734,7 @@
     "page": {
       "title": "Agency panel",
       "subtitle": "View of all managed accounts — {count, plural, =1 {# client} other {# clients}}.",
+      "pendingCount": "{count, plural, =1 {# pending} other {# pending}}",
       "empty": "No accounts created yet."
     },
     "card": {
@@ -2753,7 +2754,9 @@
       "connectionCoexistence": "Coexistence provider",
       "connectionZernio": "Via Zernio",
       "neverUsed": "Empty",
-      "memberCount": "{count, plural, =1 {# user} other {# users}}"
+      "memberCount": "{count, plural, =1 {# user} other {# users}}",
+      "statusPending": "Pending",
+      "statusSuspended": "Suspended"
     },
     "detail": {
       "subtitle": "Users, WhatsApp connection, and AI usage for this account.",
@@ -2800,7 +2803,20 @@
       "deleteAccountConfirmLabel": "Type \"{name}\" to confirm",
       "deleting": "Deleting…",
       "deleteAccountSuccess": "{name} was deleted",
-      "deleteAccountError": "Failed to delete account"
+      "deleteAccountError": "Failed to delete account",
+      "statusPendingTitle": "Pending approval",
+      "statusPendingDesc": "This account signed itself up and doesn't have access to the app yet.",
+      "statusSuspendedTitle": "Account suspended",
+      "statusSuspendedDesc": "This account's access is currently disabled.",
+      "activateAction": "Activate account",
+      "reactivateAction": "Reactivate account",
+      "suspendAction": "Suspend account",
+      "activateConfirmTitle": "Activate this account?",
+      "reactivateConfirmTitle": "Reactivate this account?",
+      "suspendConfirmTitle": "Suspend this account?",
+      "suspendConfirmDesc": "{name} and all of its users will lose access to the app until you reactivate it.",
+      "statusUpdateSuccess": "Account status updated",
+      "statusUpdateError": "Couldn't update the account status"
     },
     "createDialog": {
       "trigger": "Create client",
@@ -2835,6 +2851,13 @@
   },
   "DashboardShell": {
     "loading": "Loading..."
+  },
+  "RestrictedAccess": {
+    "pendingTitle": "Your account is under review",
+    "pendingDesc": "We're currently working with a closed group of customers. We've registered your account — reach out and we'll get you access.",
+    "suspendedTitle": "Your account was suspended",
+    "suspendedDesc": "Access to this account has been temporarily suspended. Reach out if you think this is a mistake.",
+    "signOut": "Sign out"
   },
   "Onboarding": {
     "skipSetup": "Skip setup",

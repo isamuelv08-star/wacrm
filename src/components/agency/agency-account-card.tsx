@@ -53,6 +53,16 @@ export async function AgencyAccountCard({ account }: { account: AgencyAccountOve
             <h3 className="truncate text-base font-semibold text-foreground">
               {account.accountName}
             </h3>
+            {account.accountStatus === "pending" && (
+              <span className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                {t("statusPending")}
+              </span>
+            )}
+            {account.accountStatus === "suspended" && (
+              <span className="shrink-0 rounded-full bg-red-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-red-600 dark:text-red-400">
+                {t("statusSuspended")}
+              </span>
+            )}
             {account.neverUsed && (
               <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
                 {t("neverUsed")}

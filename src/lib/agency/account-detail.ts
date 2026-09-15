@@ -37,10 +37,13 @@ export interface AgencyAiUsageSummary {
   byModel: { provider: string; model: string; calls: number; tokens: number }[]
 }
 
+export type AgencyAccountStatus = 'pending' | 'active' | 'suspended'
+
 export interface AgencyAccountDetail {
   accountId: string
   accountName: string
   ownerUserId: string
+  status: AgencyAccountStatus
   members: AgencyAccountMember[]
   connection: AgencyWhatsAppConnection | null
   aiUsage: AgencyAiUsageSummary
@@ -64,7 +67,7 @@ export async function loadAgencyAccountDetail(
 
   const { data: account, error: accountErr } = await db
     .from('accounts')
-    .select('id, name, owner_user_id')
+    .select('id, name, owner_user_id, status')
     .eq('id', accountId)
     .maybeSingle()
   if (accountErr) {
@@ -207,6 +210,7 @@ export async function loadAgencyAccountDetail(
     accountId: account.id,
     accountName: account.name,
     ownerUserId: account.owner_user_id,
+    status: (account.status as AgencyAccountStatus | null) ?? 'active',
     members,
     connection,
     aiUsage: {
@@ -290,6 +294,26 @@ export async function deleteAgencyAccountMember(
 
   const { error } = await db.auth.admin.deleteUser(userId)
   if (error) throw new Error(error.message)
+}
+
+/**
+ * Flips an account's status — the agency owner's "approve" action for
+ * a 'pending' account that signed itself up through the still-open
+ * /signup form (migration 088), or a way to revoke/restore access for
+ * an existing client without the irreversible step of deleting them.
+ * Throws a plain Error (mapped to a 400) if the target doesn't exist.
+ */
+export async function updateAgencyAccountStatus(
+  accountId: string,
+  status: AgencyAccountStatus,
+): Promise<void> {
+  const db = supabaseAdmin()
+  const { error, count } = await db
+    .from('accounts')
+    .update({ status }, { count: 'exact' })
+    .eq('id', accountId)
+  if (error) throw new Error(error.message)
+  if (!count) throw new Error('Account not found')
 }
 
 /**
