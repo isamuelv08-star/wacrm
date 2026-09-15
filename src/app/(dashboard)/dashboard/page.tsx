@@ -585,8 +585,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <p className="text-sm text-muted-foreground">{t('description')}</p>
-
       {/* Metric cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {metricsLoading || !metrics ? (
