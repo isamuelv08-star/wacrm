@@ -265,3 +265,54 @@ html[data-theme="rose"] {
     opacity: 0.9;
   }
 }
+
+/* ============================================================
+ * Whole-app "smoothness" pass — the app felt like a hard page
+ * reload when switching between sidebar routes (sidebar/header
+ * stay mounted, but `{children}` swapped instantly with no
+ * transition at all) or toggling light/dark mode (colors snapped
+ * instead of crossfading). Two small, cheap fixes instead of
+ * touching every page:
+ *
+ *   1. .page-transition — applied to a div keyed on the current
+ *      pathname in dashboard-shell.tsx, so React mounts a fresh
+ *      element (replaying the animation) on every route change
+ *      without any per-page code.
+ *   2. A narrow, explicit transition on the handful of properties
+ *      mode/theme switching actually changes (background/text/
+ *      border colors) — NOT a blanket `* { transition: all }`,
+ *      which would also animate layout-affecting properties
+ *      (width/height/transform) other parts of the app change
+ *      every frame (chart animations, drag-and-drop, resize
+ *      handles) and make those feel laggy instead of smoother.
+ *
+ * Both respect prefers-reduced-motion — skipped entirely for
+ * anyone who's asked their OS for less motion.
+ * ============================================================ */
+@media (prefers-reduced-motion: no-preference) {
+  /* Only the color-related properties are listed, so this can't touch
+     layout (width/height/transform/opacity) anywhere — a chart
+     animating its own height or a drag handle tracking the pointer is
+     unaffected regardless of how broad the selector is. */
+  * {
+    transition:
+      background-color 180ms ease,
+      border-color 180ms ease,
+      color 180ms ease;
+  }
+
+  @keyframes page-fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .page-transition {
+    animation: page-fade-in 220ms ease-out both;
+  }
+}

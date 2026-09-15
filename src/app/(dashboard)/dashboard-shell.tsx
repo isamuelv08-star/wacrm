@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -18,6 +18,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const t = useTranslations("DashboardShell");
   const { user, loading, profileLoading, account } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   // Sidebar drawer state — only used on mobile. On lg+ the sidebar is
   // always visible and this stays at `false` (ignored by the component).
@@ -84,8 +85,17 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
       <Sidebar open={sidebarOpen} onClose={closeSidebar} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header onOpenSidebar={() => setSidebarOpen(true)} />
-        {/* Thinner horizontal padding on mobile so cards have room to breathe. */}
-        <main className="themed-scrollbar flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
+        {/* Thinner horizontal padding on mobile so cards have room to breathe.
+            The inner div is keyed on the route so switching pages (sidebar
+            nav, not just a search-param change like picking a different
+            inbox conversation) always mounts a fresh element and replays
+            the fade-in — without it, `main` itself never remounts and the
+            page swap has no transition at all (see globals.css). */}
+        <main className="themed-scrollbar flex-1 overflow-y-auto p-4 sm:p-6">
+          <div key={pathname} className="page-transition">
+            {children}
+          </div>
+        </main>
       </div>
     </div>
   );
