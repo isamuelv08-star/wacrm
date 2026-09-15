@@ -270,6 +270,17 @@ export async function processWebhookPayload(body: { entry?: WhatsAppWebhookEntry
 
       const decryptedAccessToken = decrypt(config.access_token)
 
+      // Resolved once per payload (not per message) — whether this
+      // account splits conversations by number (086) or keeps every
+      // number's traffic in one thread per contact (085's 'shared'
+      // default, and every account before this phase existed).
+      const { data: accountRow } = await supabaseAdmin()
+        .from('accounts')
+        .select('whatsapp_mode')
+        .eq('id', config.account_id)
+        .maybeSingle()
+      const splitByNumber = accountRow?.whatsapp_mode === 'multiwhatsapp'
+
       for (let i = 0; i < value.messages.length; i++) {
         const message = value.messages[i]
         const contact = value.contacts[i] || value.contacts[0]
@@ -291,6 +302,7 @@ export async function processWebhookPayload(body: { entry?: WhatsAppWebhookEntry
           // specific number this message came in on (multi-number-
           // per-account phase 2, migration 084).
           config.id,
+          splitByNumber,
         )
       }
     }
@@ -733,6 +745,10 @@ export async function processMessage(
   // client_zernio_accounts/client_zernio_channels, not whatsapp_config,
   // so there's no row here to point at yet.
   whatsappConfigId: string | null = null,
+  // True only for a 'multiwhatsapp'-mode account (085) — see
+  // findOrCreateConversation's doc comment (086). Resolved once by the
+  // caller (processWebhookPayload) rather than re-queried per message.
+  splitByNumber: boolean = false,
 ) {
   const senderPhone = normalizePhone(message.from)
   const contactName = contact.profile.name
@@ -754,6 +770,7 @@ export async function processMessage(
     configOwnerUserId,
     contactRecord.id,
     whatsappConfigId,
+    splitByNumber,
   )
   if (!convResult) return
   const conversation = convResult.conversation
@@ -1449,13 +1466,21 @@ async function findOrCreateConversation(
   accountId: string,
   configOwnerUserId: string,
   contactId: string,
-  // Same tagging as findOrCreateContact above — only stamped when
-  // this call creates a brand-new conversation row; the lookup a few
-  // lines down (by account_id + contact_id, migration 036) is
-  // completely unchanged, so this can never split or merge
-  // conversations differently than before.
+  // Stamped when this call creates a brand-new conversation row —
+  // which number it came in on (migration 084).
   whatsappConfigId: string | null = null,
+  // True only for a 'multiwhatsapp'-mode account (085) — the caller
+  // resolves this once per webhook payload rather than every call.
+  // When true AND whatsappConfigId is set, the SAME contact gets a
+  // separate conversation per number instead of always collapsing
+  // into one (migration 086 widened the unique index to allow this).
+  // A 'shared' account (every account before this phase, and today's
+  // default) always passes false, making this byte-for-byte the same
+  // lookup/insert as before this feature existed.
+  splitByNumber: boolean = false,
 ) {
+  const numberFilter = splitByNumber && whatsappConfigId ? whatsappConfigId : null
+
   // Look for an existing conversation in this account, oldest-first.
   //
   // We deliberately do NOT use `.single()` here. `.single()` errors on
@@ -1469,11 +1494,15 @@ async function findOrCreateConversation(
   // Ordering oldest-first and taking one row makes the lookup resolve to
   // the same canonical survivor the dedup migration (036) keeps, so any
   // pre-existing duplicates converge instead of compounding.
-  const { data: existingRows, error: findError } = await supabaseAdmin()
+  let findQuery = supabaseAdmin()
     .from('conversations')
     .select('*')
     .eq('account_id', accountId)
     .eq('contact_id', contactId)
+  if (numberFilter) {
+    findQuery = findQuery.eq('whatsapp_config_id', numberFilter)
+  }
+  const { data: existingRows, error: findError } = await findQuery
     .order('created_at', { ascending: true })
     .limit(1)
 
@@ -1512,11 +1541,15 @@ async function findOrCreateConversation(
     // (migration 036) rejected the duplicate. Re-resolve the winning
     // row instead of dropping the message — mirrors findOrCreateContact.
     if (isUniqueViolation(createError)) {
-      const { data: raced } = await supabaseAdmin()
+      let racedQuery = supabaseAdmin()
         .from('conversations')
         .select('*')
         .eq('account_id', accountId)
         .eq('contact_id', contactId)
+      if (numberFilter) {
+        racedQuery = racedQuery.eq('whatsapp_config_id', numberFilter)
+      }
+      const { data: raced } = await racedQuery
         .order('created_at', { ascending: true })
         .limit(1)
       if (raced && raced.length > 0) {
