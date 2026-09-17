@@ -206,6 +206,15 @@
       "allCaughtUp": "모두 처리됨",
       "allCaughtUpHint": "지금 응답을 기다리는 HOT 리드가 없습니다."
     },
+    "nextBestAction": {
+      "title": "다음 우선 행동",
+      "description": "오늘 처리해야 할 가장 시급한 항목, 우선순위순",
+      "reasonStalled": "{days}일 동안 단계 변경 없음",
+      "reasonSilent": "{days}일 동안 메시지 없음",
+      "unknownLead": "이름 없는 리드",
+      "allClear": "지금은 시급한 항목이 없습니다",
+      "allClearHint": "정체된 기회나 침묵 중인 고객이 없습니다."
+    },
     "followup": {
       "title": "팔로우업",
       "description": "정보를 받고 응답하지 않은 리드",

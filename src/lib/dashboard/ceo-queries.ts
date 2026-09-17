@@ -453,25 +453,17 @@ export async function loadCeoAlerts(
     .select('value, status, created_at, closed_at')
     .in('status', ['won', 'lost'])
     .gte('closed_at', priorWindowStart)
-  let riskQ = db
-    .from('deals')
-    .select('id, conversation:conversations(last_message_at)')
-    .eq('status', 'open')
-    .not('conversation_id', 'is', null)
-    .limit(MAX_OPEN_DEALS_SCANNED)
 
   if (accountId) {
     trendQ = trendQ.eq('account_id', accountId)
-    riskQ = riskQ.eq('account_id', accountId)
   }
 
-  const [stalledDeals, trendRes, riskRes] = await Promise.all([
+  const [stalledDeals, trendRes, atRiskDeals] = await Promise.all([
     findStalledOpenDeals(db, staleDays, accountId),
     trendQ,
-    riskQ,
+    findAtRiskOpenDeals(db, AT_RISK_CONVERSATION_SILENCE_DAYS, accountId),
   ])
   if (trendRes.error) throw trendRes.error
-  if (riskRes.error) throw riskRes.error
 
   const stalledCount = stalledDeals.length
   const stalledValue = stalledDeals.reduce((s, d) => s + (d.value ?? 0), 0)
@@ -512,20 +504,7 @@ export async function loadCeoAlerts(
     }
   }
 
-  // --- at-risk customers: open deals whose conversation has gone quiet ---
-  type RiskRow = {
-    id: string
-    conversation: { last_message_at: string | null }[] | { last_message_at: string | null } | null
-  }
-  const riskCutoff = Date.now() - AT_RISK_CONVERSATION_SILENCE_DAYS * 86_400_000
-  let atRiskCustomerCount = 0
-  for (const d of (riskRes.data ?? []) as unknown as RiskRow[]) {
-    const conv = Array.isArray(d.conversation) ? d.conversation[0] : d.conversation
-    const lastMessageAt = conv?.last_message_at
-    if (!lastMessageAt || new Date(lastMessageAt).getTime() < riskCutoff) {
-      atRiskCustomerCount += 1
-    }
-  }
+  const atRiskCustomerCount = atRiskDeals.length
 
   return {
     stalledCount,
@@ -543,6 +522,12 @@ export interface StalledOpenDeal {
   value: number | null
   stageId: string | null
   assignedTo: string | null
+  contactId: string | null
+  conversationId: string | null
+  /** When this deal's current stage placement was recorded — lets a
+   *  caller (e.g. Next Best Action) compute exactly how many days
+   *  it's been stalled, not just "yes/no past the threshold". */
+  lastStageChangeAt: string
 }
 
 /**
@@ -552,9 +537,11 @@ export interface StalledOpenDeal {
  * definition in the codebase. `loadCeoAlerts` below only needs the
  * count and summed value; `loadMoneyAtRiskBreakdown`
  * (src/lib/sales-intelligence/queries.ts) needs the per-deal
- * stage/owner too, to group the same stalled deals by seller and
- * stage for the Money at Risk card — both call this rather than each
- * re-deriving "stalled" on their own.
+ * stage/owner to group by, and `loadNextBestActions`
+ * (src/lib/sales-intelligence/next-best-action.ts) needs the
+ * contact/conversation too, to turn each one into an actionable row —
+ * all three call this rather than each re-deriving "stalled" on
+ * their own.
  */
 export async function findStalledOpenDeals(
   db: DB,
@@ -563,7 +550,7 @@ export async function findStalledOpenDeals(
 ): Promise<StalledOpenDeal[]> {
   let openDealsQ = db
     .from('deals')
-    .select('id, value, stage_id, assigned_to')
+    .select('id, value, stage_id, assigned_to, contact_id, conversation_id')
     .eq('status', 'open')
     .limit(MAX_OPEN_DEALS_SCANNED)
   if (accountId) openDealsQ = openDealsQ.eq('account_id', accountId)
@@ -575,6 +562,8 @@ export async function findStalledOpenDeals(
     value: number | null
     stage_id: string | null
     assigned_to: string | null
+    contact_id: string | null
+    conversation_id: string | null
   }[]
   if (openDeals.length === 0) return []
 
@@ -608,10 +597,82 @@ export async function findStalledOpenDeals(
     // writes one) — skip rather than guess if it's ever missing.
     if (!lastChange) continue
     if (new Date(lastChange).getTime() < staleCutoff) {
-      stalled.push({ id: d.id, value: d.value, stageId: d.stage_id, assignedTo: d.assigned_to })
+      stalled.push({
+        id: d.id,
+        value: d.value,
+        stageId: d.stage_id,
+        assignedTo: d.assigned_to,
+        contactId: d.contact_id,
+        conversationId: d.conversation_id,
+        lastStageChangeAt: lastChange,
+      })
     }
   }
   return stalled
+}
+
+export interface AtRiskOpenDeal {
+  id: string
+  value: number | null
+  stageId: string | null
+  assignedTo: string | null
+  contactId: string | null
+  conversationId: string | null
+  /** Null only if the conversation genuinely has no messages yet. */
+  lastMessageAt: string | null
+}
+
+/**
+ * Open deals whose linked conversation has gone quiet (no message,
+ * either direction) for at least `silenceDays` — "what counts as
+ * at-risk", extracted the same way `findStalledOpenDeals` was: shared
+ * by `loadCeoAlerts` (count only) and `loadNextBestActions`
+ * (src/lib/sales-intelligence/next-best-action.ts, which needs the
+ * per-deal contact/conversation to build a "re-engage this customer"
+ * action).
+ */
+export async function findAtRiskOpenDeals(
+  db: DB,
+  silenceDays: number,
+  accountId?: string,
+): Promise<AtRiskOpenDeal[]> {
+  let riskQ = db
+    .from('deals')
+    .select('id, value, stage_id, assigned_to, contact_id, conversation_id, conversation:conversations(last_message_at)')
+    .eq('status', 'open')
+    .not('conversation_id', 'is', null)
+    .limit(MAX_OPEN_DEALS_SCANNED)
+  if (accountId) riskQ = riskQ.eq('account_id', accountId)
+  const { data, error } = await riskQ
+  if (error) throw error
+
+  type Row = {
+    id: string
+    value: number | null
+    stage_id: string | null
+    assigned_to: string | null
+    contact_id: string | null
+    conversation_id: string | null
+    conversation: { last_message_at: string | null }[] | { last_message_at: string | null } | null
+  }
+  const cutoff = Date.now() - silenceDays * 86_400_000
+  const atRisk: AtRiskOpenDeal[] = []
+  for (const d of (data ?? []) as unknown as Row[]) {
+    const conv = Array.isArray(d.conversation) ? d.conversation[0] : d.conversation
+    const lastMessageAt = conv?.last_message_at ?? null
+    if (!lastMessageAt || new Date(lastMessageAt).getTime() < cutoff) {
+      atRisk.push({
+        id: d.id,
+        value: d.value,
+        stageId: d.stage_id,
+        assignedTo: d.assigned_to,
+        contactId: d.contact_id,
+        conversationId: d.conversation_id,
+        lastMessageAt,
+      })
+    }
+  }
+  return atRisk
 }
 
 function computeForecastGap(forecast: number, goal: number | null): number | null {

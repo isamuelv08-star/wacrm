@@ -60,6 +60,8 @@ import { ResponseTimeCard } from '@/components/dashboard/response-time-card'
 import { HotUnansweredCard } from '@/components/dashboard/hot-unanswered-card'
 import { LeadsQualifiedTodayCard } from '@/components/dashboard/leads-qualified-today-card'
 import { FollowupCard } from '@/components/dashboard/followup-card'
+import { NextBestActionCard } from '@/components/dashboard/next-best-action-card'
+import { loadNextBestActions, type NextBestActionDisplay } from '@/lib/sales-intelligence/queries'
 import { TeamCard } from '@/components/dashboard/team-card'
 import { SalesVsGoalChart } from '@/components/dashboard/ceo/sales-vs-goal-chart'
 import { SalesFunnel } from '@/components/dashboard/ceo/sales-funnel'
@@ -243,6 +245,8 @@ export default function DashboardPage() {
 
   const [followup, setFollowup] = useState<FollowupSummary | null>(null)
   const [followupLoading, setFollowupLoading] = useState(true)
+  const [nextBestActions, setNextBestActions] = useState<NextBestActionDisplay[] | null>(null)
+  const [nextBestActionsLoading, setNextBestActionsLoading] = useState(true)
 
   // Sales section state — only ever fetched when `hasAnySalesAccess`.
   const [ceoMetrics, setCeoMetrics] = useState<CeoMetrics | null>(null)
@@ -313,6 +317,11 @@ export default function DashboardPage() {
       .then((d) => setFollowup(d))
       .catch((err) => console.error('[dashboard] followup leads failed:', err))
       .finally(() => setFollowupLoading(false))
+
+    void loadNextBestActions(db)
+      .then((d) => setNextBestActions(d))
+      .catch((err) => console.error('[dashboard] next-best-actions failed:', err))
+      .finally(() => setNextBestActionsLoading(false))
 
     if (!hasAnySalesAccess) {
       setCeoMetricsLoading(false)
@@ -778,6 +787,15 @@ export default function DashboardPage() {
           Full width: it's a working queue, not a glance-and-move-on stat. */}
       <RevealSection delayMs={250}>
         <FollowupCard data={followup} loading={followupLoading} onLeadMoved={loadAll} />
+      </RevealSection>
+
+      {/* Next Best Action — the same stalled/at-risk signals feeding
+          the Sales section's Money at Risk card below, reshaped into a
+          short, ranked "do this" list. Visible to every role (not
+          gated by dashboardPermissions), same as the operational cards
+          above — see next-best-action-card.tsx's doc comment. */}
+      <RevealSection delayMs={260}>
+        <NextBestActionCard items={nextBestActions} loading={nextBestActionsLoading} currency={defaultCurrency} />
       </RevealSection>
 
       {/* Sales section — visible only to whoever has at least one of

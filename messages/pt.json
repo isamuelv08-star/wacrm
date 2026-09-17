@@ -206,6 +206,15 @@
       "allCaughtUp": "Tudo em dia",
       "allCaughtUpHint": "Nenhum lead quente está esperando uma resposta agora."
     },
+    "nextBestAction": {
+      "title": "Próximas ações",
+      "description": "O mais urgente para tratar hoje, priorizado",
+      "reasonStalled": "Sem mudar de etapa há {days} dias",
+      "reasonSilent": "Sem mensagens há {days} dias",
+      "unknownLead": "Lead sem nome",
+      "allClear": "Nada urgente no momento",
+      "allClearHint": "Nenhuma oportunidade parada ou cliente em silêncio precisa de atenção."
+    },
     "followup": {
       "title": "Acompanhamento",
       "description": "Leads que receberam informação e não responderam",

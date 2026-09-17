@@ -3,7 +3,16 @@ import type { StalledOpenDeal } from '../dashboard/ceo-queries'
 import { aggregateMoneyAtRisk } from './aggregate'
 
 function deal(overrides: Partial<StalledOpenDeal> = {}): StalledOpenDeal {
-  return { id: 'deal-1', value: 1000, stageId: 'stage-1', assignedTo: 'seller-1', ...overrides }
+  return {
+    id: 'deal-1',
+    value: 1000,
+    stageId: 'stage-1',
+    assignedTo: 'seller-1',
+    contactId: 'contact-1',
+    conversationId: 'conv-1',
+    lastStageChangeAt: '2026-01-01T00:00:00.000Z',
+    ...overrides,
+  }
 }
 
 describe('aggregateMoneyAtRisk', () => {
