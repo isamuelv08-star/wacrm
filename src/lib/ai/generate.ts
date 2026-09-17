@@ -87,9 +87,25 @@ export interface ClassificationArgs {
   messages: ChatMessage[]
 }
 
+/**
+ * Customer Memory (fase 7 of the Auditoría Saleslid roadmap) — structured
+ * facts the classification call may have picked up on THIS turn, never
+ * invented: every field is null unless the customer stated it plainly
+ * in the conversation (see buildClassificationPrompt's explicit
+ * instruction). Persisted to `contact_intelligence` by
+ * classifyLeadIfNeeded, only when at least one field is non-null.
+ */
+export interface CustomerFacts {
+  need: string | null
+  budget: string | null
+  objection: string | null
+  productInterest: string | null
+}
+
 export interface ClassificationResult {
   score: LeadScore | null
   reason: string | null
+  customerFacts: CustomerFacts | null
   usage: AiUsage | null
 }
 
@@ -151,23 +167,51 @@ function stripCodeFence(raw: string): string {
   return fenced ? fenced[1].trim() : trimmed
 }
 
+function nullableTrimmedString(v: unknown): string | null {
+  return typeof v === 'string' && v.trim() ? v.trim() : null
+}
+
+function parseCustomerFacts(v: unknown): CustomerFacts | null {
+  if (typeof v !== 'object' || v === null) return null
+  const { need, budget, objection, productInterest } = v as {
+    need?: unknown
+    budget?: unknown
+    objection?: unknown
+    productInterest?: unknown
+  }
+  const facts: CustomerFacts = {
+    need: nullableTrimmedString(need),
+    budget: nullableTrimmedString(budget),
+    objection: nullableTrimmedString(objection),
+    productInterest: nullableTrimmedString(productInterest),
+  }
+  // A well-formed but entirely-empty object is the same as "no facts
+  // this turn" — don't persist a row with nothing in it.
+  return facts.need || facts.budget || facts.objection || facts.productInterest ? facts : null
+}
+
 function parseClassification(raw: string): Omit<ClassificationResult, 'usage'> {
   try {
     const parsed: unknown = JSON.parse(stripCodeFence(raw))
     if (typeof parsed !== 'object' || parsed === null) {
       throw new Error('not an object')
     }
-    const { score, reason } = parsed as { score?: unknown; reason?: unknown }
+    const { score, reason, customerFacts } = parsed as {
+      score?: unknown
+      reason?: unknown
+      customerFacts?: unknown
+    }
     if (score !== null && !VALID_SCORES.includes(score as LeadScore)) {
       throw new Error(`invalid score: ${JSON.stringify(score)}`)
     }
     return {
       score: score === null ? null : (score as LeadScore),
-      reason: typeof reason === 'string' && reason.trim() ? reason.trim() : null,
+      reason: nullableTrimmedString(reason),
+      customerFacts: parseCustomerFacts(customerFacts),
     }
   } catch (err) {
     console.error('[ai lead-classify] failed to parse classification response:', err)
-    return { score: null, reason: null }
+    return { score: null, reason: null, customerFacts: null }
   }
 }
 

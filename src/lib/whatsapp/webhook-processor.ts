@@ -1215,6 +1215,7 @@ export async function processMessage(
       conversationId: conversation.id,
       contactId: contactRecord.id,
       configOwnerUserId,
+      messageId: insertedMessage.id,
     })
   }
 

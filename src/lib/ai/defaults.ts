@@ -470,12 +470,17 @@ export function buildClassificationPrompt(args: {
   parts.push(
     'Read the full conversation and decide whether there is enough information — new since a casual reading of the whole thread — to confidently classify this lead against the rules above. ' +
       'Respond with EXACTLY one JSON object and nothing else — no markdown code fences, no commentary, no text before or after it:\n' +
-      '{"score": "hot" | "warm" | "cold" | null, "reason": string | null}\n\n' +
+      '{"score": "hot" | "warm" | "cold" | null, "reason": string | null, "customerFacts": {"need": string | null, "budget": string | null, "objection": string | null, "productInterest": string | null} | null}\n\n' +
       'All four outcomes — "hot", "warm", "cold", AND null — are equally valid, confident answers. None of them is a fallback for the others. Do not treat "warm" as a safe default for "I\'m not sure, but it feels like something" — every score you pick must be justified by a SPECIFIC, real signal in the conversation that matches this business\'s own rules above, not by elimination or by how much text has been exchanged. ' +
       'Use null whenever the conversation genuinely has not produced a real signal yet in EITHER direction — this includes a brand-new lead\'s very first message (a greeting, "is this X business?", a bare product question with no context) and any point where nothing has happened since the last assessment that would change it. A message existing is not itself a signal. ' +
       '"cold" is just as much a confident, positive verdict as "hot" or "warm" — it is NOT the same thing as "not enough information yet". Disengagement IS a signal: going quiet after an initial reply, giving short or non-committal answers, asking only about price with no follow-through, stalling ("I\'ll think about it", "maybe later"), or otherwise showing no real intent to move forward all justify a confident "cold" verdict on their own — you do not need an explicit "not interested" statement. ' +
       'Re-evaluate on every call: a lead scored "hot" or "warm" earlier that has since gone quiet or cooled off should be re-scored "cold" now — do not stay anchored to a prior turn\'s verdict. ' +
       'When you do pick "hot", "warm", or "cold", set "reason" to a short (under 20 words) explanation, in the same language as the conversation, naming the SPECIFIC thing the customer said or did that justifies it — if you cannot point to one, that is itself a sign the right answer is null.',
+  )
+
+  parts.push(
+    '"customerFacts" is a SEPARATE, independent extraction — fill it in on every call, regardless of what you picked for "score". Each of its four fields ("need": what the customer is trying to accomplish or solve, "budget": any amount, range, or constraint on price they mentioned, "objection": a specific concern or hesitation they raised, "productInterest": a specific product/service/model they asked about) must be a short direct quote or close paraphrase of something the customer ACTUALLY said in this conversation. ' +
+      'Never invent, infer, guess, or fill in a plausible-sounding value for any of these fields — if the customer did not clearly state it, that field MUST be null. When none of the four were stated, set "customerFacts" itself to null rather than an object of four nulls.',
   )
 
   return parts.join('\n\n')

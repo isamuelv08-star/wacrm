@@ -546,4 +546,28 @@ describe('generateClassification', () => {
     })
     expect(res.usage).toEqual({ promptTokens: 20, completionTokens: 4, totalTokens: 24 })
   })
+
+  it('parses customerFacts alongside a verdict', async () => {
+    const res = await classify(
+      '{"score":"warm","reason":"Interested, budget stated.","customerFacts":{"need":"A family SUV","budget":"$15,000","objection":null,"productInterest":"SUV"}}',
+    )
+    expect(res.customerFacts).toEqual({
+      need: 'A family SUV',
+      budget: '$15,000',
+      objection: null,
+      productInterest: 'SUV',
+    })
+  })
+
+  it('treats an all-null customerFacts object the same as no facts', async () => {
+    const res = await classify(
+      '{"score":null,"reason":null,"customerFacts":{"need":null,"budget":null,"objection":null,"productInterest":null}}',
+    )
+    expect(res.customerFacts).toBeNull()
+  })
+
+  it('defaults customerFacts to null when the model omits it entirely', async () => {
+    const res = await classify('{"score":"hot","reason":"Ready to buy."}')
+    expect(res.customerFacts).toBeNull()
+  })
 })

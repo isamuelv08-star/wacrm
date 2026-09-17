@@ -216,6 +216,14 @@
       "allClear": "지금은 시급한 항목이 없습니다",
       "allClearHint": "정체된 기회나 침묵 중인 고객이 없습니다."
     },
+    "recovery": {
+      "title": "재활성화 대상",
+      "description": "다시 시도할 만한 이유가 있는 콜드 리드",
+      "reasonLostDeal": "{value} 상당의 실패한 딜이 있었음",
+      "reasonNeed": "필요하다고 언급함: {need}",
+      "empty": "재활성화할 리드가 없습니다",
+      "emptyHint": "실제 가치가 있는 실패한 딜이나 기록된 니즈가 있는 콜드 리드가 아직 없습니다."
+    },
     "followup": {
       "title": "팔로우업",
       "description": "정보를 받고 응답하지 않은 리드",

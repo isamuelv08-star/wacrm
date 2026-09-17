@@ -8,6 +8,7 @@ const h = vi.hoisted(() => {
   // below). Empty/exhausted → both reads see the same `null` baseline,
   // which is what every other test wants (the guard never trips).
   const contactAssessedAtQueue: (string | null)[] = []
+  const contactIntelligenceUpserts: Record<string, unknown>[] = []
   const db = {
     from: (table: string) => ({
       select: () => ({
@@ -21,6 +22,10 @@ const h = vi.hoisted(() => {
           },
         }),
       }),
+      upsert: (row: Record<string, unknown>) => {
+        if (table === 'contact_intelligence') contactIntelligenceUpserts.push(row)
+        return Promise.resolve({ error: null })
+      },
     }),
   }
   return {
@@ -32,6 +37,7 @@ const h = vi.hoisted(() => {
     checkRateLimit: vi.fn(),
     conversationRow,
     contactAssessedAtQueue,
+    contactIntelligenceUpserts,
     db,
   }
 })
@@ -54,6 +60,7 @@ const ARGS = {
   conversationId: 'conv-1',
   contactId: 'contact-1',
   configOwnerUserId: 'user-1',
+  messageId: 'msg-1',
 }
 
 function aiConfig(overrides: Partial<AiConfig> = {}): AiConfig {
@@ -84,12 +91,13 @@ beforeEach(() => {
   h.buildConversationContext.mockReset().mockResolvedValue([{ role: 'user', content: 'hi' }])
   h.generateClassification
     .mockReset()
-    .mockResolvedValue({ score: null, reason: null, usage: null })
+    .mockResolvedValue({ score: null, reason: null, customerFacts: null, usage: null })
   h.applyLeadScore.mockReset()
   h.logAiUsage.mockReset()
   h.checkRateLimit.mockReset().mockReturnValue({ success: true })
   h.conversationRow.mockReset().mockReturnValue({ assigned_agent_id: null })
   h.contactAssessedAtQueue.length = 0
+  h.contactIntelligenceUpserts.length = 0
 })
 
 describe('classifyLeadIfNeeded', () => {
@@ -231,5 +239,33 @@ describe('classifyLeadIfNeeded', () => {
     h.generateClassification.mockRejectedValue(new Error('provider down'))
     await expect(classifyLeadIfNeeded(ARGS)).resolves.toBeUndefined()
     expect(h.applyLeadScore).not.toHaveBeenCalled()
+  })
+
+  it('persists customerFacts to contact_intelligence, traced to the triggering message, even with no score verdict', async () => {
+    h.generateClassification.mockResolvedValue({
+      score: null,
+      reason: null,
+      customerFacts: { need: 'A used sedan under $10k', budget: '$10,000', objection: null, productInterest: null },
+      usage: null,
+    })
+    await classifyLeadIfNeeded(ARGS)
+    expect(h.contactIntelligenceUpserts).toEqual([
+      expect.objectContaining({
+        contact_id: 'contact-1',
+        account_id: 'acct-1',
+        need: 'A used sedan under $10k',
+        budget: '$10,000',
+        objection: null,
+        product_interest: null,
+        source_message_id: 'msg-1',
+        source_conversation_id: 'conv-1',
+      }),
+    ])
+  })
+
+  it('never writes to contact_intelligence when no fact was extracted this turn', async () => {
+    h.generateClassification.mockResolvedValue({ score: 'warm', reason: 'Some interest.', customerFacts: null, usage: null })
+    await classifyLeadIfNeeded(ARGS)
+    expect(h.contactIntelligenceUpserts).toEqual([])
   })
 })

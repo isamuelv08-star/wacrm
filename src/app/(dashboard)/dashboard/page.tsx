@@ -62,6 +62,8 @@ import { LeadsQualifiedTodayCard } from '@/components/dashboard/leads-qualified-
 import { FollowupCard } from '@/components/dashboard/followup-card'
 import { NextBestActionCard } from '@/components/dashboard/next-best-action-card'
 import { loadNextBestActions, type NextBestActionDisplay } from '@/lib/sales-intelligence/queries'
+import { RecoveryCard } from '@/components/dashboard/recovery-card'
+import { loadRecoveryCandidates, type RecoveryCandidate } from '@/lib/sales-intelligence/recovery'
 import { TeamCard } from '@/components/dashboard/team-card'
 import { SalesVsGoalChart } from '@/components/dashboard/ceo/sales-vs-goal-chart'
 import { SalesFunnel } from '@/components/dashboard/ceo/sales-funnel'
@@ -247,6 +249,8 @@ export default function DashboardPage() {
   const [followupLoading, setFollowupLoading] = useState(true)
   const [nextBestActions, setNextBestActions] = useState<NextBestActionDisplay[] | null>(null)
   const [nextBestActionsLoading, setNextBestActionsLoading] = useState(true)
+  const [recovery, setRecovery] = useState<RecoveryCandidate[] | null>(null)
+  const [recoveryLoading, setRecoveryLoading] = useState(true)
 
   // Sales section state — only ever fetched when `hasAnySalesAccess`.
   const [ceoMetrics, setCeoMetrics] = useState<CeoMetrics | null>(null)
@@ -322,6 +326,11 @@ export default function DashboardPage() {
       .then((d) => setNextBestActions(d))
       .catch((err) => console.error('[dashboard] next-best-actions failed:', err))
       .finally(() => setNextBestActionsLoading(false))
+
+    void loadRecoveryCandidates(db)
+      .then((d) => setRecovery(d))
+      .catch((err) => console.error('[dashboard] recovery candidates failed:', err))
+      .finally(() => setRecoveryLoading(false))
 
     if (!hasAnySalesAccess) {
       setCeoMetricsLoading(false)
@@ -789,13 +798,21 @@ export default function DashboardPage() {
         <FollowupCard data={followup} loading={followupLoading} onLeadMoved={loadAll} />
       </RevealSection>
 
-      {/* Next Best Action — the same stalled/at-risk signals feeding
-          the Sales section's Money at Risk card below, reshaped into a
-          short, ranked "do this" list. Visible to every role (not
+      {/* Next Best Action + Recovery Center — the same stalled/at-risk
+          signals feeding the Sales section's Money at Risk card below,
+          reshaped into a short, ranked "do this" list, paired with
+          cold leads worth a second look. Visible to every role (not
           gated by dashboardPermissions), same as the operational cards
           above — see next-best-action-card.tsx's doc comment. */}
       <RevealSection delayMs={260}>
-        <NextBestActionCard items={nextBestActions} loading={nextBestActionsLoading} currency={defaultCurrency} />
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className="h-full">
+            <NextBestActionCard items={nextBestActions} loading={nextBestActionsLoading} currency={defaultCurrency} />
+          </div>
+          <div className="h-full">
+            <RecoveryCard items={recovery} loading={recoveryLoading} currency={defaultCurrency} />
+          </div>
+        </div>
       </RevealSection>
 
       {/* Sales section — visible only to whoever has at least one of

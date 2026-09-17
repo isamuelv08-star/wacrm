@@ -216,6 +216,14 @@
       "allClear": "Nada urgente por ahora",
       "allClearHint": "Ninguna oportunidad estancada o cliente en silencio necesita atención."
     },
+    "recovery": {
+      "title": "Para reactivar",
+      "description": "Leads fríos con una razón real para intentarlo de nuevo",
+      "reasonLostDeal": "Tenía un negocio perdido por {value}",
+      "reasonNeed": "Dijo que necesitaba: {need}",
+      "empty": "No hay leads listos para reactivar",
+      "emptyHint": "Ningún lead frío tiene todavía un negocio perdido con valor real o una necesidad registrada."
+    },
     "followup": {
       "title": "Seguimiento",
       "description": "Leads que recibieron información y no respondieron",

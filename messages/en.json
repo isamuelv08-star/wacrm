@@ -216,6 +216,14 @@
       "allClear": "Nothing urgent right now",
       "allClearHint": "No stalled opportunity or silent customer needs attention."
     },
+    "recovery": {
+      "title": "Worth reactivating",
+      "description": "Cold leads with a real reason to try again",
+      "reasonLostDeal": "Had a lost deal worth {value}",
+      "reasonNeed": "Said they needed: {need}",
+      "empty": "No leads ready to reactivate",
+      "emptyHint": "No cold lead yet has a lost deal with real value or a recorded need."
+    },
     "followup": {
       "title": "Follow-up",
       "description": "Leads who received information and never replied",

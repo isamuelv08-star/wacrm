@@ -481,6 +481,7 @@ export async function ingestMessengerMessage(args: {
       conversationId: conversation.id,
       contactId: contactRecord.id,
       configOwnerUserId,
+      messageId: insertedMessage.id,
     })
   }
 }

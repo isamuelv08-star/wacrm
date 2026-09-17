@@ -1,8 +1,9 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabaseAdmin } from './admin-client'
 import { loadAiConfig } from './config'
 import { buildConversationContext } from './context'
 import { buildClassificationPrompt } from './defaults'
-import { generateClassification } from './generate'
+import { generateClassification, type CustomerFacts } from './generate'
 import { applyLeadScore } from './lead-scoring'
 import { logAiUsage } from './usage'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
@@ -14,6 +15,10 @@ interface ClassifyArgs {
   /** Passed straight through to `applyLeadScore` — see its own doc
    *  comment (mirrors how the flow runner / auto-reply pass it). */
   configOwnerUserId: string
+  /** The inbound message that triggered this call — stamped onto
+   *  contact_intelligence (fase 7) as `source_message_id` so any
+   *  extracted fact stays traceable to where it came from. */
+  messageId: string
 }
 
 /**
@@ -38,7 +43,7 @@ interface ClassifyArgs {
  * longer teaches `[[SCORE:...]]` at all.
  */
 export async function classifyLeadIfNeeded(args: ClassifyArgs): Promise<void> {
-  const { accountId, conversationId, contactId, configOwnerUserId } = args
+  const { accountId, conversationId, contactId, configOwnerUserId, messageId } = args
 
   try {
     const db = supabaseAdmin()
@@ -76,7 +81,7 @@ export async function classifyLeadIfNeeded(args: ClassifyArgs): Promise<void> {
       qualificationCriteria: config.qualificationCriteria,
     })
 
-    const { score, reason, usage } = await generateClassification({
+    const { score, reason, customerFacts, usage } = await generateClassification({
       config,
       systemPrompt,
       messages,
@@ -90,6 +95,20 @@ export async function classifyLeadIfNeeded(args: ClassifyArgs): Promise<void> {
       model: config.model,
       usage,
     })
+
+    // Fase 7 (Customer Memory) — independent of the score outcome
+    // below: a message can carry a real fact ("my budget is $500")
+    // without being confident enough to move the score. Best-effort,
+    // never blocks classification.
+    if (customerFacts) {
+      void upsertContactIntelligence(db, {
+        accountId,
+        contactId,
+        conversationId,
+        sourceMessageId: messageId,
+        facts: customerFacts,
+      })
+    }
 
     if (!score) return // model had nothing new/confident to assess this turn
 
@@ -139,5 +158,45 @@ export async function classifyLeadIfNeeded(args: ClassifyArgs): Promise<void> {
     })
   } catch (err) {
     console.error('[ai lead-classify] dispatch failed:', err)
+  }
+}
+
+/**
+ * Overwrites this contact's `contact_intelligence` row with whatever
+ * facts THIS turn surfaced — "what we know today", not an accumulating
+ * history (that's lead_score_history's job for the score itself). A
+ * field the model didn't mention this turn is left as null here rather
+ * than merged with a stale previous value, since a null field already
+ * correctly means "not stated" — carrying forward an old value the
+ * customer may have since changed their mind on would be exactly the
+ * kind of invented/stale data this feature exists to avoid.
+ */
+async function upsertContactIntelligence(
+  db: SupabaseClient,
+  args: {
+    accountId: string
+    contactId: string
+    conversationId: string
+    sourceMessageId: string
+    facts: CustomerFacts
+  },
+): Promise<void> {
+  try {
+    const { error } = await db.from('contact_intelligence').upsert({
+      contact_id: args.contactId,
+      account_id: args.accountId,
+      need: args.facts.need,
+      budget: args.facts.budget,
+      objection: args.facts.objection,
+      product_interest: args.facts.productInterest,
+      source_message_id: args.sourceMessageId,
+      source_conversation_id: args.conversationId,
+      updated_at: new Date().toISOString(),
+    })
+    if (error) {
+      console.error('[ai lead-classify] contact_intelligence upsert failed:', error.message)
+    }
+  } catch (err) {
+    console.error('[ai lead-classify] contact_intelligence upsert threw:', err)
   }
 }
