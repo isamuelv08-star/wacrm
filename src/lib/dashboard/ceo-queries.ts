@@ -137,8 +137,16 @@ export async function loadSalesVsGoal(db: DB, range: DateRange): Promise<SalesVs
  * conventional monthly sales-ops ratios (the 3x threshold elsewhere in
  * this file was calibrated for that cadence); dividing a snapshot by a
  * one-day sliver of the goal would produce a meaningless multiple.
+ *
+ * `accountId` is optional and every existing call site omits it —
+ * without it, every query below is scoped by RLS exactly as before
+ * (the caller's own account, via `is_account_member`). It exists for
+ * the sales-intelligence risk-engine cron (src/lib/sales-intelligence/
+ * risk-engine.ts), which runs under the service role — a role RLS
+ * doesn't scope at all — and must loop over every account explicitly,
+ * one at a time, passing that account's id here.
  */
-export async function loadCeoMetrics(db: DB, range: DateRange): Promise<CeoMetrics> {
+export async function loadCeoMetrics(db: DB, range: DateRange, accountId?: string): Promise<CeoMetrics> {
   const now = new Date()
   const thisMonthKey = monthKey(now)
   const currentStart = range.start.toISOString()
@@ -154,6 +162,43 @@ export async function loadCeoMetrics(db: DB, range: DateRange): Promise<CeoMetri
   }
   type ContactRow = { contact_id: string | null }
 
+  let wonCurrentQ = db.from('deals').select('value').eq('status', 'won').gte('closed_at', currentStart).lt('closed_at', currentEnd)
+  let wonPreviousQ = db
+    .from('deals')
+    .select('value')
+    .eq('status', 'won')
+    .gte('closed_at', previousStart)
+    .lt('closed_at', currentStart)
+  let goalRowQ = db.from('sales_goals').select('target_value').is('user_id', null).eq('period_month', thisMonthKey)
+  let openDealsQ = db
+    .from('deals')
+    .select('value, stage:pipeline_stages(win_probability)')
+    .eq('status', 'open')
+    .limit(MAX_OPEN_DEALS_SCANNED)
+  let contactsAllQ = db.from('deals').select('contact_id').not('contact_id', 'is', null)
+  let contactsCurrentQ = db
+    .from('deals')
+    .select('contact_id')
+    .not('contact_id', 'is', null)
+    .gte('created_at', currentStart)
+    .lt('created_at', currentEnd)
+  let contactsPreviousQ = db
+    .from('deals')
+    .select('contact_id')
+    .not('contact_id', 'is', null)
+    .gte('created_at', previousStart)
+    .lt('created_at', currentStart)
+
+  if (accountId) {
+    wonCurrentQ = wonCurrentQ.eq('account_id', accountId)
+    wonPreviousQ = wonPreviousQ.eq('account_id', accountId)
+    goalRowQ = goalRowQ.eq('account_id', accountId)
+    openDealsQ = openDealsQ.eq('account_id', accountId)
+    contactsAllQ = contactsAllQ.eq('account_id', accountId)
+    contactsCurrentQ = contactsCurrentQ.eq('account_id', accountId)
+    contactsPreviousQ = contactsPreviousQ.eq('account_id', accountId)
+  }
+
   const [
     wonCurrent,
     wonPrevious,
@@ -163,37 +208,13 @@ export async function loadCeoMetrics(db: DB, range: DateRange): Promise<CeoMetri
     contactsCurrent,
     contactsPrevious,
   ] = await Promise.all([
-    db.from('deals').select('value').eq('status', 'won').gte('closed_at', currentStart).lt('closed_at', currentEnd),
-    db
-      .from('deals')
-      .select('value')
-      .eq('status', 'won')
-      .gte('closed_at', previousStart)
-      .lt('closed_at', currentStart),
-    db
-      .from('sales_goals')
-      .select('target_value')
-      .is('user_id', null)
-      .eq('period_month', thisMonthKey)
-      .maybeSingle(),
-    db
-      .from('deals')
-      .select('value, stage:pipeline_stages(win_probability)')
-      .eq('status', 'open')
-      .limit(MAX_OPEN_DEALS_SCANNED),
-    db.from('deals').select('contact_id').not('contact_id', 'is', null),
-    db
-      .from('deals')
-      .select('contact_id')
-      .not('contact_id', 'is', null)
-      .gte('created_at', currentStart)
-      .lt('created_at', currentEnd),
-    db
-      .from('deals')
-      .select('contact_id')
-      .not('contact_id', 'is', null)
-      .gte('created_at', previousStart)
-      .lt('created_at', currentStart),
+    wonCurrentQ,
+    wonPreviousQ,
+    goalRowQ.maybeSingle(),
+    openDealsQ,
+    contactsAllQ,
+    contactsCurrentQ,
+    contactsPreviousQ,
   ])
 
   for (const r of [wonCurrent, wonPrevious, goalRow, openDeals, contactsAll, contactsCurrent, contactsPrevious]) {
@@ -406,6 +427,11 @@ export async function loadCeoAlerts(
   metrics: CeoMetrics,
   staleDays = 7,
   trendWindowDays = 90,
+  // Optional, same reasoning as loadCeoMetrics's own `accountId` param
+  // above — every existing call site omits it and keeps relying on
+  // RLS; the risk-engine cron passes it explicitly per account since
+  // it runs under the service role.
+  accountId?: string,
 ): Promise<CeoAlerts> {
   // `monthlyGoal`, not `goalThisMonth` — the forecast is a whole-pipeline
   // snapshot with no date range of its own, so comparing it against a
@@ -422,20 +448,26 @@ export async function loadCeoAlerts(
   const currentWindowStart = daysAgoStart(trendWindowDays).toISOString()
   const priorWindowStart = daysAgoStart(trendWindowDays * 2).toISOString()
 
-  const [openDealsRes, trendRes, riskRes] = await Promise.all([
-    db.from('deals').select('id, value').eq('status', 'open').limit(MAX_OPEN_DEALS_SCANNED),
-    db
-      .from('deals')
-      .select('value, status, created_at, closed_at')
-      .in('status', ['won', 'lost'])
-      .gte('closed_at', priorWindowStart),
-    db
-      .from('deals')
-      .select('id, conversation:conversations(last_message_at)')
-      .eq('status', 'open')
-      .not('conversation_id', 'is', null)
-      .limit(MAX_OPEN_DEALS_SCANNED),
-  ])
+  let openDealsQ = db.from('deals').select('id, value').eq('status', 'open').limit(MAX_OPEN_DEALS_SCANNED)
+  let trendQ = db
+    .from('deals')
+    .select('value, status, created_at, closed_at')
+    .in('status', ['won', 'lost'])
+    .gte('closed_at', priorWindowStart)
+  let riskQ = db
+    .from('deals')
+    .select('id, conversation:conversations(last_message_at)')
+    .eq('status', 'open')
+    .not('conversation_id', 'is', null)
+    .limit(MAX_OPEN_DEALS_SCANNED)
+
+  if (accountId) {
+    openDealsQ = openDealsQ.eq('account_id', accountId)
+    trendQ = trendQ.eq('account_id', accountId)
+    riskQ = riskQ.eq('account_id', accountId)
+  }
+
+  const [openDealsRes, trendRes, riskRes] = await Promise.all([openDealsQ, trendQ, riskQ])
   if (openDealsRes.error) throw openDealsRes.error
   if (trendRes.error) throw trendRes.error
   if (riskRes.error) throw riskRes.error
@@ -445,7 +477,7 @@ export async function loadCeoAlerts(
   let stalledCount = 0
   let stalledValue = 0
   if (openDeals.length > 0) {
-    const { data: history, error: histErr } = await db
+    let historyQ = db
       .from('deal_stage_history')
       .select('deal_id, changed_at')
       .in(
@@ -453,6 +485,11 @@ export async function loadCeoAlerts(
         openDeals.map((d) => d.id),
       )
       .order('changed_at', { ascending: false })
+    // Redundant with the deal-id list already being account-scoped
+    // above, but cheap defense-in-depth for the same reason every
+    // other query in this function got one.
+    if (accountId) historyQ = historyQ.eq('account_id', accountId)
+    const { data: history, error: histErr } = await historyQ
     if (histErr) throw histErr
 
     // First row per deal_id wins — history is ordered newest first, so

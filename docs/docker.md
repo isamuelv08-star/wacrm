@@ -82,6 +82,15 @@ docker run -d --env-file .env.local -e PORT=3000 -p 3000:3000 wacrm
   It only moves deals for accounts that (a) have a pipeline stage
   marked "Seguimiento" and (b) have `followup_after_hours` set above 0
   in Settings → AI Assistant (default 24).
+- Same story for the sales-intelligence Risk Engine (migration 091):
+  point the scheduler at `GET /api/cron/sales-intelligence` too, same
+  `x-cron-secret` header and `AUTOMATION_CRON_SECRET`, every 5 minutes.
+  Recomputes the same six checks already shown on the CEO dashboard's
+  alert cards for every active account and keeps `sales_signals` in
+  sync — no UI reads that table yet (fase 1 only), so skipping this
+  cron for now costs nothing visible, but wiring it up early means the
+  signal history is already accumulating once the Sales Command Center
+  (a later fase) ships.
 - Database backups are the one exception to "point an external
   scheduler at this deployment" — they run as a GitHub Actions
   workflow instead (`.github/workflows/backup.yml`), deliberately
