@@ -1,7 +1,10 @@
 import {
   Bell,
+  CalendarCheck,
+  CalendarClock,
   Flame,
   MessageCircle,
+  MessagesSquare,
   Snowflake,
   Sparkles,
   Star,
@@ -21,4 +24,7 @@ export const NOTIFICATION_TYPE_ICON: Record<Notification["type"], typeof Bell> =
   lead_scored: Sparkles,
   new_message: MessageCircle,
   lead_stale: Snowflake,
+  event_reminder: CalendarClock,
+  appointment_booked: CalendarCheck,
+  team_chat_mention: MessagesSquare,
 };

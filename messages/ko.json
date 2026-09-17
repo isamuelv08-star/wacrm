@@ -52,9 +52,11 @@
     "flows": "플로우",
     "aiAgents": "AI 에이전트",
     "settings": "설정",
+    "teamChat": "팀 채팅",
     "beta": "베타",
     "unreadConversations": "읽지 않은 대화 {count}건",
     "unreadNotifications": "읽지 않은 알림 {count}건",
+    "unreadTeamChat": "팀 채팅에 읽지 않은 메시지 {count}건",
     "roleOwner": "소유자",
     "roleAdmin": "관리자",
     "roleAgent": "상담원",
@@ -238,11 +240,20 @@
       "active": "활성",
       "inactive": "비활성"
     },
-    "sellerBreakdown": {
-      "title": "영업사원별 상세",
-      "subtitle": "영업사원을 탭하면 그 사람의 지표만 볼 수 있어요 — 다시 탭하면 통합 보기로 돌아갑니다.",
-      "viewAll": "전체 보기",
-      "activeConversations": "활성 {count}개"
+    "memberBreakdown": {
+      "cardTitle": "내 팀",
+      "cardSubtitle": "팀원을 탭하면 리드, 매출, 파이프라인 전체 상세를 볼 수 있어요.",
+      "openDetail": "{name}의 상세 보기",
+      "subtitle": "이 팀원이 담당하는 리드, 매출, 파이프라인입니다.",
+      "leadsTitle": "담당 리드",
+      "hot": "Hot",
+      "warm": "Warm",
+      "cold": "Cold",
+      "salesTitle": "매출 및 파이프라인",
+      "soldThisMonth": "이번 달 판매액",
+      "openPipeline": "진행 중인 파이프라인",
+      "openDealsCount": "진행 중인 거래 {count}건",
+      "activeConversations": "활성 대화"
     },
     "ceo": {
       "page": {
@@ -2578,6 +2589,29 @@
   },
   "NotificationsToast": {
     "manage": "관리"
+  },
+  "TeamChat": {
+    "page": {
+      "title": "팀 채팅",
+      "subtitle": "팀이 소통하는 공간 — 고객에게는 보이지 않습니다.",
+      "empty": "아직 메시지가 없습니다. 첫 메시지를 남겨보세요.",
+      "loadOlder": "이전 메시지 불러오기"
+    },
+    "composer": {
+      "placeholder": "메시지를 입력하세요… @를 입력해 팀원을 멘션할 수 있어요",
+      "send": "보내기",
+      "attachConversation": "대화 첨부하기",
+      "attachSearchPlaceholder": "이름 또는 전화번호로 검색…",
+      "attachNoResults": "대화를 찾을 수 없습니다.",
+      "removeAttachment": "제거"
+    },
+    "message": {
+      "unknownMember": "삭제된 팀원",
+      "viewConversation": "대화 보기",
+      "deleteAction": "삭제",
+      "deleteConfirmTitle": "이 메시지를 삭제할까요?",
+      "cancel": "취소"
+    }
   },
   "AiAgents": {
     "page": {

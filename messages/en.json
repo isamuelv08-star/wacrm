@@ -52,9 +52,11 @@
     "flows": "Flows",
     "aiAgents": "AI Agents",
     "settings": "Settings",
+    "teamChat": "Team Chat",
     "beta": "Beta",
     "unreadConversations": "{count} unread {count, plural, =1 {conversation} other {conversations}}",
     "unreadNotifications": "{count} unread {count, plural, =1 {notification} other {notifications}}",
+    "unreadTeamChat": "{count} unread {count, plural, =1 {message} other {messages}} in team chat",
     "roleOwner": "Owner",
     "roleAdmin": "Admin",
     "roleAgent": "Agent",
@@ -238,11 +240,20 @@
       "active": "Active",
       "inactive": "Inactive"
     },
-    "sellerBreakdown": {
-      "title": "Breakdown by seller",
-      "subtitle": "Tap a seller to see their own metrics — tap again to go back to the consolidated view.",
-      "viewAll": "View all",
-      "activeConversations": "{count} active"
+    "memberBreakdown": {
+      "cardTitle": "Your team",
+      "cardSubtitle": "Tap someone to see their full detail: leads, sales, and pipeline.",
+      "openDetail": "View {name}'s detail",
+      "subtitle": "Leads, sales, and pipeline this member handles.",
+      "leadsTitle": "Leads they handle",
+      "hot": "Hot",
+      "warm": "Warm",
+      "cold": "Cold",
+      "salesTitle": "Sales and pipeline",
+      "soldThisMonth": "Sold this month",
+      "openPipeline": "Open pipeline",
+      "openDealsCount": "{count, plural, =1 {# open deal} other {# open deals}}",
+      "activeConversations": "Active conversations"
     },
     "ceo": {
       "page": {
@@ -2578,6 +2589,29 @@
   },
   "NotificationsToast": {
     "manage": "Manage"
+  },
+  "TeamChat": {
+    "page": {
+      "title": "Team Chat",
+      "subtitle": "One shared space for the team to talk — your customers never see it.",
+      "empty": "No messages yet. Write the first one.",
+      "loadOlder": "Load older messages"
+    },
+    "composer": {
+      "placeholder": "Write a message… use @ to mention someone",
+      "send": "Send",
+      "attachConversation": "Attach a conversation",
+      "attachSearchPlaceholder": "Search by name or phone…",
+      "attachNoResults": "No conversations found.",
+      "removeAttachment": "Remove"
+    },
+    "message": {
+      "unknownMember": "Removed member",
+      "viewConversation": "View conversation",
+      "deleteAction": "Delete",
+      "deleteConfirmTitle": "Delete this message?",
+      "cancel": "Cancel"
+    }
   },
   "AiAgents": {
     "page": {

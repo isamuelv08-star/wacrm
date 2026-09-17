@@ -346,7 +346,11 @@ export type NotificationType =
   | 'new_message'
   /** Escalating "unanswered too long" alert on a pipeline lead
    *  (migration 050) — see src/lib/notifications/lead-staleness-alerts.ts. */
-  | 'lead_stale';
+  | 'lead_stale'
+  | 'event_reminder'
+  | 'appointment_booked'
+  /** Someone @-mentioned you in the internal team chat (migration 090). */
+  | 'team_chat_mention';
 
 export interface Notification {
   id: string;

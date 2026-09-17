@@ -6,12 +6,14 @@ import { useCallback, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
+import { useTeamChatUnread } from "@/hooks/use-team-chat-unread";
 import {
   Bot,
   Calendar,
   Crown,
   GitBranch,
   LayoutDashboard,
+  MessagesSquare,
   PanelLeftClose,
   PanelLeftOpen,
   LogOut,
@@ -113,8 +115,9 @@ const navItems: NavItem[] = [
   { href: "/agents", labelKey: "aiAgents", icon: Bot },
 ];
 
-const bottomNavItems = [
+const bottomNavItems: NavItem[] = [
   { href: "/settings", labelKey: "settings", icon: Settings },
+  { href: "/team-chat", labelKey: "teamChat", icon: MessagesSquare },
 ];
 
 interface SidebarProps {
@@ -130,6 +133,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { profile, profileLoading, account, accountRole, signOut } = useAuth();
   const totalUnread = useTotalUnread();
+  const teamChatUnread = useTeamChatUnread();
   // Only surface the account-name strip when it actually carries
   // information. A solo user's personal account is named after them
   // (the 017 signup trigger seeds it from `full_name`), so showing it
@@ -364,6 +368,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               {bottomNavItems.map((item) => {
                 const isActive = pathname.startsWith(item.href);
                 const label = t(item.labelKey as string);
+                const showUnreadDot =
+                  item.href === "/team-chat" && teamChatUnread > 0 && !isActive;
                 const linkClassName = cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
                   collapsed && "lg:justify-center lg:px-0",
@@ -374,7 +380,16 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 const linkContent = (
                   <>
                     <item.icon className="h-4 w-4 shrink-0" />
-                    <span className={cn(collapsed && "lg:hidden")}>{label}</span>
+                    <span className={cn("flex-1", collapsed && "lg:hidden")}>{label}</span>
+                    {showUnreadDot && (
+                      <span
+                        aria-label={t("unreadTeamChat", { count: teamChatUnread })}
+                        className={cn("relative flex h-2 w-2", collapsed && "lg:hidden")}
+                      >
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+                      </span>
+                    )}
                   </>
                 );
 

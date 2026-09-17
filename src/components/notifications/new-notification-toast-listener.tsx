@@ -57,14 +57,24 @@ export function NewNotificationToastListener() {
             if (onInboxWithThisConversation) return;
           }
 
+          // Already looking at the team chat itself — the mention is
+          // already visible in the open thread, same skip-if-viewing
+          // posture as new_message above.
+          if (row.type === "team_chat_mention" && window.location.pathname === "/team-chat") {
+            return;
+          }
+
           toast(row.title, {
             description: row.body,
-            action: row.conversation_id
-              ? {
-                  label: t("manage"),
-                  onClick: () => router.push(`/inbox?c=${row.conversation_id}`),
-                }
-              : undefined,
+            action:
+              row.type === "team_chat_mention"
+                ? { label: t("manage"), onClick: () => router.push("/team-chat") }
+                : row.conversation_id
+                  ? {
+                      label: t("manage"),
+                      onClick: () => router.push(`/inbox?c=${row.conversation_id}`),
+                    }
+                  : undefined,
           });
 
           if (row.type === "new_lead") {

@@ -52,9 +52,11 @@
     "flows": "Fluxos",
     "aiAgents": "Agentes de IA",
     "settings": "Configurações",
+    "teamChat": "Chat da equipe",
     "beta": "Beta",
     "unreadConversations": "{count} {count, plural, =1 {conversa não lida} other {conversas não lidas}}",
     "unreadNotifications": "{count} {count, plural, =1 {notificação não lida} other {notificações não lidas}}",
+    "unreadTeamChat": "{count} {count, plural, =1 {mensagem não lida} other {mensagens não lidas}} no chat da equipe",
     "roleOwner": "Proprietário",
     "roleAdmin": "Administrador",
     "roleAgent": "Agente",
@@ -238,11 +240,20 @@
       "active": "Ativo",
       "inactive": "Inativo"
     },
-    "sellerBreakdown": {
-      "title": "Detalhe por vendedor",
-      "subtitle": "Toque em um vendedor para ver suas próprias métricas — toque de novo para voltar à visão consolidada.",
-      "viewAll": "Ver todos",
-      "activeConversations": "{count} ativas"
+    "memberBreakdown": {
+      "cardTitle": "Sua equipe",
+      "cardSubtitle": "Toque em alguém para ver o detalhe completo: leads, vendas e pipeline.",
+      "openDetail": "Ver detalhe de {name}",
+      "subtitle": "Leads, vendas e pipeline que este membro gerencia.",
+      "leadsTitle": "Leads que gerencia",
+      "hot": "Hot",
+      "warm": "Warm",
+      "cold": "Cold",
+      "salesTitle": "Vendas e pipeline",
+      "soldThisMonth": "Vendido este mês",
+      "openPipeline": "Pipeline aberto",
+      "openDealsCount": "{count, plural, =1 {# negócio aberto} other {# negócios abertos}}",
+      "activeConversations": "Conversas ativas"
     },
     "ceo": {
       "page": {
@@ -2578,6 +2589,29 @@
   },
   "NotificationsToast": {
     "manage": "Gerenciar"
+  },
+  "TeamChat": {
+    "page": {
+      "title": "Chat da equipe",
+      "subtitle": "Um espaço só para a equipe comentar — seus clientes nunca veem isso.",
+      "empty": "Ainda não há mensagens. Escreva a primeira.",
+      "loadOlder": "Carregar mensagens anteriores"
+    },
+    "composer": {
+      "placeholder": "Escreva uma mensagem… use @ para mencionar alguém",
+      "send": "Enviar",
+      "attachConversation": "Anexar uma conversa",
+      "attachSearchPlaceholder": "Buscar por nome ou telefone…",
+      "attachNoResults": "Nenhuma conversa encontrada.",
+      "removeAttachment": "Remover"
+    },
+    "message": {
+      "unknownMember": "Membro removido",
+      "viewConversation": "Ver conversa",
+      "deleteAction": "Excluir",
+      "deleteConfirmTitle": "Excluir esta mensagem?",
+      "cancel": "Cancelar"
+    }
   },
   "AiAgents": {
     "page": {
