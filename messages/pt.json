@@ -263,7 +263,11 @@
       "soldThisMonth": "Vendido este mês",
       "openPipeline": "Pipeline aberto",
       "openDealsCount": "{count, plural, =1 {# negócio aberto} other {# negócios abertos}}",
-      "activeConversations": "Conversas ativas"
+      "activeConversations": "Conversas ativas",
+      "trendTitle": "Tendência (8 semanas)",
+      "trendHint": "Comportamento observável, semana a semana — não é uma nota.",
+      "trendWon": "Negócios ganhos",
+      "trendAdvanced": "Negócios avançados de etapa"
     },
     "ceo": {
       "page": {

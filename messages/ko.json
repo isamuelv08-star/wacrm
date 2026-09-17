@@ -263,7 +263,11 @@
       "soldThisMonth": "이번 달 판매액",
       "openPipeline": "진행 중인 파이프라인",
       "openDealsCount": "진행 중인 거래 {count}건",
-      "activeConversations": "활성 대화"
+      "activeConversations": "활성 대화",
+      "trendTitle": "추세 (8주)",
+      "trendHint": "주간 단위로 관찰된 행동입니다 — 평가가 아닙니다.",
+      "trendWon": "성사된 거래",
+      "trendAdvanced": "단계가 진행된 거래"
     },
     "ceo": {
       "page": {

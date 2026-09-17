@@ -13,12 +13,18 @@
 
 import { useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
-import { Briefcase, DollarSign, Flame, Loader2, MessageSquare, Snowflake, Sun } from 'lucide-react';
+import { Briefcase, DollarSign, Flame, Loader2, MessageSquare, Snowflake, Sun, TrendingUp } from 'lucide-react';
 
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { formatCurrency } from '@/lib/currency';
-import { loadMemberBreakdown, type MemberBreakdown, type TeamMember } from '@/lib/dashboard/member-detail';
+import {
+  loadMemberBehavioralTrend,
+  loadMemberBreakdown,
+  type MemberBreakdown,
+  type TeamMember,
+  type WeeklyTrendPoint,
+} from '@/lib/dashboard/member-detail';
 import {
   Sheet,
   SheetContent,
@@ -35,15 +41,20 @@ export function MemberDetailSheet({ member, children }: { member: TeamMember; ch
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<MemberBreakdown | null>(null);
+  const [trend, setTrend] = useState<WeeklyTrendPoint[] | null>(null);
 
   function handleOpenChange(next: boolean) {
     setOpen(next);
     if (next && !data) {
       setLoading(true);
-      loadMemberBreakdown(createClient(), member)
+      const db = createClient();
+      loadMemberBreakdown(db, member)
         .then(setData)
         .catch((err) => console.error('[dashboard] member breakdown failed:', err))
         .finally(() => setLoading(false));
+      loadMemberBehavioralTrend(db, member)
+        .then(setTrend)
+        .catch((err) => console.error('[dashboard] member behavioral trend failed:', err));
     }
   }
 
@@ -116,6 +127,28 @@ export function MemberDetailSheet({ member, children }: { member: TeamMember; ch
                   value={String(data.activeConversations)}
                 />
               </section>
+
+              {trend && trend.some((p) => p.dealsWon > 0 || p.dealsAdvanced > 0) && (
+                <section>
+                  <h3 className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                    <TrendingUp className="size-3.5" />
+                    {t('trendTitle')}
+                  </h3>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">{t('trendHint')}</p>
+                  <div className="mt-3 space-y-3">
+                    <Sparkline
+                      label={t('trendWon')}
+                      points={trend}
+                      valueOf={(p) => p.dealsWon}
+                    />
+                    <Sparkline
+                      label={t('trendAdvanced')}
+                      points={trend}
+                      valueOf={(p) => p.dealsAdvanced}
+                    />
+                  </div>
+                </section>
+              )}
             </>
           )}
         </div>
@@ -146,6 +179,50 @@ function ScoreTile({
       <Icon className="mx-auto size-4" />
       <p className="mt-1.5 text-xl font-bold">{value}</p>
       <p className="text-[11px] font-medium opacity-80">{label}</p>
+    </div>
+  );
+}
+
+/**
+ * Minimal weekly bar sparkline — behavior observed over time, never a
+ * single score. Bar height is relative to the max value IN THIS
+ * MEMBER's own series (not a cross-team scale), so a quiet member's
+ * chart still shows real shape instead of flatlining against a busier
+ * teammate's numbers.
+ */
+function Sparkline({
+  label,
+  points,
+  valueOf,
+}: {
+  label: string;
+  points: WeeklyTrendPoint[];
+  valueOf: (p: WeeklyTrendPoint) => number;
+}) {
+  const values = points.map(valueOf);
+  const max = Math.max(1, ...values);
+  const total = values.reduce((s, v) => s + v, 0);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+        <span className="font-medium text-foreground">{label}</span>
+        <span className="tabular-nums">{total}</span>
+      </div>
+      <div className="mt-1.5 flex h-10 items-end gap-1">
+        {points.map((p, i) => {
+          const v = values[i];
+          const height = v === 0 ? 2 : Math.max(4, Math.round((v / max) * 40));
+          return (
+            <div
+              key={p.weekStart}
+              title={`${p.weekStart}: ${v}`}
+              className="flex-1 rounded-sm bg-primary/70"
+              style={{ height: `${height}px` }}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 }

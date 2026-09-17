@@ -263,7 +263,11 @@
       "soldThisMonth": "Sold this month",
       "openPipeline": "Open pipeline",
       "openDealsCount": "{count, plural, =1 {# open deal} other {# open deals}}",
-      "activeConversations": "Active conversations"
+      "activeConversations": "Active conversations",
+      "trendTitle": "Trend (8 weeks)",
+      "trendHint": "Observable behavior, week by week — not a rating.",
+      "trendWon": "Deals won",
+      "trendAdvanced": "Deals moved forward"
     },
     "ceo": {
       "page": {
