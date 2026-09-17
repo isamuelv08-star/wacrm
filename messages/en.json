@@ -211,6 +211,7 @@
       "description": "The most urgent things to handle today, prioritized",
       "reasonStalled": "No stage change in {days} days",
       "reasonSilent": "No messages in {days} days",
+      "reasonBrokenPromise": "Commitment overdue by {days} days",
       "unknownLead": "Unnamed lead",
       "allClear": "Nothing urgent right now",
       "allClearHint": "No stalled opportunity or silent customer needs attention."

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { CeoAlerts } from '../dashboard/ceo-types'
-import { buildSignalsFromAlerts } from './rules'
+import { buildBrokenPromiseSignal, buildSignalsFromAlerts } from './rules'
 
 function baseAlerts(overrides: Partial<CeoAlerts> = {}): CeoAlerts {
   return {
@@ -79,5 +79,27 @@ describe('buildSignalsFromAlerts', () => {
       expect(s.explanation.length).toBeGreaterThan(0)
       expect(Object.keys(s.evidence).length).toBeGreaterThan(0)
     }
+  })
+})
+
+describe('buildBrokenPromiseSignal', () => {
+  it('returns null when nothing is overdue', () => {
+    expect(buildBrokenPromiseSignal(0)).toBeNull()
+  })
+
+  it('escalates severity with the overdue count', () => {
+    expect(buildBrokenPromiseSignal(1)?.severity).toBe('low')
+    expect(buildBrokenPromiseSignal(3)?.severity).toBe('medium')
+    expect(buildBrokenPromiseSignal(6)?.severity).toBe('high')
+  })
+
+  it('leaves valueAtRisk null — a promise is not a dollar figure', () => {
+    expect(buildBrokenPromiseSignal(2)?.valueAtRisk).toBeNull()
+  })
+
+  it('carries the count as metricValue and in evidence', () => {
+    const signal = buildBrokenPromiseSignal(4)
+    expect(signal?.metricValue).toBe(4)
+    expect(signal?.evidence).toEqual({ overdueCount: 4 })
   })
 })

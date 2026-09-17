@@ -211,6 +211,7 @@
       "description": "O mais urgente para tratar hoje, priorizado",
       "reasonStalled": "Sem mudar de etapa há {days} dias",
       "reasonSilent": "Sem mensagens há {days} dias",
+      "reasonBrokenPromise": "Compromisso vencido há {days} dias",
       "unknownLead": "Lead sem nome",
       "allClear": "Nada urgente no momento",
       "allClearHint": "Nenhuma oportunidade parada ou cliente em silêncio precisa de atenção."

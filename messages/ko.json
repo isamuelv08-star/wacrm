@@ -211,6 +211,7 @@
       "description": "오늘 처리해야 할 가장 시급한 항목, 우선순위순",
       "reasonStalled": "{days}일 동안 단계 변경 없음",
       "reasonSilent": "{days}일 동안 메시지 없음",
+      "reasonBrokenPromise": "약속이 {days}일 지연됨",
       "unknownLead": "이름 없는 리드",
       "allClear": "지금은 시급한 항목이 없습니다",
       "allClearHint": "정체된 기회나 침묵 중인 고객이 없습니다."

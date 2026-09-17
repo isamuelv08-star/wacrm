@@ -94,3 +94,23 @@ export function buildSignalsFromAlerts(alerts: CeoAlerts): SignalDraft[] {
 
   return signals
 }
+
+/**
+ * Fase 5 (Sales Leak Detector) — the one genuinely new leak type not
+ * already covered by the six checks above: promises (fase 4) that
+ * went unfulfilled. Kept as its own function rather than folded into
+ * `buildSignalsFromAlerts` since it reads from a different source
+ * (promises, not CeoAlerts) — the risk engine calls both and merges
+ * their output.
+ */
+export function buildBrokenPromiseSignal(overdueCount: number): SignalDraft | null {
+  if (overdueCount <= 0) return null
+  return {
+    signalType: 'broken_promises',
+    severity: overdueCount >= 5 ? 'high' : overdueCount >= 2 ? 'medium' : 'low',
+    valueAtRisk: null,
+    metricValue: overdueCount,
+    explanation: `${overdueCount} compromiso(s) con clientes vencieron sin cumplirse.`,
+    evidence: { overdueCount },
+  }
+}

@@ -15,6 +15,9 @@ export type SignalType =
   | 'win_rate_decline'
   | 'sales_cycle_increase'
   | 'at_risk_customers'
+  /** Fase 5 (Sales Leak Detector) — count of promises (fase 4) sitting
+   *  in 'overdue' status for this account. */
+  | 'broken_promises'
 
 export type SignalSeverity = 'low' | 'medium' | 'high'
 
@@ -42,4 +45,5 @@ export const ALL_SIGNAL_TYPES: SignalType[] = [
   'win_rate_decline',
   'sales_cycle_increase',
   'at_risk_customers',
+  'broken_promises',
 ]

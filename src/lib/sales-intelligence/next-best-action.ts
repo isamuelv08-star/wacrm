@@ -1,12 +1,15 @@
 import type { AtRiskOpenDeal, StalledOpenDeal } from '../dashboard/ceo-queries'
 
 // ============================================================
-// Next Best Action (fase 3) — turns the same two per-deal signals
-// Money at Risk (fase 2) already aggregates (stalled deals, at-risk
-// silent customers) into a short, ranked, capped list of concrete
+// Next Best Action (fase 3, extended in fase 5 with a third action
+// type) — turns the per-deal signals Money at Risk (fase 2) already
+// aggregates (stalled deals, at-risk silent customers) plus overdue
+// promises (fase 4) into a short, ranked, capped list of concrete
 // things to do — "acción/motivo/evidencia/urgencia" per opportunity,
 // per the Auditoría Saleslid, instead of a feed someone has to dig
-// through.
+// through. This IS the Sales Leak Detector's seller-facing half — see
+// risk-engine.ts's `broken_promises` signal for the manager-facing
+// aggregate of the same underlying data.
 //
 // Account-wide, not per-seller — same visibility model as the
 // existing FollowupCard/HotUnansweredCard (RLS-scoped, no personal
@@ -20,18 +23,47 @@ import type { AtRiskOpenDeal, StalledOpenDeal } from '../dashboard/ceo-queries'
 // rules.ts (fase 1) and aggregate.ts (fase 2).
 // ============================================================
 
-export type NextBestActionType = 'follow_up_stalled' | 're_engage_silent'
+export type NextBestActionType = 'follow_up_stalled' | 're_engage_silent' | 'fulfill_broken_promise'
 export type NextBestActionUrgency = 'high' | 'medium' | 'low'
 
 export interface NextBestAction {
-  dealId: string
+  /** Unique key across every action type — `dealId` for the first two
+   *  types, `promiseId` for the third (a broken promise has no deal
+   *  of its own). Use this for React keys / dedup, never `dealId`
+   *  directly, since it's null for promise-based actions. */
+  id: string
+  dealId: string | null
+  promiseId: string | null
   contactId: string | null
   conversationId: string | null
+  /** profiles.id, uniformly — see OverduePromise's doc comment for
+   *  why that conversion matters here. */
   assignedTo: string | null
   type: NextBestActionType
   urgency: NextBestActionUrgency
   daysInactive: number
   value: number | null
+}
+
+/**
+ * A promise (fase 4) past its due date, pre-resolved to display-ready
+ * fields. `assignedTo` MUST already be profiles.id by the time it
+ * reaches this module — `promises.promised_by` is auth.users.id (it
+ * snapshots conversations.assigned_agent_id, which uses that
+ * convention), a different id space than deals.assigned_to's
+ * profiles.id. The query layer (queries.ts::findOverduePromises)
+ * converts it before calling `buildNextBestActions`, so this pure
+ * function never has to know about that distinction — exactly the
+ * profiles.id-vs-auth.users.id bug class this codebase has hit before
+ * (see loadTopSellers's own doc comment) if the two id spaces get
+ * mixed without conversion.
+ */
+export interface OverduePromise {
+  id: string
+  conversationId: string
+  contactId: string | null
+  assignedTo: string | null
+  dueAt: string
 }
 
 const DAY_MS = 86_400_000
@@ -46,14 +78,17 @@ function daysSince(iso: string, now: number): number {
 }
 
 /**
- * `stalledDeals`/`atRiskDeals` are expected to already be filtered to
- * their respective thresholds (findStalledOpenDeals/findAtRiskOpenDeals
- * apply staleDays/silenceDays upstream) — the tiers below only decide
- * HOW urgent an already-qualifying item is, not whether it qualifies.
+ * `stalledDeals`/`atRiskDeals`/`overduePromises` are expected to
+ * already be filtered to their respective thresholds upstream
+ * (findStalledOpenDeals/findAtRiskOpenDeals apply staleDays/
+ * silenceDays; overduePromises only ever contains status='overdue'
+ * rows) — the tiers below only decide HOW urgent an already-qualifying
+ * item is, not whether it qualifies.
  */
 export function buildNextBestActions(
   stalledDeals: StalledOpenDeal[],
   atRiskDeals: AtRiskOpenDeal[],
+  overduePromises: OverduePromise[] = [],
   now: number = Date.now(),
 ): NextBestAction[] {
   const actions: NextBestAction[] = []
@@ -67,7 +102,9 @@ export function buildNextBestActions(
     if (!d.lastMessageAt) continue
     const days = daysSince(d.lastMessageAt, now)
     actions.push({
+      id: d.id,
       dealId: d.id,
+      promiseId: null,
       contactId: d.contactId,
       conversationId: d.conversationId,
       assignedTo: d.assignedTo,
@@ -83,7 +120,9 @@ export function buildNextBestActions(
     if (seenDealIds.has(d.id)) continue
     const days = daysSince(d.lastStageChangeAt, now)
     actions.push({
+      id: d.id,
       dealId: d.id,
+      promiseId: null,
       contactId: d.contactId,
       conversationId: d.conversationId,
       assignedTo: d.assignedTo,
@@ -93,6 +132,30 @@ export function buildNextBestActions(
       value: d.value,
     })
     seenDealIds.add(d.id)
+  }
+
+  // Broken promises live in their own id space (no deal to dedupe
+  // against) — a conversation can legitimately have both a stalled
+  // deal AND a broken promise, and both are real, distinct reasons to
+  // act, so no cross-type dedup here, only defending against the same
+  // promise appearing twice within its own list.
+  const seenPromiseIds = new Set<string>()
+  for (const p of overduePromises) {
+    if (seenPromiseIds.has(p.id)) continue
+    seenPromiseIds.add(p.id)
+    const days = daysSince(p.dueAt, now)
+    actions.push({
+      id: p.id,
+      dealId: null,
+      promiseId: p.id,
+      contactId: p.contactId,
+      conversationId: p.conversationId,
+      assignedTo: p.assignedTo,
+      type: 'fulfill_broken_promise',
+      urgency: days >= 2 ? 'high' : days >= 1 ? 'medium' : 'low',
+      daysInactive: days,
+      value: null,
+    })
   }
 
   return actions

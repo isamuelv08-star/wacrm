@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { findAtRiskOpenDeals, findStalledOpenDeals } from '../dashboard/ceo-queries'
 import { aggregateMoneyAtRisk, type MoneyAtRiskData } from './aggregate'
-import { buildNextBestActions, type NextBestAction } from './next-best-action'
+import { buildNextBestActions, type NextBestAction, type OverduePromise } from './next-best-action'
 
 const DEFAULT_STALE_DAYS = 7
 const DEFAULT_SILENCE_DAYS = 14
@@ -58,21 +58,69 @@ export interface NextBestActionDisplay extends NextBestAction {
 }
 
 /**
- * Fetches the two per-deal signal lists (same "stalled"/"at-risk"
- * definitions Money at Risk uses), ranks them via `buildNextBestActions`,
- * and resolves display names for whatever made the cut — never for
- * every candidate, since the cap keeps that list short.
+ * Overdue promises (fase 4), converted to display-ready shape — see
+ * `OverduePromise`'s own doc comment (next-best-action.ts) for why
+ * `assignedTo` has to be translated from `promises.promised_by`
+ * (auth.users.id) to profiles.id here, before it ever reaches the pure
+ * `buildNextBestActions`.
+ */
+async function findOverduePromises(db: SupabaseClient): Promise<OverduePromise[]> {
+  const { data, error } = await db
+    .from('promises')
+    .select('id, conversation_id, contact_id, promised_by, due_at')
+    .eq('status', 'overdue')
+    .limit(100)
+  if (error) throw error
+
+  const rows = (data ?? []) as {
+    id: string
+    conversation_id: string
+    contact_id: string | null
+    promised_by: string | null
+    due_at: string
+  }[]
+  if (rows.length === 0) return []
+
+  const userIds = [...new Set(rows.map((r) => r.promised_by).filter((id): id is string => !!id))]
+  const profileIdByUserId = new Map<string, string>()
+  if (userIds.length > 0) {
+    const { data: profiles, error: profErr } = await db
+      .from('profiles')
+      .select('id, user_id')
+      .in('user_id', userIds)
+    if (profErr) throw profErr
+    for (const p of (profiles ?? []) as { id: string; user_id: string }[]) {
+      profileIdByUserId.set(p.user_id, p.id)
+    }
+  }
+
+  return rows.map((r) => ({
+    id: r.id,
+    conversationId: r.conversation_id,
+    contactId: r.contact_id,
+    assignedTo: r.promised_by ? (profileIdByUserId.get(r.promised_by) ?? null) : null,
+    dueAt: r.due_at,
+  }))
+}
+
+/**
+ * Fetches the three per-deal/per-promise signal lists (same
+ * "stalled"/"at-risk" definitions Money at Risk uses, plus fase 4's
+ * overdue promises), ranks them via `buildNextBestActions`, and
+ * resolves display names for whatever made the cut — never for every
+ * candidate, since the cap keeps that list short.
  */
 export async function loadNextBestActions(
   db: SupabaseClient,
   staleDays = DEFAULT_STALE_DAYS,
   silenceDays = DEFAULT_SILENCE_DAYS,
 ): Promise<NextBestActionDisplay[]> {
-  const [stalled, atRisk] = await Promise.all([
+  const [stalled, atRisk, overduePromises] = await Promise.all([
     findStalledOpenDeals(db, staleDays),
     findAtRiskOpenDeals(db, silenceDays),
+    findOverduePromises(db),
   ])
-  const actions = buildNextBestActions(stalled, atRisk)
+  const actions = buildNextBestActions(stalled, atRisk, overduePromises)
   if (actions.length === 0) return []
 
   const contactIds = [...new Set(actions.map((a) => a.contactId).filter((id): id is string => !!id))]

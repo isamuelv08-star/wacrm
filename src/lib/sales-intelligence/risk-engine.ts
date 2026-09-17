@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { loadCeoMetrics, loadCeoAlerts } from '../dashboard/ceo-queries'
 import { rangeForPreset } from '../period'
-import { buildSignalsFromAlerts } from './rules'
+import { buildBrokenPromiseSignal, buildSignalsFromAlerts } from './rules'
 import { ALL_SIGNAL_TYPES } from './types'
 
 // ============================================================
@@ -50,6 +50,22 @@ export async function runRiskEngineScan(db: SupabaseClient): Promise<RiskEngineS
       const metrics = await loadCeoMetrics(db, range, account.id)
       const alerts = await loadCeoAlerts(db, metrics, 7, 90, account.id)
       const drafts = buildSignalsFromAlerts(alerts)
+
+      // Fase 5: fold in the one leak type that isn't already one of
+      // the six CeoAlerts checks — promises (fase 4) that went
+      // unfulfilled for this account.
+      const { count: overdueCount, error: promisesErr } = await db
+        .from('promises')
+        .select('id', { count: 'exact', head: true })
+        .eq('account_id', account.id)
+        .eq('status', 'overdue')
+      if (promisesErr) {
+        console.error('[sales-intelligence] overdue-promise count failed for account', account.id, promisesErr.message)
+      } else {
+        const brokenPromiseSignal = buildBrokenPromiseSignal(overdueCount ?? 0)
+        if (brokenPromiseSignal) drafts.push(brokenPromiseSignal)
+      }
+
       const draftTypes = new Set(drafts.map((d) => d.signalType))
 
       const { data: openRows, error: openErr } = await db

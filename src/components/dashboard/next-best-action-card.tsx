@@ -1,7 +1,7 @@
 "use client"
 
 import Link from 'next/link'
-import { Clock, ListChecks, MessageCircleWarning } from 'lucide-react'
+import { AlarmClockOff, Clock, ListChecks, MessageCircleWarning } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import type { NextBestActionDisplay } from '@/lib/sales-intelligence/queries'
 import type { NextBestActionUrgency } from '@/lib/sales-intelligence/next-best-action'
@@ -60,13 +60,20 @@ export function NextBestActionCard({ items, loading, currency }: NextBestActionC
         ) : (
           <ul className="flex flex-col gap-1.5">
             {items.map((it) => {
-              const Icon = it.type === 're_engage_silent' ? MessageCircleWarning : Clock
+              const Icon =
+                it.type === 're_engage_silent'
+                  ? MessageCircleWarning
+                  : it.type === 'fulfill_broken_promise'
+                    ? AlarmClockOff
+                    : Clock
               const style = URGENCY_STYLES[it.urgency]
               const label = it.contactName || it.contactPhone || t('unknownLead')
               const reason =
                 it.type === 're_engage_silent'
                   ? t('reasonSilent', { days: it.daysInactive })
-                  : t('reasonStalled', { days: it.daysInactive })
+                  : it.type === 'fulfill_broken_promise'
+                    ? t('reasonBrokenPromise', { days: it.daysInactive })
+                    : t('reasonStalled', { days: it.daysInactive })
 
               const content = (
                 <>
@@ -91,7 +98,7 @@ export function NextBestActionCard({ items, loading, currency }: NextBestActionC
               )
 
               return (
-                <li key={it.dealId}>
+                <li key={it.id}>
                   {it.conversationId ? (
                     <Link
                       href={`/inbox?c=${it.conversationId}`}
