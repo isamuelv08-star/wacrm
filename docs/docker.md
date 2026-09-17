@@ -91,6 +91,14 @@ docker run -d --env-file .env.local -e PORT=3000 -p 3000:3000 wacrm
   cron for now costs nothing visible, but wiring it up early means the
   signal history is already accumulating once the Sales Command Center
   (a later fase) ships.
+- Same story for the Promise Tracker (migration 092): point the
+  scheduler at `GET /api/cron/promise-tracker` too, same
+  `x-cron-secret` header and `AUTOMATION_CRON_SECRET`, every 5 minutes.
+  Sweeps overdue promises and scans new agent messages for verbal
+  commitments — only sends a message to the account's configured AI
+  provider when it already matched a cheap keyword filter, never one
+  call per message. Skipping this cron just means promises never get
+  detected; it costs nothing else.
 - Database backups are the one exception to "point an external
   scheduler at this deployment" — they run as a GitHub Actions
   workflow instead (`.github/workflows/backup.yml`), deliberately

@@ -171,6 +171,93 @@ function parseClassification(raw: string): Omit<ClassificationResult, 'usage'> {
   }
 }
 
+export interface PromiseExtractionArgs {
+  config: AiConfig
+  /** Built by `buildPromiseExtractionPrompt` (defaults.ts). */
+  systemPrompt: string
+  messages: ChatMessage[]
+}
+
+export interface PromiseExtractionResult {
+  isPromise: boolean
+  promiseText: string | null
+  dueInMinutes: number | null
+  usage: AiUsage | null
+}
+
+/**
+ * Generate a standalone promise-extraction verdict for one candidate
+ * agent message (fase 4 — src/lib/sales-intelligence/promise-tracker.ts
+ * only calls this for messages that already passed the cheap keyword
+ * pre-filter, promise-detect.ts). Same shape as `generateClassification`
+ * above: reuses the provider adapters, parses the response as strict
+ * JSON since the whole output IS the verdict.
+ *
+ * Never throws on a malformed response — treated the same as "not a
+ * promise", logged so it's visible without taking down the scan.
+ */
+export async function generatePromiseExtraction(
+  args: PromiseExtractionArgs,
+): Promise<PromiseExtractionResult> {
+  const { config, systemPrompt, messages } = args
+  const timeoutMs = aiRequestTimeoutMs()
+  const providerArgs = {
+    apiKey: config.apiKey,
+    model: config.model,
+    systemPrompt,
+    messages,
+    timeoutMs,
+  }
+
+  let result: { text: string; usage: AiUsage | null }
+  switch (config.provider) {
+    case 'openai':
+      result = await generateOpenAi(providerArgs)
+      break
+    case 'anthropic':
+      result = await generateAnthropic(providerArgs)
+      break
+    case 'openrouter':
+      result = await generateOpenRouter(providerArgs)
+      break
+    default:
+      throw new AiError(`Unsupported AI provider: ${config.provider}`, {
+        code: 'unsupported_provider',
+        status: 400,
+      })
+  }
+
+  return { ...parsePromiseExtraction(result.text), usage: result.usage }
+}
+
+function parsePromiseExtraction(raw: string): Omit<PromiseExtractionResult, 'usage'> {
+  try {
+    const parsed: unknown = JSON.parse(stripCodeFence(raw))
+    if (typeof parsed !== 'object' || parsed === null) {
+      throw new Error('not an object')
+    }
+    const { isPromise, promiseText, dueInMinutes } = parsed as {
+      isPromise?: unknown
+      promiseText?: unknown
+      dueInMinutes?: unknown
+    }
+    if (typeof isPromise !== 'boolean') {
+      throw new Error(`invalid isPromise: ${JSON.stringify(isPromise)}`)
+    }
+    return {
+      isPromise,
+      promiseText: isPromise && typeof promiseText === 'string' && promiseText.trim() ? promiseText.trim() : null,
+      dueInMinutes:
+        typeof dueInMinutes === 'number' && Number.isFinite(dueInMinutes) && dueInMinutes >= 0
+          ? dueInMinutes
+          : null,
+    }
+  } catch (err) {
+    console.error('[ai promise-extract] failed to parse extraction response:', err)
+    return { isPromise: false, promiseText: null, dueInMinutes: null }
+  }
+}
+
 export function parseGeneration(
   raw: string,
   usage: AiUsage | null = null,
