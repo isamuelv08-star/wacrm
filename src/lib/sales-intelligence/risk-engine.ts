@@ -24,6 +24,11 @@ import { ALL_SIGNAL_TYPES } from './types'
 // The range passed to loadCeoMetrics only affects goalAttainmentPct /
 // salesThisMonth / newClients — none of which loadCeoAlerts reads —
 // so "this month" is an arbitrary but harmless choice here.
+//
+// Fase 8 (Outcome Tracking): every time a signal resolves, this logs
+// how long it stayed open to `recommendation_outcomes` — the one
+// honest measurement this schema supports today (see that migration's
+// own doc comment for why Next Best Action isn't tracked the same way).
 // ============================================================
 
 export interface RiskEngineScanResult {
@@ -70,20 +75,20 @@ export async function runRiskEngineScan(db: SupabaseClient): Promise<RiskEngineS
 
       const { data: openRows, error: openErr } = await db
         .from('sales_signals')
-        .select('id, signal_type')
+        .select('id, signal_type, severity, detected_at')
         .eq('account_id', account.id)
         .eq('status', 'open')
       if (openErr) {
         console.error('[sales-intelligence] open-signal lookup failed for account', account.id, openErr.message)
         continue
       }
-      const openIdByType = new Map<string, string>()
-      for (const row of (openRows ?? []) as { id: string; signal_type: string }[]) {
-        openIdByType.set(row.signal_type, row.id)
+      const openByType = new Map<string, { id: string; severity: string; detectedAt: string }>()
+      for (const row of (openRows ?? []) as { id: string; signal_type: string; severity: string; detected_at: string }[]) {
+        openByType.set(row.signal_type, { id: row.id, severity: row.severity, detectedAt: row.detected_at })
       }
 
       for (const draft of drafts) {
-        const existingId = openIdByType.get(draft.signalType)
+        const existingId = openByType.get(draft.signalType)?.id
         if (existingId) {
           const { error: updErr } = await db
             .from('sales_signals')
@@ -117,18 +122,39 @@ export async function runRiskEngineScan(db: SupabaseClient): Promise<RiskEngineS
 
       for (const type of ALL_SIGNAL_TYPES) {
         if (draftTypes.has(type)) continue
-        const existingId = openIdByType.get(type)
-        if (!existingId) continue
+        const existing = openByType.get(type)
+        if (!existing) continue
+        const resolvedAt = new Date()
         const { error: resErr } = await db
           .from('sales_signals')
           .update({
             status: 'resolved',
-            resolved_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
+            resolved_at: resolvedAt.toISOString(),
+            updated_at: resolvedAt.toISOString(),
           })
-          .eq('id', existingId)
-        if (resErr) console.error('[sales-intelligence] signal resolve failed:', resErr.message)
-        else signalsResolved++
+          .eq('id', existing.id)
+        if (resErr) {
+          console.error('[sales-intelligence] signal resolve failed:', resErr.message)
+          continue
+        }
+        signalsResolved++
+
+        // Fase 8 (Outcome Tracking) — the one state transition this
+        // schema can honestly measure: a signal went from open to
+        // resolved, and it took this long. Best-effort: a logging
+        // failure here must never undo the resolve above.
+        const openedAt = new Date(existing.detectedAt)
+        const { error: outcomeErr } = await db.from('recommendation_outcomes').insert({
+          account_id: account.id,
+          signal_type: type,
+          severity: existing.severity,
+          opened_at: existing.detectedAt,
+          resolved_at: resolvedAt.toISOString(),
+          duration_hours: (resolvedAt.getTime() - openedAt.getTime()) / 3_600_000,
+        })
+        if (outcomeErr) {
+          console.error('[sales-intelligence] recommendation_outcomes insert failed:', outcomeErr.message)
+        }
       }
     } catch (err) {
       console.error('[sales-intelligence] scan failed for account', account.id, err)
