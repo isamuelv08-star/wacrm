@@ -321,6 +321,16 @@
         "salesCycleIncreased": "영업 주기가 지난 90일보다 {pct}% 길어졌습니다",
         "lowPipelineCoverage": "파이프라인이 목표의 {multiple}배에 불과합니다 — 건강한 기준인 3배 미만입니다"
       },
+      "moneyAtRisk": {
+        "title": "위험에 처한 금액",
+        "subtitle": "{days}일 이상 정체된 딜, 담당자별 및 단계별",
+        "empty": "현재 정체된 잠재 가치가 없습니다",
+        "bySeller": "담당자별",
+        "byStage": "단계별",
+        "unassigned": "미배정",
+        "unknownStage": "단계 없음",
+        "dealsCount": "딜 {count}건"
+      },
       "funnel": {
         "title": "영업 퍼널",
         "description": "최근 90일간 각 단계에 도달한 딜 — 프로세스가 끊기는 지점",
@@ -1750,7 +1760,9 @@
         "leadsByRepLabel": "담당자별 리드",
         "leadsByRepDesc": "각 팀원에게 배정된 열린 대화와 거래.",
         "alertsLabel": "알림",
-        "alertsDesc": "정체된 딜, 위험 고객, 목표 미달 예측."
+        "alertsDesc": "정체된 딜, 위험 고객, 목표 미달 예측.",
+        "moneyAtRiskLabel": "위험에 처한 금액",
+        "moneyAtRiskDesc": "정체된 잠재 가치 금액을 담당자별, 단계별로 분석합니다."
       },
       "individualGoalLabel": "개별 월간 매출 목표 ({currency})",
       "individualGoalHint": "대시보드의 Top 영업사원 순위에서 이 멤버의 목표 달성률(%)에 반영됩니다. 나중에 설정하려면 설정 → 매출 목표에서 비워두세요.",

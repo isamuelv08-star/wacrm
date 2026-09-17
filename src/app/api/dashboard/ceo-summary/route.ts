@@ -12,6 +12,7 @@ import {
   loadTopSellers,
   loadLeadsByRep,
 } from '@/lib/dashboard/ceo-queries'
+import { loadMoneyAtRisk } from '@/lib/sales-intelligence/queries'
 
 // Matches the "few minutes of staleness is fine" trade-off the user
 // signed off on: these are the heaviest queries on /dashboard (each
@@ -30,11 +31,11 @@ const STALE_DAYS_DEFAULT = 7
  *
  * Cached backing for the /dashboard page's sales/CEO section
  * (salesKpis, salesVsGoal, salesFunnel, commercialMetrics, topSellers,
- * leadsByRep, alerts) — the seven `ceo-queries.ts` loaders the client
- * used to call directly from the browser on every mount, pathname
- * match, and tab-refocus.
+ * leadsByRep, alerts, moneyAtRisk) — the eight loaders the client used
+ * to call directly from the browser on every mount, pathname match,
+ * and tab-refocus.
  *
- * Caching strategy: every one of the seven loaders is computed (and
+ * Caching strategy: every one of the eight loaders is computed (and
  * cached under an accountId + params key) regardless of what THIS
  * caller is allowed to see — the underlying numbers are identical for
  * every member of the account, only which ones get shown differ by
@@ -102,8 +103,18 @@ export async function GET(request: Request) {
       () => loadLeadsByRep(supabase),
       tags,
     )
+    // Same "stalled deal" definition and threshold as the Alerts card's
+    // stalledValue — see loadMoneyAtRisk's doc comment for why this
+    // deliberately reuses findStalledOpenDeals instead of a second
+    // definition of "stalled".
+    const getMoneyAtRisk = cachedForAccount(
+      [accountId, 'ceo-money-at-risk', String(staleDays)],
+      CACHE_TTL.dashboardSummary,
+      () => loadMoneyAtRisk(supabase, staleDays),
+      tags,
+    )
 
-    const [ceoMetrics, salesVsGoal, topSellers, salesFunnel, commercialMetrics, leadsByRep] =
+    const [ceoMetrics, salesVsGoal, topSellers, salesFunnel, commercialMetrics, leadsByRep, moneyAtRisk] =
       await Promise.all([
         getCeoMetrics(),
         getSalesVsGoal(),
@@ -111,6 +122,7 @@ export async function GET(request: Request) {
         getSalesFunnel(),
         getCommercialMetrics(),
         getLeadsByRep(),
+        getMoneyAtRisk(),
       ])
 
     // Alerts need the metrics bundle as input (same dependency the
@@ -132,6 +144,7 @@ export async function GET(request: Request) {
       topSellers: can('topSellers') ? topSellers : null,
       leadsByRep: can('leadsByRep') ? leadsByRep : null,
       alerts: can('alerts') ? alerts : null,
+      moneyAtRisk: can('moneyAtRisk') ? moneyAtRisk : null,
     })
   } catch (err) {
     return toErrorResponse(err)

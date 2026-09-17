@@ -67,6 +67,8 @@ import { CommercialMetricsCard } from '@/components/dashboard/ceo/commercial-met
 import { TopSellersCard } from '@/components/dashboard/ceo/top-sellers-card'
 import { LeadsByRepCard } from '@/components/dashboard/ceo/leads-by-rep-card'
 import { AlertsCard } from '@/components/dashboard/ceo/alerts-card'
+import { MoneyAtRiskCard } from '@/components/dashboard/ceo/money-at-risk-card'
+import type { MoneyAtRiskData } from '@/lib/sales-intelligence/aggregate'
 
 import { useTranslations } from 'next-intl'
 
@@ -84,6 +86,7 @@ interface CeoSummaryResponse {
   topSellers: TopSeller[] | null
   leadsByRep: LeadsByRep[] | null
   alerts: CeoAlerts | null
+  moneyAtRisk: MoneyAtRiskData | null
 }
 
 /**
@@ -134,12 +137,13 @@ export default function DashboardPage() {
       topSellers: canViewDashboardSection('topSellers'),
       leadsByRep: canViewDashboardSection('leadsByRep'),
       alerts: canViewDashboardSection('alerts'),
+      moneyAtRisk: canViewDashboardSection('moneyAtRisk'),
     }),
     [canViewDashboardSection],
   )
   const hasAnySalesAccess =
     sales.kpis || sales.vsGoal || sales.funnel || sales.commercial || sales.topSellers ||
-    sales.leadsByRep || sales.alerts
+    sales.leadsByRep || sales.alerts || sales.moneyAtRisk
 
   const [metrics, setMetrics] = useState<MetricsBundle | null>(null)
   const [metricsLoading, setMetricsLoading] = useState(true)
@@ -255,6 +259,8 @@ export default function DashboardPage() {
   const [leadsByRepLoading, setLeadsByRepLoading] = useState(true)
   const [alerts, setAlerts] = useState<CeoAlerts | null>(null)
   const [alertsLoading, setAlertsLoading] = useState(true)
+  const [moneyAtRisk, setMoneyAtRisk] = useState<MoneyAtRiskData | null>(null)
+  const [moneyAtRiskLoading, setMoneyAtRiskLoading] = useState(true)
 
   const loadAll = useCallback(() => {
     const db = createClient()
@@ -316,11 +322,12 @@ export default function DashboardPage() {
       setTopSellersLoading(false)
       setLeadsByRepLoading(false)
       setAlertsLoading(false)
+      setMoneyAtRiskLoading(false)
       return
     }
 
-    // One cached round trip for all seven sales/CEO widgets instead of
-    // seven direct Supabase calls — see fetchCeoSummary's doc comment.
+    // One cached round trip for all eight sales/CEO widgets instead of
+    // eight direct Supabase calls — see fetchCeoSummary's doc comment.
     void fetchCeoSummary(currentRange, STALE_DAYS, customRangeRef.current)
       .then((data) => {
         setCeoMetrics(data.ceoMetrics)
@@ -330,6 +337,7 @@ export default function DashboardPage() {
         setTopSellers(data.topSellers)
         setLeadsByRep(data.leadsByRep)
         setAlerts(data.alerts)
+        setMoneyAtRisk(data.moneyAtRisk)
       })
       .catch((err) => console.error('[dashboard] ceo-summary failed:', err))
       .finally(() => {
@@ -340,6 +348,7 @@ export default function DashboardPage() {
         setTopSellersLoading(false)
         setLeadsByRepLoading(false)
         setAlertsLoading(false)
+        setMoneyAtRiskLoading(false)
       })
   }, [hasAnySalesAccess])
 
@@ -559,6 +568,7 @@ export default function DashboardPage() {
           setTopSellers(data.topSellers)
           setLeadsByRep(data.leadsByRep)
           setAlerts(data.alerts)
+          setMoneyAtRisk(data.moneyAtRisk)
         })
         .catch((err) => console.error('[dashboard] ceo-summary failed:', err))
         .finally(() => {
@@ -910,6 +920,17 @@ export default function DashboardPage() {
           {sales.leadsByRep && (
             <RevealSection delayMs={220}>
               <LeadsByRepCard data={leadsByRep} loading={leadsByRepLoading} />
+            </RevealSection>
+          )}
+
+          {sales.moneyAtRisk && (
+            <RevealSection delayMs={240}>
+              <MoneyAtRiskCard
+                data={moneyAtRisk}
+                loading={moneyAtRiskLoading}
+                currency={defaultCurrency}
+                staleDays={STALE_DAYS}
+              />
             </RevealSection>
           )}
         </div>

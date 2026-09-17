@@ -135,6 +135,7 @@ export const DASHBOARD_PERMISSION_KEYS = [
   "topSellers",
   "leadsByRep",
   "alerts",
+  "moneyAtRisk",
 ] as const;
 
 export type DashboardPermissionKey = (typeof DASHBOARD_PERMISSION_KEYS)[number];

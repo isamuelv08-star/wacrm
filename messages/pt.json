@@ -321,6 +321,16 @@
         "salesCycleIncreased": "O ciclo de vendas está {pct}% mais longo que os 90 dias anteriores",
         "lowPipelineCoverage": "O pipeline é apenas {multiple}x a meta — abaixo do 3x saudável"
       },
+      "moneyAtRisk": {
+        "title": "Valor em risco",
+        "subtitle": "Negócios parados há {days}+ dias, por vendedor e por etapa",
+        "empty": "Nenhum valor potencial parado no momento",
+        "bySeller": "Por vendedor",
+        "byStage": "Por etapa",
+        "unassigned": "Não atribuído",
+        "unknownStage": "Sem etapa",
+        "dealsCount": "{count, plural, =1 {# negócio} other {# negócios}}"
+      },
       "funnel": {
         "title": "Funil de vendas",
         "description": "Negócios que chegaram a cada etapa nos últimos 90 dias — onde o processo quebra",
@@ -1750,7 +1760,9 @@
         "leadsByRepLabel": "Leads por vendedor",
         "leadsByRepDesc": "Conversas e negócios abertos atribuídos a cada membro da equipe.",
         "alertsLabel": "Alertas",
-        "alertsDesc": "Negócios parados, clientes em risco e forecast abaixo da meta."
+        "alertsDesc": "Negócios parados, clientes em risco e forecast abaixo da meta.",
+        "moneyAtRiskLabel": "Valor em risco",
+        "moneyAtRiskDesc": "Quanto valor potencial afetado está parado, detalhado por vendedor e por etapa."
       },
       "individualGoalLabel": "Meta mensal de vendas individual ({currency})",
       "individualGoalHint": "Alimenta o % de cumprimento deste membro no ranking de Top Vendedores do painel. Deixe em branco para definir depois em Configurações → Metas de vendas.",

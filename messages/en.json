@@ -321,6 +321,16 @@
         "salesCycleIncreased": "Sales cycle is {pct}% longer than the prior 90 days",
         "lowPipelineCoverage": "Pipeline is only {multiple}x the goal — below the healthy 3x mark"
       },
+      "moneyAtRisk": {
+        "title": "Money at risk",
+        "subtitle": "Deals stalled {days}+ days, by seller and by stage",
+        "empty": "No potential value is stalled right now",
+        "bySeller": "By seller",
+        "byStage": "By stage",
+        "unassigned": "Unassigned",
+        "unknownStage": "No stage",
+        "dealsCount": "{count, plural, =1 {# deal} other {# deals}}"
+      },
       "funnel": {
         "title": "Sales Funnel",
         "description": "Deals that reached each stage in the last 90 days — where the process breaks",
@@ -1750,7 +1760,9 @@
         "leadsByRepLabel": "Leads by rep",
         "leadsByRepDesc": "Open conversations and deals assigned to each team member.",
         "alertsLabel": "Alerts",
-        "alertsDesc": "Stalled deals, at-risk customers, and forecast shortfalls."
+        "alertsDesc": "Stalled deals, at-risk customers, and forecast shortfalls.",
+        "moneyAtRiskLabel": "Money at risk",
+        "moneyAtRiskDesc": "How much potential value is stalled, broken down by seller and by stage."
       },
       "individualGoalLabel": "Individual monthly sales goal ({currency})",
       "individualGoalHint": "Feeds this member's quota-attainment % on the dashboard's Top Sellers leaderboard. Leave blank to set it later in Settings → Sales goals.",

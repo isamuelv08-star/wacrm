@@ -448,7 +448,6 @@ export async function loadCeoAlerts(
   const currentWindowStart = daysAgoStart(trendWindowDays).toISOString()
   const priorWindowStart = daysAgoStart(trendWindowDays * 2).toISOString()
 
-  let openDealsQ = db.from('deals').select('id, value').eq('status', 'open').limit(MAX_OPEN_DEALS_SCANNED)
   let trendQ = db
     .from('deals')
     .select('value, status, created_at, closed_at')
@@ -462,55 +461,20 @@ export async function loadCeoAlerts(
     .limit(MAX_OPEN_DEALS_SCANNED)
 
   if (accountId) {
-    openDealsQ = openDealsQ.eq('account_id', accountId)
     trendQ = trendQ.eq('account_id', accountId)
     riskQ = riskQ.eq('account_id', accountId)
   }
 
-  const [openDealsRes, trendRes, riskRes] = await Promise.all([openDealsQ, trendQ, riskQ])
-  if (openDealsRes.error) throw openDealsRes.error
+  const [stalledDeals, trendRes, riskRes] = await Promise.all([
+    findStalledOpenDeals(db, staleDays, accountId),
+    trendQ,
+    riskQ,
+  ])
   if (trendRes.error) throw trendRes.error
   if (riskRes.error) throw riskRes.error
 
-  // --- stalled: open deals whose stage hasn't changed in `staleDays` ---
-  const openDeals = (openDealsRes.data ?? []) as { id: string; value: number | null }[]
-  let stalledCount = 0
-  let stalledValue = 0
-  if (openDeals.length > 0) {
-    let historyQ = db
-      .from('deal_stage_history')
-      .select('deal_id, changed_at')
-      .in(
-        'deal_id',
-        openDeals.map((d) => d.id),
-      )
-      .order('changed_at', { ascending: false })
-    // Redundant with the deal-id list already being account-scoped
-    // above, but cheap defense-in-depth for the same reason every
-    // other query in this function got one.
-    if (accountId) historyQ = historyQ.eq('account_id', accountId)
-    const { data: history, error: histErr } = await historyQ
-    if (histErr) throw histErr
-
-    // First row per deal_id wins — history is ordered newest first, so
-    // that's each deal's most recent stage placement.
-    const lastChangeByDeal = new Map<string, string>()
-    for (const h of (history ?? []) as { deal_id: string; changed_at: string }[]) {
-      if (!lastChangeByDeal.has(h.deal_id)) lastChangeByDeal.set(h.deal_id, h.changed_at)
-    }
-
-    const staleCutoff = Date.now() - staleDays * 86_400_000
-    for (const d of openDeals) {
-      const lastChange = lastChangeByDeal.get(d.id)
-      // No history row shouldn't happen (the insert trigger always
-      // writes one) — skip rather than guess if it's ever missing.
-      if (!lastChange) continue
-      if (new Date(lastChange).getTime() < staleCutoff) {
-        stalledCount += 1
-        stalledValue += d.value ?? 0
-      }
-    }
-  }
+  const stalledCount = stalledDeals.length
+  const stalledValue = stalledDeals.reduce((s, d) => s + (d.value ?? 0), 0)
 
   // --- win rate / sales cycle trend: current 90d vs. the 90d before it ---
   type TrendRow = { value: number | null; status: string; created_at: string; closed_at: string | null }
@@ -572,6 +536,82 @@ export async function loadCeoAlerts(
     salesCycleIncreasePct,
     lowPipelineCoverage,
   }
+}
+
+export interface StalledOpenDeal {
+  id: string
+  value: number | null
+  stageId: string | null
+  assignedTo: string | null
+}
+
+/**
+ * Open deals whose most recent stage placement (per
+ * `deal_stage_history`) is older than `staleDays` — "what counts as
+ * stalled", extracted into its own function so it has exactly one
+ * definition in the codebase. `loadCeoAlerts` below only needs the
+ * count and summed value; `loadMoneyAtRiskBreakdown`
+ * (src/lib/sales-intelligence/queries.ts) needs the per-deal
+ * stage/owner too, to group the same stalled deals by seller and
+ * stage for the Money at Risk card — both call this rather than each
+ * re-deriving "stalled" on their own.
+ */
+export async function findStalledOpenDeals(
+  db: DB,
+  staleDays: number,
+  accountId?: string,
+): Promise<StalledOpenDeal[]> {
+  let openDealsQ = db
+    .from('deals')
+    .select('id, value, stage_id, assigned_to')
+    .eq('status', 'open')
+    .limit(MAX_OPEN_DEALS_SCANNED)
+  if (accountId) openDealsQ = openDealsQ.eq('account_id', accountId)
+  const { data, error } = await openDealsQ
+  if (error) throw error
+
+  const openDeals = (data ?? []) as {
+    id: string
+    value: number | null
+    stage_id: string | null
+    assigned_to: string | null
+  }[]
+  if (openDeals.length === 0) return []
+
+  let historyQ = db
+    .from('deal_stage_history')
+    .select('deal_id, changed_at')
+    .in(
+      'deal_id',
+      openDeals.map((d) => d.id),
+    )
+    .order('changed_at', { ascending: false })
+  // Redundant with the deal-id list already being account-scoped
+  // above, but cheap defense-in-depth, same reasoning as elsewhere in
+  // this file.
+  if (accountId) historyQ = historyQ.eq('account_id', accountId)
+  const { data: history, error: histErr } = await historyQ
+  if (histErr) throw histErr
+
+  // First row per deal_id wins — history is ordered newest first, so
+  // that's each deal's most recent stage placement.
+  const lastChangeByDeal = new Map<string, string>()
+  for (const h of (history ?? []) as { deal_id: string; changed_at: string }[]) {
+    if (!lastChangeByDeal.has(h.deal_id)) lastChangeByDeal.set(h.deal_id, h.changed_at)
+  }
+
+  const staleCutoff = Date.now() - staleDays * 86_400_000
+  const stalled: StalledOpenDeal[] = []
+  for (const d of openDeals) {
+    const lastChange = lastChangeByDeal.get(d.id)
+    // No history row shouldn't happen (the insert trigger always
+    // writes one) — skip rather than guess if it's ever missing.
+    if (!lastChange) continue
+    if (new Date(lastChange).getTime() < staleCutoff) {
+      stalled.push({ id: d.id, value: d.value, stageId: d.stage_id, assignedTo: d.assigned_to })
+    }
+  }
+  return stalled
 }
 
 function computeForecastGap(forecast: number, goal: number | null): number | null {

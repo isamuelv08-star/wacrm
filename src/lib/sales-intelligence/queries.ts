@@ -1,0 +1,48 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { findStalledOpenDeals } from '../dashboard/ceo-queries'
+import { aggregateMoneyAtRisk, type MoneyAtRiskData } from './aggregate'
+
+// ============================================================
+// Money at Risk (fase 2) — "dónde se escapa el valor", broken down by
+// seller and by pipeline stage. Deliberately built on top of
+// findStalledOpenDeals (src/lib/dashboard/ceo-queries.ts), the exact
+// same "stalled deal" definition CeoAlerts.stalledValue already uses,
+// so this card's total always agrees with the CEO dashboard's own
+// alert — it's a breakdown of that number, not a second opinion on it.
+//
+// Client-side query (RLS-scoped, like every other src/lib/dashboard
+// loader) — no accountId param, unlike the risk-engine's per-account
+// service-role loop.
+// ============================================================
+
+export async function loadMoneyAtRisk(db: SupabaseClient, staleDays = 7): Promise<MoneyAtRiskData> {
+  const stalled = await findStalledOpenDeals(db, staleDays)
+  if (stalled.length === 0) {
+    return aggregateMoneyAtRisk([], new Map(), new Map())
+  }
+
+  const sellerIds = [...new Set(stalled.map((d) => d.assignedTo).filter((id): id is string => !!id))]
+  const stageIds = [...new Set(stalled.map((d) => d.stageId).filter((id): id is string => !!id))]
+
+  const [sellersRes, stagesRes] = await Promise.all([
+    sellerIds.length > 0
+      ? db.from('profiles').select('id, full_name, email').in('id', sellerIds)
+      : Promise.resolve({ data: [] as unknown[], error: null }),
+    stageIds.length > 0
+      ? db.from('pipeline_stages').select('id, name').in('id', stageIds)
+      : Promise.resolve({ data: [] as unknown[], error: null }),
+  ])
+  if (sellersRes.error) throw sellersRes.error
+  if (stagesRes.error) throw stagesRes.error
+
+  const sellerNameById = new Map<string, string>()
+  for (const s of (sellersRes.data ?? []) as { id: string; full_name: string | null; email: string | null }[]) {
+    sellerNameById.set(s.id, s.full_name || s.email || '—')
+  }
+  const stageNameById = new Map<string, string>()
+  for (const s of (stagesRes.data ?? []) as { id: string; name: string }[]) {
+    stageNameById.set(s.id, s.name)
+  }
+
+  return aggregateMoneyAtRisk(stalled, sellerNameById, stageNameById)
+}
