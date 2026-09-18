@@ -24,7 +24,14 @@ const AGENCY_STANDALONE_EXACT_PATHS = new Set([
   '/forgot-password',
   '/reset-password',
 ])
-const AGENCY_STANDALONE_PATH_PREFIXES = ['/api/agency', '/api/locale', '/auth/callback']
+// '/api/auth' (email/password sign-in — see /api/auth/login/route.ts)
+// was missing here originally: with only '/login' itself allowed,
+// the login FORM rendered fine but its POST to /api/auth/login got
+// redirected away by the block below before Supabase auth ever ran —
+// no cookie was ever set, so the post-login navigation to /dashboard
+// (disallowed here too) bounced straight back to /login with no error
+// shown, looking like the login silently did nothing.
+const AGENCY_STANDALONE_PATH_PREFIXES = ['/api/agency', '/api/auth', '/api/locale', '/auth/callback']
 
 function isAgencyStandaloneAllowedPath(pathname: string): boolean {
   return (
