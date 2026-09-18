@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { LifeBuoy, Loader2 } from "lucide-react";
+import { Headset, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
@@ -123,7 +123,7 @@ export function SupportRequestDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <LifeBuoy className="h-4 w-4 text-primary" />
+            <Headset className="h-4 w-4 text-primary" />
             {t("title")}
           </DialogTitle>
           <DialogDescription>{t("subtitle")}</DialogDescription>

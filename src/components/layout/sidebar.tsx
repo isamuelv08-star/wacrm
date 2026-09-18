@@ -12,13 +12,13 @@ import {
   Calendar,
   Crown,
   GitBranch,
+  Headset,
   LayoutDashboard,
-  LifeBuoy,
+  MessageSquareMore,
   MessagesSquare,
   PanelLeftClose,
   PanelLeftOpen,
   LogOut,
-  MessageSquare,
   Radio,
   Settings,
   Shield,
@@ -107,7 +107,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { href: "/dashboard", labelKey: "dashboard", icon: LayoutDashboard },
-  { href: "/inbox", labelKey: "inbox", icon: MessageSquare },
+  { href: "/inbox", labelKey: "inbox", icon: MessageSquareMore },
   { href: "/pipelines", labelKey: "pipelines", icon: GitBranch },
   { href: "/contacts", labelKey: "contacts", icon: Users },
   { href: "/calendar", labelKey: "calendar", icon: Calendar },
@@ -434,7 +434,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                       collapsed && "lg:justify-center lg:px-0",
                     )}
                   >
-                    <LifeBuoy className="h-4 w-4 shrink-0" />
+                    <Headset className="h-4 w-4 shrink-0" />
                     <span className={cn("flex-1", collapsed && "lg:hidden")}>
                       {t("contactSupport")}
                     </span>

@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
 import { formatCurrency } from '@/lib/currency'
 import {
-  MessageSquare,
+  MessageSquareMore,
   UserPlus,
   DollarSign,
   Send,
@@ -678,7 +678,7 @@ export default function DashboardPage() {
             <MetricCard
               title={t('activeConversations')}
               value={<AnimatedNumber value={metrics.activeConversations.current} formatter={(n) => Math.round(n).toLocaleString()} />}
-              icon={MessageSquare}
+              icon={MessageSquareMore}
               tint="blue"
               description={t('activeConversationsDesc')}
               animationDelayMs={0}

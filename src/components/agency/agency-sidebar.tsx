@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   Building2,
-  LifeBuoy,
+  Headset,
   LogOut,
   X,
 } from "lucide-react";
@@ -77,7 +77,7 @@ export function AgencySidebar({ open = false, onClose }: AgencySidebarProps) {
 
   const navItems = [
     { href: "/agency", labelKey: "overview", icon: Building2 },
-    { href: "/agency/support", labelKey: "support", icon: LifeBuoy },
+    { href: "/agency/support", labelKey: "support", icon: Headset },
   ];
 
   return (
@@ -160,7 +160,7 @@ export function AgencySidebar({ open = false, onClose }: AgencySidebarProps) {
         <div className="shrink-0 border-t border-border p-3">
           <div className="rounded-lg bg-muted/40 p-3">
             <p className="flex items-center gap-1.5 text-xs font-medium text-foreground">
-              <LifeBuoy className="h-3.5 w-3.5 text-primary" />
+              <Headset className="h-3.5 w-3.5 text-primary" />
               {t("aboutTitle")}
             </p>
             <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">

@@ -19,7 +19,7 @@ import type {
   InteractiveMessagePayload,
 } from "@/types";
 import {
-  MessageSquare,
+  MessageSquareMore,
   ChevronDown,
   UserPlus,
   Check,
@@ -1015,7 +1015,7 @@ export function MessageThread({
     return (
       <div className={cn("flex flex-1 flex-col items-center justify-center", EMPTY_STATE_BG_CLASS)}>
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-          <MessageSquare className="h-8 w-8 text-muted-foreground" />
+          <MessageSquareMore className="h-8 w-8 text-muted-foreground" />
         </div>
         <h3 className="mt-4 text-sm font-medium text-muted-foreground">
           {t("selectConversation")}
