@@ -2806,6 +2806,17 @@
     "submitFailed": "Couldn't confirm the appointment. Try again."
   },
   "Agency": {
+    "sidebar": {
+      "productName": "Saleslid CRM",
+      "badge": "Agency Admin",
+      "overview": "Overview",
+      "aboutTitle": "About this panel",
+      "aboutBody": "This is where you manage every Saleslid CRM client account: access, subscriptions, and WhatsApp connection status. Changes here affect live clients.",
+      "signedInAs": "Signed in as",
+      "signOut": "Sign out",
+      "openMenu": "Open menu",
+      "closeMenu": "Close menu"
+    },
     "page": {
       "title": "Agency panel",
       "subtitle": "View of all managed accounts — {count, plural, =1 {# client} other {# clients}}.",

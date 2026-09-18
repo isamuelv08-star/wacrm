@@ -2806,6 +2806,17 @@
     "submitFailed": "Não foi possível confirmar o agendamento. Tente novamente."
   },
   "Agency": {
+    "sidebar": {
+      "productName": "Saleslid CRM",
+      "badge": "Administração da agência",
+      "overview": "Resumo",
+      "aboutTitle": "Sobre este painel",
+      "aboutBody": "Aqui você administra todas as contas de clientes do Saleslid CRM: acesso, assinaturas e status de conexão do WhatsApp. As mudanças afetam clientes ao vivo.",
+      "signedInAs": "Sessão iniciada como",
+      "signOut": "Sair",
+      "openMenu": "Abrir menu",
+      "closeMenu": "Fechar menu"
+    },
     "page": {
       "title": "Painel da agência",
       "subtitle": "Visão de todas as contas administradas — {count, plural, =1 {# cliente} other {# clientes}}.",

@@ -2806,6 +2806,17 @@
     "submitFailed": "No se pudo confirmar la cita. Probá de nuevo."
   },
   "Agency": {
+    "sidebar": {
+      "productName": "Saleslid CRM",
+      "badge": "Administración de agencia",
+      "overview": "Resumen",
+      "aboutTitle": "Sobre este panel",
+      "aboutBody": "Aquí administras todas las cuentas de clientes de Saleslid CRM: acceso, suscripciones y estado de conexión de WhatsApp. Los cambios afectan a los clientes en vivo.",
+      "signedInAs": "Sesión iniciada como",
+      "signOut": "Cerrar sesión",
+      "openMenu": "Abrir menú",
+      "closeMenu": "Cerrar menú"
+    },
     "page": {
       "title": "Panel de agencia",
       "subtitle": "Vista de todas las cuentas administradas — {count, plural, =1 {# cliente} other {# clientes}}.",
