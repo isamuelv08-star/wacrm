@@ -53,6 +53,7 @@
     "aiAgents": "AI Agents",
     "settings": "Settings",
     "teamChat": "Team Chat",
+    "contactSupport": "Contact support",
     "beta": "Beta",
     "unreadConversations": "{count} unread {count, plural, =1 {conversation} other {conversations}}",
     "unreadNotifications": "{count} unread {count, plural, =1 {notification} other {notifications}}",
@@ -85,6 +86,24 @@
       "replyError": "Couldn't get a reply.",
       "reachError": "Couldn't reach the assistant."
     }
+  },
+  "SupportRequest": {
+    "title": "Contact support",
+    "subtitle": "Tell us what's going on — the Saleslid team reviews it directly.",
+    "subjectLabel": "Subject",
+    "subjectPlaceholder": "e.g. WhatsApp messages aren't coming in",
+    "messageLabel": "Message",
+    "messagePlaceholder": "Describe the issue in as much detail as you can…",
+    "submit": "Send request",
+    "submitting": "Sending…",
+    "submitSuccess": "Request sent — we'll get back to you soon.",
+    "submitError": "Couldn't send the request",
+    "requiredFieldsError": "Fill in the subject and message",
+    "historyTitle": "Your past requests",
+    "noRequests": "You haven't sent any requests yet.",
+    "statusOpen": "Open",
+    "statusResolved": "Resolved",
+    "loadError": "Couldn't load your history"
   },
   "Header": {
     "dashboard": "Dashboard",
@@ -2810,12 +2829,23 @@
       "productName": "Saleslid CRM",
       "badge": "Agency Admin",
       "overview": "Overview",
+      "support": "Support",
       "aboutTitle": "About this panel",
       "aboutBody": "This is where you manage every Saleslid CRM client account: access, subscriptions, and WhatsApp connection status. Changes here affect live clients.",
       "signedInAs": "Signed in as",
       "signOut": "Sign out",
       "openMenu": "Open menu",
       "closeMenu": "Close menu"
+    },
+    "support": {
+      "title": "Support",
+      "subtitle": "{count, plural, =0 {No open requests} =1 {# open request} other {# open requests}} across every client.",
+      "empty": "No support requests yet.",
+      "resolveAction": "Mark resolved",
+      "reopenAction": "Reopen",
+      "resolvedSuccess": "Request marked resolved",
+      "reopenedSuccess": "Request reopened",
+      "updateError": "Couldn't update the request"
     },
     "page": {
       "title": "Agency panel",

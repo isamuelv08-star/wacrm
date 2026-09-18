@@ -13,6 +13,7 @@ import {
   Crown,
   GitBranch,
   LayoutDashboard,
+  LifeBuoy,
   MessagesSquare,
   PanelLeftClose,
   PanelLeftOpen,
@@ -37,6 +38,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { AiAssistantWidget } from "@/components/layout/ai-assistant-widget";
+import { SupportRequestDialog } from "@/components/support/support-request-dialog";
 
 // Desktop collapse preference — device-scoped like the inbox contact-panel
 // toggle, so it survives reloads but isn't tied to a specific account.
@@ -413,6 +415,33 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 );
               })}
             </ul>
+
+            {/* Not a NavItem — opens a dialog instead of navigating
+                (support_requests, migration 098), so it's rendered
+                directly rather than folded into bottomNavItems' Link
+                mapping above. Same collapsed-label treatment as every
+                row above, no Tooltip wrapper (nesting Tooltip's own
+                render-prop trigger inside DialogTrigger's is fragile —
+                skipped rather than risk it breaking silently). */}
+            <div className="mt-1">
+              <SupportRequestDialog
+                trigger={
+                  <button
+                    type="button"
+                    title={collapsed ? t("contactSupport") : undefined}
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:py-2",
+                      collapsed && "lg:justify-center lg:px-0",
+                    )}
+                  >
+                    <LifeBuoy className="h-4 w-4 shrink-0" />
+                    <span className={cn("flex-1", collapsed && "lg:hidden")}>
+                      {t("contactSupport")}
+                    </span>
+                  </button>
+                }
+              />
+            </div>
           </nav>
         </TooltipProvider>
 

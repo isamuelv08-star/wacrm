@@ -53,6 +53,7 @@
     "aiAgents": "Agentes de IA",
     "settings": "Configuración",
     "teamChat": "Chat de equipo",
+    "contactSupport": "Contactar soporte",
     "beta": "Beta",
     "unreadConversations": "{count} {count, plural, =1 {conversación sin leer} other {conversaciones sin leer}}",
     "unreadNotifications": "{count} {count, plural, =1 {notificación sin leer} other {notificaciones sin leer}}",
@@ -85,6 +86,24 @@
       "replyError": "No se pudo obtener una respuesta.",
       "reachError": "No se pudo contactar al asistente."
     }
+  },
+  "SupportRequest": {
+    "title": "Contactar soporte",
+    "subtitle": "Cuéntanos qué pasa — lo revisa directamente el equipo de Saleslid.",
+    "subjectLabel": "Asunto",
+    "subjectPlaceholder": "Ej. No me llegan mensajes de WhatsApp",
+    "messageLabel": "Mensaje",
+    "messagePlaceholder": "Describe el problema con el mayor detalle posible…",
+    "submit": "Enviar solicitud",
+    "submitting": "Enviando…",
+    "submitSuccess": "Solicitud enviada — te responderemos pronto.",
+    "submitError": "No se pudo enviar la solicitud",
+    "requiredFieldsError": "Completa el asunto y el mensaje",
+    "historyTitle": "Tus solicitudes anteriores",
+    "noRequests": "Todavía no has enviado ninguna solicitud.",
+    "statusOpen": "Abierta",
+    "statusResolved": "Resuelta",
+    "loadError": "No se pudo cargar el historial"
   },
   "Header": {
     "dashboard": "Panel",
@@ -2810,12 +2829,23 @@
       "productName": "Saleslid CRM",
       "badge": "Administración de agencia",
       "overview": "Resumen",
+      "support": "Soporte",
       "aboutTitle": "Sobre este panel",
       "aboutBody": "Aquí administras todas las cuentas de clientes de Saleslid CRM: acceso, suscripciones y estado de conexión de WhatsApp. Los cambios afectan a los clientes en vivo.",
       "signedInAs": "Sesión iniciada como",
       "signOut": "Cerrar sesión",
       "openMenu": "Abrir menú",
       "closeMenu": "Cerrar menú"
+    },
+    "support": {
+      "title": "Soporte",
+      "subtitle": "{count, plural, =0 {Sin solicitudes abiertas} =1 {# solicitud abierta} other {# solicitudes abiertas}} de todos tus clientes.",
+      "empty": "Todavía no hay solicitudes de soporte.",
+      "resolveAction": "Marcar resuelta",
+      "reopenAction": "Reabrir",
+      "resolvedSuccess": "Solicitud marcada como resuelta",
+      "reopenedSuccess": "Solicitud reabierta",
+      "updateError": "No se pudo actualizar la solicitud"
     },
     "page": {
       "title": "Panel de agencia",

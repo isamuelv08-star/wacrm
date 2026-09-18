@@ -39,6 +39,7 @@ export function AgencySidebar({ open = false, onClose }: AgencySidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
+  const [openSupportCount, setOpenSupportCount] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -51,13 +52,33 @@ export function AgencySidebar({ open = false, onClose }: AgencySidebarProps) {
     };
   }, []);
 
+  // Badge count for the "Soporte" nav item — fetched once on mount, no
+  // realtime (this panel is a single super admin checking in, not a
+  // multi-viewer live dashboard; a manual refresh/revisit is enough).
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/agency/support-requests")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((payload: { requests?: { status: string }[] } | null) => {
+        if (!alive || !payload?.requests) return;
+        setOpenSupportCount(payload.requests.filter((r) => r.status === "open").length);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   async function handleSignOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push("/login");
   }
 
-  const navItems = [{ href: "/agency", labelKey: "overview", icon: Building2 }];
+  const navItems = [
+    { href: "/agency", labelKey: "overview", icon: Building2 },
+    { href: "/agency/support", labelKey: "support", icon: LifeBuoy },
+  ];
 
   return (
     <>
@@ -120,7 +141,12 @@ export function AgencySidebar({ open = false, onClose }: AgencySidebarProps) {
                     )}
                   >
                     <item.icon className="h-4 w-4 shrink-0" />
-                    {t(item.labelKey)}
+                    <span className="flex-1">{t(item.labelKey)}</span>
+                    {item.href === "/agency/support" && openSupportCount > 0 && (
+                      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500/15 px-1 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                        {openSupportCount}
+                      </span>
+                    )}
                   </Link>
                 </li>
               );
