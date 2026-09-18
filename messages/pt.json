@@ -420,7 +420,9 @@
       "selectConversation": "Selecione uma conversa",
       "selectConversationHint": "Escolha uma conversa à esquerda para começar a enviar mensagens",
       "today": "Hoje",
-      "yesterday": "Ontem"
+      "yesterday": "Ontem",
+      "startedFromAd": "Esta conversa começou a partir de um anúncio",
+      "viewAd": "Ver anúncio"
     },
     "sessionTimer": {
       "expired": "Expirada",
@@ -1168,7 +1170,9 @@
         "errorLoadTags": "Falha ao carregar tags",
         "errorLoadFields": "Falha ao carregar campos personalizados",
         "errorCsvParse": "Não foi possível processar o arquivo CSV.",
-        "errorCsvMissingPhone": "O CSV precisa ter uma coluna 'phone'."
+        "errorCsvMissingPhone": "O CSV precisa ter uma coluna 'phone'.",
+        "optInWarningTitle": "Contate apenas quem deu permissão",
+        "optInWarningBody": "Enviar difusões para números que não te escreveram primeiro nem deram consentimento (listas compradas, coletadas, etc.) gera denúncias de spam, que o WhatsApp usa para restringir ou bloquear seu número. Use tags ou campos personalizados para limitar o público a contatos que realmente esperam sua mensagem."
       },
       "personalize": {
         "title": "Personalizar Variáveis",
@@ -1216,7 +1220,10 @@
         "sending": "Enviando...",
         "preparing": "Preparando...",
         "progressDesc": "Processando {current} de {total} destinatários...",
-        "toastFailedPreview": "Falha ao carregar dados de pré-visualização"
+        "toastFailedPreview": "Falha ao carregar dados de pré-visualização",
+        "banRiskTitle": "Antes de enviar",
+        "banRiskBody": "Esta difusão deve alcançar apenas contatos que deram consentimento (falaram com você primeiro, se cadastraram, etc.). Enviar para números que não esperam a mensagem pode gerar denúncias de spam e fazer o WhatsApp restringir ou banir seu número — isso é responsabilidade de quem envia a difusão, não da plataforma.",
+        "largeAudienceWarning": "Você está enviando para {count} contatos de uma vez. Se o seu número é novo ou esse público não foi verificado como opt-in, considere dividir o envio em lotes menores."
       }
     }
   },

@@ -14,7 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { ArrowLeft, Send, Loader2, Users, Save } from 'lucide-react';
+import { ArrowLeft, Send, Loader2, Users, Save, ShieldAlert } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 interface AudienceConfig {
@@ -210,6 +210,26 @@ export function Step4ScheduleSend({
                 This action cannot be undone.
               </DialogDescription>
             </DialogHeader>
+            {/* Meta's own default messaging tier starts new numbers at
+                250 unique customers/24h — past that, an unverified
+                audience sending this fast is exactly the pattern that
+                gets a number's quality rating (and the account) flagged.
+                Shown here, right before the irreversible send, not just
+                earlier in the wizard. */}
+            <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+              <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-popover-foreground">
+                  {t('scheduleSend.banRiskTitle')}
+                </p>
+                <p className="text-xs text-muted-foreground">{t('scheduleSend.banRiskBody')}</p>
+                {estimatedReach > 250 && (
+                  <p className="text-xs text-muted-foreground">
+                    {t('scheduleSend.largeAudienceWarning', { count: estimatedReach.toLocaleString() })}
+                  </p>
+                )}
+              </div>
+            </div>
             <DialogFooter>
               <Button
                 variant="outline"

@@ -13,6 +13,7 @@ import {
   ArrowRight,
   ArrowLeft,
   X,
+  ShieldAlert,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
@@ -255,6 +256,25 @@ export function Step2SelectAudience({
         <p className="mt-1 text-sm text-muted-foreground">
           {t('selectAudience.subtitle')}
         </p>
+      </div>
+
+      {/* Opt-in reminder — shown regardless of audience type, since
+          every path here (tags, custom field, CSV upload, "all") can
+          just as easily point at people who never asked to be
+          messaged. Sending to them is what gets a number reported and
+          restricted/banned by WhatsApp — the account owner's call and
+          responsibility, but worth surfacing before they build the
+          audience rather than only at the final confirm step. */}
+      <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+        <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+        <div>
+          <p className="text-sm font-medium text-foreground">
+            {t('selectAudience.optInWarningTitle')}
+          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {t('selectAudience.optInWarningBody')}
+          </p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

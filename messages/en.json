@@ -420,7 +420,9 @@
       "selectConversation": "Select a conversation",
       "selectConversationHint": "Choose a conversation from the left to start messaging",
       "today": "Today",
-      "yesterday": "Yesterday"
+      "yesterday": "Yesterday",
+      "startedFromAd": "This conversation started from an ad",
+      "viewAd": "View ad"
     },
     "sessionTimer": {
       "expired": "Expired",
@@ -1168,7 +1170,9 @@
         "errorLoadTags": "Failed to load tags",
         "errorLoadFields": "Failed to load custom fields",
         "errorCsvParse": "Could not parse CSV file.",
-        "errorCsvMissingPhone": "CSV must have a 'phone' column."
+        "errorCsvMissingPhone": "CSV must have a 'phone' column.",
+        "optInWarningTitle": "Only contact people who opted in",
+        "optInWarningBody": "Sending broadcasts to numbers that didn't message you first or give consent (purchased/scraped lists, etc.) triggers spam reports, which WhatsApp uses to restrict or block your number. Use tags or custom fields to scope the audience to contacts who actually expect your message."
       },
       "personalize": {
         "title": "Personalize Variables",
@@ -1216,7 +1220,10 @@
         "sending": "Sending...",
         "preparing": "Preparing...",
         "progressDesc": "Processing {current} of {total} recipients...",
-        "toastFailedPreview": "Failed to load preview data"
+        "toastFailedPreview": "Failed to load preview data",
+        "banRiskTitle": "Before you send",
+        "banRiskBody": "This broadcast should only reach contacts who opted in (messaged you first, signed up, etc.). Sending to numbers that don't expect it can trigger spam reports and get your number restricted or banned by WhatsApp — that's on whoever sends the broadcast, not the platform.",
+        "largeAudienceWarning": "You're sending to {count} contacts at once. If your number is new or this audience hasn't been verified as opt-in, consider splitting the send into smaller batches."
       }
     }
   },

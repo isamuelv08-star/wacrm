@@ -420,7 +420,9 @@
       "selectConversation": "Selecciona una conversación",
       "selectConversationHint": "Elige una conversación de la izquierda para empezar a escribir",
       "today": "Hoy",
-      "yesterday": "Ayer"
+      "yesterday": "Ayer",
+      "startedFromAd": "Esta conversación inició desde un anuncio",
+      "viewAd": "Ver anuncio"
     },
     "sessionTimer": {
       "expired": "Expirado",
@@ -1168,7 +1170,9 @@
         "errorLoadTags": "Error al cargar las etiquetas",
         "errorLoadFields": "Error al cargar los campos personalizados",
         "errorCsvParse": "No se pudo procesar el archivo CSV.",
-        "errorCsvMissingPhone": "El CSV debe tener una columna 'phone'."
+        "errorCsvMissingPhone": "El CSV debe tener una columna 'phone'.",
+        "optInWarningTitle": "Solo contacta a quien dio su permiso",
+        "optInWarningBody": "Enviar difusiones a números que no te escribieron primero ni dieron su consentimiento (listas compradas, escaneadas, etc.) genera reportes de spam que WhatsApp usa para restringir o bloquear tu número. Usa etiquetas o campos personalizados para limitar la audiencia a contactos que realmente esperan tu mensaje."
       },
       "personalize": {
         "title": "Personalizar variables",
@@ -1216,7 +1220,10 @@
         "sending": "Enviando...",
         "preparing": "Preparando...",
         "progressDesc": "Procesando {current} de {total} destinatarios...",
-        "toastFailedPreview": "Error al cargar los datos de la vista previa"
+        "toastFailedPreview": "Error al cargar los datos de la vista previa",
+        "banRiskTitle": "Antes de enviar",
+        "banRiskBody": "Esta difusión solo debe llegar a contactos que dieron su consentimiento (te escribieron primero, se registraron, etc.). Enviar a números que no lo esperan puede generar reportes de spam y hacer que WhatsApp restrinja o banee tu número — esto es responsabilidad de quien envía la difusión, no de la plataforma.",
+        "largeAudienceWarning": "Estás enviando a {count} contactos de una sola vez. Si tu número es nuevo o esta audiencia no fue verificada como opt-in, considera dividir el envío en grupos más pequeños."
       }
     }
   },

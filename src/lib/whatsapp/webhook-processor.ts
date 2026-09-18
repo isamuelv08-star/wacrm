@@ -5,7 +5,7 @@ import { getMediaUrl } from '@/lib/whatsapp/meta-api'
 import { downloadInboundMedia } from '@/lib/whatsapp/inbound-media'
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
 import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe'
-import { captureLeadSourceFromReferral, type MetaReferral } from '@/lib/contacts/lead-source'
+import { captureAdReferralContext, captureLeadSourceFromReferral, type MetaReferral } from '@/lib/contacts/lead-source'
 import { reopenClosedConversation } from '@/lib/conversations/reopen'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
@@ -875,6 +875,11 @@ export async function processMessage(
     message.referral,
   )
 
+  // The actual ad content (headline, image, click id) behind that
+  // generic "Meta Ads" tag — stored on the conversation the click
+  // opened. Same best-effort, never-overwrite posture.
+  await captureAdReferralContext(supabaseAdmin(), conversation.id, message.referral)
+
   // Reactions short-circuit here — they aren't messages. We never insert
   // into `messages`, never bump unread_count, never update last_message_text.
   // Done before parseMessageContent so the media-URL fetch is skipped.
@@ -1388,6 +1393,115 @@ async function parseMessageContent(
         ...empty,
         contentText: `[Unsupported message type: ${message.type}]`,
       }
+  }
+}
+
+/**
+ * Records a WhatsApp message a human agent sent from OUTSIDE this
+ * CRM — the native WhatsApp app on their phone, or (for a
+ * Zernio-bridged account) Zernio's own dashboard — so it appears in
+ * the inbox instead of silently vanishing. Today only called from the
+ * Zernio webhook route, for a `message.direction === 'outgoing'` event
+ * whose `message_id` we don't already have (i.e. NOT an echo of a send
+ * this CRM itself made via send-message.ts — see that check at the
+ * call site).
+ *
+ * Deliberately NOT `processMessage`: this message is already an
+ * OUTBOUND one a human already handled, not an inbound one waiting on
+ * a reply, so none of processMessage's customer-facing machinery (AI
+ * auto-reply, lead classification, automations, Flows, "new lead" /
+ * "conversation assigned" notifications) applies here. Only contact +
+ * conversation resolution, the message row itself, and the same
+ * conversation/flow bookkeeping send-message.ts does for a message
+ * sent through this app — so an agent replying from their phone counts
+ * as "a human is here" exactly like a reply sent through the CRM does
+ * (AI auto-reply's own eligibility check already reads sender_type on
+ * prior messages, so marking this 'agent' is what makes that work
+ * correctly with no further change needed there).
+ */
+export async function recordExternalOutboundMessage(
+  message: WhatsAppMessage,
+  contactPhone: string,
+  contactName: string,
+  accountId: string,
+  configOwnerUserId: string,
+  zernioConversationId: string | null,
+): Promise<void> {
+  const contactOutcome = await findOrCreateContact(
+    accountId,
+    configOwnerUserId,
+    contactPhone,
+    contactName,
+  )
+  if (!contactOutcome) return
+  const { contact } = contactOutcome
+
+  const convResult = await findOrCreateConversation(accountId, configOwnerUserId, contact.id)
+  if (!convResult) return
+  const { conversation } = convResult
+
+  if (zernioConversationId && !conversation.zernio_conversation_id) {
+    await supabaseAdmin()
+      .from('conversations')
+      .update({ zernio_conversation_id: zernioConversationId })
+      .eq('id', conversation.id)
+  }
+
+  const parsedContent = await parseMessageContent(message, '', 'zernio')
+  const ALLOWED_CONTENT_TYPES = new Set([
+    'text', 'image', 'document', 'audio', 'video',
+    'location', 'template', 'interactive',
+  ])
+  const contentType = ALLOWED_CONTENT_TYPES.has(message.type)
+    ? message.type
+    : message.type === 'sticker'
+      ? 'image'
+      : 'text'
+
+  const { error: insertError } = await supabaseAdmin().from('messages').insert({
+    conversation_id: conversation.id,
+    sender_type: 'agent',
+    content_type: contentType,
+    content_text: parsedContent.contentText,
+    media_url: parsedContent.mediaUrl,
+    message_id: message.id || null,
+    status: 'sent',
+  })
+  if (insertError) {
+    console.error('[webhook-processor] failed to record external outbound message:', insertError.message)
+    return
+  }
+
+  await supabaseAdmin()
+    .from('conversations')
+    .update({
+      last_message_text: parsedContent.contentText || `[${contentType}]`,
+      last_message_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', conversation.id)
+
+  // Same "agent stepped in, yield" signal send-message.ts sends for a
+  // reply sent through this app — best-effort.
+  try {
+    const { error: pauseErr } = await supabaseAdmin()
+      .from('flow_runs')
+      .update({
+        status: 'paused_by_agent',
+        ended_at: new Date().toISOString(),
+        end_reason: 'agent_replied',
+      })
+      .eq('account_id', accountId)
+      .eq('contact_id', contact.id)
+      .eq('status', 'active')
+    if (pauseErr) {
+      console.error('[flows] pause-on-external-outbound failed:', pauseErr.message)
+    }
+  } catch (err) {
+    console.error(
+      '[flows] pause-on-external-outbound threw:',
+      err instanceof Error ? err.message : err,
+    )
   }
 }
 

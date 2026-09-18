@@ -331,6 +331,26 @@ export interface Conversation {
    * off a non-direct-Meta channel.
    */
   whatsapp_config_id?: string | null;
+  /**
+   * The Click-to-WhatsApp ad this conversation started from (migration
+   * 096) — Meta's `referral` object (headline/image/source), stamped
+   * once on the first inbound message after the click and never
+   * overwritten. Null for every conversation that didn't start from an
+   * ad. See `MetaReferral` in `@/lib/contacts/lead-source` for the
+   * field shapes; kept loose here to avoid a cross-layer import cycle.
+   */
+  ad_referral?: {
+    source_type?: string;
+    source_id?: string;
+    source_url?: string;
+    headline?: string;
+    body?: string;
+    media_type?: string;
+    image_url?: string;
+    video_url?: string;
+    thumbnail_url?: string;
+    ctwa_clid?: string;
+  } | null;
 }
 
 // ============================================================

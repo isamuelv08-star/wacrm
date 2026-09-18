@@ -127,3 +127,41 @@ export async function captureLeadSourceFromReferral(
     console.error('[lead-source] captureLeadSourceFromReferral failed:', err)
   }
 }
+
+/**
+ * Stores the full referral object on the conversation the click
+ * opened — the actual ad headline/image/source, not just the generic
+ * "Meta Ads" tag `captureLeadSourceFromReferral` sets. Stamped once:
+ * Meta only sends `referral` on the first inbound message after the
+ * click, so an existing value is never overwritten (same "never
+ * clobber" posture as the Lead Source tag).
+ */
+export async function captureAdReferralContext(
+  db: SupabaseClient,
+  conversationId: string,
+  referral: MetaReferral | undefined,
+): Promise<void> {
+  if (!referral) return
+  try {
+    const { data: conv, error: findErr } = await db
+      .from('conversations')
+      .select('ad_referral')
+      .eq('id', conversationId)
+      .maybeSingle()
+    if (findErr) {
+      console.error('[lead-source] ad_referral lookup failed:', findErr.message)
+      return
+    }
+    if (conv?.ad_referral) return // never overwrite an earlier click's context
+
+    const { error: updateErr } = await db
+      .from('conversations')
+      .update({ ad_referral: referral })
+      .eq('id', conversationId)
+    if (updateErr) {
+      console.error('[lead-source] ad_referral update failed:', updateErr.message)
+    }
+  } catch (err) {
+    console.error('[lead-source] captureAdReferralContext failed:', err)
+  }
+}

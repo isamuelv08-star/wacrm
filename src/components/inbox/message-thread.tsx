@@ -50,6 +50,7 @@ import {
 import { deleteAccountMedia } from "@/lib/storage/upload-media";
 import { TemplatePicker } from "./template-picker";
 import { AiThreadBanner } from "./ai-thread-banner";
+import { AdReferralCard } from "./ad-referral-card";
 import { AiActivityPill } from "./ai-activity-pill";
 import { buildReplyPreview } from "./reply-quote";
 import { toast } from "sonner";
@@ -1219,6 +1220,9 @@ export function MessageThread({
           square, mismatched-with-theme) scrollbar for a thin themed one,
           same treatment pipeline-board.tsx's horizontal scroll uses. */}
       <div ref={scrollRef} className="chat-scroll flex-1 overflow-y-auto px-4 py-5 sm:px-6">
+        {conversation.ad_referral && (
+          <AdReferralCard referral={conversation.ad_referral} />
+        )}
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />

@@ -4,9 +4,11 @@ import {
   processMessage,
   supabaseAdmin,
   applyMessageStatusUpdate,
+  recordExternalOutboundMessage,
   type WhatsAppMessage,
 } from '@/lib/whatsapp/webhook-processor'
 import { ingestMessengerMessage } from '@/lib/messenger/webhook-processor'
+import type { MetaReferral } from '@/lib/contacts/lead-source'
 
 // ============================================================
 // Inbound webhook for WhatsApp accounts connected through Zernio.
@@ -28,12 +30,13 @@ import { ingestMessengerMessage } from '@/lib/messenger/webhook-processor'
 // of which provider delivered the message.
 //
 // Known gaps in this first pass (all silently degrade rather than
-// crash): reactions, click-to-WhatsApp referral capture, and Flow
-// (nfm_reply) submissions. Swipe-replies, button/list taps, text,
-// image/video/document/audio, voice transcription, and image
-// description all work (see downloadInboundMedia in
-// src/lib/whatsapp/inbound-media.ts for how the latter two reach
-// Zernio-bridged media too).
+// crash): reactions, and Flow (nfm_reply) submissions. Swipe-replies,
+// button/list taps, text, image/video/document/audio, voice
+// transcription, image description, click-to-WhatsApp ad referral
+// capture, and outbound messages sent from outside this CRM (the
+// native WhatsApp app, or Zernio's own dashboard) all work (see
+// downloadInboundMedia in src/lib/whatsapp/inbound-media.ts for how
+// the transcription/description reach Zernio-bridged media too).
 //
 // Also handles `message.delivered` / `message.read` / `message.failed`
 // (see handleZernioStatusUpdate below) — these carry the delivery-tick
@@ -81,11 +84,21 @@ interface ZernioWebhookPayload {
     }
     sentAt?: string
   }
-  conversation?: { id?: string }
+  // participantId/participantName identify the CUSTOMER side of the
+  // conversation regardless of who sent this particular message — the
+  // one field that stays reliable on an outgoing event, where
+  // `message.sender` is the business instead (see the outgoing-message
+  // branch below for why that matters).
+  conversation?: { id?: string; participantId?: string; participantName?: string }
   metadata?: {
     quotedMessageId?: string
     interactiveType?: 'button_reply' | 'list_reply' | 'nfm_reply'
     interactiveId?: string
+    // WhatsApp Click-to-WhatsApp Ads attribution, forwarded verbatim by
+    // Zernio (same shape as Meta's own `messages[].referral` — see
+    // MetaReferral's doc comment). Only ever present on the first
+    // inbound message after the click.
+    referral?: MetaReferral
   } | null
 }
 
@@ -139,18 +152,14 @@ async function processZernioEvent(payload: ZernioWebhookPayload) {
   const account = payload.account
   if (!message || !account?.id) return
 
-  // Echoes of our own outbound sends (or a reply typed from Zernio's
-  // own native dashboard, outside this CRM). Skipping avoids inserting
-  // a duplicate of a message sendMessageToConversation already
-  // persisted when it sent via the Zernio bridge.
-  if (message.direction !== 'incoming') return
-
   // Facebook (Messenger) is a separate, narrower pipeline — see
   // processZernioFacebookMessage below for why it doesn't reuse
   // processMessage() the way WhatsApp does. Instagram connect exists
   // in Settings but has no send/receive pipeline yet either — out of
-  // scope for this pass.
+  // scope for this pass. Outbound-message capture (below) is WhatsApp-only
+  // for now, so an outgoing Facebook event is still just dropped here.
   if (message.platform === 'facebook') {
+    if (message.direction !== 'incoming') return
     await processZernioFacebookMessage(payload, message, account)
     return
   }
@@ -174,6 +183,57 @@ async function processZernioEvent(payload: ZernioWebhookPayload) {
     console.error(
       '[webhook/zernio] account has no connected_by_user_id (connected before migration 056) — reconnect WhatsApp in Settings to fix:',
       account.id,
+    )
+    return
+  }
+
+  if (message.direction !== 'incoming') {
+    // On an outgoing event `message.sender` is the BUSINESS, not the
+    // customer (Zernio's own InboxWebhookMessage.sender doc: "omitted
+    // for outgoing/business sender" — and for WhatsApp `sender.id`
+    // would otherwise resolve to OUR number, not theirs). The customer
+    // side of the thread only stays identifiable through the
+    // conversation's participant, so that's what has to drive contact/
+    // conversation resolution here — using `message.sender` the way the
+    // incoming branch does would silently record the message against a
+    // bogus "contact" for our own business number instead of the real
+    // customer thread (why external phone replies were never showing up
+    // in the inbox).
+    const customerPhone = payload.conversation?.participantId?.replace(/^\+/, '')
+    if (!customerPhone) {
+      console.warn('[webhook/zernio] outgoing message has no resolvable conversation participant; skipping')
+      return
+    }
+    const adapted = adaptZernioMessage(message, payload.metadata, customerPhone)
+
+    // Two things Zernio reports as "outgoing" look identical here: an
+    // echo of a message THIS CRM already sent (send-message.ts already
+    // inserted it, keyed by the same platformMessageId as
+    // messages.message_id), or a message a human agent sent from
+    // OUTSIDE this CRM — the native WhatsApp app, or Zernio's own
+    // dashboard — which we've never recorded. Tell them apart by
+    // whether a row for this message_id already exists; only the
+    // second case needs recording (see recordExternalOutboundMessage's
+    // doc comment for why it's not routed through processMessage).
+    if (adapted.id) {
+      const { data: existing } = await supabaseAdmin()
+        .from('messages')
+        .select('id')
+        .eq('message_id', adapted.id)
+        .limit(1)
+        .maybeSingle()
+      if (existing) return
+    }
+
+    // zernioAccount was already resolved (and connected_by_user_id
+    // already validated) above — reused here, not re-queried.
+    await recordExternalOutboundMessage(
+      adapted,
+      customerPhone,
+      payload.conversation?.participantName || customerPhone,
+      zernioAccount.account_id,
+      zernioAccount.connected_by_user_id,
+      payload.conversation?.id ?? null,
     )
     return
   }
@@ -340,7 +400,13 @@ function adaptZernioMessage(
     ? String(Math.floor(new Date(message.sentAt).getTime() / 1000))
     : String(Math.floor(Date.now() / 1000))
 
-  const base: WhatsAppMessage = { id, from: senderPhone, timestamp, type: 'text' }
+  const base: WhatsAppMessage = {
+    id,
+    from: senderPhone,
+    timestamp,
+    type: 'text',
+    ...(metadata?.referral ? { referral: metadata.referral } : {}),
+  }
 
   if (metadata?.interactiveType === 'button_reply' && metadata.interactiveId) {
     return {
