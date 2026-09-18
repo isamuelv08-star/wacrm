@@ -7,6 +7,7 @@ import {
   DollarSign,
   UserPlus,
   Clock,
+  CreditCard,
 } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,9 @@ function formatDate(iso: string, locale: string): string {
 
 export async function AgencyAccountCard({ account }: { account: AgencyAccountOverview }) {
   const t = await getTranslations("Agency.card");
+  // Reuses the detail sheet's billingStatus_* labels instead of
+  // duplicating them here — same four strings, one source per locale.
+  const tBilling = await getTranslations("Agency.detail");
   const locale = await getLocale();
   const staleness = account.staleness;
   const stale = !staleness
@@ -74,6 +78,24 @@ export async function AgencyAccountCard({ account }: { account: AgencyAccountOve
             {" · "}
             {t("memberCount", { count: account.memberCount })}
           </p>
+          {account.billing && (
+            <span
+              className={cn(
+                "mt-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                SUBSCRIPTION_BADGE_STYLE[account.billing.subscriptionStatus],
+              )}
+            >
+              <CreditCard className="h-2.5 w-2.5" />
+              {account.billing.planName || tBilling(`billingStatus_${account.billing.subscriptionStatus}`)}
+              {account.billing.priceAmount != null && (
+                <span className="opacity-80">
+                  {" · "}
+                  {formatCurrency(account.billing.priceAmount, account.defaultCurrency)}
+                  {account.billing.billingCycle === "yearly" ? t("perYear") : t("perMonth")}
+                </span>
+              )}
+            </span>
+          )}
         </div>
         {/* Connected reads as a quiet, informational green (with the
             connection method as a sub-label — Meta / Coexistencia /
@@ -132,6 +154,13 @@ export async function AgencyAccountCard({ account }: { account: AgencyAccountOve
     </div>
   );
 }
+
+const SUBSCRIPTION_BADGE_STYLE: Record<string, string> = {
+  trial: "bg-sky-500/12 text-sky-600 dark:text-sky-400",
+  active: "bg-emerald-500/12 text-emerald-600 dark:text-emerald-400",
+  past_due: "bg-amber-500/12 text-amber-600 dark:text-amber-400",
+  canceled: "bg-red-500/12 text-red-600 dark:text-red-400",
+};
 
 function connectionMethodLabel(
   method: WhatsAppConnectionMethod,

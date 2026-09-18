@@ -1,5 +1,10 @@
 import { supabaseAdmin } from './admin-client'
-import type { WhatsAppConnectionMethod } from './overview'
+import type {
+  AgencyAccountBilling,
+  BillingCycle,
+  SubscriptionStatus,
+  WhatsAppConnectionMethod,
+} from './overview'
 
 export interface AgencyAccountMember {
   userId: string
@@ -47,6 +52,7 @@ export interface AgencyAccountDetail {
   members: AgencyAccountMember[]
   connection: AgencyWhatsAppConnection | null
   aiUsage: AgencyAiUsageSummary
+  billing: AgencyAccountBilling | null
 }
 
 const AI_USAGE_WINDOW_DAYS = 30
@@ -76,7 +82,7 @@ export async function loadAgencyAccountDetail(
   }
   if (!account) return null
 
-  const [{ data: profiles }, { data: presenceRows }, { data: configRows }, { data: zernio }, { data: usageRows }] =
+  const [{ data: profiles }, { data: presenceRows }, { data: configRows }, { data: zernio }, { data: usageRows }, { data: billingRow }] =
     await Promise.all([
       db
         .from('profiles')
@@ -109,6 +115,11 @@ export async function loadAgencyAccountDetail(
           'created_at',
           new Date(Date.now() - AI_USAGE_WINDOW_DAYS * 86_400_000).toISOString(),
         ),
+      db
+        .from('account_billing')
+        .select('plan_name, price_amount, billing_cycle, subscription_status, renewal_date')
+        .eq('account_id', accountId)
+        .maybeSingle(),
     ])
 
   // Oldest connected direct-Meta number — same stopgap as the app's
@@ -219,6 +230,15 @@ export async function loadAgencyAccountDetail(
       totalTokens,
       byModel: [...modelMap.values()].sort((a, b) => b.tokens - a.tokens),
     },
+    billing: billingRow
+      ? {
+          planName: billingRow.plan_name,
+          priceAmount: billingRow.price_amount,
+          billingCycle: billingRow.billing_cycle as BillingCycle,
+          subscriptionStatus: billingRow.subscription_status as SubscriptionStatus,
+          renewalDate: billingRow.renewal_date,
+        }
+      : null,
   }
 }
 
@@ -314,6 +334,42 @@ export async function updateAgencyAccountStatus(
     .eq('id', accountId)
   if (error) throw new Error(error.message)
   if (!count) throw new Error('Account not found')
+}
+
+export interface AgencyAccountBillingInput {
+  planName: string | null
+  priceAmount: number | null
+  billingCycle: BillingCycle
+  subscriptionStatus: SubscriptionStatus
+  renewalDate: string | null
+  notes?: string | null
+}
+
+/**
+ * Upserts the manual subscription/billing record for one account
+ * (migration 097) — there's no payment processor wired up anywhere in
+ * this codebase, so this is the agency owner's own record of what a
+ * client is paying, kept in sync by hand. One row per account
+ * (account_id is the PK), so this always overwrites the whole record
+ * rather than patching individual fields — the panel's form always
+ * submits the full set anyway.
+ */
+export async function updateAgencyAccountBilling(
+  accountId: string,
+  billing: AgencyAccountBillingInput,
+): Promise<void> {
+  const db = supabaseAdmin()
+  const { error } = await db.from('account_billing').upsert({
+    account_id: accountId,
+    plan_name: billing.planName,
+    price_amount: billing.priceAmount,
+    billing_cycle: billing.billingCycle,
+    subscription_status: billing.subscriptionStatus,
+    renewal_date: billing.renewalDate,
+    notes: billing.notes ?? null,
+    updated_at: new Date().toISOString(),
+  })
+  if (error) throw new Error(error.message)
 }
 
 /**

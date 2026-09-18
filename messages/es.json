@@ -2810,7 +2810,13 @@
       "title": "Panel de agencia",
       "subtitle": "Vista de todas las cuentas administradas — {count, plural, =1 {# cliente} other {# clientes}}.",
       "pendingCount": "{count, plural, =1 {# pendiente} other {# pendientes}}",
-      "empty": "Todavía no hay cuentas dadas de alta."
+      "empty": "Todavía no hay cuentas dadas de alta.",
+      "statTotalClients": "Clientes",
+      "statActiveSubscriptions": "Suscripciones activas",
+      "statMrr": "MRR",
+      "statTotalUsers": "Usuarios totales",
+      "statWhatsappConnected": "WhatsApp conectado",
+      "statNeedsAttention": "Necesitan atención"
     },
     "card": {
       "clientSince": "Cliente desde {date}",
@@ -2831,7 +2837,10 @@
       "neverUsed": "Vacía",
       "memberCount": "{count, plural, =1 {# usuario} other {# usuarios}}",
       "statusPending": "Pendiente",
-      "statusSuspended": "Suspendida"
+      "statusSuspended": "Suspendida",
+      "perMonth": "/mes",
+      "perYear": "/año",
+      "noPlan": "Sin suscripción configurada"
     },
     "detail": {
       "subtitle": "Usuarios, conexión de WhatsApp y uso de IA de esta cuenta.",
@@ -2891,7 +2900,24 @@
       "suspendConfirmTitle": "¿Suspender esta cuenta?",
       "suspendConfirmDesc": "{name} y todos sus usuarios van a perder el acceso a la app hasta que la reactives.",
       "statusUpdateSuccess": "Estado de la cuenta actualizado",
-      "statusUpdateError": "No se pudo actualizar el estado de la cuenta"
+      "statusUpdateError": "No se pudo actualizar el estado de la cuenta",
+      "billingTitle": "Suscripción",
+      "billingPlanName": "Plan",
+      "billingPlanNamePlaceholder": "Ej. Plan Pro",
+      "billingPrice": "Precio",
+      "billingCycle": "Ciclo de facturación",
+      "billingCycle_monthly": "Mensual",
+      "billingCycle_yearly": "Anual",
+      "billingStatusLabel": "Estado de la suscripción",
+      "billingStatus_trial": "Prueba",
+      "billingStatus_active": "Activa",
+      "billingStatus_past_due": "Pago pendiente",
+      "billingStatus_canceled": "Cancelada",
+      "billingRenewalDate": "Fecha de renovación",
+      "billingSaveAction": "Guardar suscripción",
+      "billingSaveSuccess": "Suscripción actualizada",
+      "billingSaveError": "No se pudo actualizar la suscripción",
+      "billingPriceInvalid": "El precio debe ser un número válido"
     },
     "createDialog": {
       "trigger": "Crear cliente",

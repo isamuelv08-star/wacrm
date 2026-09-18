@@ -2810,7 +2810,13 @@
       "title": "에이전시 패널",
       "subtitle": "관리 중인 모든 계정 보기 — {count}개 고객.",
       "pendingCount": "대기 중 {count}개",
-      "empty": "아직 등록된 계정이 없습니다."
+      "empty": "아직 등록된 계정이 없습니다.",
+      "statTotalClients": "고객",
+      "statActiveSubscriptions": "활성 구독",
+      "statMrr": "MRR",
+      "statTotalUsers": "전체 사용자",
+      "statWhatsappConnected": "WhatsApp 연결됨",
+      "statNeedsAttention": "주의 필요"
     },
     "card": {
       "clientSince": "{date}부터 고객",
@@ -2831,7 +2837,10 @@
       "neverUsed": "비어 있음",
       "memberCount": "사용자 {count}명",
       "statusPending": "대기 중",
-      "statusSuspended": "정지됨"
+      "statusSuspended": "정지됨",
+      "perMonth": "/월",
+      "perYear": "/년",
+      "noPlan": "설정된 구독 없음"
     },
     "detail": {
       "subtitle": "이 계정의 사용자, WhatsApp 연결, AI 사용량입니다.",
@@ -2891,7 +2900,24 @@
       "suspendConfirmTitle": "이 계정을 정지할까요?",
       "suspendConfirmDesc": "{name}과 모든 사용자가 다시 활성화할 때까지 앱에 접근할 수 없게 됩니다.",
       "statusUpdateSuccess": "계정 상태가 업데이트되었습니다",
-      "statusUpdateError": "계정 상태를 업데이트하지 못했습니다"
+      "statusUpdateError": "계정 상태를 업데이트하지 못했습니다",
+      "billingTitle": "구독",
+      "billingPlanName": "플랜",
+      "billingPlanNamePlaceholder": "예: 프로 플랜",
+      "billingPrice": "가격",
+      "billingCycle": "결제 주기",
+      "billingCycle_monthly": "월간",
+      "billingCycle_yearly": "연간",
+      "billingStatusLabel": "구독 상태",
+      "billingStatus_trial": "체험판",
+      "billingStatus_active": "활성",
+      "billingStatus_past_due": "결제 지연",
+      "billingStatus_canceled": "취소됨",
+      "billingRenewalDate": "갱신일",
+      "billingSaveAction": "구독 저장",
+      "billingSaveSuccess": "구독이 업데이트되었습니다",
+      "billingSaveError": "구독을 업데이트하지 못했습니다",
+      "billingPriceInvalid": "가격은 유효한 숫자여야 합니다"
     },
     "createDialog": {
       "trigger": "고객 만들기",

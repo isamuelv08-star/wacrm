@@ -2,10 +2,11 @@ import { notFound } from "next/navigation";
 import { Building2 } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { requireSuperAdmin } from "@/lib/auth/agency";
-import { loadAgencyOverview } from "@/lib/agency/overview";
+import { computeAgencyAggregateStats, loadAgencyOverview } from "@/lib/agency/overview";
 import { AgencyAccountCard } from "@/components/agency/agency-account-card";
 import { AccountDetailSheet } from "@/components/agency/account-detail-sheet";
 import { CreateClientDialog } from "@/components/agency/create-client-dialog";
+import { AgencyStatsBar } from "@/components/agency/agency-stats-bar";
 
 export const metadata = {
   title: "Agency panel",
@@ -30,6 +31,7 @@ export default async function AgencyPage() {
   }
 
   const accounts = await loadAgencyOverview();
+  const stats = computeAgencyAggregateStats(accounts);
   const t = await getTranslations("Agency.page");
   const pendingCount = accounts.filter((a) => a.accountStatus === "pending").length;
 
@@ -52,6 +54,10 @@ export default async function AgencyPage() {
             </p>
           </div>
           <CreateClientDialog />
+        </div>
+
+        <div className="mt-6">
+          <AgencyStatsBar stats={stats} />
         </div>
 
         {accounts.length === 0 ? (

@@ -11,6 +11,18 @@ export type WhatsAppConnectionMethod = 'meta' | 'coexistence' | 'zernio' | null
 
 export type AgencyAccountStatus = 'pending' | 'active' | 'suspended'
 
+export type BillingCycle = 'monthly' | 'yearly'
+
+export type SubscriptionStatus = 'trial' | 'active' | 'past_due' | 'canceled'
+
+export interface AgencyAccountBilling {
+  planName: string | null
+  priceAmount: number | null
+  billingCycle: BillingCycle
+  subscriptionStatus: SubscriptionStatus
+  renewalDate: string | null
+}
+
 export interface AgencyAccountOverview {
   accountId: string
   accountName: string
@@ -49,6 +61,10 @@ export interface AgencyAccountOverview {
    *  attention" styling can never disagree on what counts as an
    *  alert. */
   hasAlert: boolean
+  /** Manually-entered subscription record (migration 097) — null when
+   *  the agency owner has never set one for this account (not the
+   *  same as "no charge"; just "not configured yet"). */
+  billing: AgencyAccountBilling | null
 }
 
 interface AgencyOverviewRow {
@@ -69,6 +85,11 @@ interface AgencyOverviewRow {
   hot_leads: number
   open_pipeline_value: number
   last_activity_at: string | null
+  plan_name: string | null
+  price_amount: number | null
+  billing_cycle: BillingCycle | null
+  subscription_status: SubscriptionStatus | null
+  renewal_date: string | null
 }
 
 function computeStaleness(
@@ -135,6 +156,15 @@ export async function loadAgencyOverview(): Promise<AgencyAccountOverview[]> {
       // sorts to the top alongside them, see this function's doc
       // comment on the default order.
       hasAlert: row.whatsapp_status !== 'connected' || staleness !== null || row.account_status !== 'active',
+      billing: row.plan_name || row.price_amount != null || row.subscription_status
+        ? {
+            planName: row.plan_name,
+            priceAmount: row.price_amount,
+            billingCycle: row.billing_cycle ?? 'monthly',
+            subscriptionStatus: row.subscription_status ?? 'active',
+            renewalDate: row.renewal_date,
+          }
+        : null,
     }
   })
 
@@ -144,4 +174,60 @@ export async function loadAgencyOverview(): Promise<AgencyAccountOverview[]> {
   })
 
   return accounts
+}
+
+export interface AgencyAggregateStats {
+  totalClients: number
+  /** Accounts with a billing record whose status is 'active' or
+   *  'trial' — 'past_due' and 'canceled' (and never-configured) don't
+   *  count as a subscription currently in force. */
+  activeSubscriptions: number
+  /** Monthly Recurring Revenue — only 'active' subscriptions count
+   *  toward revenue (a 'trial' is $0 by definition, 'past_due'/
+   *  'canceled' aren't being collected). A 'yearly' plan's
+   *  `priceAmount` is divided by 12 so every account contributes on
+   *  the same monthly basis regardless of its own billing_cycle. */
+  mrr: number
+  totalUsers: number
+  whatsappConnected: number
+  needsAttention: number
+}
+
+/**
+ * Agency-wide totals for the panel's top stat bar — derived from the
+ * same rows `loadAgencyOverview` already fetches, not a second query,
+ * so callers should load accounts once and pass them here rather than
+ * hitting the view twice.
+ */
+export function computeAgencyAggregateStats(
+  accounts: AgencyAccountOverview[],
+): AgencyAggregateStats {
+  let activeSubscriptions = 0
+  let mrr = 0
+  let totalUsers = 0
+  let whatsappConnected = 0
+  let needsAttention = 0
+
+  for (const account of accounts) {
+    totalUsers += account.memberCount
+    if (account.whatsappStatus === 'connected') whatsappConnected += 1
+    if (account.hasAlert) needsAttention += 1
+
+    const status = account.billing?.subscriptionStatus
+    if (status === 'active' || status === 'trial') activeSubscriptions += 1
+    if (status === 'active' && account.billing?.priceAmount != null) {
+      mrr += account.billing.billingCycle === 'yearly'
+        ? account.billing.priceAmount / 12
+        : account.billing.priceAmount
+    }
+  }
+
+  return {
+    totalClients: accounts.length,
+    activeSubscriptions,
+    mrr,
+    totalUsers,
+    whatsappConnected,
+    needsAttention,
+  }
 }

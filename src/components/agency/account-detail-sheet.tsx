@@ -14,15 +14,17 @@
 // src/lib/agency/account-detail.ts for exactly what each does.
 // ============================================================
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import { toast } from 'sonner';
 import {
   Bot,
+  CreditCard,
   KeyRound,
   Loader2,
   Radio,
+  Save,
   ShieldAlert,
   Trash2,
   TriangleAlert,
@@ -32,6 +34,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Sheet,
   SheetContent,
@@ -71,6 +80,16 @@ interface DetailConnection {
 }
 
 type AccountStatus = 'pending' | 'active' | 'suspended';
+type BillingCycle = 'monthly' | 'yearly';
+type SubscriptionStatus = 'trial' | 'active' | 'past_due' | 'canceled';
+
+interface DetailBilling {
+  planName: string | null;
+  priceAmount: number | null;
+  billingCycle: BillingCycle;
+  subscriptionStatus: SubscriptionStatus;
+  renewalDate: string | null;
+}
 
 interface DetailData {
   accountId: string;
@@ -85,7 +104,15 @@ interface DetailData {
     totalTokens: number;
     byModel: { provider: string; model: string; calls: number; tokens: number }[];
   };
+  billing: DetailBilling | null;
 }
+
+const SUBSCRIPTION_STATUS_STYLE: Record<SubscriptionStatus, string> = {
+  trial: 'bg-sky-500/12 text-sky-600 dark:text-sky-400',
+  active: 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400',
+  past_due: 'bg-amber-500/12 text-amber-600 dark:text-amber-400',
+  canceled: 'bg-red-500/12 text-red-600 dark:text-red-400',
+};
 
 function timeAgo(iso: string | null, locale: string, t: (k: string) => string): string {
   if (!iso) return t('never');
@@ -125,6 +152,39 @@ export function AccountDetailSheet({
   // Target status of the pending confirm dialog — null means closed.
   const [statusTarget, setStatusTarget] = useState<AccountStatus | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  // Billing form draft — local copy so typing doesn't write on every
+  // keystroke; re-seeds whenever a fresh `detail` loads (fetchDetail
+  // runs once per sheet open, so this only fires on open/account
+  // change, not on every render). priceAmount is kept as a string
+  // while editing so an empty/partial input doesn't fight `type="number"`.
+  const [billingDraft, setBillingDraft] = useState<{
+    planName: string;
+    priceAmount: string;
+    billingCycle: BillingCycle;
+    subscriptionStatus: SubscriptionStatus;
+    renewalDate: string;
+  }>({
+    planName: '',
+    priceAmount: '',
+    billingCycle: 'monthly',
+    subscriptionStatus: 'active',
+    renewalDate: '',
+  });
+  const [savingBilling, setSavingBilling] = useState(false);
+
+  useEffect(() => {
+    if (!detail) return;
+    const b = detail.billing;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setBillingDraft({
+      planName: b?.planName ?? '',
+      priceAmount: b?.priceAmount != null ? String(b.priceAmount) : '',
+      billingCycle: b?.billingCycle ?? 'monthly',
+      subscriptionStatus: b?.subscriptionStatus ?? 'active',
+      renewalDate: b?.renewalDate ?? '',
+    });
+  }, [detail]);
 
   async function fetchDetail() {
     setLoading(true);
@@ -240,6 +300,54 @@ export function AccountDetailSheet({
       toast.error(t('statusUpdateError'));
     } finally {
       setUpdatingStatus(false);
+    }
+  }
+
+  async function handleSaveBilling() {
+    const trimmedPrice = billingDraft.priceAmount.trim();
+    const priceAmount = trimmedPrice === '' ? null : Number(trimmedPrice);
+    if (priceAmount !== null && !Number.isFinite(priceAmount)) {
+      toast.error(t('billingPriceInvalid'));
+      return;
+    }
+    setSavingBilling(true);
+    try {
+      const res = await fetch(`/api/agency/accounts/${accountId}/billing`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          planName: billingDraft.planName.trim() || null,
+          priceAmount,
+          billingCycle: billingDraft.billingCycle,
+          subscriptionStatus: billingDraft.subscriptionStatus,
+          renewalDate: billingDraft.renewalDate || null,
+        }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        toast.error(payload.error || t('billingSaveError'));
+        return;
+      }
+      toast.success(t('billingSaveSuccess'));
+      setDetail((prev) =>
+        prev
+          ? {
+              ...prev,
+              billing: {
+                planName: billingDraft.planName.trim() || null,
+                priceAmount,
+                billingCycle: billingDraft.billingCycle,
+                subscriptionStatus: billingDraft.subscriptionStatus,
+                renewalDate: billingDraft.renewalDate || null,
+              },
+            }
+          : prev,
+      );
+      router.refresh();
+    } catch {
+      toast.error(t('billingSaveError'));
+    } finally {
+      setSavingBilling(false);
     }
   }
 
@@ -367,6 +475,118 @@ export function AccountDetailSheet({
                         </div>
                       </div>
                     ))}
+                  </div>
+                </section>
+
+                {/* ---- Subscription / billing (migration 097) ----
+                    Manual record — no payment processor is wired up
+                    anywhere in this codebase, so this is the agency
+                    owner's own note of what a client is paying,
+                    edited here and saved as a whole on submit. */}
+                <section>
+                  <div className="flex items-center justify-between">
+                    <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      <CreditCard className="h-3.5 w-3.5" />
+                      {t('billingTitle')}
+                    </h3>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${SUBSCRIPTION_STATUS_STYLE[billingDraft.subscriptionStatus]}`}
+                    >
+                      {t(`billingStatus_${billingDraft.subscriptionStatus}`)}
+                    </span>
+                  </div>
+                  <div className="mt-2 space-y-2.5 rounded-xl border border-border p-3">
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="text-xs text-muted-foreground">{t('billingPlanName')}</label>
+                        <Input
+                          value={billingDraft.planName}
+                          onChange={(e) =>
+                            setBillingDraft((prev) => ({ ...prev, planName: e.target.value }))
+                          }
+                          placeholder={t('billingPlanNamePlaceholder')}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">{t('billingPrice')}</label>
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          value={billingDraft.priceAmount}
+                          onChange={(e) =>
+                            setBillingDraft((prev) => ({ ...prev, priceAmount: e.target.value }))
+                          }
+                          placeholder="0.00"
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="text-xs text-muted-foreground">{t('billingCycle')}</label>
+                        <Select
+                          value={billingDraft.billingCycle}
+                          onValueChange={(v) =>
+                            setBillingDraft((prev) => ({ ...prev, billingCycle: v as BillingCycle }))
+                          }
+                        >
+                          <SelectTrigger className="mt-1 w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="monthly">{t('billingCycle_monthly')}</SelectItem>
+                            <SelectItem value="yearly">{t('billingCycle_yearly')}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">{t('billingStatusLabel')}</label>
+                        <Select
+                          value={billingDraft.subscriptionStatus}
+                          onValueChange={(v) =>
+                            setBillingDraft((prev) => ({
+                              ...prev,
+                              subscriptionStatus: v as SubscriptionStatus,
+                            }))
+                          }
+                        >
+                          <SelectTrigger className="mt-1 w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="trial">{t('billingStatus_trial')}</SelectItem>
+                            <SelectItem value="active">{t('billingStatus_active')}</SelectItem>
+                            <SelectItem value="past_due">{t('billingStatus_past_due')}</SelectItem>
+                            <SelectItem value="canceled">{t('billingStatus_canceled')}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">{t('billingRenewalDate')}</label>
+                      <Input
+                        type="date"
+                        value={billingDraft.renewalDate}
+                        onChange={(e) =>
+                          setBillingDraft((prev) => ({ ...prev, renewalDate: e.target.value }))
+                        }
+                        className="mt-1"
+                      />
+                    </div>
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      onClick={handleSaveBilling}
+                      disabled={savingBilling}
+                    >
+                      {savingBilling ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4" />
+                      )}
+                      {t('billingSaveAction')}
+                    </Button>
                   </div>
                 </section>
 

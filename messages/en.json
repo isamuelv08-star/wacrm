@@ -2810,7 +2810,13 @@
       "title": "Agency panel",
       "subtitle": "View of all managed accounts — {count, plural, =1 {# client} other {# clients}}.",
       "pendingCount": "{count, plural, =1 {# pending} other {# pending}}",
-      "empty": "No accounts created yet."
+      "empty": "No accounts created yet.",
+      "statTotalClients": "Clients",
+      "statActiveSubscriptions": "Active subscriptions",
+      "statMrr": "MRR",
+      "statTotalUsers": "Total users",
+      "statWhatsappConnected": "WhatsApp connected",
+      "statNeedsAttention": "Needs attention"
     },
     "card": {
       "clientSince": "Client since {date}",
@@ -2831,7 +2837,10 @@
       "neverUsed": "Empty",
       "memberCount": "{count, plural, =1 {# user} other {# users}}",
       "statusPending": "Pending",
-      "statusSuspended": "Suspended"
+      "statusSuspended": "Suspended",
+      "perMonth": "/mo",
+      "perYear": "/yr",
+      "noPlan": "No subscription set"
     },
     "detail": {
       "subtitle": "Users, WhatsApp connection, and AI usage for this account.",
@@ -2891,7 +2900,24 @@
       "suspendConfirmTitle": "Suspend this account?",
       "suspendConfirmDesc": "{name} and all of its users will lose access to the app until you reactivate it.",
       "statusUpdateSuccess": "Account status updated",
-      "statusUpdateError": "Couldn't update the account status"
+      "statusUpdateError": "Couldn't update the account status",
+      "billingTitle": "Subscription",
+      "billingPlanName": "Plan",
+      "billingPlanNamePlaceholder": "e.g. Pro Plan",
+      "billingPrice": "Price",
+      "billingCycle": "Billing cycle",
+      "billingCycle_monthly": "Monthly",
+      "billingCycle_yearly": "Yearly",
+      "billingStatusLabel": "Subscription status",
+      "billingStatus_trial": "Trial",
+      "billingStatus_active": "Active",
+      "billingStatus_past_due": "Past due",
+      "billingStatus_canceled": "Canceled",
+      "billingRenewalDate": "Renewal date",
+      "billingSaveAction": "Save subscription",
+      "billingSaveSuccess": "Subscription updated",
+      "billingSaveError": "Couldn't update the subscription",
+      "billingPriceInvalid": "Price must be a valid number"
     },
     "createDialog": {
       "trigger": "Create client",

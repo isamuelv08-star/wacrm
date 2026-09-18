@@ -53,6 +53,40 @@ docker build \
 docker run -d --env-file .env.local -e PORT=3000 -p 3000:3000 wacrm
 ```
 
+## Agency panel as a standalone EasyPanel service
+
+The super-admin panel (`/agency`) can run as a **second, separate
+service** on your EasyPanel instance instead of sharing a domain with
+the client-facing app — e.g. `agencia.tudominio.com` for you, while
+clients only ever see `app.tudominio.com`. The app already knows how
+to do this (`src/proxy.ts`'s `AGENCY_STANDALONE_MODE` check) — nothing
+in the repo needs to change, this is purely an EasyPanel configuration
+step:
+
+1. In EasyPanel, create a **new App service** (not a fork of the
+   existing one — a second, independent service) pointed at the same
+   Git repo/branch as your main `wacrm` deployment. It builds from the
+   same `Dockerfile`, so no separate image to maintain.
+2. Set every env var the main service has (`NEXT_PUBLIC_SUPABASE_URL`,
+   `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
+   `ENCRYPTION_KEY`, `SUPER_ADMIN_USER_ID`, etc. — same Supabase
+   project, so both services see the same data) **plus**:
+   ```
+   AGENCY_STANDALONE_MODE=true
+   ```
+3. Assign it its own domain/subdomain in EasyPanel (with SSL, same as
+   the main app).
+4. Deploy. Visiting any path other than `/login`, `/agency`,
+   `/forgot-password`, `/reset-password` (or their supporting
+   `/api/agency/*`, `/api/locale`, `/auth/callback` routes) on this
+   domain redirects to `/agency` (signed in) or `/login` (signed out)
+   — see `src/proxy.ts`'s `AGENCY_STANDALONE_EXACT_PATHS`. Signing in
+   still goes through the normal Supabase email/password flow; access
+   itself is gated by `SUPER_ADMIN_USER_ID` matching the signed-in
+   user (`requireSuperAdmin()`), not by which domain served the
+   request — misconfiguring this env var never grants access, it only
+   changes which URL you'd use to reach the panel.
+
 ## Notes
 
 - Database migrations under `supabase/` are **not** run by the
