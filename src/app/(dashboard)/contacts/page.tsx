@@ -40,6 +40,7 @@ import {
   Search,
   Plus,
   Upload,
+  Download,
   MoreHorizontal,
   Pencil,
   Trash2,
@@ -65,6 +66,27 @@ const PAGE_SIZE = 25;
 
 interface ContactWithTags extends Contact {
   tags?: Tag[];
+}
+
+/**
+ * CSV export helper — RFC 4180 quoting, same shape as the broadcast
+ * detail page's export (src/app/(dashboard)/broadcasts/[id]/page.tsx).
+ */
+function toCsv(rows: string[][]): string {
+  const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+  return rows.map((r) => r.map(escape).join(',')).join('\n');
+}
+
+function downloadCsv(filename: string, content: string) {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 export default function ContactsPage() {
@@ -93,6 +115,7 @@ export default function ContactsPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailContactId, setDetailContactId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [customFieldsOpen, setCustomFieldsOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
@@ -347,6 +370,70 @@ export default function ContactsPage() {
     setPage(0);
   }
 
+  async function handleExport() {
+    setExporting(true);
+    try {
+      // Every contact in the account, not just the current page —
+      // PostgREST caps a single response at 1000 rows, so page through
+      // in batches until one comes back short.
+      const BATCH = 1000;
+      const allContacts: Contact[] = [];
+      for (let from = 0; ; from += BATCH) {
+        const { data, error } = await supabase
+          .from('contacts')
+          .select('id, name, phone, email, company, lead_score, created_at')
+          .order('created_at', { ascending: true })
+          .range(from, from + BATCH - 1);
+        if (error) throw error;
+        allContacts.push(...((data ?? []) as Contact[]));
+        if (!data || data.length < BATCH) break;
+      }
+
+      if (allContacts.length === 0) {
+        toast.error(t('exportEmpty'));
+        return;
+      }
+
+      // Same contact_tags -> tagsMap lookup fetchContacts uses above,
+      // just for every contact at once instead of one page — tagsMap
+      // itself is already the full account tag list (loaded once on
+      // mount), so this only needs the join rows.
+      const tagNamesByContact: Record<string, string[]> = {};
+      for (let i = 0; i < allContacts.length; i += BATCH) {
+        const idBatch = allContacts.slice(i, i + BATCH).map((c) => c.id);
+        const { data: ctRows } = await supabase
+          .from('contact_tags')
+          .select('contact_id, tag_id')
+          .in('contact_id', idBatch);
+        ctRows?.forEach((ct) => {
+          const name = tagsMap[ct.tag_id]?.name;
+          if (!name) return;
+          (tagNamesByContact[ct.contact_id] ??= []).push(name);
+        });
+      }
+
+      // Header matches parse-contact-csv.ts's expected import columns
+      // (phone/name/email/company/tags) so this file re-imports cleanly
+      // — lead_score/created_at are extra trailing columns import
+      // ignores.
+      const header = ['name', 'phone', 'email', 'company', 'tags', 'lead_score', 'created_at'];
+      const rows = allContacts.map((c) => [
+        c.name ?? '',
+        c.phone ?? '',
+        c.email ?? '',
+        c.company ?? '',
+        (tagNamesByContact[c.id] ?? []).join('; '),
+        c.lead_score ?? '',
+        c.created_at ?? '',
+      ]);
+      downloadCsv(`contactos-${new Date().toISOString().slice(0, 10)}.csv`, toCsv([header, ...rows]));
+    } catch {
+      toast.error(t('exportError'));
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -368,6 +455,19 @@ export default function ContactsPage() {
               {t('customFieldsBtn')}
             </Button>
           )}
+          <Button
+            variant="outline"
+            disabled={exporting}
+            onClick={handleExport}
+            className="border-border text-muted-foreground hover:bg-muted"
+          >
+            {exporting ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Download className="size-4" />
+            )}
+            {exporting ? t('exporting') : t('exportBtn')}
+          </Button>
           <GatedButton
             variant="outline"
             canAct={canEdit}
