@@ -1,6 +1,5 @@
 'use client';
 
-import * as Sentry from '@sentry/nextjs';
 import NextError from 'next/error';
 import { useEffect } from 'react';
 
@@ -10,7 +9,12 @@ export default function GlobalError({
   error: Error & { digest?: string };
 }) {
   useEffect(() => {
-    Sentry.captureException(error);
+    // Loaded on demand (and initialised by that module) so the Sentry SDK
+    // isn't part of the bundle every page ships — see
+    // src/instrumentation-client.ts.
+    void import('@/lib/monitoring/sentry-client')
+      .then(({ Sentry }) => Sentry.captureException(error))
+      .catch(() => {});
   }, [error]);
 
   return (

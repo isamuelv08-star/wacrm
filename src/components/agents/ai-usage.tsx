@@ -21,8 +21,17 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/dashboard/skeleton';
-import { BarChart } from '@/components/tremor/bar-chart';
+import dynamic from 'next/dynamic';
 import { formatCompactNumber } from '@/lib/currency';
+
+// recharts is ~100 KB gzipped and only this card uses it, so load it on demand
+// (after the card's numbers are already on screen) instead of shipping it
+// in the Agents page bundle. The placeholder keeps the chart's footprint so
+// nothing shifts when it arrives.
+const BarChart = dynamic(() => import('@/components/tremor/bar-chart').then((m) => m.BarChart), {
+  ssr: false,
+  loading: () => <Skeleton className="h-[200px] w-full" />,
+});
 import { format, parseISO } from 'date-fns';
 
 interface UsageResponse {
