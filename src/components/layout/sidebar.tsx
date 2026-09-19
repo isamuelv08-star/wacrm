@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -129,6 +129,23 @@ interface SidebarProps {
 }
 
 import { useTranslations } from "next-intl";
+
+/**
+ * Instant click feedback for a nav link. The active highlight follows the
+ * URL, which only changes once the next screen is ready — so for the
+ * moment the server is answering, the row the user just clicked looked
+ * untouched, as if the click hadn't registered. This pulses the row
+ * while its navigation is pending. Must render inside the <Link>.
+ */
+function PendingHighlight() {
+  const { pending } = useLinkStatus();
+  return pending ? (
+    <span
+      aria-hidden
+      className="pointer-events-none absolute inset-0 animate-pulse rounded-lg bg-primary/15"
+    />
+  ) : null;
+}
 
 export function Sidebar({ open = false, onClose }: SidebarProps) {
   const t = useTranslations("Sidebar");
@@ -308,7 +325,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 const label = t(item.labelKey as string);
                 const linkClassName = cn(
                   // Taller on mobile so fingers can hit the row reliably (≥44px).
-                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
+                  "relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
                   collapsed && "lg:justify-center lg:px-0",
                   isActive
                     ? "bg-primary/10 text-primary"
@@ -316,6 +333,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 );
                 const linkContent = (
                   <>
+                    <PendingHighlight />
                     <item.icon className="h-4 w-4 shrink-0" />
                     <span className={cn("flex-1", collapsed && "lg:hidden")}>
                       {label}

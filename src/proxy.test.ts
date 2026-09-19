@@ -9,6 +9,8 @@ import { NextRequest } from "next/server";
 //                      of the test is that these must survive onto whatever
 //                      response the proxy returns — including redirects.
 let mockUser: { id: string } | null = null;
+// How many times the proxy actually asked Supabase Auth to validate a session.
+let getUserCalls = 0;
 let refreshedCookies: Array<{
   name: string;
   value: string;
@@ -28,6 +30,7 @@ vi.mock("@supabase/ssr", () => ({
       // refreshed inside getUser(), which rotates the refresh token and
       // pushes the new cookies through setAll() before resolving.
       getUser: async () => {
+        getUserCalls++;
         if (refreshedCookies.length) opts.cookies.setAll(refreshedCookies);
         return { data: { user: mockUser } };
       },
@@ -37,12 +40,16 @@ vi.mock("@supabase/ssr", () => ({
 
 // Imported after the mock is registered.
 const { proxy } = await import("./proxy");
+const { clearProxyUserCache } = await import("@/lib/auth/proxy-user-cache");
 
 beforeEach(() => {
   process.env.NEXT_PUBLIC_SUPABASE_URL = "https://test.supabase.co";
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
   mockUser = null;
   refreshedCookies = [];
+  getUserCalls = 0;
+  delete process.env.PROXY_AUTH_CACHE_MS;
+  clearProxyUserCache();
 });
 
 afterEach(() => vi.clearAllMocks());
@@ -109,5 +116,57 @@ describe("proxy — refreshed auth cookies survive redirects", () => {
     // No redirect — the normal NextResponse.next() already carries cookies.
     expect(res.headers.get("location")).toBeNull();
     expect(res.cookies.get(ROTATED.name)?.value).toBe(ROTATED.value);
+  });
+});
+
+describe("proxy — session validation memo", () => {
+  const withSession = (token: string, path = "/dashboard") =>
+    new NextRequest(`https://app.test${path}`, {
+      headers: { cookie: `sb-test-auth-token=${token}` },
+    });
+
+  it("validates the same session once, then serves repeats from memory", async () => {
+    mockUser = { id: "user-1" };
+
+    const first = await proxy(withSession("tok-a"));
+    const second = await proxy(withSession("tok-a", "/contacts"));
+    const third = await proxy(withSession("tok-a", "/api/whatsapp/numbers"));
+
+    expect(getUserCalls).toBe(1);
+    // Behaviour is identical: signed-in users are let through.
+    for (const res of [first, second, third]) expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("validates again when the token changes (rotation / a different user)", async () => {
+    mockUser = { id: "user-1" };
+    await proxy(withSession("tok-a"));
+    await proxy(withSession("tok-b"));
+    expect(getUserCalls).toBe(2);
+  });
+
+  it("never remembers a signed-out result, so signing in works at once", async () => {
+    mockUser = null;
+    const before = await proxy(withSession("tok-a"));
+    expect(before.headers.get("location")).toContain("/login");
+
+    mockUser = { id: "user-1" };
+    const after = await proxy(withSession("tok-a"));
+    expect(after.headers.get("location")).toBeNull();
+    expect(getUserCalls).toBe(2);
+  });
+
+  it("does nothing for requests without Supabase cookies", async () => {
+    mockUser = { id: "user-1" };
+    await proxy(new NextRequest("https://app.test/dashboard"));
+    await proxy(new NextRequest("https://app.test/dashboard"));
+    expect(getUserCalls).toBe(2);
+  });
+
+  it("can be turned off with PROXY_AUTH_CACHE_MS=0", async () => {
+    process.env.PROXY_AUTH_CACHE_MS = "0";
+    mockUser = { id: "user-1" };
+    await proxy(withSession("tok-a"));
+    await proxy(withSession("tok-a"));
+    expect(getUserCalls).toBe(2);
   });
 });

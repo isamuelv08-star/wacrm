@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import { authCookieKey, getCachedUser, setCachedUser } from '@/lib/auth/proxy-user-cache'
 import { NextResponse, type NextRequest } from 'next/server'
 
 // Set on the dedicated agency-panel deployment only (a second EasyPanel
@@ -78,12 +79,24 @@ export async function proxy(request: NextRequest) {
   // session" instead. Same guard in getCurrentAccount() (account.ts)
   // and requireSuperAdmin() (agency.ts).
   let user: Awaited<ReturnType<typeof supabase.auth.getUser>>['data']['user'] = null
-  try {
-    const result = await supabase.auth.getUser()
-    if (result.error) throw result.error
-    user = result.data.user
-  } catch (err) {
-    console.error('[proxy] auth.getUser() failed, treating as signed out:', err)
+
+  // A session validated by Supabase Auth a few seconds ago is not
+  // re-validated (a network round trip on every request, and a screen
+  // fires several). Only successful validations are remembered, briefly —
+  // see lib/auth/proxy-user-cache.ts for exactly what that does and
+  // doesn't change.
+  const authKey = authCookieKey(request.cookies.getAll())
+  if (authKey) user = getCachedUser(authKey)
+
+  if (!user) {
+    try {
+      const result = await supabase.auth.getUser()
+      if (result.error) throw result.error
+      user = result.data.user
+      if (user && authKey) setCachedUser(authKey, user)
+    } catch (err) {
+      console.error('[proxy] auth.getUser() failed, treating as signed out:', err)
+    }
   }
 
   // getUser() transparently refreshes an expired access token, which
