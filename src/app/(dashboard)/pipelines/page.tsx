@@ -29,6 +29,7 @@ import { GitBranch, Plus, ChevronDown, Settings, CalendarRange } from "lucide-re
 import { toast } from "sonner";
 import { useCan } from "@/hooks/use-can";
 import { useAuth } from "@/hooks/use-auth";
+import { readViewCache, writeViewCache } from "@/lib/cache/view-cache";
 import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
 import { GatedButton } from "@/components/ui/gated-button";
 import { useTranslations } from "next-intl";
@@ -94,11 +95,32 @@ export default function PipelinesPage() {
   const canCreateDeals = useCan("send-messages");
   const { accountId, user } = useAuth();
 
-  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
-  const [selectedPipelineId, setSelectedPipelineId] = useState<string>("");
-  const [stages, setStages] = useState<PipelineStage[]>([]);
-  const [deals, setDeals] = useState<Deal[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Last-known board (per user) so returning to Pipelines paints the
+  // kanban on the first frame instead of the skeleton; the loads below
+  // still refresh it. See lib/cache/view-cache.ts.
+  const boardCacheKey = user?.id ? `pipelines:board:${user.id}` : null;
+  const cachedBoard = useState(() =>
+    readViewCache<{
+      pipelines: Pipeline[];
+      selectedPipelineId: string;
+      stages: PipelineStage[];
+      deals: Deal[];
+    }>(boardCacheKey),
+  )[0];
+  const hadCachedBoard = useRef(!!cachedBoard);
+
+  const [pipelines, setPipelines] = useState<Pipeline[]>(cachedBoard?.pipelines ?? []);
+  const [selectedPipelineId, setSelectedPipelineId] = useState<string>(
+    cachedBoard?.selectedPipelineId ?? "",
+  );
+  const [stages, setStages] = useState<PipelineStage[]>(cachedBoard?.stages ?? []);
+  const [deals, setDeals] = useState<Deal[]>(cachedBoard?.deals ?? []);
+  const [loading, setLoading] = useState(!cachedBoard);
+  useEffect(() => {
+    if (boardCacheKey && !loading && pipelines.length > 0) {
+      writeViewCache(boardCacheKey, { pipelines, selectedPipelineId, stages, deals });
+    }
+  }, [boardCacheKey, loading, pipelines, selectedPipelineId, stages, deals]);
   // Keyed by contact_id — drives each open deal card's "cooling off"
   // badge. Refetched below whenever the open deals' contact set
   // changes; the badge itself then ticks live client-side off
@@ -221,7 +243,7 @@ export default function PipelinesPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      setLoading(true);
+      if (!hadCachedBoard.current) setLoading(true);
       let list = await loadPipelines();
 
       if (list.length === 0 && !seedAttempted.current) {

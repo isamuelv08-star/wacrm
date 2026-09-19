@@ -10,6 +10,8 @@ import {
 } from "@/lib/inbox/conversations";
 import type { Conversation, Message, Contact, ConversationStatus } from "@/types";
 import { useRealtime } from "@/hooks/use-realtime";
+import { useAuth } from "@/hooks/use-auth";
+import { readViewCache, writeViewCache } from "@/lib/cache/view-cache";
 import { ConversationList } from "@/components/inbox/conversation-list";
 import { MessageThread } from "@/components/inbox/message-thread";
 import { ContactSidebar } from "@/components/inbox/contact-sidebar";
@@ -70,7 +72,19 @@ function InboxPageInner() {
    */
   const deepLinkConvId = searchParams.get("c");
 
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  // Last-known conversation list (per user), so coming back to the Inbox
+  // paints the list on the first frame instead of a spinner; the normal
+  // fetch below still runs and replaces it. See lib/cache/view-cache.ts.
+  const { user } = useAuth();
+  const conversationsCacheKey = user?.id ? `inbox:conversations:${user.id}` : null;
+  const [conversations, setConversations] = useState<Conversation[]>(
+    () => readViewCache<Conversation[]>(conversationsCacheKey) ?? [],
+  );
+  useEffect(() => {
+    if (conversationsCacheKey && conversations.length > 0) {
+      writeViewCache(conversationsCacheKey, conversations);
+    }
+  }, [conversationsCacheKey, conversations]);
   const [activeConversation, setActiveConversation] =
     useState<Conversation | null>(null);
   const [activeContact, setActiveContact] = useState<Contact | null>(null);

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { Sidebar } from "@/components/layout/sidebar";
+import { ShellSkeleton } from "@/components/layout/shell-skeleton";
 import { Header } from "@/components/layout/header";
 import { PresenceHeartbeat } from "@/components/presence/presence-heartbeat";
 import { NewNotificationToastListener } from "@/components/notifications/new-notification-toast-listener";
@@ -68,16 +69,9 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
     }
   }, [loading, user, profileLoading, account, router]);
 
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground">{t("loading")}</p>
-        </div>
-      </div>
-    );
-  }
+  // The dashboard's frame as placeholders (not a spinner on a blank
+  // screen) so the layout is already in place when the real shell mounts.
+  if (loading) return <ShellSkeleton label={t("loading")} />;
 
   if (!user) return null;
 

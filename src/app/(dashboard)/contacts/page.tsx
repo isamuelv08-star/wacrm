@@ -57,6 +57,8 @@ import { ContactDetailView } from '@/components/contacts/contact-detail-view';
 import { ImportModal } from '@/components/contacts/import-modal';
 import { CustomFieldsManager } from '@/components/contacts/custom-fields-manager';
 import { useCan } from '@/hooks/use-can';
+import { useAuth } from '@/hooks/use-auth';
+import { readViewCache, writeViewCache } from '@/lib/cache/view-cache';
 import { GatedButton } from '@/components/ui/gated-button';
 import { useTranslations } from 'next-intl';
 import { LeadScoreBadge } from '@/components/leads/lead-score-badge';
@@ -97,14 +99,24 @@ export default function ContactsPage() {
 
   const searchParams = useSearchParams();
 
-  const [contacts, setContacts] = useState<ContactWithTags[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Last-known first page (per user) so returning to Contacts paints the
+  // table on the first frame; the fetch below still refreshes it. Only the
+  // unfiltered first page is cached — see lib/cache/view-cache.ts.
+  const { user } = useAuth();
+  const cacheKey = user?.id ? `contacts:first-page:${user.id}` : null;
+  const cachedFirstPage = useState(() =>
+    searchParams.get('q')
+      ? undefined
+      : readViewCache<{ contacts: ContactWithTags[]; totalCount: number }>(cacheKey),
+  )[0];
+  const [contacts, setContacts] = useState<ContactWithTags[]>(cachedFirstPage?.contacts ?? []);
+  const [loading, setLoading] = useState(!cachedFirstPage);
   // Prefilled from ?q=... — the header's smart search sends contacts
   // here (instead of the inbox) when a match has no open conversation
   // to jump straight into.
   const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
   const [page, setPage] = useState(0);
-  const [totalCount, setTotalCount] = useState(0);
+  const [totalCount, setTotalCount] = useState(cachedFirstPage?.totalCount ?? 0);
   // Tag filter — contacts shown must have ANY of these tags (OR).
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
 
@@ -212,6 +224,9 @@ export default function ContactsPage() {
     if (contactRows.length === 0) {
       setContacts([]);
       setLoading(false);
+      if (page === 0 && !term && selectedTagIds.length === 0) {
+        writeViewCache(cacheKey, { contacts: [], totalCount: count });
+      }
       return;
     }
 
@@ -238,7 +253,10 @@ export default function ContactsPage() {
 
     setContacts(enriched);
     setLoading(false);
-  }, [supabase, page, search, selectedTagIds, tagsMap, t]);
+    if (page === 0 && !term && selectedTagIds.length === 0) {
+      writeViewCache(cacheKey, { contacts: enriched, totalCount: count });
+    }
+  }, [supabase, page, search, selectedTagIds, tagsMap, t, cacheKey]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not
@@ -659,7 +677,7 @@ export default function ContactsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading ? (
+            {loading && contacts.length === 0 ? (
               <TableRow className="border-border">
                 <TableCell colSpan={8} className="text-center py-12">
                   <div className="flex flex-col items-center gap-2">

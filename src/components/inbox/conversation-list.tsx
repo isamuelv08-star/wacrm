@@ -133,7 +133,9 @@ export function ConversationList({
 
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<InboxFilter>("all");
-  const [loading, setLoading] = useState(true);
+  // No spinner when the parent already has a list to show (cached from the
+  // last visit) — the fetch below still refreshes it in the background.
+  const [loading, setLoading] = useState(conversations.length === 0);
 
   // Whether this account has qualification criteria configured at all
   // (migration 038) — scoring only ever runs when it does, so the

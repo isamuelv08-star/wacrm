@@ -13,6 +13,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import { DEFAULT_CURRENCY } from "@/lib/currency";
+import { clearViewCache } from "@/lib/cache/view-cache";
 import type { BusinessVertical } from "@/types";
 import {
   canEditSettings as canEditSettingsFor,
@@ -323,6 +324,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           fetchProfile(currentUser.id);
         }
       } else {
+        // Signed out / session expired: never leave the last user's
+        // cached screens around for whoever signs in next.
+        clearViewCache();
         lastFetchedUserIdRef.current = null;
         setProfile(null);
         setAccount(null);
@@ -342,6 +346,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
+    clearViewCache();
     setUser(null);
     setProfile(null);
     setAccount(null);

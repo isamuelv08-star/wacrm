@@ -44,11 +44,18 @@ if (typeof window !== 'undefined') {
   window.addEventListener('error', bufferError);
   window.addEventListener('unhandledrejection', bufferError);
 
-  if (typeof window.requestIdleCallback === 'function') {
-    window.requestIdleCallback(loadSentry, { timeout: 4000 });
-  } else {
-    setTimeout(loadSentry, 2000);
-  }
+  // Start only once the page has finished loading its own resources, then
+  // wait for an idle moment, so monitoring never competes with the UI for
+  // bandwidth or the main thread.
+  const schedule = () => {
+    if (typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(loadSentry, { timeout: 4000 });
+    } else {
+      setTimeout(loadSentry, 2000);
+    }
+  };
+  if (document.readyState === 'complete') schedule();
+  else window.addEventListener('load', schedule, { once: true });
 }
 
 export function onRouterTransitionStart(
