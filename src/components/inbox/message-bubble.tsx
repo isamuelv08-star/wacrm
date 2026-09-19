@@ -10,6 +10,7 @@ import {
   MapPin,
   LayoutTemplate,
   CornerDownLeft,
+  Smartphone,
   Sparkles,
   FileText,
 } from "lucide-react";
@@ -331,6 +332,19 @@ export function MessageBubble({
               >
                 <Sparkles className="h-2.5 w-2.5" />
                 {t("aiBadge")}
+              </span>
+            )}
+            {/* Phone badge — a reply the business typed in the WhatsApp
+                Business phone app rather than in the CRM. Without it a
+                seller can't tell who answered, or that the AI's
+                context includes a human reply. */}
+            {message.sent_from_phone && (
+              <span
+                className="inline-flex items-center gap-0.5 rounded-full bg-foreground/10 px-1.5 py-px text-[9px] font-semibold uppercase leading-none tracking-wide text-foreground/80"
+                title={t("phoneBadgeTitle")}
+              >
+                <Smartphone className="h-2.5 w-2.5" />
+                {t("phoneBadge")}
               </span>
             )}
             <span

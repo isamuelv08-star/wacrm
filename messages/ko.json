@@ -499,7 +499,9 @@
       "imageAlt": "공유된 이미지",
       "playAudio": "재생",
       "pauseAudio": "일시정지",
-      "transcript": "받아쓰기"
+      "transcript": "받아쓰기",
+      "phoneBadge": "휴대폰",
+      "phoneBadgeTitle": "휴대폰의 WhatsApp Business 앱에서 전송됨"
     },
     "mediaViewer": {
       "counter": "{total}개 중 {index}번째",

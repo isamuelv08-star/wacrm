@@ -499,7 +499,9 @@
       "imageAlt": "Shared image",
       "playAudio": "Play",
       "pauseAudio": "Pause",
-      "transcript": "Transcript"
+      "transcript": "Transcript",
+      "phoneBadge": "Phone",
+      "phoneBadgeTitle": "Sent from the WhatsApp Business phone app"
     },
     "mediaViewer": {
       "counter": "{index} of {total}",

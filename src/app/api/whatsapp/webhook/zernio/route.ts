@@ -10,6 +10,7 @@ import {
 import { ingestMessengerMessage } from '@/lib/messenger/webhook-processor'
 import type { MetaReferral } from '@/lib/contacts/lead-source'
 import { zernioWebhookSecret } from '@/lib/whatsapp/zernio-env'
+import { classifyZernioEvent, ZERNIO_PHONE_APP_SOURCE } from '@/lib/whatsapp/zernio-events'
 
 // ============================================================
 // Inbound webhook for WhatsApp accounts connected through Zernio.
@@ -76,6 +77,10 @@ interface ZernioWebhookPayload {
     platform?: string
     platformMessageId?: string
     direction?: 'incoming' | 'outgoing'
+    /** WhatsApp send origin on `message.sent`: 'whatsapp_business_app' when the
+     *  business typed it in the phone app (Coexistence), 'cloud_api' when it went
+     *  through Zernio. Absent on other platforms and on `message.received`. */
+    source?: 'whatsapp_business_app' | 'cloud_api'
     text?: string | null
     attachments?: Array<{ type: string; url: string }>
     sender?: {
@@ -143,12 +148,17 @@ export async function POST(request: Request) {
 }
 
 async function processZernioEvent(payload: ZernioWebhookPayload) {
-  if (payload.event === 'message.delivered' || payload.event === 'message.read' || payload.event === 'message.failed') {
+  const kind = classifyZernioEvent(payload)
+
+  if (kind === 'status') {
     await handleZernioStatusUpdate(payload)
     return
   }
 
-  if (payload.event !== 'message.received') return
+  if (kind === 'ignore') return
+  // `phone_sent`: a message typed in the WhatsApp Business phone app, which
+  // Zernio reports as `message.sent` (see lib/whatsapp/zernio-events.ts).
+  const sentFromPhone = kind === 'phone_sent' || payload.message?.source === ZERNIO_PHONE_APP_SOURCE
   const message = payload.message
   const account = payload.account
   if (!message || !account?.id) return
@@ -188,7 +198,7 @@ async function processZernioEvent(payload: ZernioWebhookPayload) {
     return
   }
 
-  if (message.direction !== 'incoming') {
+  if (sentFromPhone || message.direction !== 'incoming') {
     // On an outgoing event `message.sender` is the BUSINESS, not the
     // customer (Zernio's own InboxWebhookMessage.sender doc: "omitted
     // for outgoing/business sender" — and for WhatsApp `sender.id`
@@ -235,6 +245,7 @@ async function processZernioEvent(payload: ZernioWebhookPayload) {
       zernioAccount.account_id,
       zernioAccount.connected_by_user_id,
       payload.conversation?.id ?? null,
+      sentFromPhone,
     )
     return
   }

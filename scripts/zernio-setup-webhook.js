@@ -27,13 +27,22 @@
 
 const Zernio = require('@zernio/node').default
 
-// message.received: inbound messages. message.delivered/read/failed:
+// message.received: inbound messages. message.sent: what the business types
+// in the WhatsApp Business PHONE app (Coexistence) — Zernio reports those as
+// message.sent, never message.received, so without it a reply sent from the
+// phone never reaches the CRM (nor the AI's conversation context). message.delivered/read/failed:
 // delivery-tick updates for messages WE sent — without these,
 // src/app/api/whatsapp/webhook/zernio/route.ts never learns a sent
 // message was delivered/read, so the inbox gets stuck showing a
 // single grey check forever instead of progressing to the double
 // check (delivered) / blue double check (read) WhatsApp itself shows.
-const REQUIRED_EVENTS = ['message.received', 'message.delivered', 'message.read', 'message.failed']
+const REQUIRED_EVENTS = [
+  'message.received',
+  'message.sent',
+  'message.delivered',
+  'message.read',
+  'message.failed',
+]
 
 async function main() {
   const apiKey = process.env.ZERNIO_API_KEY

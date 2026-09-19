@@ -499,7 +499,9 @@
       "imageAlt": "Imagen compartida",
       "playAudio": "Reproducir",
       "pauseAudio": "Pausar",
-      "transcript": "Transcripción"
+      "transcript": "Transcripción",
+      "phoneBadge": "Celular",
+      "phoneBadgeTitle": "Enviado desde la app de WhatsApp Business en el celular"
     },
     "mediaViewer": {
       "counter": "{index} de {total}",

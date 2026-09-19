@@ -441,6 +441,12 @@ export interface Message {
    * badge in the inbox. Migration 033.
    */
   ai_generated?: boolean;
+  /**
+   * True when the business typed this message in the WhatsApp Business
+   * PHONE app (Coexistence, via Zernio's `message.sent`), not in the CRM.
+   * Drives the "phone" label in the inbox. Migration 100.
+   */
+  sent_from_phone?: boolean;
 }
 
 /**

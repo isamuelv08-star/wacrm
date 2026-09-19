@@ -20,6 +20,7 @@ import {
   handleTemplateWebhookChange,
   isTemplateWebhookField,
 } from '@/lib/whatsapp/template-webhook'
+import { isMissingColumnError, isNewestMessage, sentAtIso } from './external-outbound'
 
 // ============================================================
 // Shared inbound-webhook processing pipeline.
@@ -1413,11 +1414,14 @@ async function parseMessageContent(
  * "conversation assigned" notifications) applies here. Only contact +
  * conversation resolution, the message row itself, and the same
  * conversation/flow bookkeeping send-message.ts does for a message
- * sent through this app — so an agent replying from their phone counts
- * as "a human is here" exactly like a reply sent through the CRM does
- * (AI auto-reply's own eligibility check already reads sender_type on
- * prior messages, so marking this 'agent' is what makes that work
- * correctly with no further change needed there).
+ * sent through this app — the row is 'agent', so it also joins the
+ * conversation history the AI reads for context (buildConversationContext
+ * maps every non-customer message to the 'assistant' role).
+ *
+ * NOTE: recording it does NOT pause AI auto-reply. That only stands down
+ * when a human agent is ASSIGNED to the conversation or auto-reply was
+ * disabled on it (see dispatchInboundToAiReply) — a phone reply alone
+ * changes neither.
  */
 export async function recordExternalOutboundMessage(
   message: WhatsAppMessage,
@@ -1426,6 +1430,11 @@ export async function recordExternalOutboundMessage(
   accountId: string,
   configOwnerUserId: string,
   zernioConversationId: string | null,
+  /** True when the business typed it in the WhatsApp Business PHONE app
+   *  (Zernio `message.sent`, `source: whatsapp_business_app`). Stored on
+   *  the row so the inbox can label it and the team can tell a phone reply
+   *  from one sent through the CRM. */
+  sentFromPhone = false,
 ): Promise<void> {
   const contactOutcome = await findOrCreateContact(
     accountId,
@@ -1458,7 +1467,12 @@ export async function recordExternalOutboundMessage(
       ? 'image'
       : 'text'
 
-  const { error: insertError } = await supabaseAdmin().from('messages').insert({
+  // When it was ACTUALLY sent (the phone can deliver late), not when the
+  // webhook happened to arrive — otherwise the thread order and the "last
+  // message" time would lie about when the reply went out.
+  const sentAt = sentAtIso(message.timestamp)
+
+  const row = {
     conversation_id: conversation.id,
     sender_type: 'agent',
     content_type: contentType,
@@ -1466,17 +1480,35 @@ export async function recordExternalOutboundMessage(
     media_url: parsedContent.mediaUrl,
     message_id: message.id || null,
     status: 'sent',
-  })
+    ...(sentAt ? { created_at: sentAt } : {}),
+  }
+  let { error: insertError } = await supabaseAdmin()
+    .from('messages')
+    .insert(sentFromPhone ? { ...row, sent_from_phone: true } : row)
+  // Deployed before migration 100 (messages.sent_from_phone) was applied:
+  // still record the message — losing it would be worse than losing the label.
+  if (insertError && sentFromPhone && isMissingColumnError(insertError)) {
+    console.warn('[webhook-processor] messages.sent_from_phone is missing — apply migration 100; recording without the phone label')
+    ;({ error: insertError } = await supabaseAdmin().from('messages').insert(row))
+  }
   if (insertError) {
     console.error('[webhook-processor] failed to record external outbound message:', insertError.message)
     return
   }
 
+  // A phone message can be delivered late: only let it become the
+  // conversation's "last message" if it really is the newest one.
+  const thisMs = sentAt ? Date.parse(sentAt) : Date.now()
+  const isNewest = isNewestMessage(conversation.last_message_at, thisMs)
   await supabaseAdmin()
     .from('conversations')
     .update({
-      last_message_text: parsedContent.contentText || `[${contentType}]`,
-      last_message_at: new Date().toISOString(),
+      ...(isNewest
+        ? {
+            last_message_text: parsedContent.contentText || `[${contentType}]`,
+            last_message_at: new Date(thisMs).toISOString(),
+          }
+        : {}),
       updated_at: new Date().toISOString(),
     })
     .eq('id', conversation.id)
