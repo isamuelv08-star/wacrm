@@ -9,6 +9,7 @@ import {
 } from '@/lib/whatsapp/webhook-processor'
 import { ingestMessengerMessage } from '@/lib/messenger/webhook-processor'
 import type { MetaReferral } from '@/lib/contacts/lead-source'
+import { zernioWebhookSecret } from '@/lib/whatsapp/zernio-env'
 
 // ============================================================
 // Inbound webhook for WhatsApp accounts connected through Zernio.
@@ -53,7 +54,7 @@ export const maxDuration = 120
 // the raw request body keyed by your webhook secret", header
 // `X-Zernio-Signature` (legacy alias `X-Late-Signature`).
 function verifyZernioSignature(rawBody: string, signature: string | null): boolean {
-  const secret = process.env.ZERNIO_WEBHOOK_SECRET
+  const secret = zernioWebhookSecret()
   if (!secret || !signature) return false
 
   const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex')

@@ -27,6 +27,7 @@ import { createClient as createAdminClient, type SupabaseClient } from '@supabas
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { getPublicOrigin } from '@/lib/http/request-origin'
 import { zernioClient } from '@/lib/whatsapp/zernio-client'
+import { zernioApiKey } from '@/lib/whatsapp/zernio-env'
 
 // 'facebook' is Zernio's own name for a connected Facebook Page
 // (Messenger) — matched verbatim so the `connected={platform}` value
@@ -300,7 +301,7 @@ export async function GET(
     return settingsRedirect(origin, platform, { connected: false, error: message })
   }
 
-  const apiKey = process.env.ZERNIO_API_KEY
+  const apiKey = zernioApiKey()
   if (!apiKey) {
     console.error('[zernio/connect] ZERNIO_API_KEY is not set')
     return settingsRedirect(origin, platform, {
@@ -420,7 +421,7 @@ export async function DELETE(
     }
 
     let zernioRevoked = true
-    const apiKey = process.env.ZERNIO_API_KEY
+    const apiKey = zernioApiKey()
     if (apiKey) {
       try {
         const { error } = await zernioClient().accounts.deleteAccount({

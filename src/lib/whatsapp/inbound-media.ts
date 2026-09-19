@@ -1,4 +1,5 @@
 import { getMediaUrl, downloadMedia } from './meta-api'
+import { zernioApiKey } from './zernio-env'
 
 // ============================================================
 // Download the raw bytes (+ actual Content-Type) for an inbound media
@@ -71,7 +72,7 @@ function resolveZernioMediaUrl(token: string): URL {
 }
 
 function requireZernioApiKey(): string {
-  const apiKey = process.env.ZERNIO_API_KEY
+  const apiKey = zernioApiKey()
   if (!apiKey) {
     throw new InboundMediaError('Zernio is not configured on this server.', 500)
   }

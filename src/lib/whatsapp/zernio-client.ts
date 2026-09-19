@@ -1,4 +1,5 @@
 import Zernio from '@zernio/node'
+import { zernioApiKey } from './zernio-env'
 
 // ============================================================
 // Shared Zernio SDK client for the send/receive bridge. Lazily
@@ -18,7 +19,7 @@ let _client: Zernio | null = null
 
 export function zernioClient(): Zernio {
   if (!_client) {
-    const apiKey = process.env.ZERNIO_API_KEY
+    const apiKey = zernioApiKey()
     if (!apiKey) {
       throw new Error('ZERNIO_API_KEY is not configured')
     }
