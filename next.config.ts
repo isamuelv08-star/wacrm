@@ -53,6 +53,11 @@ const SECURITY_HEADERS = [
       // and 'unsafe-eval' in dev + some production optimisations.
       // Nonce-based CSP is a later project.
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      // Sentry Session Replay compresses events in a Web Worker created
+      // from a blob: URL. Without this the browser blocks it (falls back
+      // to script-src, which has no blob:) and logs a CSP violation on
+      // every page load.
+      "worker-src 'self' blob:",
       // Tailwind + inline style attributes on lots of components.
       "style-src 'self' 'unsafe-inline'",
       // Supabase public-bucket avatars, contact avatars (arbitrary

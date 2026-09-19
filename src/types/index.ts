@@ -282,6 +282,10 @@ export interface ContactNote {
   contact_id: string;
   user_id: string;
   note_text: string;
+  /** Teammates @-mentioned in `note_text` (migration 099). */
+  mentioned_user_ids?: string[];
+  /** Chat the note was written from, when written from the Inbox sidebar. */
+  conversation_id?: string | null;
   created_at: string;
 }
 
@@ -370,7 +374,9 @@ export type NotificationType =
   | 'event_reminder'
   | 'appointment_booked'
   /** Someone @-mentioned you in the internal team chat (migration 090). */
-  | 'team_chat_mention';
+  | 'team_chat_mention'
+  /** Someone @-mentioned you in a contact note (migration 099). */
+  | 'contact_note_mention';
 
 export interface Notification {
   id: string;

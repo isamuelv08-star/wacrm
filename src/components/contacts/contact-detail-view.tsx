@@ -6,7 +6,7 @@ import { addContactTag, deleteContactTag } from '@/lib/contacts/tag-api';
 import { useAuth } from '@/hooks/use-auth';
 import { formatCurrency } from '@/lib/currency';
 import { toast } from 'sonner';
-import type { Contact, Tag, ContactTag, ContactNote, CustomField, ContactCustomValue, Deal, MessageTemplate } from '@/types';
+import type { Contact, Tag, ContactTag, CustomField, ContactCustomValue, Deal, MessageTemplate } from '@/types';
 import {
   TemplatePicker,
   type TemplateSendValues,
@@ -53,6 +53,8 @@ import { useTranslations } from 'next-intl';
 import { EventFormDialog } from '@/components/calendar/event-form-dialog';
 import { LeadScoreBadge } from '@/components/leads/lead-score-badge';
 import { LeadScoreHistory } from '@/components/leads/lead-score-history';
+import { ContactNotesPanel } from './contact-notes-panel';
+import { LeadSummaryTab } from './lead-summary-tab';
 
 interface ContactDetailViewProps {
   open: boolean;
@@ -99,12 +101,6 @@ export function ContactDetailView({
   const [contactTagIds, setContactTagIds] = useState<string[]>([]);
   const [savingTags, setSavingTags] = useState(false);
 
-  // Notes tab
-  const [notes, setNotes] = useState<ContactNote[]>([]);
-  const [newNote, setNewNote] = useState('');
-  const [savingNote, setSavingNote] = useState(false);
-  const [loadingNotes, setLoadingNotes] = useState(false);
-
   // Custom fields tab
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [customValues, setCustomValues] = useState<Record<string, string>>({});
@@ -149,20 +145,6 @@ export function ContactDetailView({
     }
   }, [contactId, supabase]);
 
-  const fetchNotes = useCallback(async () => {
-    if (!contactId) return;
-    setLoadingNotes(true);
-
-    const { data } = await supabase
-      .from('contact_notes')
-      .select('*')
-      .eq('contact_id', contactId)
-      .order('created_at', { ascending: false });
-
-    if (data) setNotes(data);
-    setLoadingNotes(false);
-  }, [contactId, supabase]);
-
   const fetchCustomFields = useCallback(async () => {
     if (!contactId) return;
     setLoadingCustom(true);
@@ -202,11 +184,10 @@ export function ContactDetailView({
     if (open && contactId) {
       fetchContact();
       fetchTags();
-      fetchNotes();
       fetchCustomFields();
       fetchDeals();
     }
-  }, [open, contactId, fetchContact, fetchTags, fetchNotes, fetchCustomFields, fetchDeals]);
+  }, [open, contactId, fetchContact, fetchTags, fetchCustomFields, fetchDeals]);
 
   async function copyPhone() {
     if (!contact) return;
@@ -262,51 +243,6 @@ export function ContactDetailView({
       toast.error(error instanceof Error ? error.message : t('toastUpdateFailed'));
     }
     setSavingTags(false);
-  }
-
-  async function addNote() {
-    if (!contactId || !newNote.trim()) return;
-    setSavingNote(true);
-
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const user = session?.user;
-    if (!user || !accountId) {
-      toast.error(t('toastNotAuthenticated'));
-      setSavingNote(false);
-      return;
-    }
-
-    const { error } = await supabase.from('contact_notes').insert({
-      contact_id: contactId,
-      account_id: accountId,
-      user_id: user.id,
-      note_text: newNote.trim(),
-    });
-
-    if (error) {
-      toast.error(t('toastNoteAddFailed'));
-    } else {
-      setNewNote('');
-      fetchNotes();
-      toast.success(t('toastNoteAdded'));
-    }
-    setSavingNote(false);
-  }
-
-  async function deleteNote(noteId: string) {
-    const { error } = await supabase
-      .from('contact_notes')
-      .delete()
-      .eq('id', noteId);
-
-    if (error) {
-      toast.error(t('toastNoteDeleteFailed'));
-    } else {
-      setNotes((prev) => prev.filter((n) => n.id !== noteId));
-      toast.success(t('toastNoteDeleted'));
-    }
   }
 
   async function saveCustomFields() {
@@ -507,8 +443,14 @@ export function ContactDetailView({
             </SheetHeader>
 
             {/* Tabs */}
-            <Tabs defaultValue="details" className="flex-1 flex flex-col min-h-0">
+            <Tabs defaultValue="summary" className="flex-1 flex flex-col min-h-0">
               <TabsList className="bg-muted/50 border-b border-border mx-4 mt-3">
+                <TabsTrigger
+                  value="summary"
+                  className="data-active:bg-muted data-active:text-primary text-muted-foreground"
+                >
+                  {t('tabs.summary')}
+                </TabsTrigger>
                 <TabsTrigger
                   value="details"
                   className="data-active:bg-muted data-active:text-primary text-muted-foreground"
@@ -540,6 +482,11 @@ export function ContactDetailView({
                   {t('tabs.deals')}
                 </TabsTrigger>
               </TabsList>
+
+              {/* Summary Tab — structured lead briefing + AI executive summary */}
+              <TabsContent value="summary" className="themed-scrollbar flex-1 overflow-y-auto px-4 py-3">
+                <LeadSummaryTab contact={contact} />
+              </TabsContent>
 
               {/* Details Tab */}
               <TabsContent value="details" className="themed-scrollbar flex-1 overflow-y-auto px-4 py-3">
@@ -643,68 +590,8 @@ export function ContactDetailView({
               </TabsContent>
 
               {/* Notes Tab */}
-              <TabsContent value="notes" className="flex-1 flex flex-col min-h-0 px-4 py-3">
-                <div className="space-y-2 mb-3">
-                  <Textarea
-                    value={newNote}
-                    onChange={(e) => setNewNote(e.target.value)}
-                    placeholder={t('notesTab.placeholder')}
-                    className="bg-muted border-border text-foreground placeholder:text-muted-foreground min-h-[60px] text-sm resize-none"
-                  />
-                  <Button
-                    onClick={addNote}
-                    disabled={!newNote.trim() || savingNote}
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground"
-                    size="sm"
-                  >
-                    {savingNote ? (
-                      <Loader2 className="size-3.5 animate-spin" />
-                    ) : (
-                      <Plus className="size-3.5" />
-                    )}
-                    {t('notesTab.save')}
-                  </Button>
-                </div>
-
-                <div className="themed-scrollbar flex-1 overflow-y-auto space-y-2">
-                  {loadingNotes ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="size-5 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : notes.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-8">
-                      {t('notesTab.noNotes')}
-                    </p>
-                  ) : (
-                    notes.map((note) => (
-                      <div
-                        key={note.id}
-                        className="rounded-lg bg-muted/50 border border-border/50 p-3 group"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="text-sm text-muted-foreground whitespace-pre-wrap flex-1">
-                            {note.note_text}
-                          </p>
-                          <button
-                            onClick={() => deleteNote(note.id)}
-                            className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-400 transition-all cursor-pointer shrink-0"
-                          >
-                            <Trash2 className="size-3.5" />
-                          </button>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1.5">
-                          {new Date(note.created_at).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </p>
-                      </div>
-                    ))
-                  )}
-                </div>
+              <TabsContent value="notes" className="themed-scrollbar flex-1 overflow-y-auto px-4 py-3">
+                <ContactNotesPanel contactId={contact.id} />
               </TabsContent>
 
               {/* Custom Fields Tab */}

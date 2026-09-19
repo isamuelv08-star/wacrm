@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ChatMessage } from './types'
 import { aiContextMessageLimit } from './defaults'
 
-interface DbMessage {
+export interface DbMessage {
   sender_type: 'customer' | 'agent' | 'bot'
   content_type?: 'text' | 'audio' | 'image' | 'video'
   content_text: string | null
@@ -27,7 +27,7 @@ interface DbMessage {
  * a plain marker so the model at least knows a video/voice message
  * arrived, even without understanding its contents.
  */
-function resolveContent(m: DbMessage): string | null {
+export function resolveContent(m: DbMessage): string | null {
   if (m.content_type === 'image') {
     const parts = [m.content_text, m.ai_image_description]
       .map((p) => p?.trim())

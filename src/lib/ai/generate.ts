@@ -161,7 +161,7 @@ export async function generateClassification(
 /** Strip a ```json ... ``` (or bare ```) fence if the model wrapped its
  *  JSON in one despite being asked not to — cheap to tolerate, since a
  *  fenced-but-otherwise-valid response is still an unambiguous verdict. */
-function stripCodeFence(raw: string): string {
+export function stripCodeFence(raw: string): string {
   const trimmed = raw.trim()
   const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)
   return fenced ? fenced[1].trim() : trimmed
@@ -212,6 +212,38 @@ function parseClassification(raw: string): Omit<ClassificationResult, 'usage'> {
   } catch (err) {
     console.error('[ai lead-classify] failed to parse classification response:', err)
     return { score: null, reason: null, customerFacts: null }
+  }
+}
+
+/**
+ * Provider dispatch for one-off structured calls whose caller parses the
+ * raw text itself (the lead summary, src/lib/ai/lead-summary.ts). The
+ * same adapter switch as `generateReply` / `generateClassification`,
+ * minus their response parsing.
+ */
+export async function runProvider(
+  args: GenerateArgs,
+): Promise<{ text: string; usage: AiUsage | null }> {
+  const { config, systemPrompt, messages } = args
+  const providerArgs = {
+    apiKey: config.apiKey,
+    model: config.model,
+    systemPrompt,
+    messages,
+    timeoutMs: aiRequestTimeoutMs(),
+  }
+  switch (config.provider) {
+    case 'openai':
+      return generateOpenAi(providerArgs)
+    case 'anthropic':
+      return generateAnthropic(providerArgs)
+    case 'openrouter':
+      return generateOpenRouter(providerArgs)
+    default:
+      throw new AiError(`Unsupported AI provider: ${config.provider}`, {
+        code: 'unsupported_provider',
+        status: 400,
+      })
   }
 }
 

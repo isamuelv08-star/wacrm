@@ -20,8 +20,17 @@ export function extractMentionedUserIds(body: string, roster: TeamMember[]): str
   const candidates = [...roster]
     .filter((m) => m.name.trim().length >= 2)
     .sort((a, b) => b.name.length - a.name.length)
+  // Consume each matched span so a shorter name can't match INSIDE a
+  // longer one already resolved: with members "Pedro" and "Pedro Pérez",
+  // "@Pedro Pérez" must notify only the latter. A separate, standalone
+  // "@Pedro" elsewhere in the body still matches the shorter name.
+  let remaining = body
   for (const member of candidates) {
-    if (body.includes(`@${member.name}`)) found.add(member.userId)
+    const token = `@${member.name}`
+    if (remaining.includes(token)) {
+      found.add(member.userId)
+      remaining = remaining.split(token).join(' '.repeat(token.length))
+    }
   }
   return [...found]
 }

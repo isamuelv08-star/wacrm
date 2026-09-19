@@ -181,6 +181,14 @@ export const RATE_LIMITS = {
   /** Sidebar assistant, per account. Bounds the whole team's draws on
    *  the one shared BYO provider key, same rationale as aiDraftAccount. */
   aiAssistantAccount: { limit: 60, windowMs: 60_000 },
+  /** Lead executive summary (Contacts → Resumen tab), per user. Opening
+   *  the tab auto-generates only when a newer message exists, so normal
+   *  use is far below this; it bounds someone paging through many
+   *  stale leads quickly. */
+  aiLeadSummary: { limit: 15, windowMs: 60_000 },
+  /** Lead summary, per account — whole team's draws on the one shared
+   *  BYO provider key, same rationale as aiDraftAccount. */
+  aiLeadSummaryAccount: { limit: 40, windowMs: 60_000 },
   /** Email/password sign-in, per IP. 10/min is comfortable for a
    *  human who fat-fingered their password a couple of times, while
    *  bounding a script hammering the endpoint from one address.

@@ -1,4 +1,5 @@
 import {
+  AtSign,
   Bell,
   CalendarCheck,
   CalendarClock,
@@ -27,4 +28,5 @@ export const NOTIFICATION_TYPE_ICON: Record<Notification["type"], typeof Bell> =
   event_reminder: CalendarClock,
   appointment_booked: CalendarCheck,
   team_chat_mention: MessagesSquare,
+  contact_note_mention: AtSign,
 };
