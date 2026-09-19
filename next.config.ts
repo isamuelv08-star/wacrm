@@ -1,3 +1,4 @@
+import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 
@@ -174,4 +175,25 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withNextIntl(nextConfig);
+export default withSentryConfig(withNextIntl(nextConfig), {
+  org: "saleslid",
+  project: "javascript-nextjs",
+
+  // Only print source-map upload logs in CI.
+  silent: !process.env.CI,
+
+  // Upload a larger set of source maps for readable stack traces
+  // (increases build time).
+  widenClientFileUpload: true,
+
+  // Route browser -> Sentry requests through a same-origin rewrite so
+  // ad-blockers don't drop them. src/proxy.ts excludes this path from
+  // its matcher so the Supabase session logic doesn't run on it.
+  tunnelRoute: "/monitoring",
+
+  webpack: {
+    treeshake: {
+      removeDebugLogging: true,
+    },
+  },
+});
