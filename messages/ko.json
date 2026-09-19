@@ -2650,10 +2650,19 @@
     "desktopNotificationsBlocked": "브라우저에서 차단됨 — 사이트 설정에서 활성화하세요",
     "messagesGroupTitle": "새 메시지 {count}개",
     "qualificationGroupTitle": "리드 평가 업데이트 {count}개",
-    "groupUnread": "읽지 않음 {count}개"
+    "groupUnread": "읽지 않음 {count}개",
+    "soundOn": "소리 켜짐",
+    "soundOff": "소리 꺼짐"
   },
   "NotificationsToast": {
-    "manage": "관리"
+    "manage": "관리",
+    "assignedTitle": "새 리드가 배정되었습니다",
+    "assignedBody": "{name} 리드가 배정되었습니다. 최대한 빨리 응답하세요.",
+    "assignedBodyNoName": "새 리드가 배정되었습니다. 최대한 빨리 응답하세요.",
+    "enableTitle": "브라우저 알림 켜기",
+    "enableBody": "다른 탭에 있어도 새 리드와 배정을 알려드립니다.",
+    "enableAction": "켜기",
+    "enableDismiss": "나중에"
   },
   "TeamChat": {
     "page": {

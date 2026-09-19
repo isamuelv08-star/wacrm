@@ -23,11 +23,14 @@ export function useDesktopNotificationsSetting() {
     if (!supported) return;
     setPermission(Notification.permission);
     try {
-      const optedIn =
-        localStorage.getItem(DESKTOP_NOTIFICATIONS_STORAGE_KEY) === "true";
-      setEnabled(optedIn && Notification.permission === "granted");
+      // Same rule as isDesktopNotificationsEnabled: granted permission
+      // means on, unless the user explicitly turned it off.
+      const optedOut =
+        localStorage.getItem(DESKTOP_NOTIFICATIONS_STORAGE_KEY) === "false";
+      setEnabled(!optedOut && Notification.permission === "granted");
     } catch {
       // localStorage can throw in private-browsing / sandboxed contexts.
+      setEnabled(Notification.permission === "granted");
     }
   }, [supported]);
 

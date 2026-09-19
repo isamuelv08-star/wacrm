@@ -2650,10 +2650,19 @@
     "desktopNotificationsBlocked": "Blocked by the browser — enable it in the site settings",
     "messagesGroupTitle": "{count, plural, one {# new message} other {# new messages}}",
     "qualificationGroupTitle": "{count, plural, one {# qualification update} other {# qualification updates}}",
-    "groupUnread": "{count} unread"
+    "groupUnread": "{count} unread",
+    "soundOn": "Sound on",
+    "soundOff": "Sound off"
   },
   "NotificationsToast": {
-    "manage": "Manage"
+    "manage": "Manage",
+    "assignedTitle": "New lead assigned to you",
+    "assignedBody": "{name} was assigned to you. Reply as soon as you can.",
+    "assignedBodyNoName": "A new lead was assigned to you. Reply as soon as you can.",
+    "enableTitle": "Turn on browser notifications",
+    "enableBody": "Get alerted about new leads and assignments even when you're on another tab.",
+    "enableAction": "Turn on",
+    "enableDismiss": "Not now"
   },
   "TeamChat": {
     "page": {

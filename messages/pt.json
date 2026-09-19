@@ -2650,10 +2650,19 @@
     "desktopNotificationsBlocked": "Bloqueadas pelo navegador — ative nas configurações do site",
     "messagesGroupTitle": "{count, plural, one {# nova mensagem} other {# novas mensagens}}",
     "qualificationGroupTitle": "{count, plural, one {# atualização de qualificação} other {# atualizações de qualificação}}",
-    "groupUnread": "{count} não lidas"
+    "groupUnread": "{count} não lidas",
+    "soundOn": "Som ativado",
+    "soundOff": "Som desativado"
   },
   "NotificationsToast": {
-    "manage": "Gerenciar"
+    "manage": "Gerenciar",
+    "assignedTitle": "Novo lead atribuído a você",
+    "assignedBody": "{name} foi atribuído a você. Responda o quanto antes.",
+    "assignedBodyNoName": "Um novo lead foi atribuído a você. Responda o quanto antes.",
+    "enableTitle": "Ative as notificações do navegador",
+    "enableBody": "Seja avisado sobre novos leads e atribuições mesmo em outra aba.",
+    "enableAction": "Ativar",
+    "enableDismiss": "Agora não"
   },
   "TeamChat": {
     "page": {

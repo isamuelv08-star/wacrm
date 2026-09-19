@@ -22,13 +22,20 @@ export function isDesktopNotificationsSupported(): boolean {
   return typeof window !== "undefined" && "Notification" in window;
 }
 
+/**
+ * The browser's own permission is the real opt-in: once granted, the
+ * feature is on unless the user explicitly switched it off here
+ * ("false"). It used to require an explicit "true" flag too, which left
+ * anyone who had granted permission (e.g. via the browser's address-bar
+ * prompt) silently getting nothing.
+ */
 export function isDesktopNotificationsEnabled(): boolean {
   if (!isDesktopNotificationsSupported()) return false;
   if (Notification.permission !== "granted") return false;
   try {
-    return localStorage.getItem(DESKTOP_NOTIFICATIONS_STORAGE_KEY) === "true";
+    return localStorage.getItem(DESKTOP_NOTIFICATIONS_STORAGE_KEY) !== "false";
   } catch {
-    return false;
+    return true;
   }
 }
 

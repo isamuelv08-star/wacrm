@@ -6,10 +6,11 @@ import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import type { Notification } from "@/types";
-import { Bell, BellOff, BellRing, Loader2, Trash2 } from "lucide-react";
+import { Bell, BellOff, BellRing, Loader2, Trash2, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useDesktopNotificationsSetting } from "@/hooks/use-desktop-notifications";
+import { useNotificationSoundSetting } from "@/hooks/use-notification-sound";
 import { groupNotifications } from "@/lib/notifications/group-notifications";
 import { NotificationRow } from "@/components/notifications/notification-row";
 import { NotificationGroupRow } from "@/components/notifications/notification-group-row";
@@ -24,6 +25,7 @@ export default function NotificationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
   const desktopNotifications = useDesktopNotificationsSetting();
+  const sound = useNotificationSoundSetting();
 
   const load = useCallback(async () => {
     if (!accountId) return;
@@ -205,6 +207,10 @@ export default function NotificationsPage() {
                 : t("desktopNotificationsOff")}
             </Button>
           )}
+          <Button variant="outline" size="sm" onClick={sound.toggle}>
+            {sound.enabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+            {sound.enabled ? t("soundOn") : t("soundOff")}
+          </Button>
           <Button
             variant="outline"
             size="sm"

@@ -39,6 +39,9 @@ export function ThemedToaster() {
     <Toaster
       theme={isClient ? mode : DEFAULT_MODE}
       position="top-right"
+      // Assigned-lead toasts never auto-dismiss, so several can be up
+      // at once — sonner's default of 3 would hide the rest behind them.
+      visibleToasts={6}
       toastOptions={{
         style: {
           background: "var(--popover)",
