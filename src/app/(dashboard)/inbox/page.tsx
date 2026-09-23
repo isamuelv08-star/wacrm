@@ -20,6 +20,22 @@ import { useResizablePanel } from "@/hooks/use-resizable-panel";
 import { WifiOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+/**
+ * Same stale-while-revalidate contract the conversation-list cache
+ * above already uses (see lib/cache/view-cache.ts): switching INTO a
+ * thread paints its last-known messages on the very first frame
+ * instead of a spinner — MessageThread's own fetch (unconditional,
+ * every conversationId change) still runs and silently replaces this
+ * snapshot once it resolves. Without this, reopening a chat viewed
+ * seconds ago read as "the whole page reloading" even though nothing
+ * changed. A plain module-level function (not a hook) on purpose —
+ * it has no reactive state of its own, so it never needs to appear in
+ * a `useCallback`/`useEffect` dependency array.
+ */
+function messagesCacheKey(userId: string | undefined, conversationId: string): string | null {
+  return userId ? `inbox:messages:${userId}:${conversationId}` : null;
+}
+
 const LIST_WIDTH_STORAGE_KEY = "saleslid:inbox:list-width";
 const LIST_WIDTH_DEFAULT = 320;
 const LIST_WIDTH_MIN = 260;
@@ -527,7 +543,7 @@ function InboxPageInner() {
         if (match) {
           setActiveConversation(match);
           setActiveContact(match.contact ?? null);
-          setMessages([]);
+          setMessages(readViewCache<Message[]>(messagesCacheKey(user?.id, match.id)) ?? []);
           // Mirror the optimistic unread reset that handleSelectConversation
           // does — the user just deep-linked into this conv, treat that the
           // same as a click. Leaves activeConversation.unread_count alone so
@@ -542,7 +558,7 @@ function InboxPageInner() {
         }
       }
     },
-    [deepLinkConvId, activeConversation?.id]
+    [deepLinkConvId, activeConversation?.id, user?.id]
   );
 
   const handleSelectConversation = useCallback(
@@ -554,7 +570,7 @@ function InboxPageInner() {
       if (activeConversation?.id === conv.id) return;
       setActiveConversation(conv);
       setActiveContact(conv.contact ?? null);
-      setMessages([]);
+      setMessages(readViewCache<Message[]>(messagesCacheKey(user?.id, conv.id)) ?? []);
       // Optimistically clear the unread badge for this conv. The
       // server-side reset is fired by the unread-reset effect inside
       // MessageThread (which reads activeConversation.unread_count, not
@@ -584,7 +600,7 @@ function InboxPageInner() {
       // replace() to avoid polluting browser history with every click.
       router.replace(`/inbox?c=${conv.id}`, { scroll: false });
     },
-    [activeConversation?.id, router]
+    [activeConversation?.id, router, user?.id]
   );
 
   // Mobile "back" — deselect the conversation so the list pane comes
@@ -601,9 +617,20 @@ function InboxPageInner() {
   }, [router]);
 
 
-  const handleMessagesLoaded = useCallback((loaded: Message[]) => {
-    setMessages(loaded);
-  }, []);
+  const handleMessagesLoaded = useCallback(
+    (loaded: Message[]) => {
+      setMessages(loaded);
+      // MessageThread only calls this for the conversation it's
+      // currently fetching (its effect cancels a stale in-flight fetch
+      // whenever conversationId changes — see its own comment), so
+      // `activeConversation` here is always the right key.
+      const activeId = activeConversation?.id;
+      if (activeId) {
+        writeViewCache(messagesCacheKey(user?.id, activeId), loaded);
+      }
+    },
+    [activeConversation, user?.id],
+  );
 
   const handleNewMessage = useCallback((msg: Message) => {
     setMessages((prev) => {

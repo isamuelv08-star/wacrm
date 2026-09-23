@@ -1249,7 +1249,13 @@ export function MessageThread({
         {conversation.ad_referral && (
           <AdReferralCard referral={conversation.ad_referral} />
         )}
-        {conversationId !== loadedConversationId ? (
+        {conversationId !== loadedConversationId && messages.length === 0 ? (
+          // No spinner when the parent already handed us a cached
+          // snapshot for this conversation (see inbox/page.tsx's
+          // messagesCacheKey) — the fetch below still runs and will
+          // silently replace `messages` once it resolves; only a
+          // genuine first-ever view of this thread (empty cache) still
+          // shows the spinner.
           <div className="flex items-center justify-center py-12">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           </div>
