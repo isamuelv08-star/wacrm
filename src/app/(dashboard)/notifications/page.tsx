@@ -117,6 +117,8 @@ export default function NotificationsPage() {
       if (!n.read_at) markRead(n.id);
       if (n.conversation_id) {
         router.push(`/inbox?c=${n.conversation_id}`);
+      } else if (n.type === "ai_provider_error") {
+        router.push("/agents");
       }
     },
     [markRead, router],

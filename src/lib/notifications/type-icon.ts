@@ -9,6 +9,7 @@ import {
   Snowflake,
   Sparkles,
   Star,
+  TriangleAlert,
   UserPlus,
   UserRoundPlus,
 } from "lucide-react";
@@ -29,4 +30,5 @@ export const NOTIFICATION_TYPE_ICON: Record<Notification["type"], typeof Bell> =
   appointment_booked: CalendarCheck,
   team_chat_mention: MessagesSquare,
   contact_note_mention: AtSign,
+  ai_provider_error: TriangleAlert,
 };

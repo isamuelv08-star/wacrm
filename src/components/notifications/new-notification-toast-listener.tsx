@@ -71,6 +71,7 @@ export function NewNotificationToastListener() {
 
     const targetFor = (row: AppNotification): string | null => {
       if (row.type === "team_chat_mention") return "/team-chat";
+      if (row.type === "ai_provider_error") return "/agents";
       if (row.conversation_id) return `/inbox?c=${row.conversation_id}`;
       if (row.type === "contact_note_mention") return "/contacts";
       return null;

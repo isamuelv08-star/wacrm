@@ -376,7 +376,11 @@ export type NotificationType =
   /** Someone @-mentioned you in the internal team chat (migration 090). */
   | 'team_chat_mention'
   /** Someone @-mentioned you in a contact note (migration 099). */
-  | 'contact_note_mention';
+  | 'contact_note_mention'
+  /** The account's AI provider key stopped working — bad/expired key,
+   *  out of credits, or an outage (migration 103). See
+   *  src/lib/ai/provider-alert.ts. */
+  | 'ai_provider_error';
 
 export interface Notification {
   id: string;

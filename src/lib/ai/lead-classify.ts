@@ -5,6 +5,7 @@ import { buildConversationContext } from './context'
 import { buildClassificationPrompt } from './defaults'
 import { generateClassification, type CustomerFacts } from './generate'
 import { applyLeadScore } from './lead-scoring'
+import { isAiError, notifyProviderErrorIfNeeded } from './provider-alert'
 import { logAiUsage } from './usage'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 
@@ -81,11 +82,18 @@ export async function classifyLeadIfNeeded(args: ClassifyArgs): Promise<void> {
       qualificationCriteria: config.qualificationCriteria,
     })
 
-    const { score, reason, customerFacts, usage } = await generateClassification({
-      config,
-      systemPrompt,
-      messages,
-    })
+    const { score, reason, customerFacts, usage } = await (async () => {
+      try {
+        return await generateClassification({ config, systemPrompt, messages })
+      } catch (err) {
+        // Same dead-key alert as auto-reply/observer (provider-alert.ts)
+        // — an account that never turned auto-reply on still relies on
+        // THIS call for lead scoring, so it needs the same visibility
+        // when the key stops working.
+        if (isAiError(err)) await notifyProviderErrorIfNeeded(db, accountId, err)
+        throw err
+      }
+    })()
 
     void logAiUsage(db, {
       accountId,

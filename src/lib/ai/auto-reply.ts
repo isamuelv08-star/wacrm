@@ -17,6 +17,7 @@ import { describeNowInZone } from './timezone'
 import { logAiUsage } from './usage'
 import { latestUserMessage } from './query'
 import { aiSilenceReason } from './reply-gate'
+import { isAiError, notifyProviderErrorIfNeeded } from './provider-alert'
 import { engineSendText, resolveSendContext } from '@/lib/flows/meta-send'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 import { pickRoundRobinAgent } from '@/lib/assignment/round-robin'
@@ -309,12 +310,22 @@ export async function dispatchInboundToAiReply(
       usage,
     } = await (async () => {
       const beforeLlm = Date.now()
-      const result = await generateReply({ config, systemPrompt, messages })
-      console.log(
-        `[ai auto-reply] conversation ${conversationId}: provider call took ${Date.now() - beforeLlm}ms ` +
-          `(${beforeLlm - dispatchStartedAt}ms of DB/knowledge work before it, ${Date.now() - dispatchStartedAt}ms total so far)`,
-      )
-      return result
+      try {
+        const result = await generateReply({ config, systemPrompt, messages })
+        console.log(
+          `[ai auto-reply] conversation ${conversationId}: provider call took ${Date.now() - beforeLlm}ms ` +
+            `(${beforeLlm - dispatchStartedAt}ms of DB/knowledge work before it, ${Date.now() - dispatchStartedAt}ms total so far)`,
+        )
+        return result
+      } catch (err) {
+        // A dead key (expired, out of credits, revoked) fails the exact
+        // same way on every future inbound — without this, that's a
+        // silent, permanent outage with nothing in the product pointing
+        // at the cause. Re-thrown so the outer catch's existing
+        // console.error + silent-return behavior is unchanged.
+        if (isAiError(err)) await notifyProviderErrorIfNeeded(db, accountId, err)
+        throw err
+      }
     })()
 
     // Record token spend on the account's BYO key. Fire-and-forget so it

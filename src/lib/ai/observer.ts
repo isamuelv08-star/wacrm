@@ -5,6 +5,7 @@ import { buildConversationContext } from './context'
 import { applyContactName } from './contact-actions'
 import { runProvider, stripCodeFence } from './generate'
 import { aiSilenceReason } from './reply-gate'
+import { isAiError, notifyProviderErrorIfNeeded } from './provider-alert'
 import { applySalesActions, loadDealStageContext } from './sales-actions'
 import { applyScheduledEvent } from './scheduling-actions'
 import { describeNowInZone } from './timezone'
@@ -308,17 +309,27 @@ export async function observeConversationIfNeeded(args: ObserveArgs): Promise<vo
     // Nothing to fill in → no reason to pay for a provider call.
     if (!needsContactName && !dealContext.hasOpenDeal && !nowLabel) return
 
-    const { text, usage } = await runProvider({
-      config,
-      systemPrompt: buildObserverPrompt({
-        userPrompt: config.systemPrompt,
-        salesMode,
-        hasOpenDeal: dealContext.hasOpenDeal,
-        needsContactName,
-        nowLabel,
-      }),
-      messages: [{ role: 'user', content: buildObserverTranscript(messages) }],
-    })
+    const { text, usage } = await (async () => {
+      try {
+        return await runProvider({
+          config,
+          systemPrompt: buildObserverPrompt({
+            userPrompt: config.systemPrompt,
+            salesMode,
+            hasOpenDeal: dealContext.hasOpenDeal,
+            needsContactName,
+            nowLabel,
+          }),
+          messages: [{ role: 'user', content: buildObserverTranscript(messages) }],
+        })
+      } catch (err) {
+        // Same dead-key alert as auto-reply — an account that turned
+        // observer mode on but not auto-reply would otherwise have NO
+        // provider call ever surface a bad key anywhere.
+        if (isAiError(err)) await notifyProviderErrorIfNeeded(db, accountId, err)
+        throw err
+      }
+    })()
 
     void logAiUsage(db, {
       accountId,

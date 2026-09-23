@@ -11,6 +11,7 @@ const h = vi.hoisted(() => ({
   resolveSendContext: vi.fn(),
   applyLeadScore: vi.fn(),
   ensureDealInQualifiedStage: vi.fn(),
+  notifyProviderErrorIfNeeded: vi.fn(),
   state: {
     conv: null as Record<string, unknown> | null,
     autoResponders: [] as { id: string }[],
@@ -44,6 +45,12 @@ vi.mock('@/lib/flows/meta-send', () => ({
 vi.mock('./lead-scoring', () => ({
   applyLeadScore: h.applyLeadScore,
   ensureDealInQualifiedStage: h.ensureDealInQualifiedStage,
+}))
+// `isAiError` stays real (a plain `instanceof` check on the real
+// `AiError` class) — only the DB-writing/notifying half is mocked.
+vi.mock('./provider-alert', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./provider-alert')>()),
+  notifyProviderErrorIfNeeded: h.notifyProviderErrorIfNeeded,
 }))
 vi.mock('./admin-client', () => ({
   supabaseAdmin: () => ({
@@ -156,6 +163,7 @@ beforeEach(() => {
   })
   h.applyLeadScore.mockReset()
   h.ensureDealInQualifiedStage.mockReset()
+  h.notifyProviderErrorIfNeeded.mockReset()
 })
 
 describe('dispatchInboundToAiReply — eligibility gates', () => {
@@ -426,5 +434,34 @@ describe('dispatchInboundToAiReply — lead scoring', () => {
     h.generateReply.mockResolvedValue({ text: 'Sounds great!', handoff: false })
     await dispatchInboundToAiReply(ARGS)
     expect(h.applyLeadScore).not.toHaveBeenCalled()
+  })
+})
+
+describe('dispatchInboundToAiReply — provider failure', () => {
+  // The exact bug that shipped this: a dead/out-of-credit key used to
+  // fail silently forever, indistinguishable from any other reason the
+  // bot went quiet. Every provider (OpenAI, Anthropic, OpenRouter)
+  // throws the same AiError shape, so one code path covers all three.
+  it('alerts on a provider failure and still stands down quietly (no crash, no send)', async () => {
+    const { AiError } = await import('./types')
+    h.generateReply.mockRejectedValue(
+      new AiError('Anthropic rejected the API key', { code: 'invalid_key', status: 401 }),
+    )
+    await expect(dispatchInboundToAiReply(ARGS)).resolves.toBeUndefined()
+    expect(h.notifyProviderErrorIfNeeded).toHaveBeenCalledTimes(1)
+    const [, accountId, err] = h.notifyProviderErrorIfNeeded.mock.calls[0]
+    expect(accountId).toBe(ARGS.accountId)
+    expect(err).toBeInstanceOf(AiError)
+    expect(err.message).toBe('Anthropic rejected the API key')
+    expect(h.engineSendText).not.toHaveBeenCalled()
+  })
+
+  // A bug in our own code (bad DB row, thrown TypeError) must never be
+  // misreported to the account as "check your provider key".
+  it('does not alert on a non-AiError failure', async () => {
+    h.generateReply.mockRejectedValue(new TypeError('unexpected shape'))
+    await expect(dispatchInboundToAiReply(ARGS)).resolves.toBeUndefined()
+    expect(h.notifyProviderErrorIfNeeded).not.toHaveBeenCalled()
+    expect(h.engineSendText).not.toHaveBeenCalled()
   })
 })
