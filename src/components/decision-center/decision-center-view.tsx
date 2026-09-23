@@ -9,7 +9,9 @@ import { rangeForPreset, type PeriodPreset } from "@/lib/period";
 import { PeriodSelector } from "@/components/period-selector";
 import { MetricCard, type MetricCardTint } from "@/components/dashboard/metric-card";
 import { SkeletonCard } from "@/components/dashboard/skeleton";
+import { InsightsPanel } from "@/components/dashboard/insights-panel";
 import { Card, CardContent } from "@/components/ui/card";
+import type { Insight } from "@/lib/sales-intelligence/insights";
 
 // ============================================================
 // Centro de Decisiones — client-side content. The role gate already
@@ -50,6 +52,7 @@ interface DecisionCenterResponse {
   range: { label: PeriodPreset; start: string; end: string };
   kpis: DecisionCenterKpis;
   interpretation: string;
+  decisions: Insight[];
 }
 
 function todayIso(): string {
@@ -237,6 +240,17 @@ export function DecisionCenterView() {
             </CardContent>
           </Card>
         )}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          {t("decisionsTitle")}
+        </h2>
+        <InsightsPanel
+          insights={data?.decisions ?? null}
+          loading={loading}
+          currency={defaultCurrency}
+        />
       </section>
     </div>
   );

@@ -3227,6 +3227,7 @@
     "noChange": "변동 없음",
     "noComparison": "이전 기간 데이터 없음",
     "points": "포인트",
-    "interpretationTitle": "무슨 일이 일어나고 있나요?"
+    "interpretationTitle": "무슨 일이 일어나고 있나요?",
+    "decisionsTitle": "우선순위 결정"
   }
 }

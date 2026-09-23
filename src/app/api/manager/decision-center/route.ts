@@ -3,7 +3,15 @@ import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 import { cachedForAccount, CACHE_TTL } from '@/lib/cache/account-cache'
 import { rangeForPreset, type PeriodPreset } from '@/lib/period'
-import { loadCeoMetrics, loadPeriodCommercialTrend } from '@/lib/dashboard/ceo-queries'
+import {
+  loadCeoMetrics,
+  loadCeoAlerts,
+  loadPeriodCommercialTrend,
+  countHotLeadsUnanswered,
+} from '@/lib/dashboard/ceo-queries'
+import { loadNextBestActions, countOverduePromises } from '@/lib/sales-intelligence/queries'
+import { loadRecoveryCandidates } from '@/lib/sales-intelligence/recovery'
+import { buildInsights, type Insight } from '@/lib/sales-intelligence/insights'
 import { loadAiConfig } from '@/lib/ai/config'
 import { logAiUsage } from '@/lib/ai/usage'
 import { supabaseAdmin } from '@/lib/ai/admin-client'
@@ -13,6 +21,13 @@ import {
   buildDeterministicInterpretation,
   generateExecutiveInterpretation,
 } from '@/lib/decision-center/interpretation'
+
+// Same default the ceo-summary route uses for the Alerts card and
+// buildInsights — "Decisiones" is a CURRENT-STATE feed (stalled
+// deals, forecast gap, broken promises...), not tied to the manager's
+// KPI period selector, matching how AlertsCard/InsightsPanel already
+// behave on /dashboard regardless of any date picker there.
+const STALE_DAYS_DEFAULT = 7
 
 /**
  * GET /api/manager/decision-center?preset=last7Days[&start=...&end=...]
@@ -108,12 +123,44 @@ export async function GET(request: Request) {
       },
     )
 
-    const { kpis, interpretation } = await getData()
+    // Not period-dependent — its own cache entry, same TTL, computed
+    // once per account regardless of which KPI period is selected.
+    // Every input here is a function `/dashboard`'s "Saleslid detectó"
+    // panel already calls; buildInsights just re-packages them (see
+    // its own doc comment) into the 3-5 prioritized "Decisiones" the
+    // brief asked for — no new detection logic, no new query beyond
+    // what ceo-summary's route already assembles the same way.
+    const getDecisions = cachedForAccount(
+      [accountId, 'decision-center-decisions'],
+      CACHE_TTL.decisionCenter,
+      async (): Promise<Insight[]> => {
+        const thisMonthMetrics = await loadCeoMetrics(supabase, rangeForPreset('thisMonth'))
+        const [alerts, hotUnanswered, nextBestActions, recoveryCandidates, overduePromiseCount] =
+          await Promise.all([
+            loadCeoAlerts(supabase, thisMonthMetrics, STALE_DAYS_DEFAULT),
+            countHotLeadsUnanswered(supabase),
+            loadNextBestActions(supabase, STALE_DAYS_DEFAULT),
+            loadRecoveryCandidates(supabase),
+            countOverduePromises(supabase),
+          ])
+        return buildInsights({
+          alerts,
+          hotUnanswered,
+          nextBestActions,
+          recovery: recoveryCandidates,
+          staleDays: STALE_DAYS_DEFAULT,
+          overduePromiseCount,
+        })
+      },
+    )
+
+    const [{ kpis, interpretation }, decisions] = await Promise.all([getData(), getDecisions()])
 
     return NextResponse.json({
       range: { label: range.label, start: range.start.toISOString(), end: range.end.toISOString() },
       kpis,
       interpretation,
+      decisions,
     })
   } catch (err) {
     return toErrorResponse(err)

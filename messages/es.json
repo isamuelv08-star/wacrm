@@ -3227,6 +3227,7 @@
     "noChange": "Sin cambios",
     "noComparison": "Sin datos del período anterior",
     "points": "puntos",
-    "interpretationTitle": "¿Qué está pasando?"
+    "interpretationTitle": "¿Qué está pasando?",
+    "decisionsTitle": "Decisiones prioritarias"
   }
 }
