@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { DollarSign, Flame, Target, Users2, Wallet } from "lucide-react";
+import { DollarSign, Flame, Sparkles, Target, Users2, Wallet } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { formatCurrency } from "@/lib/currency";
 import { rangeForPreset, type PeriodPreset } from "@/lib/period";
 import { PeriodSelector } from "@/components/period-selector";
 import { MetricCard, type MetricCardTint } from "@/components/dashboard/metric-card";
 import { SkeletonCard } from "@/components/dashboard/skeleton";
+import { Card, CardContent } from "@/components/ui/card";
 
 // ============================================================
 // Centro de Decisiones — client-side content. The role gate already
@@ -48,6 +49,7 @@ interface DecisionCenterKpis {
 interface DecisionCenterResponse {
   range: { label: PeriodPreset; start: string; end: string };
   kpis: DecisionCenterKpis;
+  interpretation: string;
 }
 
 function todayIso(): string {
@@ -219,6 +221,22 @@ export function DecisionCenterView() {
             </>
           )}
         </div>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          {t("interpretationTitle")}
+        </h2>
+        {loading || !data ? (
+          <SkeletonCard />
+        ) : (
+          <Card>
+            <CardContent className="flex items-start gap-3 pt-6">
+              <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+              <p className="text-sm leading-relaxed text-foreground">{data.interpretation}</p>
+            </CardContent>
+          </Card>
+        )}
       </section>
     </div>
   );

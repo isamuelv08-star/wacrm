@@ -193,6 +193,14 @@ export const RATE_LIMITS = {
   /** Lead summary, per account — whole team's draws on the one shared
    *  BYO provider key, same rationale as aiDraftAccount. */
   aiLeadSummaryAccount: { limit: 40, windowMs: 60_000 },
+  /** Centro de Decisiones — executive interpretation wording, per user.
+   *  Only fires on a cache miss (CACHE_TTL.decisionCenter, 5 min per
+   *  account+period), so real usage is far below this; it just bounds
+   *  someone rapidly switching between many custom period selections. */
+  aiDecisionCenter: { limit: 10, windowMs: 60_000 },
+  /** Decision Center interpretation, per account — same rationale as
+   *  aiDraftAccount. */
+  aiDecisionCenterAccount: { limit: 20, windowMs: 60_000 },
   /** Email/password sign-in, per IP. 10/min is comfortable for a
    *  human who fat-fingered their password a couple of times, while
    *  bounding a script hammering the endpoint from one address.

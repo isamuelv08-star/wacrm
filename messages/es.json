@@ -3226,6 +3226,7 @@
     "vsPreviousPeriod": "vs. el período anterior",
     "noChange": "Sin cambios",
     "noComparison": "Sin datos del período anterior",
-    "points": "puntos"
+    "points": "puntos",
+    "interpretationTitle": "¿Qué está pasando?"
   }
 }
