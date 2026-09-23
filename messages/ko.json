@@ -1066,6 +1066,11 @@
       "reportColDeals": "딜 수",
       "reportColValue": "금액",
       "toastPopupBlocked": "브라우저가 리포트 창을 차단했습니다 — 이 사이트의 팝업을 허용한 후 다시 시도해주세요."
+    },
+    "leadSummarySheet": {
+      "goToConversation": "대화로 이동",
+      "editDeal": "거래 편집",
+      "noContact": "연결된 연락처 없음"
     }
   },
   "Broadcasts": {

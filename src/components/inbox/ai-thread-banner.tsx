@@ -47,6 +47,11 @@ export function AiThreadBanner({
   const t = useTranslations("Inbox.aiBanner");
   const { accountId } = useAuth();
   const [autoReplyOn, setAutoReplyOn] = useState<boolean | null>(null);
+  // Migration 102 default: a nominal assignee (every new conversation
+  // gets one from round-robin) does NOT stop the bot from answering.
+  // Starts true so the banner doesn't flash "no banner" for the one
+  // fetch round-trip before this loads.
+  const [replyWhenAssigned, setReplyWhenAssigned] = useState(true);
   const [busy, setBusy] = useState(false);
   // Optimistic local mirror of the pause flag so the banner flips
   // instantly on click; re-seeds whenever the thread (or its server
@@ -57,7 +62,11 @@ export function AiThreadBanner({
   useEffect(() => {
     if (!accountId) return;
     let alive = true;
-    fetchAiAccountStatus(accountId).then((s) => alive && setAutoReplyOn(s.autoReplyOn));
+    fetchAiAccountStatus(accountId).then((s) => {
+      if (!alive) return;
+      setAutoReplyOn(s.autoReplyOn);
+      setReplyWhenAssigned(s.replyWhenAssigned);
+    });
     return () => {
       alive = false;
     };
@@ -116,8 +125,12 @@ export function AiThreadBanner({
     );
   }
 
-  // Active, but a human already owns it → the bot won't fire; no banner.
-  if (assignedAgentId) return null;
+  // Active, but a human already owns it AND this account kept the old
+  // "assigned means hands off" rule → the bot won't fire; no banner.
+  // Under the migration 102 default (replyWhenAssigned=true, the common
+  // case since round-robin stamps an assignee on every new lead), the
+  // bot answers regardless, so the banner falls through and shows.
+  if (assignedAgentId && !replyWhenAssigned) return null;
 
   // Active on this thread.
   return (

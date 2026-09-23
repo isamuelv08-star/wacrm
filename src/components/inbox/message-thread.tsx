@@ -228,7 +228,25 @@ export function MessageThread({
 
   const { user } = useAuth();
   const { getPresence, getRow, now } = usePresence();
-  const [loading, setLoading] = useState(false);
+  // Which conversation's messages the `messages` prop currently holds
+  // real data for — null until the very first fetch resolves. Compared
+  // against `conversationId` at render time (see the "loading" branch
+  // below) instead of a `useEffect`-driven boolean, because that
+  // comparison is available in the SAME render the parent hands down a
+  // new `conversation` prop. A `loading` boolean set inside the fetch
+  // effect necessarily lags one render behind a conversation switch —
+  // the parent's `setMessages([])` (inbox/page.tsx's
+  // handleSelectConversation) already commits with the new conversation
+  // in that same render, so there used to be one frame where `loading`
+  // was still false and `messages` was already empty: the thread
+  // flashed "No messages yet" before the spinner even appeared. This
+  // also means a `resyncToken` bump (reconnect/manual refresh) on the
+  // SAME conversation never blanks the thread either — it only differs
+  // from the current value the first time a given conversation is
+  // fetched.
+  const [loadedConversationId, setLoadedConversationId] = useState<
+    string | null
+  >(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -371,8 +389,6 @@ export function MessageThread({
     let cancelled = false;
 
     (async () => {
-      setLoading(true);
-
       // Explicit descending + limit, reversed back to ascending below —
       // NOT the same as ordering ascending with no limit. PostgREST (and
       // therefore Supabase) silently caps a response with no explicit
@@ -404,7 +420,10 @@ export function MessageThread({
         onMessagesLoadedRef.current([...(data ?? [])].reverse());
       }
 
-      if (!cancelled) setLoading(false);
+      // Marks this conversation "loaded" whether the fetch succeeded or
+      // failed — an error must still clear the spinner instead of
+      // leaving the thread stuck loading forever.
+      setLoadedConversationId(conversationId);
     })();
 
     return () => {
@@ -1223,7 +1242,7 @@ export function MessageThread({
         {conversation.ad_referral && (
           <AdReferralCard referral={conversation.ad_referral} />
         )}
-        {loading ? (
+        {conversationId !== loadedConversationId ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           </div>

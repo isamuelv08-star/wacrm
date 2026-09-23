@@ -1066,6 +1066,11 @@
       "reportColDeals": "Deals",
       "reportColValue": "Value",
       "toastPopupBlocked": "Your browser blocked the report window — allow pop-ups for this site and try again."
+    },
+    "leadSummarySheet": {
+      "goToConversation": "Go to conversation",
+      "editDeal": "Edit deal",
+      "noContact": "No linked contact"
     }
   },
   "Broadcasts": {

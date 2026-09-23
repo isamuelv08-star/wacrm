@@ -7,6 +7,7 @@ import type { ConversationStaleness } from "@/lib/pipelines/lead-staleness";
 import { PipelineBoard } from "@/components/pipelines/pipeline-board";
 import { PipelineSettings } from "@/components/pipelines/pipeline-settings";
 import { DealForm } from "@/components/pipelines/deal-form";
+import { LeadSummarySheet } from "@/components/pipelines/lead-summary-sheet";
 import { PipelineAnalytics } from "@/components/pipelines/pipeline-analytics";
 import { Button } from "@/components/ui/button";
 import {
@@ -414,6 +415,17 @@ export default function PipelinesPage() {
     setDealFormOpen(true);
   }, []);
 
+  // Clicking a card opens the read-first lead summary (LeadSummarySheet)
+  // instead of jumping straight to the edit form — the summary itself
+  // offers an "Edit deal" button that calls handleEditDeal above, so
+  // editing is still one click away, just no longer the default.
+  const [summaryDeal, setSummaryDeal] = useState<Deal | null>(null);
+  const [summarySheetOpen, setSummarySheetOpen] = useState(false);
+  const handleOpenDealSummary = useCallback((deal: Deal) => {
+    setSummaryDeal(deal);
+    setSummarySheetOpen(true);
+  }, []);
+
   async function handleCreatePipeline() {
     const name = newPipelineName.trim();
     if (!name) return;
@@ -618,7 +630,7 @@ export default function PipelinesPage() {
             deals={visibleDeals}
             onDealMoved={handleDealMoved}
             onAddDeal={handleAddDeal}
-            onEditDeal={handleEditDeal}
+            onEditDeal={handleOpenDealSummary}
             conversationStaleness={conversationStaleness}
             groupByDate={groupByDate}
           />
@@ -690,6 +702,14 @@ export default function PipelinesPage() {
         stages={stages}
         defaultStageId={defaultStageId}
         onSaved={refreshDeals}
+      />
+
+      {/* Lead summary (Sheet) — what a card click opens by default. */}
+      <LeadSummarySheet
+        deal={summaryDeal}
+        open={summarySheetOpen}
+        onOpenChange={setSummarySheetOpen}
+        onEdit={handleEditDeal}
       />
     </div>
   );

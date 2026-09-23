@@ -18,6 +18,14 @@
 // whole session.
 export interface AiAccountStatus {
   autoReplyOn: boolean;
+  /** `ai_configs.ai_reply_when_assigned` (migration 102). True (the
+   *  default) means a nominal `assigned_agent_id` — stamped on every new
+   *  conversation by round-robin — does NOT stop the bot from answering.
+   *  AiThreadBanner reads this so it only hides the "AI is replying"
+   *  banner on an assigned thread for accounts that explicitly kept the
+   *  old "assigned means hands off" rule; see aiSilenceReason's doc
+   *  comment (reply-gate.ts) for the same logic on the server side. */
+  replyWhenAssigned: boolean;
 }
 const statusCache = new Map<string, AiAccountStatus>();
 
@@ -26,17 +34,20 @@ export async function fetchAiAccountStatus(accountId: string): Promise<AiAccount
   if (cached) return cached;
   try {
     const res = await fetch("/api/ai/config", { cache: "no-store" });
-    if (!res.ok) return { autoReplyOn: false }; // don't cache a transient failure
+    if (!res.ok) return { autoReplyOn: false, replyWhenAssigned: true }; // don't cache a transient failure
     const j = await res.json();
     const status = {
       // AI auto-reply is "live" only when configured, the master switch
       // is on, and the inbound bot is enabled.
       autoReplyOn: !!(j?.configured && j?.is_active && j?.auto_reply_enabled),
+      // Missing field (older payload) or null reads as the same default
+      // the server uses — only an explicit `false` narrows it.
+      replyWhenAssigned: j?.ai_reply_when_assigned !== false,
     };
     statusCache.set(accountId, status);
     return status;
   } catch {
-    return { autoReplyOn: false }; // don't cache
+    return { autoReplyOn: false, replyWhenAssigned: true }; // don't cache
   }
 }
 

@@ -1066,6 +1066,11 @@
       "reportColDeals": "Negócios",
       "reportColValue": "Valor",
       "toastPopupBlocked": "Seu navegador bloqueou a janela do relatório — permita pop-ups para este site e tente novamente."
+    },
+    "leadSummarySheet": {
+      "goToConversation": "Ir para conversa",
+      "editDeal": "Editar negócio",
+      "noContact": "Sem contato vinculado"
     }
   },
   "Broadcasts": {
