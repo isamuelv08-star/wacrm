@@ -13,6 +13,7 @@ import { InsightsPanel } from "@/components/dashboard/insights-panel";
 import { MoneyAtRiskCard } from "@/components/dashboard/ceo/money-at-risk-card";
 import { RecoveryCard } from "@/components/dashboard/recovery-card";
 import { NextBestActionCard } from "@/components/dashboard/next-best-action-card";
+import { AskSaleslid } from "./ask-saleslid";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Insight } from "@/lib/sales-intelligence/insights";
 import type { SellerPeriodPerformance } from "@/lib/dashboard/ceo-queries";
@@ -408,6 +409,13 @@ export function DecisionCenterView() {
           loading={loading}
           currency={defaultCurrency}
         />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          {t("askTitle")}
+        </h2>
+        <AskSaleslid preset={preset} customStart={customStart} customEnd={customEnd} />
       </section>
     </div>
   );

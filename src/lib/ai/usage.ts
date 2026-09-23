@@ -14,6 +14,7 @@ export interface LogAiUsageArgs {
     | 'lead_summary'
     | 'observe'
     | 'decision_center_interpretation'
+    | 'decision_center_ask'
   provider: AiProvider
   model: string
   /** Provider usage; a no-op when null (nothing worth recording). */

@@ -201,6 +201,15 @@ export const RATE_LIMITS = {
   /** Decision Center interpretation, per account — same rationale as
    *  aiDraftAccount. */
   aiDecisionCenterAccount: { limit: 20, windowMs: 60_000 },
+  /** "Pregunta a Saleslid" (Centro de Decisiones Q&A), per user. Not
+   *  cache-bounded like the interpretation call — every question is a
+   *  real provider call — so this is the primary guard against
+   *  someone hammering the box; matches aiAssistant's own budget for
+   *  the same shape of usage (a person typing questions). */
+  aiDecisionCenterAsk: { limit: 20, windowMs: 60_000 },
+  /** Decision Center Q&A, per account — same rationale as
+   *  aiAssistantAccount. */
+  aiDecisionCenterAskAccount: { limit: 60, windowMs: 60_000 },
   /** Email/password sign-in, per IP. 10/min is comfortable for a
    *  human who fat-fingered their password a couple of times, while
    *  bounding a script hammering the endpoint from one address.

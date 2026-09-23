@@ -3241,6 +3241,12 @@
     "lostColumn": "Perdidos",
     "biggestDeclineFlag": "Maior queda",
     "biggestImprovementFlag": "Maior melhora",
-    "todayPrioritiesTitle": "O que você deveria fazer hoje"
+    "todayPrioritiesTitle": "O que você deveria fazer hoje",
+    "askTitle": "Pergunte ao Saleslid",
+    "askPlaceholder": "Ex.: qual vendedor está com mais risco esta semana?",
+    "askEvidence": "Evidência",
+    "askRecommendation": "Recomendação",
+    "askError": "Não foi possível obter uma resposta. Tente novamente.",
+    "askNotConfigured": "A IA ainda não está configurada. Ative em Configurações → Assistente de IA."
   }
 }

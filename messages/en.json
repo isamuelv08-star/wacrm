@@ -3241,6 +3241,12 @@
     "lostColumn": "Lost",
     "biggestDeclineFlag": "Biggest decline",
     "biggestImprovementFlag": "Biggest improvement",
-    "todayPrioritiesTitle": "What you should do today"
+    "todayPrioritiesTitle": "What you should do today",
+    "askTitle": "Ask Saleslid",
+    "askPlaceholder": "E.g.: which seller is most at risk this week?",
+    "askEvidence": "Evidence",
+    "askRecommendation": "Recommendation",
+    "askError": "Could not get an answer. Try again.",
+    "askNotConfigured": "AI is not configured yet. Enable it in Settings → AI Assistant."
   }
 }
