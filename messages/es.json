@@ -3249,6 +3249,7 @@
     "askRecommendation": "Recomendación",
     "askError": "No se pudo obtener una respuesta. Intenta de nuevo.",
     "askNotConfigured": "La IA no está configurada todavía. Actívala en Configuración → Asistente de IA.",
-    "avgTicketColumn": "Ticket promedio"
+    "avgTicketColumn": "Ticket promedio",
+    "showWhy": "Ver por qué"
   }
 }

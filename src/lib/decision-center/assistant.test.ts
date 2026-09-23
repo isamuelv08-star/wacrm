@@ -12,6 +12,8 @@ const emptyPayload: DecisionCenterPayload = {
     opportunities: { current: 5, previous: 4 },
   },
   interpretation: 'Las ventas subieron 25.0% frente al período anterior.',
+  interpretationEvidence: [],
+  interpretationRecommendation: null,
   decisions: [],
   decisionActions: [],
   todayPriorities: [],

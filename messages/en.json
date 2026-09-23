@@ -3249,6 +3249,7 @@
     "askRecommendation": "Recommendation",
     "askError": "Could not get an answer. Try again.",
     "askNotConfigured": "AI is not configured yet. Enable it in Settings → AI Assistant.",
-    "avgTicketColumn": "Avg. ticket"
+    "avgTicketColumn": "Avg. ticket",
+    "showWhy": "See why"
   }
 }

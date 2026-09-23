@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildDeterministicInterpretation,
   buildInterpretationEvidence,
+  buildInterpretationRecommendation,
   parseInterpretationResponse,
   pickHeadlineEvidence,
 } from './interpretation'
@@ -116,5 +117,59 @@ describe('parseInterpretationResponse', () => {
 
   it('returns null when the interpretation field is missing', () => {
     expect(parseInterpretationResponse(JSON.stringify({ foo: 'bar' }))).toBeNull()
+  })
+})
+
+describe('buildInterpretationRecommendation', () => {
+  it('ties the recommendation to the worst-declining metric, not a generic message', () => {
+    const evidence = buildInterpretationEvidence(kpis({ conversion: { current: 10, previous: 40 } }))
+    const rec = buildInterpretationRecommendation(evidence)
+    expect(rec?.title).toBe('Revisa el manejo de las conversaciones')
+  })
+
+  it('picks the sales recommendation when sales fell the most', () => {
+    const evidence = buildInterpretationEvidence(kpis({ sales: { current: 100, previous: 1000 } }))
+    const rec = buildInterpretationRecommendation(evidence)
+    expect(rec?.title).toBe('Revisa por qué no se está cerrando')
+  })
+
+  it('falls back to a positive framing when nothing declined but something improved', () => {
+    const evidence = buildInterpretationEvidence(
+      kpis({
+        sales: { current: 1200, previous: 1000 },
+        leads: { current: 20, previous: 20 },
+        conversion: { current: 30, previous: 30 },
+        avgTicket: { current: 100, previous: 100 },
+        opportunities: { current: 5, previous: 5 },
+      }),
+    )
+    const rec = buildInterpretationRecommendation(evidence)
+    expect(rec?.title).toBe('Sigue con el enfoque actual')
+  })
+
+  it('returns null when nothing moved at all', () => {
+    const evidence = buildInterpretationEvidence(
+      kpis({
+        sales: { current: 1000, previous: 1000 },
+        leads: { current: 20, previous: 20 },
+        conversion: { current: 30, previous: 30 },
+        avgTicket: { current: 100, previous: 100 },
+        opportunities: { current: 5, previous: 5 },
+      }),
+    )
+    expect(buildInterpretationRecommendation(evidence)).toBeNull()
+  })
+
+  it('never invents a recommendation for a metric with no comparison data', () => {
+    const evidence = buildInterpretationEvidence(
+      kpis({
+        sales: { current: 0, previous: 0 },
+        leads: { current: 0, previous: 0 },
+        conversion: { current: null, previous: null },
+        avgTicket: { current: 0, previous: 0 },
+        opportunities: { current: 0, previous: 0 },
+      }),
+    )
+    expect(buildInterpretationRecommendation(evidence)).toBeNull()
   })
 })

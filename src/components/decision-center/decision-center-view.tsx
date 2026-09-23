@@ -2,7 +2,20 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowDown, ArrowUp, DollarSign, Flame, Sparkles, Target, TrendingDown, Users2, Wallet } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  ChevronUp,
+  DollarSign,
+  Flame,
+  Lightbulb,
+  Sparkles,
+  Target,
+  TrendingDown,
+  Users2,
+  Wallet,
+} from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { formatCurrency } from "@/lib/currency";
 import { rangeForPreset, type PeriodPreset } from "@/lib/period";
@@ -21,6 +34,7 @@ import type { StageDropoff } from "@/lib/decision-center/breakdown";
 import type { MoneyAtRiskData } from "@/lib/sales-intelligence/aggregate";
 import type { RecoveryCandidate } from "@/lib/sales-intelligence/recovery";
 import type { NextBestActionDisplay } from "@/lib/sales-intelligence/queries";
+import type { InterpretationMetric, InterpretationRecommendation } from "@/lib/decision-center/interpretation";
 
 // ============================================================
 // Centro de Decisiones — client-side content. The role gate already
@@ -75,6 +89,8 @@ interface DecisionCenterResponse {
   range: { label: PeriodPreset; start: string; end: string };
   kpis: DecisionCenterKpis;
   interpretation: string;
+  interpretationEvidence: InterpretationMetric[];
+  interpretationRecommendation: InterpretationRecommendation | null;
   decisions: Insight[];
   todayPriorities: NextBestActionDisplay[];
   money: DecisionCenterMoney;
@@ -103,6 +119,7 @@ export function DecisionCenterView() {
   const [customEnd, setCustomEnd] = useState(todayIso());
   const [data, setData] = useState<DecisionCenterResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showWhy, setShowWhy] = useState(false);
 
   const range = useMemo(() => {
     if (preset === "custom" && customStart && customEnd) {
@@ -152,6 +169,21 @@ export function DecisionCenterView() {
     if (deltaPts === 0) return t("noChange");
     const sign = deltaPts > 0 ? "+" : "";
     return `${sign}${deltaPts.toFixed(1)} ${t("points")}`;
+  };
+
+  const fmtEvidenceValue = (metric: InterpretationMetric, value: number | null) => {
+    if (value == null) return "—";
+    if (metric.key === "sales" || metric.key === "avgTicket") return formatCurrency(value, defaultCurrency);
+    if (metric.key === "conversion") return `${value.toFixed(1)}%`;
+    return value.toLocaleString();
+  };
+
+  const fmtEvidenceDelta = (metric: InterpretationMetric) => {
+    if (metric.delta == null) return t("noComparison");
+    if (metric.direction === "flat") return t("noChange");
+    const sign = metric.delta > 0 ? "+" : "";
+    const unit = metric.deltaKind === "points" ? ` ${t("points")}` : "%";
+    return `${sign}${metric.delta.toFixed(1)}${unit}`;
   };
 
   const card = (
@@ -259,12 +291,65 @@ export function DecisionCenterView() {
         {loading || !data ? (
           <SkeletonCard />
         ) : (
-          <Card>
-            <CardContent className="flex items-start gap-3 pt-6">
-              <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-              <p className="text-sm leading-relaxed text-foreground">{data.interpretation}</p>
-            </CardContent>
-          </Card>
+          <div className="space-y-2">
+            <Card>
+              <CardContent className="space-y-3 pt-6">
+                <div className="flex items-start gap-3">
+                  <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                  <p className="text-sm leading-relaxed text-foreground">{data.interpretation}</p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowWhy((v) => !v)}
+                  className="ml-8 flex items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-primary"
+                >
+                  {showWhy ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                  {t("showWhy")}
+                </button>
+
+                {showWhy && (
+                  <ul className="ml-8 space-y-1.5 border-l border-border pl-4 text-xs">
+                    {data.interpretationEvidence.map((m) => (
+                      <li key={m.key} className="flex items-center justify-between gap-3 text-muted-foreground">
+                        <span>{m.label}</span>
+                        <span className="tabular-nums">
+                          {fmtEvidenceValue(m, m.previous)} → {fmtEvidenceValue(m, m.current)}
+                          <span
+                            className={
+                              m.direction === "up"
+                                ? "ml-2 text-emerald-500"
+                                : m.direction === "down"
+                                  ? "ml-2 text-rose-500"
+                                  : "ml-2"
+                            }
+                          >
+                            ({fmtEvidenceDelta(m)})
+                          </span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+
+            {data.interpretationRecommendation && (
+              <Card>
+                <CardContent className="flex items-start gap-3 pt-6">
+                  <Lightbulb className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">
+                      {data.interpretationRecommendation.title}
+                    </p>
+                    <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">
+                      {data.interpretationRecommendation.description}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         )}
       </section>
 

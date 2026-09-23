@@ -48,7 +48,17 @@ export function buildDecisionCenterSnapshot(payload: DecisionCenterPayload, curr
     ].join('\n'),
   )
 
-  sections.push(['INTERPRETACIÓN EJECUTIVA YA MOSTRADA EN PANTALLA:', payload.interpretation].join('\n'))
+  sections.push(
+    [
+      'INTERPRETACIÓN EJECUTIVA YA MOSTRADA EN PANTALLA:',
+      payload.interpretation,
+      payload.interpretationRecommendation
+        ? `Recomendación asociada: ${payload.interpretationRecommendation.title} — ${payload.interpretationRecommendation.description}`
+        : null,
+    ]
+      .filter((l): l is string => l != null)
+      .join('\n'),
+  )
 
   sections.push(
     decisions.length > 0

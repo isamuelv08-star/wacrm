@@ -160,6 +160,75 @@ export function buildDeterministicInterpretation(
   return `${capitalize(rangeText)}, ${fmtDelta(evidence[0])} y ${fmtDelta(evidence[1])} frente al período anterior. Conviene revisar si ambos cambios están relacionados antes de decidir una acción.`
 }
 
+export interface InterpretationRecommendation {
+  title: string
+  description: string
+}
+
+const RECOMMENDATION_BY_METRIC: Record<InterpretationMetric['key'], InterpretationRecommendation> = {
+  sales: {
+    title: 'Revisa por qué no se está cerrando',
+    description:
+      'Las ventas cayeron frente al período anterior. Revisa las oportunidades abiertas más antiguas y confirma si hay tratos atascados que deberían cerrarse.',
+  },
+  leads: {
+    title: 'Revisa la entrada de leads nuevos',
+    description:
+      'Llegaron menos leads que en el período anterior. Revisa si las fuentes habituales (anuncios, referidos, WhatsApp orgánico) siguen generando tráfico igual que antes.',
+  },
+  conversion: {
+    title: 'Revisa el manejo de las conversaciones',
+    description:
+      'La tasa de cierre bajó frente al período anterior. Revisa las conversaciones recientes que no cerraron para identificar objeciones repetidas o seguimientos que se quedaron sin respuesta.',
+  },
+  avgTicket: {
+    title: 'Revisa el valor de los tratos que se están cerrando',
+    description:
+      'El ticket promedio bajó frente al período anterior. Revisa si se están cerrando tratos de menor tamaño de lo habitual, o si conviene ajustar la oferta.',
+  },
+  opportunities: {
+    title: 'Revisa la generación de nuevas oportunidades',
+    description:
+      'Se crearon menos oportunidades que en el período anterior. Revisa si el equipo está calificando y avanzando leads hacia el pipeline al mismo ritmo.',
+  },
+}
+
+/**
+ * "Qué hacer" — a single, deterministic recommendation tied DIRECTLY
+ * to whichever metric moved the most (the same headline evidence the
+ * interpretation paragraph cites, via `pickHeadlineEvidence`), never
+ * a generic restatement of the KPI cards above it. Distinct from
+ * Section 7 "Qué deberías hacer hoy" (individual lead/deal-level
+ * next-best-actions, sourced from open deals/conversations): this is
+ * the ONE structural read on the period's overall trend — which
+ * lever moved the numbers, and what to check first because of it.
+ * Deterministic only (no AI rewording) — it's already a short,
+ * specific instruction, not narrative prose that benefits from
+ * polish the way the interpretation paragraph does.
+ */
+export function buildInterpretationRecommendation(
+  metrics: InterpretationMetric[],
+): InterpretationRecommendation | null {
+  const worst = pickHeadlineEvidence(
+    metrics.filter((m) => m.direction === 'down'),
+    1,
+  )[0]
+  if (worst) return RECOMMENDATION_BY_METRIC[worst.key]
+
+  const best = pickHeadlineEvidence(
+    metrics.filter((m) => m.direction === 'up'),
+    1,
+  )[0]
+  if (best) {
+    return {
+      title: 'Sigue con el enfoque actual',
+      description: `${best.label} mejoró frente al período anterior — vale la pena identificar qué se hizo distinto para repetirlo.`,
+    }
+  }
+
+  return null
+}
+
 export function buildInterpretationSystemPrompt(): string {
   return [
     'Eres un analista de negocio que redacta la interpretación ejecutiva de un panel de control para el dueño o gerente de una empresa.',

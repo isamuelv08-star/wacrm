@@ -21,7 +21,10 @@ import type { DecisionCenterKpis } from './types'
 import {
   buildInterpretationEvidence,
   buildDeterministicInterpretation,
+  buildInterpretationRecommendation,
   generateExecutiveInterpretation,
+  type InterpretationMetric,
+  type InterpretationRecommendation,
 } from './interpretation'
 import { computeStageDropoffs, biggestStageLeak, worstDecliningSeller, bestImprovingSeller } from './breakdown'
 
@@ -36,6 +39,18 @@ export interface DecisionCenterPayload {
   range: { label: string; start: string; end: string }
   kpis: DecisionCenterKpis
   interpretation: string
+  /** The full DATOS/COMPARACIÓN/CAMBIOS trail the interpretation
+   *  paragraph and recommendation were built from — every KPI, not
+   *  just the 1-2 headline ones cited in the prose. This is the "ver
+   *  por qué" behind the interpretation, not a repeat of Section 1's
+   *  cards: those show the numbers, this shows the REASONING (which
+   *  ones moved, by how much, in which direction). */
+  interpretationEvidence: InterpretationMetric[]
+  /** "Qué hacer" tied directly to the interpretation — see
+   *  interpretation.ts's own doc comment on why this is distinct
+   *  from `todayPriorities` (individual lead-level actions) rather
+   *  than a duplicate of it. Null only when nothing moved at all. */
+  interpretationRecommendation: InterpretationRecommendation | null
   decisions: Insight[]
   /** One DecisionAction per `decisions` entry, same order — the seam
    *  a future Centro de Seguimiento will consume. Not rendered by
@@ -138,6 +153,8 @@ export async function loadDecisionCenterPayload(
       return {
         kpis,
         interpretation,
+        interpretationEvidence: evidence,
+        interpretationRecommendation: buildInterpretationRecommendation(evidence),
         bySeller,
         worstDecliningSeller: worstDecliningSeller(bySeller),
         bestImprovingSeller: bestImprovingSeller(bySeller),
@@ -209,7 +226,15 @@ export async function loadDecisionCenterPayload(
   )
 
   const [
-    { kpis, interpretation, bySeller, worstDecliningSeller: worstSeller, bestImprovingSeller: bestSeller },
+    {
+      kpis,
+      interpretation,
+      interpretationEvidence,
+      interpretationRecommendation,
+      bySeller,
+      worstDecliningSeller: worstSeller,
+      bestImprovingSeller: bestSeller,
+    },
     { decisions, recoveryCandidates, nextBestActions },
     funnelBreakdown,
     moneyAtRisk,
@@ -219,6 +244,8 @@ export async function loadDecisionCenterPayload(
     range: { label: range.label, start: range.start.toISOString(), end: range.end.toISOString() },
     kpis,
     interpretation,
+    interpretationEvidence,
+    interpretationRecommendation,
     decisions,
     decisionActions: buildDecisionActions(decisions),
     todayPriorities: nextBestActions,
