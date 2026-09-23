@@ -391,6 +391,17 @@ export interface SellerPeriodPerformance {
  * deliberately kept as a separate function (not a parameter on that
  * one) since the two are read independently: the KPI card wants one
  * account-wide number, this wants one row per member.
+ *
+ * Returns EVERY member of the account, not just the ones who closed
+ * something in the window — unlike `loadTopSellers` (a leaderboard,
+ * where a zero-activity row is just clutter), this feeds a manager's
+ * team-accountability table, where "this rep closed nothing this
+ * period" is itself the decision-worthy signal. A member with no
+ * closed deals in a given half of the window gets `winRateCurrent`/
+ * `winRatePrevious: null` (see the field doc) rather than being
+ * silently dropped — confirmed as a real bug via production data: an
+ * account with 3 reps only ever showed 2, because the third had open
+ * deals assigned but nothing closed in the last 30 days.
  */
 export async function loadSellerPeriodPerformance(
   db: DB,
@@ -432,7 +443,6 @@ export async function loadSellerPeriodPerformance(
   }
 
   return members
-    .filter((m) => byMember.has(m.id))
     .map((m) => {
       const all = byMember.get(m.id) ?? []
       const current = all.filter((r) => r.closed_at && r.closed_at >= currentStart)
