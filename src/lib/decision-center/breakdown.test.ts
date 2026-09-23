@@ -57,6 +57,8 @@ const seller = (over: Partial<SellerPeriodPerformance>): SellerPeriodPerformance
   winRatePrevious: null,
   valueWonCurrent: 0,
   valueWonPrevious: 0,
+  avgTicketCurrent: 0,
+  avgTicketPrevious: 0,
   ...over,
 })
 

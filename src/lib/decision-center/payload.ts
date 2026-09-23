@@ -13,6 +13,7 @@ import {
 import { loadNextBestActions, loadMoneyAtRisk, countOverduePromises } from '@/lib/sales-intelligence/queries'
 import { loadRecoveryCandidates } from '@/lib/sales-intelligence/recovery'
 import { buildInsights, type Insight } from '@/lib/sales-intelligence/insights'
+import { buildDecisionActions, type DecisionAction } from '@/lib/sales-intelligence/decision-actions'
 import { loadAiConfig } from '@/lib/ai/config'
 import { logAiUsage } from '@/lib/ai/usage'
 import { supabaseAdmin } from '@/lib/ai/admin-client'
@@ -36,6 +37,10 @@ export interface DecisionCenterPayload {
   kpis: DecisionCenterKpis
   interpretation: string
   decisions: Insight[]
+  /** One DecisionAction per `decisions` entry, same order — the seam
+   *  a future Centro de Seguimiento will consume. Not rendered by
+   *  any screen today; see decision-actions.ts's own doc comment. */
+  decisionActions: DecisionAction[]
   todayPriorities: Awaited<ReturnType<typeof loadNextBestActions>>
   money: {
     atRisk: Awaited<ReturnType<typeof loadMoneyAtRisk>>
@@ -215,6 +220,7 @@ export async function loadDecisionCenterPayload(
     kpis,
     interpretation,
     decisions,
+    decisionActions: buildDecisionActions(decisions),
     todayPriorities: nextBestActions,
     money: { atRisk: moneyAtRisk, recoveryOpportunities: recoveryCandidates, staleDays: STALE_DAYS_DEFAULT },
     breakdown: {

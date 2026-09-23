@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from 'react'
 import Link from 'next/link'
 import {
   AlertTriangle,
@@ -19,12 +20,24 @@ interface InsightsPanelProps {
   insights: Insight[] | null
   loading: boolean
   currency: string
-  /** Popup variant (DailyReportDialog): shows at most 3, no header
-   *  chrome — the dialog supplies its own title. Full variant
-   *  (/dashboard, /dashboard/informe): shows everything buildInsights
-   *  already capped at 5, with its own card header. */
+  /** Popup variant (DailyReportDialog): shows at most COMPACT_LIMIT,
+   *  no header chrome — the dialog supplies its own title. Full
+   *  variant (/dashboard, /dashboard/informe): shows at most
+   *  DISPLAY_LIMIT, with its own card header. */
   compact?: boolean
+  /** When true, a "Ver más" control reveals every remaining insight
+   *  instead of just hiding them past the initial limit — Centro de
+   *  Decisiones passes this, since its intelligence engine
+   *  deliberately returns everything it detects, uncapped (see
+   *  buildInsights' own doc comment); the display limit is enforced
+   *  HERE, not upstream, so callers that don't pass this (/dashboard,
+   *  the daily report dialog) keep showing at most DISPLAY_LIMIT the
+   *  exact same way they always have. */
+  expandable?: boolean
 }
+
+const DISPLAY_LIMIT = 5
+const COMPACT_LIMIT = 3
 
 const CATEGORY_STYLE: Record<
   InsightCategory,
@@ -74,9 +87,13 @@ function actionHref(insight: Insight): string {
  * mirrors NextBestActionCard/AlertsCard exactly, so this reads as the
  * same product, not a bolted-on new panel.
  */
-export function InsightsPanel({ insights, loading, currency, compact }: InsightsPanelProps) {
+export function InsightsPanel({ insights, loading, currency, compact, expandable }: InsightsPanelProps) {
   const t = useTranslations('Dashboard.insights')
-  const shown = compact ? (insights ?? []).slice(0, 3) : insights
+  const [expanded, setExpanded] = useState(false)
+  const limit = compact ? COMPACT_LIMIT : DISPLAY_LIMIT
+  const full = insights ?? []
+  const shown = insights == null ? null : expanded ? full : full.slice(0, limit)
+  const hiddenCount = shown ? full.length - shown.length : 0
 
   const body = (
     <>
@@ -132,6 +149,15 @@ export function InsightsPanel({ insights, loading, currency, compact }: Insights
             )
           })}
         </ul>
+      )}
+      {expandable && !loading && hiddenCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="mt-2 w-full rounded-lg border border-dashed border-border px-3 py-2 text-center text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+        >
+          {t('showMore', { count: hiddenCount })}
+        </button>
       )}
     </>
   )

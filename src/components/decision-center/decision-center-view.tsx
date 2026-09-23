@@ -276,6 +276,7 @@ export function DecisionCenterView() {
           insights={data?.decisions ?? null}
           loading={loading}
           currency={defaultCurrency}
+          expandable
         />
       </section>
 
@@ -317,6 +318,7 @@ export function DecisionCenterView() {
                         <th className="pb-2 font-medium">{t("sellerColumn")}</th>
                         <th className="pb-2 font-medium">{t("wonColumn")}</th>
                         <th className="pb-2 font-medium">{t("lostColumn")}</th>
+                        <th className="pb-2 font-medium">{t("avgTicketColumn")}</th>
                         <th className="pb-2 font-medium">{t("winRateColumn")}</th>
                         <th className="pb-2 font-medium">{t("winRateDeltaColumn")}</th>
                       </tr>
@@ -352,6 +354,9 @@ export function DecisionCenterView() {
                               </td>
                               <td className="py-2 tabular-nums text-foreground">{s.dealsWonCurrent}</td>
                               <td className="py-2 tabular-nums text-foreground">{s.dealsLostCurrent}</td>
+                              <td className="py-2 tabular-nums text-foreground">
+                                {formatCurrency(s.avgTicketCurrent, defaultCurrency)}
+                              </td>
                               <td className="py-2 tabular-nums text-foreground">
                                 {s.winRateCurrent != null ? `${s.winRateCurrent.toFixed(1)}%` : "—"}
                               </td>

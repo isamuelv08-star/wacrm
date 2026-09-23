@@ -79,7 +79,7 @@ export function buildDecisionCenterSnapshot(payload: DecisionCenterPayload, curr
       'Rendimiento por vendedor (período actual):',
       ...breakdown.bySeller.map(
         (s) =>
-          `  - ${s.name}: ${s.dealsWonCurrent} ganados, ${s.dealsLostCurrent} perdidos, tasa de cierre ${s.winRateCurrent != null ? `${s.winRateCurrent.toFixed(1)}%` : 'sin datos'}`,
+          `  - ${s.name}: ${s.dealsWonCurrent} ganados, ${s.dealsLostCurrent} perdidos, ticket promedio ${money(s.avgTicketCurrent, currency)}, tasa de cierre ${s.winRateCurrent != null ? `${s.winRateCurrent.toFixed(1)}%` : 'sin datos'}`,
       ),
     ].join('\n'),
   )

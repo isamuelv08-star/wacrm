@@ -1,5 +1,16 @@
 import type { CeoAlerts } from '../dashboard/ceo-types'
 import type { SignalDraft } from './types'
+import {
+  FORECAST_GAP_THRESHOLDS,
+  PIPELINE_COVERAGE_THRESHOLDS,
+  STALLED_VALUE_THRESHOLDS,
+  WIN_RATE_DECLINE_THRESHOLDS,
+  SALES_CYCLE_INCREASE_THRESHOLDS,
+  AT_RISK_CUSTOMER_THRESHOLDS,
+  BROKEN_PROMISES_THRESHOLDS,
+  severityFromThresholds,
+  severityFromInvertedThresholds,
+} from './thresholds'
 
 // ============================================================
 // Deterministic rules, fase 1 of the Risk Engine.
@@ -29,7 +40,7 @@ export function buildSignalsFromAlerts(alerts: CeoAlerts): SignalDraft[] {
     const gap = Math.abs(alerts.forecastGapPct)
     signals.push({
       signalType: 'forecast_gap',
-      severity: gap >= 25 ? 'high' : gap >= 10 ? 'medium' : 'low',
+      severity: severityFromThresholds(gap, FORECAST_GAP_THRESHOLDS),
       valueAtRisk: null,
       metricValue: alerts.forecastGapPct,
       explanation: `El pronóstico de cierre está ${round(gap)}% por debajo de la meta del mes.`,
@@ -40,7 +51,7 @@ export function buildSignalsFromAlerts(alerts: CeoAlerts): SignalDraft[] {
   if (alerts.lowPipelineCoverage != null) {
     signals.push({
       signalType: 'low_pipeline_coverage',
-      severity: alerts.lowPipelineCoverage < 1.5 ? 'high' : alerts.lowPipelineCoverage < 2.25 ? 'medium' : 'low',
+      severity: severityFromInvertedThresholds(alerts.lowPipelineCoverage, PIPELINE_COVERAGE_THRESHOLDS),
       valueAtRisk: null,
       metricValue: alerts.lowPipelineCoverage,
       explanation: `El pipeline abierto cubre solo ${alerts.lowPipelineCoverage.toFixed(1)}x la meta mensual (mínimo saludable: 3x).`,
@@ -51,7 +62,7 @@ export function buildSignalsFromAlerts(alerts: CeoAlerts): SignalDraft[] {
   if (alerts.stalledCount > 0) {
     signals.push({
       signalType: 'stalled_deals',
-      severity: alerts.stalledValue >= 50_000 ? 'high' : alerts.stalledValue >= 10_000 ? 'medium' : 'low',
+      severity: severityFromThresholds(alerts.stalledValue, STALLED_VALUE_THRESHOLDS),
       valueAtRisk: alerts.stalledValue,
       metricValue: alerts.stalledCount,
       explanation: `${alerts.stalledCount} trato(s) abiertos, con un valor potencial afectado de ${round(alerts.stalledValue)}, llevan más de una semana sin cambiar de etapa.`,
@@ -62,7 +73,7 @@ export function buildSignalsFromAlerts(alerts: CeoAlerts): SignalDraft[] {
   if (alerts.winRateDeclinePts != null) {
     signals.push({
       signalType: 'win_rate_decline',
-      severity: alerts.winRateDeclinePts >= 15 ? 'high' : alerts.winRateDeclinePts >= 8 ? 'medium' : 'low',
+      severity: severityFromThresholds(alerts.winRateDeclinePts, WIN_RATE_DECLINE_THRESHOLDS),
       valueAtRisk: null,
       metricValue: alerts.winRateDeclinePts,
       explanation: `La tasa de cierre bajó ${round(alerts.winRateDeclinePts)} puntos frente al período anterior.`,
@@ -73,7 +84,7 @@ export function buildSignalsFromAlerts(alerts: CeoAlerts): SignalDraft[] {
   if (alerts.salesCycleIncreasePct != null) {
     signals.push({
       signalType: 'sales_cycle_increase',
-      severity: alerts.salesCycleIncreasePct >= 40 ? 'high' : alerts.salesCycleIncreasePct >= 20 ? 'medium' : 'low',
+      severity: severityFromThresholds(alerts.salesCycleIncreasePct, SALES_CYCLE_INCREASE_THRESHOLDS),
       valueAtRisk: null,
       metricValue: alerts.salesCycleIncreasePct,
       explanation: `El ciclo de venta se alargó ${round(alerts.salesCycleIncreasePct)}% frente al período anterior.`,
@@ -84,7 +95,7 @@ export function buildSignalsFromAlerts(alerts: CeoAlerts): SignalDraft[] {
   if (alerts.atRiskCustomerCount > 0) {
     signals.push({
       signalType: 'at_risk_customers',
-      severity: alerts.atRiskCustomerCount >= 10 ? 'high' : alerts.atRiskCustomerCount >= 4 ? 'medium' : 'low',
+      severity: severityFromThresholds(alerts.atRiskCustomerCount, AT_RISK_CUSTOMER_THRESHOLDS),
       valueAtRisk: null,
       metricValue: alerts.atRiskCustomerCount,
       explanation: `${alerts.atRiskCustomerCount} cliente(s) con un trato abierto llevan más de 14 días sin ningún mensaje.`,
@@ -107,7 +118,7 @@ export function buildBrokenPromiseSignal(overdueCount: number): SignalDraft | nu
   if (overdueCount <= 0) return null
   return {
     signalType: 'broken_promises',
-    severity: overdueCount >= 5 ? 'high' : overdueCount >= 2 ? 'medium' : 'low',
+    severity: severityFromThresholds(overdueCount, BROKEN_PROMISES_THRESHOLDS),
     valueAtRisk: null,
     metricValue: overdueCount,
     explanation: `${overdueCount} compromiso(s) con clientes vencieron sin cumplirse.`,

@@ -424,7 +424,8 @@
       "nextBestAction_fulfill_broken_promise_Title": "Cumprir o compromisso com {contactName}",
       "nextBestAction_fulfill_broken_promise_Desc": "Pendente há {days} dias",
       "recoveryOpportunityTitle": "Recuperar {contactName}",
-      "recoveryOpportunityDesc": "Lead frio com potencial real de negócio"
+      "recoveryOpportunityDesc": "Lead frio com potencial real de negócio",
+      "showMore": "Ver mais {count}"
     },
     "dailyReport": {
       "dialogTitle": "Seu relatório comercial está pronto",
@@ -3247,6 +3248,7 @@
     "askEvidence": "Evidência",
     "askRecommendation": "Recomendação",
     "askError": "Não foi possível obter uma resposta. Tente novamente.",
-    "askNotConfigured": "A IA ainda não está configurada. Ative em Configurações → Assistente de IA."
+    "askNotConfigured": "A IA ainda não está configurada. Ative em Configurações → Assistente de IA.",
+    "avgTicketColumn": "Ticket médio"
   }
 }

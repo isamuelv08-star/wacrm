@@ -13,6 +13,7 @@ const emptyPayload: DecisionCenterPayload = {
   },
   interpretation: 'Las ventas subieron 25.0% frente al período anterior.',
   decisions: [],
+  decisionActions: [],
   todayPriorities: [],
   money: {
     atRisk: { totalValue: 0, totalCount: 0, bySeller: [], byStage: [] },
@@ -68,6 +69,8 @@ describe('buildDecisionCenterSnapshot', () => {
           winRatePrevious: 80,
           valueWonCurrent: 100,
           valueWonPrevious: 500,
+          avgTicketCurrent: 100,
+          avgTicketPrevious: 100,
           winRateDeltaPts: -60,
         },
         bestImprovingSeller: null,

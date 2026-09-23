@@ -180,7 +180,7 @@ describe('buildInsights', () => {
     expect(insights[0].action).toEqual({ kind: 'goToInbox' })
   })
 
-  it('caps the feed at 5, prioritizing attention > risk > opportunity > recommendation', () => {
+  it('never caps the feed — the engine returns every detected insight, prioritizing attention > risk > opportunity > recommendation', () => {
     const insights = buildInsights(
       args({
         hotUnanswered: baseHotUnanswered({ count: 17 }), // attention
@@ -196,11 +196,25 @@ describe('buildInsights', () => {
         recovery: [recoveryCandidate()], // opportunity
       }),
     )
-    // 7 candidates generated, capped to 5, attention/high-severity first.
-    expect(insights).toHaveLength(5)
+    // 8 candidates generated (5 alert-derived signals + hot-unanswered
+    // + the next-best-action + the recovery candidate) — all 8 come
+    // back, none discarded by the engine itself (capping to a display
+    // count is a UI concern, see buildInsights' own doc comment).
+    expect(insights).toHaveLength(8)
     expect(insights[0].category).toBe('attention')
     expect(insights[1].category).toBe('attention')
-    expect(insights.at(-1)?.category).not.toBe('recommendation')
+    expect(insights.at(-1)?.category).toBe('recommendation')
+  })
+
+  it('attaches a structured evidence trail that mirrors the flat fields, never a second independent value', () => {
+    const insights = buildInsights(
+      args({ alerts: baseAlerts({ stalledCount: 3, stalledValue: 60_000 }) }),
+    )
+    const stalled = insights.find((i) => i.type === 'stalled_deals')!
+    expect(stalled.evidence.count).toBe(stalled.metricValue)
+    expect(stalled.evidence.value).toBe(stalled.valueAtRisk)
+    expect(stalled.evidence.entityIds).toBe(stalled.entityIds)
+    expect(stalled.evidence.facts).toBe(stalled.params)
   })
 
   it('is pure — identical input produces the same insights (order and content) on repeat calls', () => {

@@ -375,6 +375,11 @@ export interface SellerPeriodPerformance {
   winRatePrevious: number | null
   valueWonCurrent: number
   valueWonPrevious: number
+  /** valueWon / dealsWon for that half of the window — 0, not null,
+   *  when nothing closed won yet (same convention avgTicket already
+   *  uses elsewhere in this file). */
+  avgTicketCurrent: number
+  avgTicketPrevious: number
 }
 
 /**
@@ -421,6 +426,10 @@ export async function loadSellerPeriodPerformance(
 
   const wonOf = (list: Row[]) => list.filter((r) => r.status === 'won')
   const winRateOf = (list: Row[]) => (list.length > 0 ? (wonOf(list).length / list.length) * 100 : null)
+  const avgTicketOf = (list: Row[]) => {
+    const won = wonOf(list)
+    return won.length > 0 ? won.reduce((s, d) => s + (d.value ?? 0), 0) / won.length : 0
+  }
 
   return members
     .filter((m) => byMember.has(m.id))
@@ -439,6 +448,8 @@ export async function loadSellerPeriodPerformance(
         winRatePrevious: winRateOf(previous),
         valueWonCurrent: wonOf(current).reduce((s, d) => s + (d.value ?? 0), 0),
         valueWonPrevious: wonOf(previous).reduce((s, d) => s + (d.value ?? 0), 0),
+        avgTicketCurrent: avgTicketOf(current),
+        avgTicketPrevious: avgTicketOf(previous),
       }
     })
 }

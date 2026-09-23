@@ -5,6 +5,7 @@ import type { SignalDraft, SignalSeverity, SignalType } from './types'
 import type { NextBestActionDisplay } from './queries'
 import type { NextBestActionType } from './next-best-action'
 import type { RecoveryCandidate } from './recovery'
+import { HOT_UNANSWERED_THRESHOLDS } from './thresholds'
 
 // ============================================================
 // "Saleslid detectó" — the Intelligence Layer's insight feed
@@ -24,7 +25,14 @@ import type { RecoveryCandidate } from './recovery'
 //   - the single most urgent Next Best Action and the single best
 //     Recovery candidate — not the full lists (those already have
 //     their own dashboard cards; this feed only borrows their TOP
-//     pick so "Saleslid detectó" reads as 3-5 headlines, not a dump).
+//     pick so "Saleslid detectó" doesn't duplicate what those cards
+//     already show in full).
+//
+// The engine itself never caps how many insights it returns — see
+// buildInsights' own doc comment. Showing only the top few ("Ver
+// más" in Centro de Decisiones, a fixed top-5 on /dashboard) is a
+// presentation decision each caller makes, not something this module
+// decides on their behalf.
 //
 // Deliberately carries NO user-facing text: `titleKey`/`descriptionKey`
 // are next-intl keys under the `Dashboard.insights` namespace, and
@@ -41,8 +49,14 @@ export type InsightType =
   | NextBestActionType
   | 'recovery_opportunity'
 
-/** Maps onto the brief's own four sections: 🔴 Atención, 🟡 Riesgo,
- *  🟢 Oportunidad, 🎯 Recomendación. */
+/** Maps onto Centro de Decisiones' own four-way classification:
+ *  `attention` → 🔴 Problemas, `risk` → 🟡 Riesgos, `opportunity` /
+ *  `recommendation` → 🟢 Oportunidades. The fourth bucket, 🔵 Cambios
+ *  (shifts in the period's KPIs — sales up, conversion down, ...),
+ *  deliberately isn't an Insight category: it's period-over-period
+ *  movement on numbers that are always present (Section 1's KPIs +
+ *  Section 2's interpretation), not a detected problem/risk/
+ *  opportunity that may or may not exist this period. */
 export type InsightCategory = 'attention' | 'risk' | 'opportunity' | 'recommendation'
 
 export type InsightActionKind = 'goToInbox' | 'goToConversation' | 'goToPipeline'
@@ -51,6 +65,29 @@ export interface InsightAction {
   kind: InsightActionKind
   /** Only present for 'goToConversation'. */
   conversationId?: string
+}
+
+/**
+ * The "cadena de confianza" trace for one insight — Saleslid afirma →
+ * Saleslid demuestra → Saleslid permite actuar. Deliberately a
+ * PROJECTION of fields the Insight already carries (count←metricValue,
+ * value←valueAtRisk, entityIds←entityIds, facts←params) rather than a
+ * second, independently-computed copy: every number here traces back
+ * to the exact same calculation the flat fields already show, so
+ * there is no way for the evidence block to ever disagree with the
+ * insight it belongs to. Grouping them here (instead of only as
+ * separate flat fields) is what a future Centro de Seguimiento
+ * consumer, or a "ver evidencia" UI affordance, reads from — one
+ * object instead of four scattered fields.
+ */
+export interface InsightEvidence {
+  count: number | null
+  value: number | null
+  entityIds: string[]
+  /** Same numbers already interpolated into titleKey/descriptionKey
+   *  via `params` (e.g. `{ days: 7 }`, `{ minutes: 15 }`), kept here
+   *  in structured, translation-independent form. */
+  facts: Record<string, number | string>
 }
 
 export interface Insight {
@@ -67,6 +104,7 @@ export interface Insight {
   metricValue: number | null
   valueAtRisk: number | null
   entityIds: string[]
+  evidence: InsightEvidence
   action: InsightAction
   detectedAt: string
 }
@@ -93,8 +131,6 @@ export interface BuildInsightsArgs {
   overduePromiseCount: number
 }
 
-const MAX_INSIGHTS = 5
-
 const CATEGORY_RANK: Record<InsightCategory, number> = {
   attention: 0,
   risk: 1,
@@ -106,7 +142,9 @@ function signalSeverityToCategory(severity: SignalSeverity): InsightCategory {
   return severity === 'high' ? 'attention' : 'risk'
 }
 
-function signalToInsight(signal: SignalDraft, detectedAt: string, staleDays: number): Insight {
+type InsightDraft = Omit<Insight, 'evidence'>
+
+function signalToInsight(signal: SignalDraft, detectedAt: string, staleDays: number): InsightDraft {
   const base = {
     type: signal.signalType,
     category: signalSeverityToCategory(signal.severity),
@@ -181,14 +219,24 @@ function signalToInsight(signal: SignalDraft, detectedAt: string, staleDays: num
  *  single one is worth flagging as needing attention today rather
  *  than filed as a background risk. */
 function hotUnansweredSeverity(count: number): SignalSeverity {
-  if (count >= 5) return 'high'
+  if (count >= HOT_UNANSWERED_THRESHOLDS.high) return 'high'
   return 'medium'
 }
 
+/**
+ * The full detection engine — deliberately UNCAPPED. Every problem,
+ * risk, opportunity or recommendation the underlying signals surface
+ * comes back here, sorted by priority; how many of them a screen
+ * actually shows (Centro de Decisiones' "Ver más", /dashboard's fixed
+ * top-5) is a presentation decision made by the caller/UI, never by
+ * this engine. Capping here would mean the engine could "detect" a
+ * problem and then silently discard it before anything — a manager,
+ * a future Centro de Seguimiento — ever saw it existed.
+ */
 export function buildInsights(args: BuildInsightsArgs): Insight[] {
   const { alerts, hotUnanswered, nextBestActions, recovery, staleDays, overduePromiseCount } = args
   const detectedAt = new Date().toISOString()
-  const insights: Insight[] = []
+  const insights: InsightDraft[] = []
 
   if (hotUnanswered.count > 0) {
     const severity = hotUnansweredSeverity(hotUnanswered.count)
@@ -269,5 +317,8 @@ export function buildInsights(args: BuildInsightsArgs): Insight[] {
       if (sevDelta !== 0) return sevDelta
       return (b.valueAtRisk ?? b.metricValue ?? 0) - (a.valueAtRisk ?? a.metricValue ?? 0)
     })
-    .slice(0, MAX_INSIGHTS)
+    .map((i) => ({
+      ...i,
+      evidence: { count: i.metricValue, value: i.valueAtRisk, entityIds: i.entityIds, facts: i.params },
+    }))
 }

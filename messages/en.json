@@ -424,7 +424,8 @@
       "nextBestAction_fulfill_broken_promise_Title": "Follow through with {contactName}",
       "nextBestAction_fulfill_broken_promise_Desc": "Overdue by {days} days",
       "recoveryOpportunityTitle": "Win back {contactName}",
-      "recoveryOpportunityDesc": "Cold lead with real business potential"
+      "recoveryOpportunityDesc": "Cold lead with real business potential",
+      "showMore": "Show {count} more"
     },
     "dailyReport": {
       "dialogTitle": "Your commercial report is ready",
@@ -3247,6 +3248,7 @@
     "askEvidence": "Evidence",
     "askRecommendation": "Recommendation",
     "askError": "Could not get an answer. Try again.",
-    "askNotConfigured": "AI is not configured yet. Enable it in Settings → AI Assistant."
+    "askNotConfigured": "AI is not configured yet. Enable it in Settings → AI Assistant.",
+    "avgTicketColumn": "Avg. ticket"
   }
 }
