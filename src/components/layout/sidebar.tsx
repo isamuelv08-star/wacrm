@@ -2,7 +2,7 @@
 
 import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
@@ -10,6 +10,7 @@ import { useTeamChatUnread } from "@/hooks/use-team-chat-unread";
 import {
   Bot,
   Calendar,
+  Compass,
   Crown,
   GitBranch,
   Headset,
@@ -30,7 +31,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import type { AccountRole } from "@/lib/auth/roles";
+import { hasMinRole, type AccountRole } from "@/lib/auth/roles";
 import {
   Tooltip,
   TooltipContent,
@@ -103,10 +104,25 @@ interface NavItem {
    * Purely informational — doesn't affect routing or access.
    */
   beta?: boolean;
+  /**
+   * Hides the row entirely below this role — not just cosmetic: the
+   * one page this currently gates (Centro de Decisiones) also checks
+   * `requireRole('admin')` server-side before rendering anything, so
+   * this is the "don't even advertise it" half of that same gate, not
+   * the only one. Every other nav item is role-agnostic (page-internal
+   * widgets may still restrict what a given role sees once inside).
+   */
+  minRole?: AccountRole;
 }
 
 const navItems: NavItem[] = [
   { href: "/dashboard", labelKey: "dashboard", icon: LayoutDashboard },
+  {
+    href: "/dashboard/centro-de-decisiones",
+    labelKey: "decisionCenter",
+    icon: Compass,
+    minRole: "admin",
+  },
   { href: "/inbox", labelKey: "inbox", icon: MessageSquareMore },
   { href: "/pipelines", labelKey: "pipelines", icon: GitBranch },
   { href: "/contacts", labelKey: "contacts", icon: Users },
@@ -151,6 +167,16 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const t = useTranslations("Sidebar");
   const pathname = usePathname();
   const { profile, profileLoading, account, accountRole, signOut } = useAuth();
+  // Rows with a `minRole` (currently just Centro de Decisiones) never
+  // render for a role below it — see NavItem.minRole's doc comment for
+  // why this is only half of that page's actual protection. While the
+  // role is still loading, `accountRole` is null and hasMinRole(null, x)
+  // is false, so a gated row briefly not rendering during initial load
+  // reads as "not there yet", never as "there, then yanked away".
+  const visibleNavItems = useMemo(
+    () => navItems.filter((item) => !item.minRole || (accountRole && hasMinRole(accountRole, item.minRole))),
+    [accountRole],
+  );
   const totalUnread = useTotalUnread();
   const teamChatUnread = useTeamChatUnread();
   // Only surface the account-name strip when it actually carries
@@ -314,7 +340,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         <TooltipProvider>
           <nav className="themed-scrollbar flex-1 overflow-y-auto px-3 py-4">
             <ul className="flex flex-col gap-1">
-              {navItems.map((item) => {
+              {visibleNavItems.map((item) => {
                 const isActive =
                   pathname === item.href ||
                   (item.href !== "/dashboard" && pathname.startsWith(item.href));
