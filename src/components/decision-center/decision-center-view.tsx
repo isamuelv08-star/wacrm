@@ -57,6 +57,7 @@ interface DecisionCenterKpis {
 interface DecisionCenterBreakdown {
   bySeller: SellerPeriodPerformance[];
   worstDecliningSeller: (SellerPeriodPerformance & { winRateDeltaPts: number }) | null;
+  bestImprovingSeller: (SellerPeriodPerformance & { winRateDeltaPts: number }) | null;
   stageDropoffs: StageDropoff[];
   biggestLeakStage: StageDropoff | null;
 }
@@ -303,11 +304,15 @@ export function DecisionCenterView() {
             {data.breakdown.bySeller.length > 0 && (
               <Card>
                 <CardContent className="pt-6">
+                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    {t("teamPerformanceTitle")}
+                  </h3>
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
                         <th className="pb-2 font-medium">{t("sellerColumn")}</th>
                         <th className="pb-2 font-medium">{t("wonColumn")}</th>
+                        <th className="pb-2 font-medium">{t("lostColumn")}</th>
                         <th className="pb-2 font-medium">{t("winRateColumn")}</th>
                         <th className="pb-2 font-medium">{t("winRateDeltaColumn")}</th>
                       </tr>
@@ -322,10 +327,27 @@ export function DecisionCenterView() {
                         .map((s) => {
                           const delta = s.winRateCurrent != null && s.winRatePrevious != null ? s.winRateCurrent - s.winRatePrevious : null;
                           const isWorst = data.breakdown.worstDecliningSeller?.userId === s.userId;
+                          const isBest = data.breakdown.bestImprovingSeller?.userId === s.userId;
                           return (
-                            <tr key={s.userId} className={`border-b border-border/50 last:border-0 ${isWorst ? "bg-rose-500/[0.06]" : ""}`}>
-                              <td className="py-2 text-foreground">{s.name}</td>
+                            <tr
+                              key={s.userId}
+                              className={`border-b border-border/50 last:border-0 ${isWorst ? "bg-rose-500/[0.06]" : isBest ? "bg-emerald-500/[0.06]" : ""}`}
+                            >
+                              <td className="py-2 text-foreground">
+                                {s.name}
+                                {isWorst && (
+                                  <span className="ml-2 rounded-full bg-rose-500/15 px-2 py-0.5 text-[11px] font-medium text-rose-500">
+                                    {t("biggestDeclineFlag")}
+                                  </span>
+                                )}
+                                {isBest && (
+                                  <span className="ml-2 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-500">
+                                    {t("biggestImprovementFlag")}
+                                  </span>
+                                )}
+                              </td>
                               <td className="py-2 tabular-nums text-foreground">{s.dealsWonCurrent}</td>
+                              <td className="py-2 tabular-nums text-foreground">{s.dealsLostCurrent}</td>
                               <td className="py-2 tabular-nums text-foreground">
                                 {s.winRateCurrent != null ? `${s.winRateCurrent.toFixed(1)}%` : "—"}
                               </td>

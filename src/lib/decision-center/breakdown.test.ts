@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { biggestStageLeak, computeStageDropoffs, worstDecliningSeller } from './breakdown'
+import { bestImprovingSeller, biggestStageLeak, computeStageDropoffs, worstDecliningSeller } from './breakdown'
 import type { FunnelStep } from '@/lib/dashboard/ceo-types'
 import type { SellerPeriodPerformance } from '@/lib/dashboard/ceo-queries'
 
@@ -80,5 +80,28 @@ describe('worstDecliningSeller', () => {
   it('returns null when the biggest mover is actually an improvement', () => {
     const sellers = [seller({ userId: 'a', winRateCurrent: 90, winRatePrevious: 80 })]
     expect(worstDecliningSeller(sellers)).toBeNull()
+  })
+})
+
+describe('bestImprovingSeller', () => {
+  it('picks the seller with the largest positive win-rate delta', () => {
+    const sellers = [
+      seller({ userId: 'a', winRateCurrent: 60, winRatePrevious: 55 }), // +5
+      seller({ userId: 'b', winRateCurrent: 90, winRatePrevious: 50 }), // +40
+      seller({ userId: 'c', winRateCurrent: 40, winRatePrevious: 50 }), // -10
+    ]
+    const best = bestImprovingSeller(sellers)
+    expect(best?.userId).toBe('b')
+    expect(best?.winRateDeltaPts).toBeCloseTo(40, 5)
+  })
+
+  it('ignores members with no rate on one side of the comparison', () => {
+    const sellers = [seller({ userId: 'a', winRateCurrent: 60, winRatePrevious: null })]
+    expect(bestImprovingSeller(sellers)).toBeNull()
+  })
+
+  it('returns null when the biggest mover is actually a decline', () => {
+    const sellers = [seller({ userId: 'a', winRateCurrent: 40, winRatePrevious: 60 })]
+    expect(bestImprovingSeller(sellers)).toBeNull()
   })
 })

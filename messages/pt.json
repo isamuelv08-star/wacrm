@@ -3236,6 +3236,10 @@
     "winRateColumn": "Taxa de fechamento",
     "winRateDeltaColumn": "Mudança",
     "noBreakdownData": "Ainda não há dados suficientes para este detalhamento.",
-    "moneyTitle": "Dinheiro e oportunidades"
+    "moneyTitle": "Dinheiro e oportunidades",
+    "teamPerformanceTitle": "Desempenho da equipe",
+    "lostColumn": "Perdidos",
+    "biggestDeclineFlag": "Maior queda",
+    "biggestImprovementFlag": "Maior melhora"
   }
 }

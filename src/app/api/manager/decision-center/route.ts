@@ -23,7 +23,12 @@ import {
   buildDeterministicInterpretation,
   generateExecutiveInterpretation,
 } from '@/lib/decision-center/interpretation'
-import { computeStageDropoffs, biggestStageLeak, worstDecliningSeller } from '@/lib/decision-center/breakdown'
+import {
+  computeStageDropoffs,
+  biggestStageLeak,
+  worstDecliningSeller,
+  bestImprovingSeller,
+} from '@/lib/decision-center/breakdown'
 
 // Same default the ceo-summary route uses for the Alerts card and
 // buildInsights — "Decisiones" is a CURRENT-STATE feed (stalled
@@ -128,6 +133,7 @@ export async function GET(request: Request) {
           interpretation,
           bySeller,
           worstDecliningSeller: worstDecliningSeller(bySeller),
+          bestImprovingSeller: bestImprovingSeller(bySeller),
         }
       },
     )
@@ -195,7 +201,13 @@ export async function GET(request: Request) {
     )
 
     const [
-      { kpis, interpretation, bySeller, worstDecliningSeller: worstSeller },
+      {
+        kpis,
+        interpretation,
+        bySeller,
+        worstDecliningSeller: worstSeller,
+        bestImprovingSeller: bestSeller,
+      },
       { decisions, recoveryCandidates },
       funnelBreakdown,
       moneyAtRisk,
@@ -210,6 +222,7 @@ export async function GET(request: Request) {
       breakdown: {
         bySeller,
         worstDecliningSeller: worstSeller,
+        bestImprovingSeller: bestSeller,
         stageDropoffs: funnelBreakdown.stageDropoffs,
         biggestLeakStage: funnelBreakdown.biggestLeakStage,
       },

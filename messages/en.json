@@ -3236,6 +3236,10 @@
     "winRateColumn": "Win rate",
     "winRateDeltaColumn": "Change",
     "noBreakdownData": "Not enough data yet for this breakdown.",
-    "moneyTitle": "Money and opportunities"
+    "moneyTitle": "Money and opportunities",
+    "teamPerformanceTitle": "Team performance",
+    "lostColumn": "Lost",
+    "biggestDeclineFlag": "Biggest decline",
+    "biggestImprovementFlag": "Biggest improvement"
   }
 }

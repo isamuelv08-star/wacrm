@@ -61,6 +61,14 @@ export function biggestStageLeak(dropoffs: StageDropoff[]): StageDropoff | null 
   return withDrop.reduce((worst, d) => (d.dropPct > worst.dropPct ? d : worst))
 }
 
+export type SellerWithWinRateDelta = SellerPeriodPerformance & { winRateDeltaPts: number }
+
+function comparableSellers(sellers: SellerPeriodPerformance[]): SellerWithWinRateDelta[] {
+  return sellers
+    .filter((s) => s.winRateCurrent != null && s.winRatePrevious != null)
+    .map((s) => ({ ...s, winRateDeltaPts: (s.winRateCurrent as number) - (s.winRatePrevious as number) }))
+}
+
 /** The seller whose win rate fell the most vs the previous period —
  *  the one row worth calling out on a page that lists 3-5 decisions,
  *  not a full leaderboard (the seller breakdown table already shows
@@ -69,13 +77,20 @@ export function biggestStageLeak(dropoffs: StageDropoff[]): StageDropoff | null 
  *  to compare, not a 0% rate. Null when no one is comparable, or when
  *  the biggest mover is actually an IMPROVEMENT (nothing falling to
  *  report). */
-export function worstDecliningSeller(
-  sellers: SellerPeriodPerformance[],
-): (SellerPeriodPerformance & { winRateDeltaPts: number }) | null {
-  const comparable = sellers
-    .filter((s) => s.winRateCurrent != null && s.winRatePrevious != null)
-    .map((s) => ({ ...s, winRateDeltaPts: (s.winRateCurrent as number) - (s.winRatePrevious as number) }))
+export function worstDecliningSeller(sellers: SellerPeriodPerformance[]): SellerWithWinRateDelta | null {
+  const comparable = comparableSellers(sellers)
   if (comparable.length === 0) return null
   const worst = comparable.reduce((acc, s) => (s.winRateDeltaPts < acc.winRateDeltaPts ? s : acc))
   return worst.winRateDeltaPts < 0 ? worst : null
+}
+
+/** Mirror of `worstDecliningSeller` — the seller whose win rate rose
+ *  the most, for the team performance table's "biggest improver"
+ *  flag (spec section 6). Null when no one is comparable, or when the
+ *  biggest mover actually declined (nothing improving to report). */
+export function bestImprovingSeller(sellers: SellerPeriodPerformance[]): SellerWithWinRateDelta | null {
+  const comparable = comparableSellers(sellers)
+  if (comparable.length === 0) return null
+  const best = comparable.reduce((acc, s) => (s.winRateDeltaPts > acc.winRateDeltaPts ? s : acc))
+  return best.winRateDeltaPts > 0 ? best : null
 }
