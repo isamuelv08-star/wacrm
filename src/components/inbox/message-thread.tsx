@@ -440,10 +440,14 @@ export function MessageThread({
   // refetches the rows without also tearing down and rebuilding the
   // realtime channel.
   useEffect(() => {
-    if (!conversationId) {
-      setReactions([]);
-      return;
-    }
+    // Clears on EVERY conversation change, not just when there's none
+    // selected — otherwise switching from one real thread to another
+    // left the previous thread's reactions on screen (attached to
+    // whichever message ids happened to match) for the length of the
+    // fetch below.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resetting when the conversation changes, before the fetch below repopulates it
+    setReactions([]);
+    if (!conversationId) return;
     const supabase = createClient();
     let cancelled = false;
 
@@ -543,10 +547,13 @@ export function MessageThread({
   // the visible conversation, insert-only (nothing ever updates or
   // deletes a past event).
   useEffect(() => {
-    if (!conversationId) {
-      setActivityEvents([]);
-      return;
-    }
+    // Same "clear on every change, not just falsy" fix as the
+    // reactions effect above — otherwise switching threads left the
+    // previous conversation's AI activity markers on screen for the
+    // length of the fetch below.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resetting when the conversation changes, before the fetch below repopulates it
+    setActivityEvents([]);
+    if (!conversationId) return;
     const supabase = createClient();
     let cancelled = false;
 

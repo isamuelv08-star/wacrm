@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
@@ -239,8 +239,32 @@ export function ContactSidebar({
     [conversationId, onAiAutoReplyChange, tAiBanner],
   );
 
+  // Reset synchronously whenever the contact changes, BEFORE
+  // fetchContactData's async fetch repopulates it — same "clear, then
+  // the fetch below repopulates it" pattern ContactNotesPanel already
+  // uses for its own per-contact data. Without this, switching contacts
+  // showed the PREVIOUS contact's deals/tags/custom fields for the
+  // length of the fetch — not just a blank flash, actually wrong data
+  // displayed under the new contact's name/avatar, which had already
+  // updated (it comes straight from the `contact` prop, no fetch).
+  /* eslint-disable react-hooks/set-state-in-effect -- resetting per-contact data when the contact changes, before fetchContactData repopulates it */
+  useEffect(() => {
+    setDeals([]);
+    setTags([]);
+    setCustomFields([]);
+  }, [contact?.id]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Guards against a race: fetchContactData is also called manually
+  // (DealForm's onSaved, to refresh after an edit) — without this, a
+  // slow response for a contact the user has since navigated AWAY from
+  // could land after a newer, faster fetch and overwrite the correct
+  // data back to a stale/wrong contact's.
+  const fetchGenerationRef = useRef(0);
+
   const fetchContactData = useCallback(async () => {
     if (!contact) return;
+    const generation = ++fetchGenerationRef.current;
 
     const supabase = createClient();
 
@@ -260,6 +284,8 @@ export function ContactSidebar({
       fetchContactCustomFields(supabase, contact.id),
     ]);
 
+    if (fetchGenerationRef.current !== generation) return; // superseded by a newer call
+
     if (dealsRes.data) setDeals(dealsRes.data);
     if (tagsRes.data) {
       const mapped = tagsRes.data
@@ -273,8 +299,8 @@ export function ContactSidebar({
     setCustomFields(customFieldsResult);
   }, [contact]);
 
-  // Load on contact change. setContactData/setTags run inside async
-  // Supabase callbacks, not synchronously in the effect body.
+  // Load on contact change. setDeals/setTags/setCustomFields run inside
+  // an async Supabase callback, not synchronously in the effect body.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchContactData();
