@@ -58,6 +58,25 @@ export interface NextBestActionDisplay extends NextBestAction {
 }
 
 /**
+ * Count of overdue promises (fase 4) — the same underlying rows
+ * `findOverduePromises` below turns into display-ready Next Best
+ * Actions, but this is just a count, for `buildBrokenPromiseSignal`
+ * (rules.ts) via `buildInsights` (insights.ts). Kept separate rather
+ * than deriving the count from `loadNextBestActions`' own output,
+ * since that list is capped (`NEXT_BEST_ACTION_LIMIT`) and merged with
+ * stalled/at-risk deals — counting from it would undercount whenever
+ * there are more overdue promises than fit in the capped, mixed list.
+ */
+export async function countOverduePromises(db: SupabaseClient): Promise<number> {
+  const { count, error } = await db
+    .from('promises')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'overdue')
+  if (error) throw error
+  return count ?? 0
+}
+
+/**
  * Overdue promises (fase 4), converted to display-ready shape — see
  * `OverduePromise`'s own doc comment (next-best-action.ts) for why
  * `assignedTo` has to be translated from `promises.promised_by`

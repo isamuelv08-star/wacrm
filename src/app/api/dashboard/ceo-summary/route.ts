@@ -11,8 +11,11 @@ import {
   loadCommercialMetrics,
   loadTopSellers,
   loadLeadsByRep,
+  countHotLeadsUnanswered,
 } from '@/lib/dashboard/ceo-queries'
-import { loadMoneyAtRisk } from '@/lib/sales-intelligence/queries'
+import { loadMoneyAtRisk, loadNextBestActions, countOverduePromises } from '@/lib/sales-intelligence/queries'
+import { loadRecoveryCandidates } from '@/lib/sales-intelligence/recovery'
+import { buildInsights } from '@/lib/sales-intelligence/insights'
 
 // Matches the "few minutes of staleness is fine" trade-off the user
 // signed off on: these are the heaviest queries on /dashboard (each
@@ -113,17 +116,63 @@ export async function GET(request: Request) {
       () => loadMoneyAtRisk(supabase, staleDays),
       tags,
     )
+    // Intelligence Layer (Auditoría Saleslid) — "Saleslid detectó".
+    // Three more inputs for buildInsights, same cache/tag/TTL as
+    // everything else here. hotUnanswered is the one genuinely new
+    // query (ceo-queries.ts::countHotLeadsUnanswered); the other two
+    // already exist for NextBestActionCard/RecoveryCard and are simply
+    // reused here too — this route never had them before, but nothing
+    // about them changes by adding a second caller.
+    const getHotUnanswered = cachedForAccount(
+      [accountId, 'ceo-hot-unanswered'],
+      CACHE_TTL.dashboardSummary,
+      () => countHotLeadsUnanswered(supabase),
+      tags,
+    )
+    const getNextBestActions = cachedForAccount(
+      [accountId, 'ceo-next-best-actions', String(staleDays)],
+      CACHE_TTL.dashboardSummary,
+      () => loadNextBestActions(supabase, staleDays),
+      tags,
+    )
+    const getRecoveryCandidates = cachedForAccount(
+      [accountId, 'ceo-recovery-candidates'],
+      CACHE_TTL.dashboardSummary,
+      () => loadRecoveryCandidates(supabase),
+      tags,
+    )
+    const getOverduePromises = cachedForAccount(
+      [accountId, 'ceo-overdue-promises'],
+      CACHE_TTL.dashboardSummary,
+      () => countOverduePromises(supabase),
+      tags,
+    )
 
-    const [ceoMetrics, salesVsGoal, topSellers, salesFunnel, commercialMetrics, leadsByRep, moneyAtRisk] =
-      await Promise.all([
-        getCeoMetrics(),
-        getSalesVsGoal(),
-        getTopSellers(),
-        getSalesFunnel(),
-        getCommercialMetrics(),
-        getLeadsByRep(),
-        getMoneyAtRisk(),
-      ])
+    const [
+      ceoMetrics,
+      salesVsGoal,
+      topSellers,
+      salesFunnel,
+      commercialMetrics,
+      leadsByRep,
+      moneyAtRisk,
+      hotUnanswered,
+      nextBestActions,
+      recoveryCandidates,
+      overduePromiseCount,
+    ] = await Promise.all([
+      getCeoMetrics(),
+      getSalesVsGoal(),
+      getTopSellers(),
+      getSalesFunnel(),
+      getCommercialMetrics(),
+      getLeadsByRep(),
+      getMoneyAtRisk(),
+      getHotUnanswered(),
+      getNextBestActions(),
+      getRecoveryCandidates(),
+      getOverduePromises(),
+    ])
 
     // Alerts need the metrics bundle as input (same dependency the
     // client's loadAll already has) — cached separately since its key
@@ -136,6 +185,20 @@ export async function GET(request: Request) {
     )
     const alerts = await getAlerts()
 
+    // buildInsights is pure (no I/O) — every input above was already
+    // computed for its own card, this just re-packages them into the
+    // unified "Saleslid detectó" feed. See its own doc comment for why
+    // it deliberately reuses rules.ts's severity thresholds instead of
+    // inventing new ones.
+    const insights = buildInsights({
+      alerts,
+      hotUnanswered,
+      nextBestActions,
+      recovery: recoveryCandidates,
+      staleDays,
+      overduePromiseCount,
+    })
+
     return NextResponse.json({
       ceoMetrics: can('salesKpis') || can('salesVsGoal') ? ceoMetrics : null,
       salesVsGoal: can('salesVsGoal') ? salesVsGoal : null,
@@ -145,6 +208,7 @@ export async function GET(request: Request) {
       leadsByRep: can('leadsByRep') ? leadsByRep : null,
       alerts: can('alerts') ? alerts : null,
       moneyAtRisk: can('moneyAtRisk') ? moneyAtRisk : null,
+      insights: can('dailyInsights') ? insights : null,
     })
   } catch (err) {
     return toErrorResponse(err)

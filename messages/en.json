@@ -388,6 +388,57 @@
         "closedValue": "Won value",
         "lostValue": "{value} lost"
       }
+    },
+    "insights": {
+      "title": "Saleslid detected",
+      "subtitle": "The most important things to handle today, based on your team's activity.",
+      "allClear": "Nothing urgent right now — good work.",
+      "category_attention": "Attention",
+      "category_risk": "Risk",
+      "category_opportunity": "Opportunity",
+      "category_recommendation": "Recommendation",
+      "viewAction_goToInbox": "View conversations",
+      "viewAction_goToConversation": "View conversation",
+      "viewAction_goToPipeline": "View opportunities",
+      "hotLeadsUnansweredTitle": "{count, plural, =1 {# HOT opportunity with no follow-up} other {# HOT opportunities with no follow-up}}",
+      "hotLeadsUnansweredDesc": "No reply in over {minutes} minutes",
+      "forecastGapTitle": "Forecast is {pct}% below goal",
+      "forecastGapDesc": "At the current pace, this month could close short of target",
+      "lowPipelineCoverageTitle": "Pipeline only covers {multiple}x the monthly goal",
+      "lowPipelineCoverageDesc": "A healthy pipeline covers at least 3x — worth generating more opportunities",
+      "stalledDealsTitle": "{count, plural, =1 {# stalled deal} other {# stalled deals}}",
+      "stalledDealsDesc": "Haven't moved stage in over {days} days",
+      "winRateDeclineTitle": "Win rate dropped {pts} points",
+      "winRateDeclineDesc": "Compared to the previous period",
+      "salesCycleIncreaseTitle": "Sales cycle got {pct}% longer",
+      "salesCycleIncreaseDesc": "Deals are taking longer to close than before",
+      "atRiskCustomersTitle": "{count, plural, =1 {# customer with no activity} other {# customers with no activity}}",
+      "atRiskCustomersDesc": "No messages in over 14 days",
+      "brokenPromisesTitle": "{count, plural, =1 {# overdue commitment} other {# overdue commitments}}",
+      "brokenPromisesDesc": "Promises made to customers that weren't kept on time",
+      "nextBestAction_follow_up_stalled_Title": "Follow up with {contactName}",
+      "nextBestAction_follow_up_stalled_Desc": "Hasn't moved stage in {days} days",
+      "nextBestAction_re_engage_silent_Title": "Re-engage {contactName}",
+      "nextBestAction_re_engage_silent_Desc": "No messages in {days} days",
+      "nextBestAction_fulfill_broken_promise_Title": "Follow through with {contactName}",
+      "nextBestAction_fulfill_broken_promise_Desc": "Overdue by {days} days",
+      "recoveryOpportunityTitle": "Win back {contactName}",
+      "recoveryOpportunityDesc": "Cold lead with real business potential"
+    },
+    "dailyReport": {
+      "dialogTitle": "Your commercial report is ready",
+      "greeting": "Good morning! 👋",
+      "subtitle": "Saleslid analyzed your business's recent commercial activity.",
+      "kpiSales": "Sales",
+      "kpiLeads": "Leads",
+      "kpiOpportunities": "Opportunities",
+      "kpiConversion": "Conversion",
+      "viewFullReport": "View full report",
+      "notNow": "Not now"
+    },
+    "report": {
+      "title": "Daily commercial report",
+      "back": "Back to dashboard"
     }
   },
   "Inbox": {
@@ -1824,7 +1875,9 @@
         "alertsLabel": "Alerts",
         "alertsDesc": "Stalled deals, at-risk customers, and forecast shortfalls.",
         "moneyAtRiskLabel": "Money at risk",
-        "moneyAtRiskDesc": "How much potential value is stalled, broken down by seller and by stage."
+        "moneyAtRiskDesc": "How much potential value is stalled, broken down by seller and by stage.",
+        "dailyInsightsLabel": "Saleslid detected",
+        "dailyInsightsDesc": "A prioritized summary of what needs attention today, plus the daily commercial report and its welcome popup."
       },
       "individualGoalLabel": "Individual monthly sales goal ({currency})",
       "individualGoalHint": "Feeds this member's quota-attainment % on the dashboard's Top Sellers leaderboard. Leave blank to set it later in Settings → Sales goals.",

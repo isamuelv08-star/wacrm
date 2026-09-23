@@ -136,6 +136,10 @@ export const DASHBOARD_PERMISSION_KEYS = [
   "leadsByRep",
   "alerts",
   "moneyAtRisk",
+  /** "Saleslid detectó" — the Intelligence Layer's insight feed
+   *  (Auditoría Saleslid). Same admin+ default as `alerts`/
+   *  `moneyAtRisk`, since it's built from the exact same data. */
+  "dailyInsights",
 ] as const;
 
 export type DashboardPermissionKey = (typeof DASHBOARD_PERMISSION_KEYS)[number];

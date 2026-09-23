@@ -9,6 +9,7 @@ import { ShellSkeleton } from "@/components/layout/shell-skeleton";
 import { Header } from "@/components/layout/header";
 import { PresenceHeartbeat } from "@/components/presence/presence-heartbeat";
 import { NewNotificationToastListener } from "@/components/notifications/new-notification-toast-listener";
+import { DailyReportGate } from "@/components/dashboard/daily-report-gate";
 import { consumePendingInviteToken } from "@/lib/auth/pending-invite";
 
 // Auth-gated dashboard shell. Extracted from the layout so the layout
@@ -90,6 +91,10 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
           lead alerts, ...) in addition to the Notifications bandeja.
           Headless — renders nothing. */}
       <NewNotificationToastListener />
+      {/* "Tu informe comercial está listo" — at most once per calendar
+          day per manager (Auditoría Saleslid's Intelligence Layer).
+          Headless until it has something to show. */}
+      <DailyReportGate />
       <Sidebar open={sidebarOpen} onClose={closeSidebar} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header onOpenSidebar={() => setSidebarOpen(true)} />

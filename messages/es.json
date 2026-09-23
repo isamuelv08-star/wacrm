@@ -388,6 +388,57 @@
         "closedValue": "Valor ganado",
         "lostValue": "{value} perdido"
       }
+    },
+    "insights": {
+      "title": "Saleslid detectó",
+      "subtitle": "Lo más importante para atender hoy, según tu actividad comercial.",
+      "allClear": "No hay nada urgente por ahora — buen trabajo.",
+      "category_attention": "Atención",
+      "category_risk": "Riesgo",
+      "category_opportunity": "Oportunidad",
+      "category_recommendation": "Recomendación",
+      "viewAction_goToInbox": "Ver conversaciones",
+      "viewAction_goToConversation": "Ver conversación",
+      "viewAction_goToPipeline": "Ver oportunidades",
+      "hotLeadsUnansweredTitle": "{count, plural, =1 {# oportunidad HOT sin seguimiento} other {# oportunidades HOT sin seguimiento}}",
+      "hotLeadsUnansweredDesc": "Sin respuesta hace más de {minutes} minutos",
+      "forecastGapTitle": "El pronóstico de cierre está {pct}% por debajo de la meta",
+      "forecastGapDesc": "Al ritmo actual, el mes podría cerrar por debajo del objetivo",
+      "lowPipelineCoverageTitle": "El pipeline cubre solo {multiple}x la meta mensual",
+      "lowPipelineCoverageDesc": "Lo saludable es al menos 3x — conviene generar más oportunidades",
+      "stalledDealsTitle": "{count, plural, =1 {# negocio estancado} other {# negocios estancados}}",
+      "stalledDealsDesc": "Llevan más de {days} días sin cambiar de etapa",
+      "winRateDeclineTitle": "La conversión cayó {pts} puntos",
+      "winRateDeclineDesc": "Comparado con el período anterior",
+      "salesCycleIncreaseTitle": "El ciclo de venta se alargó {pct}%",
+      "salesCycleIncreaseDesc": "Los negocios están tardando más en cerrarse que antes",
+      "atRiskCustomersTitle": "{count, plural, =1 {# cliente sin actividad} other {# clientes sin actividad}}",
+      "atRiskCustomersDesc": "Sin ningún mensaje hace más de 14 días",
+      "brokenPromisesTitle": "{count, plural, =1 {# compromiso vencido} other {# compromisos vencidos}}",
+      "brokenPromisesDesc": "Promesas hechas a clientes que no se cumplieron a tiempo",
+      "nextBestAction_follow_up_stalled_Title": "Seguir con {contactName}",
+      "nextBestAction_follow_up_stalled_Desc": "Sin avanzar de etapa hace {days} días",
+      "nextBestAction_re_engage_silent_Title": "Reconectar con {contactName}",
+      "nextBestAction_re_engage_silent_Desc": "Sin mensajes hace {days} días",
+      "nextBestAction_fulfill_broken_promise_Title": "Cumplir el compromiso con {contactName}",
+      "nextBestAction_fulfill_broken_promise_Desc": "Quedó pendiente hace {days} días",
+      "recoveryOpportunityTitle": "Recuperar a {contactName}",
+      "recoveryOpportunityDesc": "Lead frío con potencial real de negocio"
+    },
+    "dailyReport": {
+      "dialogTitle": "Tu informe comercial está listo",
+      "greeting": "¡Buenos días! 👋",
+      "subtitle": "Saleslid analizó la actividad comercial reciente de tu negocio.",
+      "kpiSales": "Ventas",
+      "kpiLeads": "Leads",
+      "kpiOpportunities": "Oportunidades",
+      "kpiConversion": "Conversión",
+      "viewFullReport": "Ver informe completo",
+      "notNow": "Ahora no"
+    },
+    "report": {
+      "title": "Informe comercial diario",
+      "back": "Volver al panel"
     }
   },
   "Inbox": {
@@ -1824,7 +1875,9 @@
         "alertsLabel": "Alertas",
         "alertsDesc": "Oportunidades estancadas, clientes en riesgo y forecast por debajo de meta.",
         "moneyAtRiskLabel": "Valor en riesgo",
-        "moneyAtRiskDesc": "Cuánto valor potencial afectado hay estancado, desglosado por vendedor y por etapa."
+        "moneyAtRiskDesc": "Cuánto valor potencial afectado hay estancado, desglosado por vendedor y por etapa.",
+        "dailyInsightsLabel": "Saleslid detectó",
+        "dailyInsightsDesc": "Resumen priorizado de lo que necesita atención hoy, más el informe comercial diario y su popup de bienvenida."
       },
       "individualGoalLabel": "Meta de ventas mensual individual ({currency})",
       "individualGoalHint": "Alimenta el % de cumplimiento de este miembro en el ranking de Top Vendedores del dashboard. Dejalo vacío para definirlo después en Configuración → Metas de venta.",

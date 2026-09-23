@@ -388,6 +388,57 @@
         "closedValue": "성사 금액",
         "lostValue": "실패 금액 {value}"
       }
+    },
+    "insights": {
+      "title": "Saleslid가 발견했습니다",
+      "subtitle": "영업 활동을 기준으로 오늘 가장 중요하게 처리해야 할 항목입니다.",
+      "allClear": "지금은 긴급한 항목이 없습니다 — 잘하고 있어요.",
+      "category_attention": "주의",
+      "category_risk": "위험",
+      "category_opportunity": "기회",
+      "category_recommendation": "추천",
+      "viewAction_goToInbox": "대화 보기",
+      "viewAction_goToConversation": "대화 보기",
+      "viewAction_goToPipeline": "기회 보기",
+      "hotLeadsUnansweredTitle": "팔로업이 없는 HOT 기회 {count}건",
+      "hotLeadsUnansweredDesc": "{minutes}분 넘게 응답이 없습니다",
+      "forecastGapTitle": "예상 매출이 목표보다 {pct}% 낮습니다",
+      "forecastGapDesc": "현재 속도라면 이번 달은 목표에 미달할 수 있습니다",
+      "lowPipelineCoverageTitle": "파이프라인이 월 목표의 {multiple}배만 확보되어 있습니다",
+      "lowPipelineCoverageDesc": "건강한 수준은 최소 3배입니다 — 기회를 더 만들어야 합니다",
+      "stalledDealsTitle": "정체된 거래 {count}건",
+      "stalledDealsDesc": "{days}일 넘게 단계 변화가 없습니다",
+      "winRateDeclineTitle": "전환율이 {pts}포인트 하락했습니다",
+      "winRateDeclineDesc": "이전 기간과 비교했을 때",
+      "salesCycleIncreaseTitle": "영업 주기가 {pct}% 길어졌습니다",
+      "salesCycleIncreaseDesc": "거래 성사까지 예전보다 더 오래 걸리고 있습니다",
+      "atRiskCustomersTitle": "활동이 없는 고객 {count}명",
+      "atRiskCustomersDesc": "14일 넘게 메시지가 없습니다",
+      "brokenPromisesTitle": "기한이 지난 약속 {count}건",
+      "brokenPromisesDesc": "고객에게 한 약속이 제때 지켜지지 않았습니다",
+      "nextBestAction_follow_up_stalled_Title": "{contactName}에게 팔로업하기",
+      "nextBestAction_follow_up_stalled_Desc": "{days}일째 단계 변화가 없습니다",
+      "nextBestAction_re_engage_silent_Title": "{contactName}에게 다시 연락하기",
+      "nextBestAction_re_engage_silent_Desc": "{days}일째 메시지가 없습니다",
+      "nextBestAction_fulfill_broken_promise_Title": "{contactName}와의 약속 이행하기",
+      "nextBestAction_fulfill_broken_promise_Desc": "{days}일 지연되었습니다",
+      "recoveryOpportunityTitle": "{contactName} 재유치하기",
+      "recoveryOpportunityDesc": "실제 영업 가능성이 있는 콜드 리드입니다"
+    },
+    "dailyReport": {
+      "dialogTitle": "영업 리포트가 준비되었습니다",
+      "greeting": "좋은 아침입니다! 👋",
+      "subtitle": "Saleslid가 최근 영업 활동을 분석했습니다.",
+      "kpiSales": "매출",
+      "kpiLeads": "리드",
+      "kpiOpportunities": "기회",
+      "kpiConversion": "전환율",
+      "viewFullReport": "전체 리포트 보기",
+      "notNow": "나중에"
+    },
+    "report": {
+      "title": "일일 영업 리포트",
+      "back": "대시보드로 돌아가기"
     }
   },
   "Inbox": {
@@ -1824,7 +1875,9 @@
         "alertsLabel": "알림",
         "alertsDesc": "정체된 딜, 위험 고객, 목표 미달 예측.",
         "moneyAtRiskLabel": "위험에 처한 금액",
-        "moneyAtRiskDesc": "정체된 잠재 가치 금액을 담당자별, 단계별로 분석합니다."
+        "moneyAtRiskDesc": "정체된 잠재 가치 금액을 담당자별, 단계별로 분석합니다.",
+        "dailyInsightsLabel": "Saleslid가 발견했습니다",
+        "dailyInsightsDesc": "오늘 주의가 필요한 항목의 우선순위 요약과 일일 영업 리포트, 환영 팝업을 포함합니다."
       },
       "individualGoalLabel": "개별 월간 매출 목표 ({currency})",
       "individualGoalHint": "대시보드의 Top 영업사원 순위에서 이 멤버의 목표 달성률(%)에 반영됩니다. 나중에 설정하려면 설정 → 매출 목표에서 비워두세요.",

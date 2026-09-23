@@ -73,6 +73,8 @@ import { LeadsByRepCard } from '@/components/dashboard/ceo/leads-by-rep-card'
 import { AlertsCard } from '@/components/dashboard/ceo/alerts-card'
 import { MoneyAtRiskCard } from '@/components/dashboard/ceo/money-at-risk-card'
 import type { MoneyAtRiskData } from '@/lib/sales-intelligence/aggregate'
+import { InsightsPanel } from '@/components/dashboard/insights-panel'
+import type { Insight } from '@/lib/sales-intelligence/insights'
 
 import { useTranslations } from 'next-intl'
 
@@ -91,6 +93,7 @@ interface CeoSummaryResponse {
   leadsByRep: LeadsByRep[] | null
   alerts: CeoAlerts | null
   moneyAtRisk: MoneyAtRiskData | null
+  insights: Insight[] | null
 }
 
 /**
@@ -142,12 +145,13 @@ export default function DashboardPage() {
       leadsByRep: canViewDashboardSection('leadsByRep'),
       alerts: canViewDashboardSection('alerts'),
       moneyAtRisk: canViewDashboardSection('moneyAtRisk'),
+      dailyInsights: canViewDashboardSection('dailyInsights'),
     }),
     [canViewDashboardSection],
   )
   const hasAnySalesAccess =
     sales.kpis || sales.vsGoal || sales.funnel || sales.commercial || sales.topSellers ||
-    sales.leadsByRep || sales.alerts || sales.moneyAtRisk
+    sales.leadsByRep || sales.alerts || sales.moneyAtRisk || sales.dailyInsights
 
   const [metrics, setMetrics] = useState<MetricsBundle | null>(null)
   const [metricsLoading, setMetricsLoading] = useState(true)
@@ -269,6 +273,8 @@ export default function DashboardPage() {
   const [alertsLoading, setAlertsLoading] = useState(true)
   const [moneyAtRisk, setMoneyAtRisk] = useState<MoneyAtRiskData | null>(null)
   const [moneyAtRiskLoading, setMoneyAtRiskLoading] = useState(true)
+  const [insights, setInsights] = useState<Insight[] | null>(null)
+  const [insightsLoading, setInsightsLoading] = useState(true)
 
   const loadAll = useCallback(() => {
     const db = createClient()
@@ -341,6 +347,7 @@ export default function DashboardPage() {
       setLeadsByRepLoading(false)
       setAlertsLoading(false)
       setMoneyAtRiskLoading(false)
+      setInsightsLoading(false)
       return
     }
 
@@ -356,6 +363,7 @@ export default function DashboardPage() {
         setLeadsByRep(data.leadsByRep)
         setAlerts(data.alerts)
         setMoneyAtRisk(data.moneyAtRisk)
+        setInsights(data.insights)
       })
       .catch((err) => console.error('[dashboard] ceo-summary failed:', err))
       .finally(() => {
@@ -367,6 +375,7 @@ export default function DashboardPage() {
         setLeadsByRepLoading(false)
         setAlertsLoading(false)
         setMoneyAtRiskLoading(false)
+        setInsightsLoading(false)
       })
   }, [hasAnySalesAccess])
 
@@ -577,6 +586,7 @@ export default function DashboardPage() {
       setSalesVsGoalLoading(true)
       setTopSellersLoading(true)
       setAlertsLoading(true)
+      setInsightsLoading(true)
       void fetchCeoSummary(r, STALE_DAYS, customRange)
         .then((data) => {
           setCeoMetrics(data.ceoMetrics)
@@ -587,6 +597,7 @@ export default function DashboardPage() {
           setLeadsByRep(data.leadsByRep)
           setAlerts(data.alerts)
           setMoneyAtRisk(data.moneyAtRisk)
+          setInsights(data.insights)
         })
         .catch((err) => console.error('[dashboard] ceo-summary failed:', err))
         .finally(() => {
@@ -594,6 +605,7 @@ export default function DashboardPage() {
           setSalesVsGoalLoading(false)
           setTopSellersLoading(false)
           setAlertsLoading(false)
+          setInsightsLoading(false)
         })
     },
     [hasAnySalesAccess],
@@ -823,6 +835,16 @@ export default function DashboardPage() {
       {hasAnySalesAccess && (
         <div className="space-y-4 border-t border-border pt-5">
           <h2 className="text-lg font-semibold text-foreground">{tCeo('salesSectionTitle')}</h2>
+
+          {/* "Saleslid detectó" — the Intelligence Layer's insight
+              feed (Auditoría Saleslid). Sits above the KPI cards on
+              purpose: DATO → INSIGHT → ACCIÓN, so the prioritized
+              headline comes before the raw numbers it was built from. */}
+          {sales.dailyInsights && (
+            <RevealSection delayMs={20}>
+              <InsightsPanel insights={insights} loading={insightsLoading} currency={defaultCurrency} />
+            </RevealSection>
+          )}
 
           {sales.kpis && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">

@@ -675,6 +675,91 @@ export async function findAtRiskOpenDeals(
   return atRisk
 }
 
+export interface HotLeadsUnansweredResult {
+  count: number
+  contactIds: string[]
+  conversationIds: string[]
+  /** The account's own configured threshold (`hot_lead_alert_minutes`),
+   *  echoed back so a caller can phrase "sin responder hace más de N
+   *  minutos" without a second query. */
+  thresholdMinutes: number
+}
+
+/**
+ * How many open, HOT-scored conversations have gone unanswered past
+ * the account's own alert threshold — the aggregate count behind
+ * "17 oportunidades HOT sin seguimiento". Reuses the exact same
+ * candidate query `runHotLeadAlertScan` (src/lib/notifications/
+ * hot-lead-alerts.ts) and `loadHotUnanswered` (./queries.ts) already
+ * run (open conversation + `contacts.lead_score='hot'` + last message
+ * from the customer) — this function only adds counting instead of
+ * writing a notification, and gates on `hot_lead_alert_minutes` the
+ * same way the alert scan does, so "0" here means the same thing as
+ * "nothing to alert on" there. An account with alerting disabled
+ * (`hot_lead_alert_minutes` 0/null) returns a 0 count rather than
+ * flagging every HOT lead as urgent regardless of age.
+ */
+export async function countHotLeadsUnanswered(
+  db: DB,
+  accountId?: string,
+): Promise<HotLeadsUnansweredResult> {
+  const none: HotLeadsUnansweredResult = {
+    count: 0,
+    contactIds: [],
+    conversationIds: [],
+    thresholdMinutes: 0,
+  }
+
+  // The threshold lives on `accounts` — for the RLS-scoped (no
+  // accountId) call this reads the caller's own single row; for the
+  // cron's service-role call it's the one account being scanned.
+  let acctQ = db.from('accounts').select('id, hot_lead_alert_minutes')
+  acctQ = accountId ? acctQ.eq('id', accountId) : acctQ.limit(1)
+  const { data: acctRow, error: acctErr } = await acctQ.maybeSingle()
+  if (acctErr) throw acctErr
+  const thresholdMinutes = acctRow?.hot_lead_alert_minutes ?? 0
+  if (!thresholdMinutes || thresholdMinutes <= 0) return none // alerting disabled for this account
+
+  let candidatesQ = db
+    .from('conversations')
+    .select('id, contact_id, contacts!inner(lead_score)')
+    .eq('status', 'open')
+    .eq('contacts.lead_score', 'hot')
+    .limit(MAX_OPEN_DEALS_SCANNED)
+  if (accountId) candidatesQ = candidatesQ.eq('account_id', accountId)
+  const { data: candidates, error } = await candidatesQ
+  if (error) throw error
+  if (!candidates || candidates.length === 0) return none
+
+  type Candidate = { id: string; contact_id: string }
+  const now = Date.now()
+  const cutoffMs = thresholdMinutes * 60_000
+
+  const results = await Promise.all(
+    (candidates as unknown as Candidate[]).map(async (conv) => {
+      const { data: lastMessage } = await db
+        .from('messages')
+        .select('sender_type, created_at')
+        .eq('conversation_id', conv.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (!lastMessage || lastMessage.sender_type !== 'customer') return null
+      const waitingMs = now - new Date(lastMessage.created_at).getTime()
+      if (waitingMs < cutoffMs) return null
+      return conv
+    }),
+  )
+
+  const unanswered = results.filter((r): r is Candidate => r !== null)
+  return {
+    count: unanswered.length,
+    contactIds: unanswered.map((c) => c.contact_id),
+    conversationIds: unanswered.map((c) => c.id),
+    thresholdMinutes,
+  }
+}
+
 function computeForecastGap(forecast: number, goal: number | null): number | null {
   if (!goal) return null
   const pct = ((forecast - goal) / goal) * 100

@@ -388,6 +388,57 @@
         "closedValue": "Valor ganho",
         "lostValue": "{value} perdido"
       }
+    },
+    "insights": {
+      "title": "O Saleslid detectou",
+      "subtitle": "O mais importante para tratar hoje, com base na atividade comercial.",
+      "allClear": "Nada urgente por enquanto — bom trabalho.",
+      "category_attention": "Atenção",
+      "category_risk": "Risco",
+      "category_opportunity": "Oportunidade",
+      "category_recommendation": "Recomendação",
+      "viewAction_goToInbox": "Ver conversas",
+      "viewAction_goToConversation": "Ver conversa",
+      "viewAction_goToPipeline": "Ver oportunidades",
+      "hotLeadsUnansweredTitle": "{count, plural, =1 {# oportunidade QUENTE sem acompanhamento} other {# oportunidades QUENTES sem acompanhamento}}",
+      "hotLeadsUnansweredDesc": "Sem resposta há mais de {minutes} minutos",
+      "forecastGapTitle": "A previsão de fechamento está {pct}% abaixo da meta",
+      "forecastGapDesc": "No ritmo atual, o mês pode fechar abaixo do objetivo",
+      "lowPipelineCoverageTitle": "O pipeline cobre apenas {multiple}x a meta mensal",
+      "lowPipelineCoverageDesc": "O saudável é pelo menos 3x — vale gerar mais oportunidades",
+      "stalledDealsTitle": "{count, plural, =1 {# negócio parado} other {# negócios parados}}",
+      "stalledDealsDesc": "Sem mudar de etapa há mais de {days} dias",
+      "winRateDeclineTitle": "A conversão caiu {pts} pontos",
+      "winRateDeclineDesc": "Comparado ao período anterior",
+      "salesCycleIncreaseTitle": "O ciclo de venda ficou {pct}% mais longo",
+      "salesCycleIncreaseDesc": "Os negócios estão demorando mais para fechar do que antes",
+      "atRiskCustomersTitle": "{count, plural, =1 {# cliente sem atividade} other {# clientes sem atividade}}",
+      "atRiskCustomersDesc": "Sem nenhuma mensagem há mais de 14 dias",
+      "brokenPromisesTitle": "{count, plural, =1 {# compromisso vencido} other {# compromissos vencidos}}",
+      "brokenPromisesDesc": "Promessas feitas a clientes que não foram cumpridas a tempo",
+      "nextBestAction_follow_up_stalled_Title": "Dar seguimento a {contactName}",
+      "nextBestAction_follow_up_stalled_Desc": "Sem avançar de etapa há {days} dias",
+      "nextBestAction_re_engage_silent_Title": "Reconectar com {contactName}",
+      "nextBestAction_re_engage_silent_Desc": "Sem mensagens há {days} dias",
+      "nextBestAction_fulfill_broken_promise_Title": "Cumprir o compromisso com {contactName}",
+      "nextBestAction_fulfill_broken_promise_Desc": "Pendente há {days} dias",
+      "recoveryOpportunityTitle": "Recuperar {contactName}",
+      "recoveryOpportunityDesc": "Lead frio com potencial real de negócio"
+    },
+    "dailyReport": {
+      "dialogTitle": "Seu relatório comercial está pronto",
+      "greeting": "Bom dia! 👋",
+      "subtitle": "O Saleslid analisou a atividade comercial recente do seu negócio.",
+      "kpiSales": "Vendas",
+      "kpiLeads": "Leads",
+      "kpiOpportunities": "Oportunidades",
+      "kpiConversion": "Conversão",
+      "viewFullReport": "Ver relatório completo",
+      "notNow": "Agora não"
+    },
+    "report": {
+      "title": "Relatório comercial diário",
+      "back": "Voltar ao painel"
     }
   },
   "Inbox": {
@@ -1824,7 +1875,9 @@
         "alertsLabel": "Alertas",
         "alertsDesc": "Negócios parados, clientes em risco e forecast abaixo da meta.",
         "moneyAtRiskLabel": "Valor em risco",
-        "moneyAtRiskDesc": "Quanto valor potencial afetado está parado, detalhado por vendedor e por etapa."
+        "moneyAtRiskDesc": "Quanto valor potencial afetado está parado, detalhado por vendedor e por etapa.",
+        "dailyInsightsLabel": "O Saleslid detectou",
+        "dailyInsightsDesc": "Resumo priorizado do que precisa de atenção hoje, além do relatório comercial diário e seu popup de boas-vindas."
       },
       "individualGoalLabel": "Meta mensal de vendas individual ({currency})",
       "individualGoalHint": "Alimenta o % de cumprimento deste membro no ranking de Top Vendedores do painel. Deixe em branco para definir depois em Configurações → Metas de vendas.",
