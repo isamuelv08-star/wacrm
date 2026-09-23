@@ -56,6 +56,12 @@ export async function applyScheduledEvent(
      *  event filed below is also pushed there. See
      *  `src/lib/calendar/google-sync.ts`. */
     googleCalendarSyncEnabled: boolean
+    /** Whether a booked "meeting" also sends the customer the usual
+     *  WhatsApp confirmation. Defaults to true (the auto-reply path).
+     *  Observer mode passes false: it exists precisely to keep the CRM
+     *  current on a thread a person is handling WITHOUT the bot ever
+     *  writing to the customer. */
+    sendCustomerConfirmation?: boolean
   },
 ): Promise<void> {
   const {
@@ -68,6 +74,7 @@ export async function applyScheduledEvent(
     type,
     title,
     googleCalendarSyncEnabled,
+    sendCustomerConfirmation = true,
   } = args
 
   try {
@@ -150,7 +157,7 @@ export async function applyScheduledEvent(
     // the other two ("call", "follow_up") are internal commitments with
     // nothing for the customer to confirm. Best-effort, same posture as
     // the rest of this function.
-    if (type === 'meeting') {
+    if (type === 'meeting' && sendCustomerConfirmation) {
       const { data: contact } = await db
         .from('contacts')
         .select('name, phone')

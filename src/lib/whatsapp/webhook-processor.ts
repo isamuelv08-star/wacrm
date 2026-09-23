@@ -11,6 +11,8 @@ import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
 import { classifyLeadIfNeeded } from '@/lib/ai/lead-classify'
+import { observeConversationIfNeeded } from '@/lib/ai/observer'
+import { pauseAiForAgentReply } from '@/lib/ai/thread-control'
 import { pickRoundRobinAgent } from '@/lib/assignment/round-robin'
 import { transcribeAndStoreAudioMessage } from '@/lib/ai/transcribe'
 import { describeAndStoreImageMessage } from '@/lib/ai/vision'
@@ -1223,6 +1225,19 @@ export async function processMessage(
       configOwnerUserId,
       messageId: insertedMessage.id,
     })
+
+    // Observer mode (opt-in): when the AI is NOT the one answering this
+    // thread — a seller has it, or auto-reply is off — it still reads it
+    // and fills in the contact / drives the deal, without writing to the
+    // customer. No-ops unless the account turned it on and the AI stayed
+    // silent; owns its gates + try/catch and never throws.
+    await observeConversationIfNeeded({
+      accountId,
+      conversationId: conversation.id,
+      contactId: contactRecord.id,
+      configOwnerUserId,
+      platform: 'whatsapp',
+    })
   }
 
   // message.received webhook (public API). Awaited — not fire-and-forget
@@ -1418,10 +1433,11 @@ async function parseMessageContent(
  * conversation history the AI reads for context (buildConversationContext
  * maps every non-customer message to the 'assistant' role).
  *
- * NOTE: recording it does NOT pause AI auto-reply. That only stands down
- * when a human agent is ASSIGNED to the conversation or auto-reply was
- * disabled on it (see dispatchInboundToAiReply) — a phone reply alone
- * changes neither.
+ * A PHONE reply (`sentFromPhone`) also pauses AI auto-reply on the
+ * conversation (migration 102, `ai_pause_on_agent_reply`): a person
+ * typing there is taking the thread, and the bot answering over them is
+ * exactly what that setting exists to prevent. The pause is the same one
+ * "Take over" writes, so auto-resume can hand the thread back later.
  */
 export async function recordExternalOutboundMessage(
   message: WhatsAppMessage,
@@ -1534,6 +1550,18 @@ export async function recordExternalOutboundMessage(
       '[flows] pause-on-external-outbound threw:',
       err instanceof Error ? err.message : err,
     )
+  }
+
+  // …and the same signal for the AI bot (migration 102): someone typed
+  // this on their phone, so they are clearly handling the thread and
+  // the bot yields it (coming back on its own if the account set
+  // auto-resume). Deliberately limited to phone messages: a `cloud_api`
+  // send is normally this CRM's own outbound coming back as an echo,
+  // which the call site drops by message id — but if that echo ever
+  // beat our own insert, pausing on it would mute the bot the instant
+  // it answered.
+  if (sentFromPhone) {
+    await pauseAiForAgentReply({ accountId, conversationId: conversation.id })
   }
 }
 

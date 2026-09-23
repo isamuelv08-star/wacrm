@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Sparkles, CheckCircle2, Trash2, Eye, EyeOff, Flame, Handshake, CalendarClock, Users, CalendarCheck2, ImagePlus, MessageSquareText, Target, Clock } from 'lucide-react';
+import { Loader2, Sparkles, CheckCircle2, Trash2, Eye, EyeOff, Flame, Handshake, CalendarClock, Users, CalendarCheck2, ImagePlus, MessageSquareText, Target, Clock, UserCheck, PauseCircle, ScanEye } from 'lucide-react';
 import { listTimezones } from '@/lib/timezone-list';
 import { useAuth } from '@/hooks/use-auth';
 import { canEditSettings } from '@/lib/auth/roles';
@@ -103,6 +103,15 @@ export function AiConfig() {
   // for hotLeadAlertMinutes/timezone below.
   const [googleCalendarConnected, setGoogleCalendarConnected] = useState(false);
   const [leadAutoAssignEnabled, setLeadAutoAssignEnabled] = useState(false);
+  // Thread control (migrations 101/102) — who owns a conversation, the
+  // bot or a person. Defaults match the columns': the bot answers even
+  // when round-robin has stamped an assignee on a brand-new thread, it
+  // yields as soon as a seller actually writes there, and "keep reading
+  // the threads I'm not answering" stays opt-in because it spends the
+  // account's own provider key.
+  const [replyWhenAssigned, setReplyWhenAssigned] = useState(true);
+  const [pauseOnAgentReply, setPauseOnAgentReply] = useState(true);
+  const [observeHumanThreads, setObserveHumanThreads] = useState(false);
   const [mediaSendingEnabled, setMediaSendingEnabled] = useState(false);
   // null = "never stop responding" (migration 047).
   const [maxPerConversation, setMaxPerConversation] = useState<number | null>(3);
@@ -169,6 +178,12 @@ export function AiConfig() {
         setAiSchedulingEnabled(Boolean(data.ai_scheduling_enabled));
         setGoogleCalendarSyncEnabled(Boolean(data.google_calendar_sync_enabled));
         setLeadAutoAssignEnabled(Boolean(data.lead_auto_assign_enabled));
+        // `!== false` so an older payload (or a database still missing
+        // migration 102) shows these as on, matching how the server reads
+        // them — only an explicit false turns them off.
+        setReplyWhenAssigned(data.ai_reply_when_assigned !== false);
+        setPauseOnAgentReply(data.ai_pause_on_agent_reply !== false);
+        setObserveHumanThreads(data.observe_human_threads === true);
         setMediaSendingEnabled(Boolean(data.media_sending_enabled));
         // The stored value is a number, or null ("never stop") — only an
         // absent key (older/partial payload) should fall back to the
@@ -286,6 +301,9 @@ export function AiConfig() {
     auto_reply_max_per_conversation: maxPerConversation,
     auto_resume_after_minutes: autoResumeAfterMinutes,
     handoff_agent_id: handoffAgentId || null,
+    ai_reply_when_assigned: replyWhenAssigned,
+    ai_pause_on_agent_reply: pauseOnAgentReply,
+    observe_human_threads: observeHumanThreads,
   });
 
   const handleTest = async () => {
@@ -949,6 +967,67 @@ export function AiConfig() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <UserCheck className="h-4 w-4 text-primary" /> {t('threadControlTitle')}
+            </CardTitle>
+            <CardDescription>{t('threadControlDesc')}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between gap-4 rounded-md border border-border p-3">
+              <div>
+                <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                  <Users className="h-3.5 w-3.5 text-primary" />
+                  {t('replyWhenAssigned')}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t('replyWhenAssignedDesc')}
+                </p>
+              </div>
+              <Switch
+                checked={replyWhenAssigned}
+                onCheckedChange={setReplyWhenAssigned}
+                disabled={disabled || !autoReplyEnabled}
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-4 rounded-md border border-border p-3">
+              <div>
+                <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                  <PauseCircle className="h-3.5 w-3.5 text-primary" />
+                  {t('pauseOnAgentReply')}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t('pauseOnAgentReplyDesc')}
+                </p>
+              </div>
+              <Switch
+                checked={pauseOnAgentReply}
+                onCheckedChange={setPauseOnAgentReply}
+                disabled={disabled || !autoReplyEnabled}
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-4 rounded-md border border-border p-3">
+              <div>
+                <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                  <ScanEye className="h-3.5 w-3.5 text-primary" />
+                  {t('observeHumanThreads')}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t('observeHumanThreadsDesc')}
+                </p>
+              </div>
+              <Switch
+                checked={observeHumanThreads}
+                onCheckedChange={setObserveHumanThreads}
+                disabled={disabled || !isActive}
+              />
             </div>
           </CardContent>
         </Card>

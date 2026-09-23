@@ -8,7 +8,8 @@
 //   2. loads the conversation + contact + WhatsApp config,
 //   3. sends to Meta (with phone-variant retry + contact auto-fix),
 //   4. persists the message + updates the conversation,
-//   5. pauses any active Flow run for the contact (agent stepped in).
+//   5. pauses any active Flow run — and, for a human send, the AI bot
+//      on that conversation — because the agent stepped in.
 //
 // It is transport-agnostic: it takes a `SupabaseClient` and an
 // `accountId` and throws `SendMessageError` on failure. The callers
@@ -37,6 +38,7 @@ import {
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption';
 import { sendViaZernio, resolveZernioSocialAccountId } from '@/lib/whatsapp/zernio-send';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
+import { pauseAiForAgentReply } from '@/lib/ai/thread-control';
 import {
   sanitizePhoneForMeta,
   isValidE164,
@@ -618,6 +620,17 @@ export async function sendMessageToConversation(
       '[flows] pause-on-agent-send threw:',
       err instanceof Error ? err.message : err
     );
+  }
+
+  // Same "yield, human is here" signal for the AI bot (migration 102).
+  // Gated on `claimForUserId` because that is what marks this send as a
+  // person typing in the dashboard: the bot's own auto-replies, flow
+  // steps and automations all send through `engineSendText` instead and
+  // never reach this function, and the public API deliberately doesn't
+  // pass it either — an integration posting a message isn't a
+  // salesperson taking the thread.
+  if (claimForUserId) {
+    await pauseAiForAgentReply({ accountId, conversationId });
   }
 
   return { messageId: messageRecord.id, whatsappMessageId: waMessageId };

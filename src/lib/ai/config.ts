@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { decrypt } from '@/lib/whatsapp/encryption'
+import { isMissingColumnError } from '@/lib/whatsapp/external-outbound'
 import type { AiConfig, AiProvider } from './types'
 
 interface AiConfigRow {
@@ -20,10 +21,46 @@ interface AiConfigRow {
   lead_auto_assign_enabled: boolean
   embeddings_api_key: string | null
   transcription_api_key: string | null
+  ai_reply_when_assigned?: boolean | null
+  ai_pause_on_agent_reply?: boolean | null
+  observe_human_threads?: boolean | null
 }
 
-const CONFIG_COLUMNS =
+const CORE_CONFIG_COLUMNS =
   'provider, model, api_key, system_prompt, qualification_criteria, is_active, auto_reply_enabled, autoreply_channels, sales_mode_enabled, ai_scheduling_enabled, google_calendar_sync_enabled, media_sending_enabled, auto_reply_max_per_conversation, handoff_agent_id, lead_auto_assign_enabled, embeddings_api_key, transcription_api_key'
+
+/** Columns added by migrations 101/102. Selected together with the core
+ *  ones, but a database that hasn't had those migrations applied yet
+ *  errors on the whole SELECT — hence the retry in `selectConfigRow`,
+ *  which falls back to the core columns and lets the defaults below
+ *  stand in. */
+const OPTIONAL_CONFIG_COLUMNS =
+  'ai_reply_when_assigned, ai_pause_on_agent_reply, observe_human_threads'
+
+/**
+ * One SELECT with the optional (101/102) columns, retried without them
+ * when the database says they don't exist. Deploying the code before
+ * running the migration then degrades to "those settings sit at their
+ * defaults" instead of taking auto-reply down account-wide.
+ */
+async function selectConfigRow(db: SupabaseClient, accountId: string) {
+  const full = await db
+    .from('ai_configs')
+    .select(`${CORE_CONFIG_COLUMNS}, ${OPTIONAL_CONFIG_COLUMNS}`)
+    .eq('account_id', accountId)
+    .maybeSingle()
+
+  if (!full.error || !isMissingColumnError(full.error)) return full
+
+  console.warn(
+    '[ai config] ai_configs is missing the columns from migrations 101/102 — apply them; using defaults meanwhile.',
+  )
+  return db
+    .from('ai_configs')
+    .select(CORE_CONFIG_COLUMNS)
+    .eq('account_id', accountId)
+    .maybeSingle()
+}
 
 /**
  * Load and decrypt the account's AI config for *use* (draft or
@@ -42,11 +79,7 @@ export async function loadAiConfig(
   opts: { requireActive?: boolean } = {},
 ): Promise<AiConfig | null> {
   const { requireActive = true } = opts
-  const { data, error } = await db
-    .from('ai_configs')
-    .select(CONFIG_COLUMNS)
-    .eq('account_id', accountId)
-    .maybeSingle()
+  const { data, error } = await selectConfigRow(db, accountId)
 
   if (error) throw error
   if (!data) return null
@@ -112,6 +145,13 @@ export async function loadAiConfig(
     autoReplyMaxPerConversation: row.auto_reply_max_per_conversation,
     handoffAgentId: row.handoff_agent_id,
     leadAutoAssignEnabled: row.lead_auto_assign_enabled,
+    // Migrations 101/102. `!== false` rather than `=== true`: when the
+    // column is missing (migration not applied) or null, these read as
+    // their intended defaults — the bot answers assigned threads and
+    // yields to an agent who writes — while observing stays opt-in.
+    replyWhenAssigned: row.ai_reply_when_assigned !== false,
+    pauseOnAgentReply: row.ai_pause_on_agent_reply !== false,
+    observeHumanThreads: row.observe_human_threads === true,
     embeddingsApiKey,
     transcriptionApiKey,
   }

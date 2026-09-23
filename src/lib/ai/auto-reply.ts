@@ -16,6 +16,7 @@ import { buildCalendarContext } from './calendar-context'
 import { describeNowInZone } from './timezone'
 import { logAiUsage } from './usage'
 import { latestUserMessage } from './query'
+import { aiSilenceReason } from './reply-gate'
 import { engineSendText, resolveSendContext } from '@/lib/flows/meta-send'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 import { pickRoundRobinAgent } from '@/lib/assignment/round-robin'
@@ -86,10 +87,15 @@ interface DispatchArgs {
  * runner's contract: it owns its try/catch and NEVER throws — a failing
  * or slow LLM call must not affect the webhook's 200 to Meta.
  *
- * Eligibility gates (any → silent no-op):
- *   - AI off / auto-reply disabled for the account
- *   - a human agent is assigned (they own the thread)
- *   - auto-reply was disabled for this conversation (prior handoff)
+ * Eligibility gates (any → silent no-op) — all of them live in
+ * `aiSilenceReason` (reply-gate.ts), which the observer shares:
+ *   - AI off / auto-reply disabled for the account, or off for this channel
+ *   - a user-built automation already answers every message
+ *   - auto-reply was disabled for this conversation (prior handoff,
+ *     "Take over", or a seller writing in the thread)
+ *   - a seller is assigned AND the account turned off
+ *     `ai_reply_when_assigned` (migration 102) — note that a nominal
+ *     round-robin assignee does NOT silence the bot by default
  *   - the per-conversation reply cap is reached
  *   - there's nothing to reply to
  *
@@ -110,8 +116,7 @@ export async function dispatchInboundToAiReply(
     const db = supabaseAdmin()
 
     const config = await loadAiConfig(db, accountId)
-    if (!config || !config.autoReplyEnabled) return
-    if (!config.autoreplyChannels.includes(platform)) return
+    if (!config) return
 
     // Deterministic, user-configured responders win over the LLM — the
     // caller already excludes messages a Flow consumed. Message-level
@@ -128,7 +133,6 @@ export async function dispatchInboundToAiReply(
       .eq('is_active', true)
       .in('trigger_type', ['new_message_received', 'keyword_match'])
       .limit(1)
-    if (autoResponders && autoResponders.length > 0) return
 
     const { data: conv, error: convErr } = await db
       .from('conversations')
@@ -136,16 +140,23 @@ export async function dispatchInboundToAiReply(
       .eq('id', conversationId)
       .maybeSingle()
     if (convErr || !conv) return
-    if (conv.assigned_agent_id) return // a human owns this thread
-    if (conv.ai_autoreply_disabled) return // handed off / turned off here
-    // Cheap early-out; the authoritative cap check is the atomic claim
-    // below (this read can race a concurrent inbound). A null cap means
-    // "never stop responding" (migration 047) — skip the check entirely.
-    if (
-      config.autoReplyMaxPerConversation !== null &&
-      conv.ai_reply_count >= config.autoReplyMaxPerConversation
-    )
-      return
+
+    // Every "should the bot stay quiet here?" rule in one place, shared
+    // with the observer so the two can't disagree (see reply-gate.ts).
+    // The cap check here is a cheap early-out; the authoritative one is
+    // the atomic claim below, since this read can race a concurrent
+    // inbound.
+    const silence = aiSilenceReason({
+      autoReplyEnabled: config.autoReplyEnabled,
+      channelAllowed: config.autoreplyChannels.includes(platform),
+      hasMessageAutomations: !!autoResponders && autoResponders.length > 0,
+      assignedAgentId: conv.assigned_agent_id ?? null,
+      replyWhenAssigned: config.replyWhenAssigned,
+      aiAutoreplyDisabled: conv.ai_autoreply_disabled === true,
+      replyCount: conv.ai_reply_count ?? 0,
+      maxRepliesPerConversation: config.autoReplyMaxPerConversation,
+    })
+    if (silence) return
 
     // Debounce: wait a bit before actually replying, so a customer who
     // sends several quick messages in a row (breaking one thought into

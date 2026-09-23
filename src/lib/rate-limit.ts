@@ -173,6 +173,10 @@ export const RATE_LIMITS = {
    *  same rationale: bounds a burst of inbound across many threads
    *  against the account's own BYO provider key. */
   aiClassifyAccount: { limit: 30, windowMs: 60_000 },
+  /** Observer mode (the AI reading a thread a human owns), per account —
+   *  one provider call per inbound while a seller has the conversation, so
+   *  this bounds a busy team's spend on the shared BYO key. */
+  aiObserveAccount: { limit: 30, windowMs: 60_000 },
   /** Sidebar "ask your CRM" assistant, per user. 20/min matches
    *  aiDraft's budget — same shape of usage (a person typing
    *  questions), just aimed at the account's own data instead of a

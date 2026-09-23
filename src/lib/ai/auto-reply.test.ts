@@ -121,6 +121,9 @@ function aiConfig(overrides: Partial<AiConfig> = {}): AiConfig {
     autoReplyMaxPerConversation: 3,
     handoffAgentId: null,
     leadAutoAssignEnabled: false,
+    replyWhenAssigned: true,
+    pauseOnAgentReply: true,
+    observeHumanThreads: false,
     embeddingsApiKey: null,
     transcriptionApiKey: null,
     ...overrides,
@@ -245,7 +248,22 @@ describe('dispatchInboundToAiReply — eligibility gates', () => {
     expect(h.engineSendText).toHaveBeenCalled()
   })
 
-  it('skips when a human agent is assigned', async () => {
+  // Migration 102: round-robin stamps an assignee on every brand-new
+  // conversation, so "assigned" on its own can't mean "hands off" —
+  // that muted the bot on every new lead until someone toggled the
+  // thread by hand.
+  it('still replies when an agent is merely assigned (the default)', async () => {
+    h.state.conv = {
+      assigned_agent_id: 'agent-9',
+      ai_autoreply_disabled: false,
+      ai_reply_count: 0,
+    }
+    await dispatchInboundToAiReply(ARGS)
+    expect(h.engineSendText).toHaveBeenCalled()
+  })
+
+  it('skips an assigned conversation when the account turned off ai_reply_when_assigned', async () => {
+    h.loadAiConfig.mockResolvedValue(aiConfig({ replyWhenAssigned: false }))
     h.state.conv = {
       assigned_agent_id: 'agent-9',
       ai_autoreply_disabled: false,

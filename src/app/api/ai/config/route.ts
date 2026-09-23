@@ -9,6 +9,7 @@ import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
 import { validateAiCredentials } from '@/lib/ai/validate'
 import { embedTexts } from '@/lib/ai/embeddings'
 import { AiError, type AiProvider } from '@/lib/ai/types'
+import { isMissingColumnError } from '@/lib/whatsapp/external-outbound'
 
 function bad(message: string) {
   return NextResponse.json({ error: message }, { status: 400 })
@@ -44,11 +45,31 @@ export async function GET() {
     }
 
     if (!data) return NextResponse.json({ configured: false })
+
+    // The thread-control settings (migrations 101/102) are read on their
+    // own so a database that hasn't had those migrations yet still loads
+    // everything else; an error just leaves them at their defaults.
+    const { data: extraRow } = await supabase
+      .from('ai_configs')
+      .select('observe_human_threads, ai_reply_when_assigned, ai_pause_on_agent_reply')
+      .eq('account_id', accountId)
+      .maybeSingle()
+    const extra = extraRow as {
+      observe_human_threads?: boolean
+      ai_reply_when_assigned?: boolean
+      ai_pause_on_agent_reply?: boolean
+    } | null
+
     // The keys are selected only to derive the has_* flags; none of them
     // is returned to the client.
     const { api_key, embeddings_api_key, transcription_api_key, ...safe } = data
     return NextResponse.json({
       configured: true,
+      observe_human_threads: extra?.observe_human_threads === true,
+      // Same `!== false` defaulting as loadAiConfig: missing column or
+      // null reads as the intended default, not as "off".
+      ai_reply_when_assigned: extra?.ai_reply_when_assigned !== false,
+      ai_pause_on_agent_reply: extra?.ai_pause_on_agent_reply !== false,
       has_key: !!api_key,
       has_embeddings_key: !!embeddings_api_key,
       has_transcription_key: !!transcription_api_key,
@@ -229,6 +250,11 @@ export async function POST(request: Request) {
           autoReplyMaxPerConversation: maxPer,
           handoffAgentId: null,
           leadAutoAssignEnabled,
+          // Irrelevant to a connectivity ping — it only sends one message
+          // to the provider — so they're just filled with their defaults.
+          replyWhenAssigned: true,
+          pauseOnAgentReply: true,
+          observeHumanThreads: false,
           embeddingsApiKey: null,
           transcriptionApiKey: null,
         })
@@ -299,11 +325,34 @@ export async function POST(request: Request) {
       shared.transcription_api_key = null
     }
 
+    // Thread-control settings (migrations 101/102). Only written when the
+    // form sent them, and if the columns don't exist yet the save is
+    // retried without them — one missing migration must never block
+    // saving every other AI setting.
+    const OPTIONAL_BOOLEANS = [
+      'observe_human_threads',
+      'ai_reply_when_assigned',
+      'ai_pause_on_agent_reply',
+    ] as const
+    const optionalFields: Record<string, boolean> = {}
+    for (const field of OPTIONAL_BOOLEANS) {
+      if (typeof body[field] === 'boolean') optionalFields[field] = body[field] as boolean
+    }
+    const optionalProvided = Object.keys(optionalFields).length > 0
+    const warnMissingColumns = () =>
+      console.warn(
+        '[ai/config POST] ai_configs is missing the columns from migrations 101/102 — apply them; saved without those settings',
+      )
+
     if (existing) {
-      const { error: upErr } = await supabase
-        .from('ai_configs')
-        .update(encryptedKey ? { ...shared, api_key: encryptedKey } : shared)
-        .eq('account_id', accountId)
+      const base = encryptedKey ? { ...shared, api_key: encryptedKey } : shared
+      const update = (fields: Record<string, unknown>) =>
+        supabase.from('ai_configs').update(fields).eq('account_id', accountId)
+      let { error: upErr } = await update({ ...base, ...optionalFields })
+      if (upErr && optionalProvided && isMissingColumnError(upErr)) {
+        warnMissingColumns()
+        ;({ error: upErr } = await update(base))
+      }
       if (upErr) {
         console.error('[ai/config POST] update error:', upErr)
         return NextResponse.json(
@@ -312,12 +361,19 @@ export async function POST(request: Request) {
         )
       }
     } else {
-      const { error: insErr } = await supabase.from('ai_configs').insert({
-        account_id: accountId,
-        created_by: userId,
-        api_key: encryptedKey, // guaranteed non-null: rawKey required when no existing row
-        ...shared,
-      })
+      const insert = (fields: Record<string, unknown>) =>
+        supabase.from('ai_configs').insert({
+          account_id: accountId,
+          created_by: userId,
+          api_key: encryptedKey, // guaranteed non-null: rawKey required when no existing row
+          ...shared,
+          ...fields,
+        })
+      let { error: insErr } = await insert(optionalFields)
+      if (insErr && optionalProvided && isMissingColumnError(insErr)) {
+        warnMissingColumns()
+        ;({ error: insErr } = await insert({}))
+      }
       if (insErr) {
         console.error('[ai/config POST] insert error:', insErr)
         return NextResponse.json(

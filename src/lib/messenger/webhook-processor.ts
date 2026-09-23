@@ -10,6 +10,7 @@ import { notifyNewMessage } from '@/lib/notifications/new-message-alert'
 import { ensureLeadDeal } from '@/lib/whatsapp/webhook-processor'
 import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
 import { classifyLeadIfNeeded } from '@/lib/ai/lead-classify'
+import { observeConversationIfNeeded } from '@/lib/ai/observer'
 
 // ============================================================
 // Messenger inbound-webhook processing pipeline — the counterpart to
@@ -482,6 +483,15 @@ export async function ingestMessengerMessage(args: {
       contactId: contactRecord.id,
       configOwnerUserId,
       messageId: insertedMessage.id,
+    })
+
+    // Observer mode — see the WhatsApp pipeline for the reasoning.
+    await observeConversationIfNeeded({
+      accountId,
+      conversationId: conversation.id,
+      contactId: contactRecord.id,
+      configOwnerUserId,
+      platform: 'messenger',
     })
   }
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
+import { readReplyWhenAssigned } from '@/lib/ai/thread-control'
 
 type Params = { params: Promise<{ conversationId: string }> }
 
@@ -17,9 +18,11 @@ type Params = { params: Promise<{ conversationId: string }> }
  *                     fires the `on_conversation_assigned` trigger.
  *   - paused: false → hand the thread back to the bot: clear the pause,
  *                     reset the per-conversation reply count so it gets
- *                     fresh slots, and clear the handoff note. If the
- *                     caller currently owns the thread, unassign it too so
- *                     the bot isn't blocked by the "human owns this" gate.
+ *                     fresh slots, and clear the handoff note. On accounts
+ *                     that still treat an assignee as "hands off"
+ *                     (`ai_reply_when_assigned = false`), the assignment is
+ *                     released too, or the bot would stay blocked by that
+ *                     gate and the resume would do nothing.
  *
  * Writes go through the RLS-scoped SSR client, so a conversation outside
  * the caller's account simply isn't found (404).
@@ -76,13 +79,16 @@ export async function POST(request: Request, { params }: Params) {
       if (assignToMe) update.assigned_agent_id = userId
     } else {
       // Resuming hands the thread *back to the bot*. Clear the pause and
-      // the handoff note, and — crucially — release ANY assignment, not
-      // just the caller's own: the auto-reply eligibility gate stands
-      // down whenever a human is assigned, so leaving a stale assignee
-      // (e.g. the agent a prior handoff routed to) would silently keep
-      // the bot muted and make "Resume AI" a no-op. This is the explicit
-      // choice to let the bot own the thread again.
-      update.assigned_agent_id = null
+      // the handoff note, and release ANY assignment — not just the
+      // caller's own — but ONLY for accounts that kept the old
+      // "assigned means hands off" rule (`ai_reply_when_assigned =
+      // false`, migration 102): there a stale assignee would silently
+      // keep the bot muted and make "Resume AI" a no-op. With the new
+      // default the assignee doesn't mute anything, so it's left alone
+      // and the lead keeps its owner.
+      if (!(await readReplyWhenAssigned(supabase, accountId))) {
+        update.assigned_agent_id = null
+      }
       // Give the bot a fresh reply budget on this thread. This is a
       // deliberate, manual, rate-limited action (not automatable), so it
       // can't be used to bypass the per-conversation cap at scale — it's

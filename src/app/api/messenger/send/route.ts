@@ -8,6 +8,7 @@ import {
   sendViaZernioMessenger,
   ZernioMessengerSendError,
 } from '@/lib/messenger/zernio-send'
+import { pauseAiForAgentReply } from '@/lib/ai/thread-control'
 
 // The Messenger counterpart to /api/whatsapp/send — same auth
 // (agent-role gate + per-user rate limit) and the same request shape
@@ -166,6 +167,10 @@ export async function POST(request: Request) {
         updated_at: new Date().toISOString(),
       })
       .eq('id', conversation_id)
+
+    // A person typed this, so the bot yields the thread (migration 102)
+    // — same rule as the WhatsApp send path. Best-effort, never throws.
+    await pauseAiForAgentReply({ accountId, conversationId: conversation_id })
 
     return NextResponse.json({ success: true, message: insertedMessage })
   } catch (err) {

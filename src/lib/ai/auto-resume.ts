@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { readReplyWhenAssigned } from './thread-control'
 
 export interface AiAutoResumeResult {
   scanned: number
@@ -9,13 +10,15 @@ export interface AiAutoResumeResult {
  * Auto-resumes AI handoffs nobody picked up (migration 068, opt-in via
  * `ai_configs.auto_resume_after_minutes`).
  *
- * Only ever acts on a conversation whose `ai_paused_at` is set — that
- * column is written exclusively by the bot's own handoff path
- * (`dispatchInboundToAiReply` in `auto-reply.ts`); every explicit human
- * action through the inbox toggle (`/api/ai/autoreply/[conversationId]`,
- * both "Take over" and "Resume AI") clears it. So this can never
- * override a human who actually engaged — it only ever un-strands a
- * customer nobody has responded to.
+ * Only ever acts on a conversation whose `ai_paused_at` is set. That
+ * column marks an AUTOMATIC pause — the bot's own handoff path
+ * (`dispatchInboundToAiReply` in `auto-reply.ts`), or an agent replying
+ * in the thread (`pauseAiForAgentReply`, migration 102) — while every
+ * explicit human action through the inbox toggle
+ * (`/api/ai/autoreply/[conversationId]`, both "Take over" and "Resume
+ * AI") clears it. So this can never override someone who deliberately
+ * took the thread: it only picks a conversation back up once whoever
+ * stepped in has gone quiet for the account's configured window.
  *
  * Belt-and-suspenders: even a conversation with `ai_paused_at` set is
  * skipped if an agent-authored message landed after that timestamp — a
@@ -48,6 +51,13 @@ export async function runAiAutoResumeScan(
   for (const cfg of configs) {
     const minutes = cfg.auto_resume_after_minutes as number
     const cutoff = new Date(Date.now() - minutes * 60_000).toISOString()
+    // Resuming used to always release the assignee, because any
+    // assignee kept the bot muted and the resume would have been a
+    // no-op otherwise. Under migration 102's default that's no longer
+    // true — and stripping it would quietly un-own every lead the
+    // round-robin routed — so the assignment is only cleared for
+    // accounts that kept the old "assigned means hands off" rule.
+    const releaseAssignee = !(await readReplyWhenAssigned(db, cfg.account_id as string))
 
     const { data: candidates, error: candErr } = await db
       .from('conversations')
@@ -82,7 +92,7 @@ export async function runAiAutoResumeScan(
         .from('conversations')
         .update({
           ai_autoreply_disabled: false,
-          assigned_agent_id: null,
+          ...(releaseAssignee ? { assigned_agent_id: null } : {}),
           ai_reply_count: 0,
           ai_handoff_summary: null,
           ai_paused_at: null,

@@ -72,6 +72,10 @@ export async function POST(request: Request) {
         isActive: true,
         autoReplyEnabled: false,
         autoreplyChannels: ['whatsapp'],
+        // Irrelevant to a connectivity ping; defaults keep the type happy.
+        replyWhenAssigned: true,
+        pauseOnAgentReply: true,
+        observeHumanThreads: false,
         salesModeEnabled: false,
         aiSchedulingEnabled: false,
         googleCalendarSyncEnabled: false,

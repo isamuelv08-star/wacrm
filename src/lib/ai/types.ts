@@ -98,6 +98,31 @@ export interface AiConfig {
    * and `media-actions.ts`.
    */
   mediaSendingEnabled: boolean
+  /**
+   * Migration 102. When true (the default), a conversation having an
+   * `assigned_agent_id` no longer stops the bot from answering: every
+   * brand-new conversation is auto-assigned by round-robin (migration
+   * 042) the instant the webhook creates it, which used to mute the bot
+   * on every new lead until someone toggled "Resume AI" by hand. Set it
+   * false to restore the old "assigned means hands off" rule.
+   */
+  replyWhenAssigned: boolean
+  /**
+   * Migration 102. When true (the default), a human agent sending a
+   * message in a conversation pauses the bot there — the same state
+   * "Take over" writes — so the person who stepped in isn't talked over.
+   * `auto_resume_after_minutes`, when set, hands the thread back once
+   * they go quiet. See `pauseAiForAgentReply` in `agent-takeover.ts`.
+   */
+  pauseOnAgentReply: boolean
+  /**
+   * Migration 101, opt-in. When true, a conversation the bot is NOT
+   * answering is still read after every inbound and still drives the
+   * CRM — contact name, pipeline stage, won/lost, deal value, the
+   * one-line summary, and any appointment agreed in the thread — it
+   * just never writes to the customer. See `src/lib/ai/observer.ts`.
+   */
+  observeHumanThreads: boolean
   /** Optional OpenAI-compatible key for embeddings. When set, the
    *  knowledge base is embedded and semantic retrieval turns on; when
    *  null, retrieval falls back to lexical full-text search. */
