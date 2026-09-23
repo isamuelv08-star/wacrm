@@ -10,10 +10,14 @@ import { PeriodSelector } from "@/components/period-selector";
 import { MetricCard, type MetricCardTint } from "@/components/dashboard/metric-card";
 import { SkeletonCard } from "@/components/dashboard/skeleton";
 import { InsightsPanel } from "@/components/dashboard/insights-panel";
+import { MoneyAtRiskCard } from "@/components/dashboard/ceo/money-at-risk-card";
+import { RecoveryCard } from "@/components/dashboard/recovery-card";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Insight } from "@/lib/sales-intelligence/insights";
 import type { SellerPeriodPerformance } from "@/lib/dashboard/ceo-queries";
 import type { StageDropoff } from "@/lib/decision-center/breakdown";
+import type { MoneyAtRiskData } from "@/lib/sales-intelligence/aggregate";
+import type { RecoveryCandidate } from "@/lib/sales-intelligence/recovery";
 
 // ============================================================
 // Centro de Decisiones — client-side content. The role gate already
@@ -57,11 +61,18 @@ interface DecisionCenterBreakdown {
   biggestLeakStage: StageDropoff | null;
 }
 
+interface DecisionCenterMoney {
+  atRisk: MoneyAtRiskData;
+  recoveryOpportunities: RecoveryCandidate[];
+  staleDays: number;
+}
+
 interface DecisionCenterResponse {
   range: { label: PeriodPreset; start: string; end: string };
   kpis: DecisionCenterKpis;
   interpretation: string;
   decisions: Insight[];
+  money: DecisionCenterMoney;
   breakdown: DecisionCenterBreakdown;
 }
 
@@ -342,6 +353,25 @@ export function DecisionCenterView() {
             )}
           </div>
         )}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          {t("moneyTitle")}
+        </h2>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <MoneyAtRiskCard
+            data={data?.money.atRisk ?? null}
+            loading={loading}
+            currency={defaultCurrency}
+            staleDays={data?.money.staleDays ?? 7}
+          />
+          <RecoveryCard
+            items={data?.money.recoveryOpportunities ?? null}
+            loading={loading}
+            currency={defaultCurrency}
+          />
+        </div>
       </section>
     </div>
   );

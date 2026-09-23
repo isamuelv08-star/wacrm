@@ -3235,6 +3235,7 @@
     "wonColumn": "Ganados",
     "winRateColumn": "Tasa de cierre",
     "winRateDeltaColumn": "Cambio",
-    "noBreakdownData": "Todavía no hay suficientes datos para este desglose."
+    "noBreakdownData": "Todavía no hay suficientes datos para este desglose.",
+    "moneyTitle": "Dinero y oportunidades"
   }
 }

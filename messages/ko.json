@@ -3235,6 +3235,7 @@
     "wonColumn": "성사",
     "winRateColumn": "성사율",
     "winRateDeltaColumn": "변동",
-    "noBreakdownData": "아직 이 분석에 필요한 데이터가 충분하지 않습니다."
+    "noBreakdownData": "아직 이 분석에 필요한 데이터가 충분하지 않습니다.",
+    "moneyTitle": "자금과 기회"
   }
 }

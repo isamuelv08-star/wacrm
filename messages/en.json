@@ -3235,6 +3235,7 @@
     "wonColumn": "Won",
     "winRateColumn": "Win rate",
     "winRateDeltaColumn": "Change",
-    "noBreakdownData": "Not enough data yet for this breakdown."
+    "noBreakdownData": "Not enough data yet for this breakdown.",
+    "moneyTitle": "Money and opportunities"
   }
 }

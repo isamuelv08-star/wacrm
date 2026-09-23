@@ -11,7 +11,7 @@ import {
   loadSalesFunnel,
   countHotLeadsUnanswered,
 } from '@/lib/dashboard/ceo-queries'
-import { loadNextBestActions, countOverduePromises } from '@/lib/sales-intelligence/queries'
+import { loadNextBestActions, loadMoneyAtRisk, countOverduePromises } from '@/lib/sales-intelligence/queries'
 import { loadRecoveryCandidates } from '@/lib/sales-intelligence/recovery'
 import { buildInsights, type Insight } from '@/lib/sales-intelligence/insights'
 import { loadAiConfig } from '@/lib/ai/config'
@@ -142,7 +142,7 @@ export async function GET(request: Request) {
     const getDecisions = cachedForAccount(
       [accountId, 'decision-center-decisions'],
       CACHE_TTL.decisionCenter,
-      async (): Promise<Insight[]> => {
+      async () => {
         const thisMonthMetrics = await loadCeoMetrics(supabase, rangeForPreset('thisMonth'))
         const [alerts, hotUnanswered, nextBestActions, recoveryCandidates, overduePromiseCount] =
           await Promise.all([
@@ -152,7 +152,7 @@ export async function GET(request: Request) {
             loadRecoveryCandidates(supabase),
             countOverduePromises(supabase),
           ])
-        return buildInsights({
+        const decisions: Insight[] = buildInsights({
           alerts,
           hotUnanswered,
           nextBestActions,
@@ -160,7 +160,24 @@ export async function GET(request: Request) {
           staleDays: STALE_DAYS_DEFAULT,
           overduePromiseCount,
         })
+        // recoveryCandidates is reused as-is for Section 5 ("Dinero y
+        // oportunidades") — buildInsights only ever surfaces the TOP
+        // one as a 🟢 Oportunidad decision; the full list belongs to
+        // that section's <RecoveryCard />, same split ceo-summary's
+        // response already keeps between `insights` and its other
+        // sibling fields.
+        return { decisions, recoveryCandidates }
       },
+    )
+
+    // Section 5 ("Dinero y oportunidades") — same stalled-deal total
+    // the Alerts card already surfaces as one number, broken down by
+    // seller/stage. Current-state, own cache entry (staleDays folds
+    // into the key the same way ceo-summary's does).
+    const getMoneyAtRisk = cachedForAccount(
+      [accountId, 'decision-center-money-at-risk', String(STALE_DAYS_DEFAULT)],
+      CACHE_TTL.decisionCenter,
+      () => loadMoneyAtRisk(supabase, STALE_DAYS_DEFAULT),
     )
 
     // Funnel stage drop-off — like Decisiones, a current-state view of
@@ -177,14 +194,19 @@ export async function GET(request: Request) {
       },
     )
 
-    const [{ kpis, interpretation, bySeller, worstDecliningSeller: worstSeller }, decisions, funnelBreakdown] =
-      await Promise.all([getData(), getDecisions(), getFunnelBreakdown()])
+    const [
+      { kpis, interpretation, bySeller, worstDecliningSeller: worstSeller },
+      { decisions, recoveryCandidates },
+      funnelBreakdown,
+      moneyAtRisk,
+    ] = await Promise.all([getData(), getDecisions(), getFunnelBreakdown(), getMoneyAtRisk()])
 
     return NextResponse.json({
       range: { label: range.label, start: range.start.toISOString(), end: range.end.toISOString() },
       kpis,
       interpretation,
       decisions,
+      money: { atRisk: moneyAtRisk, recoveryOpportunities: recoveryCandidates, staleDays: STALE_DAYS_DEFAULT },
       breakdown: {
         bySeller,
         worstDecliningSeller: worstSeller,
