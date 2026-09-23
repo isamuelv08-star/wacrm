@@ -501,7 +501,8 @@
       "pauseAudio": "일시정지",
       "transcript": "받아쓰기",
       "phoneBadge": "휴대폰",
-      "phoneBadgeTitle": "휴대폰의 WhatsApp Business 앱에서 전송됨"
+      "phoneBadgeTitle": "휴대폰의 WhatsApp Business 앱에서 전송됨",
+      "deletedMessage": "이 메시지는 삭제되었습니다"
     },
     "mediaViewer": {
       "counter": "{total}개 중 {index}번째",

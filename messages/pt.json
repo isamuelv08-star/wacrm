@@ -501,7 +501,8 @@
       "pauseAudio": "Pausar",
       "transcript": "Transcrição",
       "phoneBadge": "Celular",
-      "phoneBadgeTitle": "Enviado pelo app WhatsApp Business no celular"
+      "phoneBadgeTitle": "Enviado pelo app WhatsApp Business no celular",
+      "deletedMessage": "Esta mensagem foi apagada"
     },
     "mediaViewer": {
       "counter": "{index} de {total}",

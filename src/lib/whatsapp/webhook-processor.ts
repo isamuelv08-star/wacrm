@@ -415,6 +415,61 @@ export async function applyMessageStatusUpdate(
   }
 }
 
+/**
+ * Mark a message deleted ("unsent") — the counterpart to
+ * `applyMessageStatusUpdate` above for Zernio's `message.deleted`
+ * webhook. Matches by `message_id` the same way (not unique — migration
+ * 009 — so this can touch 0..N rows), sets `deleted_at`, and leaves
+ * every content column untouched: `messages.sent_from_phone`'s doc
+ * comment and this migration (104) both keep the original text/media on
+ * file for audit; only the UI (message-bubble.tsx) swaps in a "deleted"
+ * placeholder once this is set.
+ *
+ * A database without migration 104 degrades to a no-op warning rather
+ * than throwing — the webhook still needs to 200 either way.
+ */
+export async function applyMessageDeletedUpdate(
+  messageId: string,
+  deletedAt: string,
+  logPrefix: string,
+): Promise<void> {
+  const { data: rows, error: findErr } = await supabaseAdmin()
+    .from('messages')
+    .select('id, deleted_at')
+    .eq('message_id', messageId)
+
+  if (findErr) {
+    if (isMissingColumnError(findErr)) {
+      console.warn(`${logPrefix} messages.deleted_at is missing — apply migration 104; delete not recorded`)
+      return
+    }
+    console.error(`${logPrefix} deleted-message lookup failed:`, findErr.message)
+    return
+  }
+
+  if (!rows || rows.length === 0) {
+    console.warn(
+      `${logPrefix} message.deleted for message_id="${messageId}" matched NO rows in messages — ` +
+        `either it was never persisted with that id, or it was sent through a path that stored a ` +
+        `different id for it than this event reports.`,
+    )
+    return
+  }
+
+  const idsToUpdate = (rows as { id: string; deleted_at: string | null }[])
+    .filter((r) => !r.deleted_at) // already marked deleted — nothing to do
+    .map((r) => r.id)
+  if (idsToUpdate.length === 0) return
+
+  const { error: updateErr } = await supabaseAdmin()
+    .from('messages')
+    .update({ deleted_at: deletedAt })
+    .in('id', idsToUpdate)
+  if (updateErr) {
+    console.error(`${logPrefix} deleted-message update failed:`, updateErr.message)
+  }
+}
+
 async function handleStatusUpdate(status: {
   id: string
   status: string

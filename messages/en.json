@@ -501,7 +501,8 @@
       "pauseAudio": "Pause",
       "transcript": "Transcript",
       "phoneBadge": "Phone",
-      "phoneBadgeTitle": "Sent from the WhatsApp Business phone app"
+      "phoneBadgeTitle": "Sent from the WhatsApp Business phone app",
+      "deletedMessage": "This message was deleted"
     },
     "mediaViewer": {
       "counter": "{index} of {total}",

@@ -13,6 +13,10 @@ describe('classifyZernioEvent', () => {
     expect(classifyZernioEvent({ event: 'message.received' })).toBe('message')
   })
 
+  it('treats message.deleted as a delete update', () => {
+    expect(classifyZernioEvent({ event: 'message.deleted' })).toBe('deleted')
+  })
+
   it('records a message.sent that came from the WhatsApp Business phone app', () => {
     expect(
       classifyZernioEvent({ event: 'message.sent', message: { source: 'whatsapp_business_app' } }),

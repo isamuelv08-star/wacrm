@@ -7,6 +7,7 @@ let existingMessage: { id: string } | null = null
 const recordExternalOutboundMessage = vi.fn()
 const processMessage = vi.fn()
 const applyMessageStatusUpdate = vi.fn()
+const applyMessageDeletedUpdate = vi.fn()
 
 function query(result: unknown) {
   const q: Record<string, unknown> = {}
@@ -18,6 +19,7 @@ function query(result: unknown) {
 vi.mock('@/lib/whatsapp/webhook-processor', () => ({
   processMessage: (...a: unknown[]) => processMessage(...a),
   applyMessageStatusUpdate: (...a: unknown[]) => applyMessageStatusUpdate(...a),
+  applyMessageDeletedUpdate: (...a: unknown[]) => applyMessageDeletedUpdate(...a),
   recordExternalOutboundMessage: (...a: unknown[]) => recordExternalOutboundMessage(...a),
   supabaseAdmin: () => ({
     from: (table: string) =>
@@ -147,7 +149,18 @@ describe('Zernio webhook — existing behaviour is unchanged', () => {
     expect(recordExternalOutboundMessage).not.toHaveBeenCalled()
   })
 
-  it('still records a legacy outgoing message.received, but not flagged as phone', async () => {
+  // Regression test for the "not every phone message gets the badge" bug:
+  // Zernio doesn't always report an outgoing WhatsApp message via
+  // `message.sent` (the only event carrying `source`) — this legacy
+  // `message.received` + direction "outgoing" shape still arrives too,
+  // and it has no `source` field at all. It used to hard-code
+  // `sentFromPhone = false` here for exactly that reason, silently
+  // recording the message without the "Phone" badge. But by the time
+  // this branch runs, the message has already been deduped against
+  // everything this CRM itself sent (message_id match, checked just
+  // above) — so anything left is external by construction, the phone
+  // app in every real case for this account.
+  it('records a legacy outgoing message.received AND flags it as phone (it is external either way)', async () => {
     await deliver({
       event: 'message.received',
       account: { id: 'zacc-1' },
@@ -161,7 +174,7 @@ describe('Zernio webhook — existing behaviour is unchanged', () => {
       conversation: { id: 'zconv-1', participantId: '+593999111222', participantName: 'María' },
     })
     expect(recordExternalOutboundMessage).toHaveBeenCalledTimes(1)
-    expect(recordExternalOutboundMessage.mock.calls[0][6]).toBe(false)
+    expect(recordExternalOutboundMessage.mock.calls[0][6]).toBe(true)
   })
 
   it('still routes delivery ticks to the status handler', async () => {
@@ -172,5 +185,48 @@ describe('Zernio webhook — existing behaviour is unchanged', () => {
       conversation: { id: 'zconv-1' },
     })
     expect(applyMessageStatusUpdate).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('Zernio webhook — message.deleted', () => {
+  it('marks a message deleted by its platformMessageId', async () => {
+    await deliver({
+      event: 'message.deleted',
+      account: { id: 'zacc-1' },
+      message: { platform: 'whatsapp', platformMessageId: 'wamid.DEL1', direction: 'outgoing' },
+      deletedAt: '2026-09-19T12:05:00.000Z',
+      conversation: { id: 'zconv-1' },
+    })
+    expect(applyMessageDeletedUpdate).toHaveBeenCalledTimes(1)
+    expect(applyMessageDeletedUpdate).toHaveBeenCalledWith(
+      'wamid.DEL1',
+      '2026-09-19T12:05:00.000Z',
+      '[webhook/zernio]',
+    )
+    expect(recordExternalOutboundMessage).not.toHaveBeenCalled()
+    expect(processMessage).not.toHaveBeenCalled()
+  })
+
+  it('falls back to now() when Zernio sends no deletedAt', async () => {
+    await deliver({
+      event: 'message.deleted',
+      account: { id: 'zacc-1' },
+      message: { platform: 'whatsapp', platformMessageId: 'wamid.DEL2' },
+      conversation: { id: 'zconv-1' },
+    })
+    expect(applyMessageDeletedUpdate).toHaveBeenCalledTimes(1)
+    expect(applyMessageDeletedUpdate.mock.calls[0][0]).toBe('wamid.DEL2')
+    expect(typeof applyMessageDeletedUpdate.mock.calls[0][1]).toBe('string')
+  })
+
+  it('does nothing when the event carries no platformMessageId', async () => {
+    await deliver({
+      event: 'message.deleted',
+      account: { id: 'zacc-1' },
+      message: { platform: 'whatsapp' },
+      deletedAt: '2026-09-19T12:05:00.000Z',
+      conversation: { id: 'zconv-1' },
+    })
+    expect(applyMessageDeletedUpdate).not.toHaveBeenCalled()
   })
 })

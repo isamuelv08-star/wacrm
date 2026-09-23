@@ -36,12 +36,19 @@ const Zernio = require('@zernio/node').default
 // message was delivered/read, so the inbox gets stuck showing a
 // single grey check forever instead of progressing to the double
 // check (delivered) / blue double check (read) WhatsApp itself shows.
+// message.deleted: WhatsApp reports this when a business-sent message is
+// deleted ("delete for everyone") — without it, a message unsent on the
+// customer's side stays looking sent forever in the CRM. WhatsApp has no
+// message.edited equivalent (Meta's Business Platform doesn't forward
+// edits at all — Zernio's own docs list only Instagram/Messenger/Telegram
+// as supported for that event), so it's deliberately not subscribed here.
 const REQUIRED_EVENTS = [
   'message.received',
   'message.sent',
   'message.delivered',
   'message.read',
   'message.failed',
+  'message.deleted',
 ]
 
 async function main() {

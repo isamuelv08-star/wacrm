@@ -4,13 +4,14 @@ import {
   processMessage,
   supabaseAdmin,
   applyMessageStatusUpdate,
+  applyMessageDeletedUpdate,
   recordExternalOutboundMessage,
   type WhatsAppMessage,
 } from '@/lib/whatsapp/webhook-processor'
 import { ingestMessengerMessage } from '@/lib/messenger/webhook-processor'
 import type { MetaReferral } from '@/lib/contacts/lead-source'
 import { zernioWebhookSecret } from '@/lib/whatsapp/zernio-env'
-import { classifyZernioEvent, ZERNIO_PHONE_APP_SOURCE } from '@/lib/whatsapp/zernio-events'
+import { classifyZernioEvent } from '@/lib/whatsapp/zernio-events'
 
 // ============================================================
 // Inbound webhook for WhatsApp accounts connected through Zernio.
@@ -43,7 +44,13 @@ import { classifyZernioEvent, ZERNIO_PHONE_APP_SOURCE } from '@/lib/whatsapp/zer
 // Also handles `message.delivered` / `message.read` / `message.failed`
 // (see handleZernioStatusUpdate below) — these carry the delivery-tick
 // state the inbox already renders (single check → sent, double check
-// → delivered, blue double check → read).
+// → delivered, blue double check → read) — and `message.deleted` (see
+// handleZernioMessageDeleted below), which flags a bubble as "This
+// message was deleted" instead of removing it. No `message.edited`
+// handling: WhatsApp isn't in the set of platforms Zernio delivers
+// that event for at all (Instagram/Messenger/Telegram only) — Meta's
+// WhatsApp Business Platform has no edit-forwarding webhook, so this
+// isn't a Zernio gap to work around, it's a WhatsApp platform limit.
 // ============================================================
 
 // Same headroom reasoning as the direct-Meta/Dualhook routes: AI
@@ -73,6 +80,8 @@ function verifyZernioSignature(rawBody: string, signature: string | null): boole
 interface ZernioWebhookPayload {
   event: string
   account?: { id?: string; platform?: string }
+  /** Only present on `message.deleted` — when the delete happened. */
+  deletedAt?: string
   message?: {
     platform?: string
     platformMessageId?: string
@@ -155,10 +164,12 @@ async function processZernioEvent(payload: ZernioWebhookPayload) {
     return
   }
 
+  if (kind === 'deleted') {
+    await handleZernioMessageDeleted(payload)
+    return
+  }
+
   if (kind === 'ignore') return
-  // `phone_sent`: a message typed in the WhatsApp Business phone app, which
-  // Zernio reports as `message.sent` (see lib/whatsapp/zernio-events.ts).
-  const sentFromPhone = kind === 'phone_sent' || payload.message?.source === ZERNIO_PHONE_APP_SOURCE
   const message = payload.message
   const account = payload.account
   if (!message || !account?.id) return
@@ -198,7 +209,12 @@ async function processZernioEvent(payload: ZernioWebhookPayload) {
     return
   }
 
-  if (sentFromPhone || message.direction !== 'incoming') {
+  if (message.direction !== 'incoming') {
+    // `kind === 'phone_sent'` (message.sent + source=whatsapp_business_app)
+    // always has direction 'outgoing' too, so this condition already
+    // covers it — the `kind`/`sentFromPhone` split used to matter here
+    // and no longer does; see the phone-badge note below.
+    //
     // On an outgoing event `message.sender` is the BUSINESS, not the
     // customer (Zernio's own InboxWebhookMessage.sender doc: "omitted
     // for outgoing/business sender" — and for WhatsApp `sender.id`
@@ -235,6 +251,29 @@ async function processZernioEvent(payload: ZernioWebhookPayload) {
         .maybeSingle()
       if (existing) return
     }
+
+    // Reaching this line means the dedupe check above found no row —
+    // this message was NOT one this CRM sent through send-message.ts,
+    // a Flow, an automation, or the AI. `message.sent` events with
+    // `source: 'cloud_api'` (a Zernio send that already round-tripped
+    // through our own code) were filtered to 'ignore' well before this
+    // function was even called (see classifyZernioEvent), so every
+    // event still reaching here is external by construction.
+    //
+    // The bug this replaced: the phone badge used to require `message`
+    // to carry `source: 'whatsapp_business_app'` — present ONLY on
+    // `message.sent` events. But Zernio doesn't always deliver an
+    // outgoing WhatsApp message that way; some (a message.received
+    // event with direction 'outgoing' — the very case this whole
+    // branch exists for, see the outgoing-message-sender-bug fix this
+    // pattern came from) carry no `source` field at all, so they always
+    // computed `sentFromPhone = false` even though they'd already been
+    // routed here as "clearly not ours". Those messages got recorded —
+    // just silently without the badge. Overwhelmingly these are the
+    // WhatsApp Business phone app (Coexistence); on paper a message
+    // sent from Zernio's own dashboard would look identical, but this
+    // account only ever sends through the CRM or the phone.
+    const sentFromPhone = true
 
     // zernioAccount was already resolved (and connected_by_user_id
     // already validated) above — reused here, not re-queried.
@@ -390,6 +429,24 @@ async function handleZernioStatusUpdate(payload: ZernioWebhookPayload) {
   if (!status || !platformMessageId) return
 
   await applyMessageStatusUpdate(platformMessageId, status, '[webhook/zernio]')
+}
+
+/**
+ * `message.deleted` — the sender unsent a message ("delete for
+ * everyone"). Zernio's own docs list this as supported on WhatsApp
+ * specifically "when the business deletes an outgoing message via the
+ * Cloud API"; whether it also fires for a delete made natively in the
+ * WhatsApp Business phone app (Coexistence) is unconfirmed — this
+ * handler covers it either way and is a no-op if it never arrives for
+ * that case. See applyMessageDeletedUpdate's doc comment for what
+ * happens to the row (content kept, `deleted_at` stamped).
+ */
+async function handleZernioMessageDeleted(payload: ZernioWebhookPayload) {
+  const platformMessageId = payload.message?.platformMessageId
+  const deletedAt = payload.deletedAt ?? new Date().toISOString()
+  if (!platformMessageId) return
+
+  await applyMessageDeletedUpdate(platformMessageId, deletedAt, '[webhook/zernio]')
 }
 
 /**

@@ -13,6 +13,7 @@ import {
   Smartphone,
   Sparkles,
   FileText,
+  Ban,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ReplyQuote } from "./reply-quote";
@@ -290,7 +291,26 @@ export function MessageBubble({
           {senderLabel}
         </span>
       )}
-      {isBarePhotoOrVideo ? (
+      {message.deleted_at ? (
+        // WhatsApp's own convention on an unsent message: everything
+        // about the original content — text, media, the reply quote —
+        // disappears from the bubble (it's still on file server-side;
+        // see migration 104), replaced by one muted, italic line. No
+        // reactions on a deleted message either (guarded below).
+        <div
+          className={cn(
+            "flex items-center gap-1.5 rounded-[20px] px-4 py-2.5 italic text-muted-foreground shadow-sm",
+            isAgent ? "bg-muted/60" : "bg-muted",
+          )}
+        >
+          <Ban className="h-3.5 w-3.5 shrink-0" />
+          <span className="text-sm">{t("deletedMessage")}</span>
+          <span className="ml-1 shrink-0 text-[10px] not-italic text-muted-foreground/80">
+            {time}
+          </span>
+          {isAgent && <StatusIcon status={message.status} />}
+        </div>
+      ) : isBarePhotoOrVideo ? (
         <div className="relative overflow-hidden rounded-[20px] shadow-sm">
           <MessageContent message={message} t={t} onOpenMedia={onOpenMedia} />
           <span className="pointer-events-none absolute bottom-1.5 right-1.5 rounded-full bg-black/45 px-2 py-0.5 text-[10px] text-white/90 backdrop-blur-sm">
@@ -359,7 +379,7 @@ export function MessageBubble({
           </div>
         </div>
       )}
-      {reactions && reactions.length > 0 && onToggleReaction && (
+      {!message.deleted_at && reactions && reactions.length > 0 && onToggleReaction && (
         <MessageReactions
           reactions={reactions}
           currentUserId={currentUserId}

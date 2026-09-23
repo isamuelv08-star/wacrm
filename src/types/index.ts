@@ -451,6 +451,13 @@ export interface Message {
    * Drives the "phone" label in the inbox. Migration 100.
    */
   sent_from_phone?: boolean;
+  /**
+   * When the sender unsent ("deleted for everyone") this message on
+   * WhatsApp (Zernio's `message.deleted`). The original content columns
+   * are left as they were — the bubble renders a "deleted" placeholder
+   * instead of them whenever this is set. Migration 104.
+   */
+  deleted_at?: string | null;
 }
 
 /**

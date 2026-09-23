@@ -21,6 +21,10 @@ export type ZernioEventKind =
   | 'message'
   /** A message the business typed in the WhatsApp Business phone app. */
   | 'phone_sent'
+  /** A previously-sent business message was deleted ("delete for
+   *  everyone"). WhatsApp-only per Zernio's docs; see
+   *  WebhookPayloadMessageDeleted's doc comment in @zernio/node. */
+  | 'deleted'
   /** Nothing for the CRM to do. */
   | 'ignore'
 
@@ -37,6 +41,8 @@ export function classifyZernioEvent(payload: {
       return 'status'
     case 'message.received':
       return 'message'
+    case 'message.deleted':
+      return 'deleted'
     case 'message.sent':
       // `cloud_api` sends (this CRM, Zernio's dashboard, broadcasts) are
       // already recorded by the code that made them — recording the echo
