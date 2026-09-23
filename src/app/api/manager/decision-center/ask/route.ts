@@ -71,11 +71,9 @@ export async function POST(request: Request) {
 
     const { searchParams } = new URL(request.url)
     const range = parseDecisionCenterRange(searchParams)
-    const [payload, currencyRow] = await Promise.all([
-      loadDecisionCenterPayload(supabase, accountId, userId, range),
-      supabase.from('accounts').select('default_currency').eq('id', accountId).maybeSingle(),
-    ])
+    const currencyRow = await supabase.from('accounts').select('default_currency').eq('id', accountId).maybeSingle()
     const currency = (currencyRow.data as { default_currency: string } | null)?.default_currency ?? DEFAULT_CURRENCY
+    const payload = await loadDecisionCenterPayload(supabase, accountId, userId, range, currency)
     const snapshot = buildDecisionCenterSnapshot(payload, currency)
 
     const { result, usage } = await generateDecisionCenterAnswer({

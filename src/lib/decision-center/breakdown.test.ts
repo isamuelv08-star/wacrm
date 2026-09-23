@@ -27,6 +27,29 @@ describe('computeStageDropoffs', () => {
     const steps = [step({ key: 'leads', count: 0 }), step({ key: 'won', count: 0 })]
     expect(computeStageDropoffs(steps)[0].dropPct).toBeNull()
   })
+
+  it('resolves the synthetic leads/won steps to real labels, never an empty string (regression: loadSalesFunnel leaves label: "" on those two by design)', () => {
+    const steps = [
+      step({ key: 'leads', label: '', count: 50 }),
+      step({ key: 'stage-1', label: 'Seguimiento', count: 30 }),
+      step({ key: 'won', label: '', count: 5 }),
+    ]
+    const drops = computeStageDropoffs(steps)
+    expect(drops[0].fromLabel).toBe('Leads')
+    expect(drops[0].toLabel).toBe('Seguimiento')
+    expect(drops[1].fromLabel).toBe('Seguimiento')
+    expect(drops[1].toLabel).toBe('Ganadas')
+    for (const d of drops) {
+      expect(d.fromLabel).not.toBe('')
+      expect(d.toLabel).not.toBe('')
+    }
+  })
+
+  it('falls back to "Sin etapa" for a real (non-synthetic) stage with a blank name, never a blank label', () => {
+    const steps = [step({ key: 'stage-x', label: '', count: 10 }), step({ key: 'won', label: '', count: 2 })]
+    const drops = computeStageDropoffs(steps)
+    expect(drops[0].fromLabel).toBe('Sin etapa')
+  })
 })
 
 describe('biggestStageLeak', () => {

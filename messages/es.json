@@ -3229,7 +3229,7 @@
     "noComparison": "Sin datos del período anterior",
     "points": "puntos",
     "interpretationTitle": "¿Qué está pasando?",
-    "decisionsTitle": "Decisiones prioritarias",
+    "decisionsTitle": "¿Qué requiere tu atención?",
     "breakdownTitle": "Dónde está cayendo el negocio",
     "biggestLeak": "La mayor fuga del embudo está entre \"{from}\" y \"{to}\": {pct}% de los leads no avanza a la siguiente etapa.",
     "sellerColumn": "Vendedor",
@@ -3250,6 +3250,13 @@
     "askError": "No se pudo obtener una respuesta. Intenta de nuevo.",
     "askNotConfigured": "La IA no está configurada todavía. Actívala en Configuración → Asistente de IA.",
     "avgTicketColumn": "Ticket promedio",
-    "showWhy": "Ver por qué"
+    "showWhy": "Ver por qué",
+    "noCriticalProblems": "No se detectaron problemas críticos en este momento.",
+    "tierActNow": "🔴 Actúa ahora",
+    "tierReviewToday": "🟠 Revisa hoy",
+    "tierWatch": "🟡 Vigila",
+    "noActivityThisPeriod": "Sin actividad en el período",
+    "noSalesForTicket": "Sin ventas para calcular",
+    "noSales": "Sin ventas"
   }
 }

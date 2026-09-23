@@ -23,6 +23,7 @@ import {
   buildDeterministicInterpretation,
   buildInterpretationRecommendation,
   generateExecutiveInterpretation,
+  type InterpretationContext,
   type InterpretationMetric,
   type InterpretationRecommendation,
 } from './interpretation'
@@ -32,7 +33,9 @@ import { computeStageDropoffs, biggestStageLeak, worstDecliningSeller, bestImpro
 // buildInsights — "Decisiones" is a CURRENT-STATE feed (stalled
 // deals, forecast gap, broken promises...), not tied to the manager's
 // KPI period selector, matching how AlertsCard/InsightsPanel already
-// behave on /dashboard regardless of any date picker there.
+// behave on /dashboard regardless of any date picker there. Also the
+// window the interpretation's recommendation cites ("llevan más de N
+// días sin avanzar").
 const STALE_DAYS_DEFAULT = 7
 
 export interface DecisionCenterPayload {
@@ -81,12 +84,19 @@ export interface DecisionCenterPayload {
  * call here is keyed the same way regardless of caller, so a page
  * load and a question asked seconds later share the same cache entry
  * instead of doubling the query cost.
+ *
+ * `currency` is the caller's job to fetch (accounts.default_currency)
+ * — this module has no opinion on where it comes from, only that the
+ * interpretation/recommendation need it to cite real dollar amounts
+ * ("$4,060 en 12 oportunidades estancadas") instead of only
+ * percentages.
  */
 export async function loadDecisionCenterPayload(
   supabase: SupabaseClient,
   accountId: string,
   userId: string,
   range: PeriodRange,
+  currency: string,
 ): Promise<DecisionCenterPayload> {
   const rangeKey = `${range.start.toISOString()}:${range.end.toISOString()}`
 
@@ -106,55 +116,8 @@ export async function loadDecisionCenterPayload(
         avgTicket: trend.avgTicket,
         opportunities: trend.opportunitiesCreated,
       }
-
-      const evidence = buildInterpretationEvidence(kpis)
-      const deterministic = buildDeterministicInterpretation(evidence, range.label)
-      let interpretation = deterministic
-
-      // Rate-limit checks only run on a cache miss (this whole
-      // function only runs then), so real request volume is far
-      // below these budgets — see the RATE_LIMITS comments.
-      const userLimit = checkRateLimit(`ai-decision-center:${userId}`, RATE_LIMITS.aiDecisionCenter)
-      const accountLimit = checkRateLimit(
-        `ai-decision-center-acct:${accountId}`,
-        RATE_LIMITS.aiDecisionCenterAccount,
-      )
-      if (userLimit.success && accountLimit.success) {
-        const config = await loadAiConfig(supabase, accountId, { requireActive: false }).catch((err) => {
-          console.error('[decision-center] loadAiConfig error:', err)
-          return null
-        })
-        if (config) {
-          try {
-            const { interpretation: aiText, usage } = await generateExecutiveInterpretation({
-              config,
-              metrics: evidence,
-              deterministicVersion: deterministic,
-              rangeLabel: range.label,
-            })
-            if (aiText) interpretation = aiText
-            void logAiUsage(supabaseAdmin(), {
-              accountId,
-              conversationId: null,
-              mode: 'decision_center_interpretation',
-              provider: config.provider,
-              model: config.model,
-              usage,
-            })
-          } catch (err) {
-            // AI wording is an enhancement, never a requirement — the
-            // deterministic narrative already computed above ships
-            // instead. Nothing here should ever 500 the page.
-            console.error('[decision-center] AI interpretation failed, using deterministic version:', err)
-          }
-        }
-      }
-
       return {
         kpis,
-        interpretation,
-        interpretationEvidence: evidence,
-        interpretationRecommendation: buildInterpretationRecommendation(evidence),
         bySeller,
         worstDecliningSeller: worstDecliningSeller(bySeller),
         bestImprovingSeller: bestImprovingSeller(bySeller),
@@ -226,19 +189,83 @@ export async function loadDecisionCenterPayload(
   )
 
   const [
-    {
-      kpis,
-      interpretation,
-      interpretationEvidence,
-      interpretationRecommendation,
-      bySeller,
-      worstDecliningSeller: worstSeller,
-      bestImprovingSeller: bestSeller,
-    },
+    { kpis, bySeller, worstDecliningSeller: worstSeller, bestImprovingSeller: bestSeller },
     { decisions, recoveryCandidates, nextBestActions },
     funnelBreakdown,
     moneyAtRisk,
   ] = await Promise.all([getData(), getDecisions(), getFunnelBreakdown(), getMoneyAtRisk()])
+
+  // Built AFTER the four calls above resolve, deliberately — unlike
+  // the old version (interpretation built from KPIs alone), this one
+  // can cite the SAME stalled-deal value and funnel leak stage
+  // Sections 4/5 already show, so "las ventas bajaron" comes with
+  // real evidence attached instead of being a bare percentage. Own
+  // cache entry, period-scoped like the KPIs it's built from (its
+  // AI-rewording call only fires on a cache miss, same discipline as
+  // before).
+  const getInterpretation = cachedForAccount(
+    [accountId, 'decision-center-interpretation', rangeKey],
+    CACHE_TTL.decisionCenter,
+    async () => {
+      const evidence = buildInterpretationEvidence(kpis)
+      const interpretationCtx: InterpretationContext = {
+        moneyAtRiskValue: moneyAtRisk.totalValue,
+        moneyAtRiskCount: moneyAtRisk.totalCount,
+        staleDays: STALE_DAYS_DEFAULT,
+        biggestLeakStage: funnelBreakdown.biggestLeakStage,
+        currency,
+      }
+      const deterministic = buildDeterministicInterpretation(evidence, range.label, interpretationCtx)
+      let interpretation = deterministic
+
+      // Rate-limit checks only run on a cache miss (this whole
+      // function only runs then), so real request volume is far
+      // below these budgets — see the RATE_LIMITS comments.
+      const userLimit = checkRateLimit(`ai-decision-center:${userId}`, RATE_LIMITS.aiDecisionCenter)
+      const accountLimit = checkRateLimit(
+        `ai-decision-center-acct:${accountId}`,
+        RATE_LIMITS.aiDecisionCenterAccount,
+      )
+      if (userLimit.success && accountLimit.success) {
+        const config = await loadAiConfig(supabase, accountId, { requireActive: false }).catch((err) => {
+          console.error('[decision-center] loadAiConfig error:', err)
+          return null
+        })
+        if (config) {
+          try {
+            const { interpretation: aiText, usage } = await generateExecutiveInterpretation({
+              config,
+              metrics: evidence,
+              deterministicVersion: deterministic,
+              rangeLabel: range.label,
+            })
+            if (aiText) interpretation = aiText
+            void logAiUsage(supabaseAdmin(), {
+              accountId,
+              conversationId: null,
+              mode: 'decision_center_interpretation',
+              provider: config.provider,
+              model: config.model,
+              usage,
+            })
+          } catch (err) {
+            // AI wording is an enhancement, never a requirement — the
+            // deterministic narrative already computed above ships
+            // instead. Nothing here should ever 500 the page.
+            console.error('[decision-center] AI interpretation failed, using deterministic version:', err)
+          }
+        }
+      }
+
+      return {
+        interpretation,
+        interpretationEvidence: evidence,
+        interpretationRecommendation: buildInterpretationRecommendation(evidence, interpretationCtx),
+      }
+    },
+  )
+
+  const { interpretation, interpretationEvidence, interpretationRecommendation } = await getInterpretation()
 
   return {
     range: { label: range.label, start: range.start.toISOString(), end: range.end.toISOString() },

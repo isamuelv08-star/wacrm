@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { loadDecisionCenterPayload, parseDecisionCenterRange } from '@/lib/decision-center/payload'
+import { DEFAULT_CURRENCY } from '@/lib/currency'
 
 /**
  * GET /api/manager/decision-center?preset=last7Days[&start=...&end=...]
@@ -26,7 +27,9 @@ export async function GET(request: Request) {
     const { supabase, accountId, userId } = await requireRole('admin')
     const { searchParams } = new URL(request.url)
     const range = parseDecisionCenterRange(searchParams)
-    const payload = await loadDecisionCenterPayload(supabase, accountId, userId, range)
+    const currencyRow = await supabase.from('accounts').select('default_currency').eq('id', accountId).maybeSingle()
+    const currency = (currencyRow.data as { default_currency: string } | null)?.default_currency ?? DEFAULT_CURRENCY
+    const payload = await loadDecisionCenterPayload(supabase, accountId, userId, range, currency)
     return NextResponse.json(payload)
   } catch (err) {
     return toErrorResponse(err)

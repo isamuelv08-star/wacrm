@@ -1,24 +1,33 @@
 import type { AiConfig, AiUsage } from '@/lib/ai/types'
 import { runProvider, stripCodeFence } from '@/lib/ai/generate'
+import { formatCurrency } from '@/lib/currency'
 import type { PeriodPreset } from '@/lib/period'
 import type { DecisionCenterKpis } from './types'
 
 /**
- * Section 2 of Centro de Decisiones — "Interpretación ejecutiva": a
- * 2-3 sentence narrative connecting the period's KPIs.
+ * Section 2 of Centro de Decisiones — "¿Qué está pasando?": a
+ * narrative that connects the period's KPIs to the REAL evidence
+ * behind them (where the leak is, how much money is stuck) and ends
+ * in a specific, evidence-based recommendation — not a restatement of
+ * the KPI cards above it.
  *
- * Pipeline (mirrors the brief's DATOS → COMPARACIÓN → CAMBIOS →
- * EVIDENCIA → INTERPRETACIÓN): `buildInterpretationEvidence` and
- * `buildDeterministicInterpretation` below are pure, deterministic,
- * no I/O — DATOS/COMPARACIÓN/CAMBIOS/EVIDENCIA come straight from the
- * KPIs the route already computed (loadCeoMetrics /
- * loadPeriodCommercialTrend), and the deterministic narrative is a
- * plain template over those same numbers. AI, when the account has a
- * provider configured, is used ONLY for the last step — rephrasing
- * that already-correct narrative to read more naturally — never to
- * decide what happened or to compute a number. The deterministic
- * version is what ships whenever AI isn't configured, times out, or
- * returns something unusable, so the section always has real content.
+ * Pipeline (DATO → CAMBIO → INTERPRETACIÓN → EVIDENCIA → IMPACTO →
+ * ACCIÓN): everything below this comment except the two AI-facing
+ * functions near the bottom is pure, deterministic, no I/O. DATOS/
+ * CAMBIOS come from the KPIs the route already computed
+ * (loadCeoMetrics / loadPeriodCommercialTrend); EVIDENCIA/IMPACTO come
+ * from the funnel breakdown and Money at Risk the route ALSO already
+ * computed (see payload.ts — the interpretation is built after those
+ * resolve, specifically so it can cite real numbers instead of only
+ * the 5 KPIs). AI, when the account has a provider configured, is
+ * used ONLY to reword the already-correct narrative — never to decide
+ * what happened, connect facts, or compute a number. The
+ * deterministic version ships whenever AI isn't configured, times
+ * out, or returns something unusable.
+ *
+ * Deliberately never claims causality the data doesn't demonstrate —
+ * see `buildDeterministicInterpretation`'s own comment on "coincide
+ * con" framing vs. a "porque" claim.
  */
 
 export interface InterpretationMetric {
@@ -33,6 +42,20 @@ export interface InterpretationMetric {
   delta: number | null
   deltaKind: 'percent' | 'points'
   direction: 'up' | 'down' | 'flat' | 'unknown'
+}
+
+/** The real-world evidence the narrative and recommendation draw on
+ *  beyond the 5 KPIs — the same numbers Sections 4/5 already show,
+ *  passed in rather than recomputed (see payload.ts). */
+export interface InterpretationContext {
+  moneyAtRiskValue: number
+  moneyAtRiskCount: number
+  /** The window `loadMoneyAtRisk`/`loadCeoAlerts` used to call a deal
+   *  "stalled" — folded into the recommendation's wording ("llevan
+   *  más de N días sin avanzar"). */
+  staleDays: number
+  biggestLeakStage: { fromLabel: string; toLabel: string; dropPct: number | null } | null
+  currency: string
 }
 
 function pctDelta(current: number, previous: number): number | null {
@@ -113,6 +136,35 @@ export function pickHeadlineEvidence(
   return [...moved].sort((a, b) => weight(b) - weight(a)).slice(0, max)
 }
 
+/**
+ * A metric whose CURRENT value is a structural zero (no sales, no
+ * leads, no deal won...) rather than a small dip — "bajó 100.0%"
+ * reads as a rounding artifact when the real story is "nothing
+ * happened this period." Conversion is deliberately excluded: its 0%
+ * is a legitimate rate when the denominator is real (see
+ * buildInterpretationEvidence — conversion is null, not 0, whenever
+ * there's no denominator to compute a rate from at all).
+ */
+function isStructuralZero(m: InterpretationMetric): boolean {
+  return m.key !== 'conversion' && m.current === 0 && (m.previous ?? 0) > 0
+}
+
+function structuralZeroSentence(m: InterpretationMetric, currency: string): string {
+  const prevText = m.key === 'sales' || m.key === 'avgTicket' ? formatCurrency(m.previous ?? 0, currency) : String(m.previous ?? 0)
+  switch (m.key) {
+    case 'sales':
+      return `No hubo ventas en el período. El período anterior registró ${prevText}.`
+    case 'leads':
+      return `No llegaron leads nuevos en el período. El período anterior llegaron ${prevText}.`
+    case 'avgTicket':
+      return `Sin ventas en el período, así que no hay ticket promedio que calcular — el período anterior fue ${prevText}.`
+    case 'opportunities':
+      return `No se crearon oportunidades nuevas en el período. El período anterior se crearon ${prevText}.`
+    case 'conversion':
+      return ''
+  }
+}
+
 const RANGE_TEXT: Record<PeriodPreset, string> = {
   today: 'hoy',
   yesterday: 'ayer',
@@ -141,28 +193,64 @@ function fmtDelta(m: InterpretationMetric): string {
   return `${m.label.toLowerCase()} ${verb} ${abs.toFixed(1)}${unit}`
 }
 
-/** INTERPRETACIÓN — the deterministic (no-AI) narrative. Always
- *  correct because it's a plain template over the evidence above;
- *  this is what the route falls back to when AI wording isn't
- *  available or returns something unusable. */
+function pluralize(count: number, singular: string, plural: string): string {
+  return count === 1 ? singular : plural
+}
+
+/**
+ * INTERPRETACIÓN — the deterministic (no-AI) narrative. Always
+ * correct because it's a plain template over real evidence; this is
+ * what the route falls back to when AI wording isn't available or
+ * returns something unusable.
+ *
+ * Never claims causality the data doesn't demonstrate: when a KPI
+ * decline and stalled-deal money coexist, the sentence says the
+ * decline "coincide con" (coincides with) the stalled value — a
+ * correlational, evidence-backed statement — never "porque" (because)
+ * of it, which would assert a causal link this data alone can't
+ * prove. See the brief's own HECHO → EVIDENCIA → INTERPRETACIÓN
+ * CONTROLADA vs. DATO → CONCLUSIÓN INVENTADA distinction.
+ */
 export function buildDeterministicInterpretation(
   metrics: InterpretationMetric[],
   rangeLabel: PeriodPreset,
+  ctx: InterpretationContext,
 ): string {
-  const evidence = pickHeadlineEvidence(metrics, 2)
   const rangeText = RANGE_TEXT[rangeLabel] ?? RANGE_TEXT.custom
-  if (evidence.length === 0) {
+  const declining = pickHeadlineEvidence(metrics.filter((m) => m.direction === 'down'), 1)[0]
+  const improving = pickHeadlineEvidence(metrics.filter((m) => m.direction === 'up'), 1)[0]
+
+  if (!declining && !improving) {
     return `No hay suficientes datos del período anterior para comparar ${rangeText}, así que todavía no hay una tendencia clara que reportar.`
   }
-  if (evidence.length === 1) {
-    return `${capitalize(rangeText)}, ${fmtDelta(evidence[0])} frente al período anterior.`
-  }
-  return `${capitalize(rangeText)}, ${fmtDelta(evidence[0])} y ${fmtDelta(evidence[1])} frente al período anterior. Conviene revisar si ambos cambios están relacionados antes de decidir una acción.`
-}
 
-export interface InterpretationRecommendation {
-  title: string
-  description: string
+  const sentences: string[] = []
+
+  if (declining) {
+    sentences.push(
+      isStructuralZero(declining)
+        ? structuralZeroSentence(declining, ctx.currency)
+        : `${capitalize(rangeText)}, ${fmtDelta(declining)} frente al período anterior.`,
+    )
+
+    if (ctx.biggestLeakStage && (ctx.biggestLeakStage.dropPct ?? 0) >= 30) {
+      sentences.push(
+        `La mayor caída del embudo está entre "${ctx.biggestLeakStage.fromLabel}" y "${ctx.biggestLeakStage.toLabel}" — ahí es donde más oportunidades se detienen.`,
+      )
+    }
+
+    if (ctx.moneyAtRiskCount > 0) {
+      const oportunidad = pluralize(ctx.moneyAtRiskCount, 'oportunidad', 'oportunidades')
+      const estancada = pluralize(ctx.moneyAtRiskCount, 'estancada', 'estancadas')
+      sentences.push(
+        `La caída coincide con ${formatCurrency(ctx.moneyAtRiskValue, ctx.currency)} en ${ctx.moneyAtRiskCount} ${oportunidad} ${estancada} — la señal más fuerte asociada a este período.`,
+      )
+    }
+  } else if (improving) {
+    sentences.push(`${capitalize(rangeText)}, ${fmtDelta(improving)} frente al período anterior.`)
+  }
+
+  return sentences.join(' ')
 }
 
 const RECOMMENDATION_BY_METRIC: Record<InterpretationMetric['key'], InterpretationRecommendation> = {
@@ -193,27 +281,38 @@ const RECOMMENDATION_BY_METRIC: Record<InterpretationMetric['key'], Interpretati
   },
 }
 
+export interface InterpretationRecommendation {
+  title: string
+  description: string
+}
+
 /**
- * "Qué hacer" — a single, deterministic recommendation tied DIRECTLY
- * to whichever metric moved the most (the same headline evidence the
- * interpretation paragraph cites, via `pickHeadlineEvidence`), never
- * a generic restatement of the KPI cards above it. Distinct from
- * Section 7 "Qué deberías hacer hoy" (individual lead/deal-level
- * next-best-actions, sourced from open deals/conversations): this is
- * the ONE structural read on the period's overall trend — which
- * lever moved the numbers, and what to check first because of it.
- * Deterministic only (no AI rewording) — it's already a short,
- * specific instruction, not narrative prose that benefits from
- * polish the way the interpretation paragraph does.
+ * "Qué hacer ahora" — a single, deterministic recommendation tied
+ * DIRECTLY to real evidence: when there's stalled money behind the
+ * decline, it names the exact count/value/window instead of a
+ * generic "revisa tu pipeline". Distinct from Section 7 "Qué
+ * deberías hacer hoy" (individual lead/deal-level next-best-actions,
+ * sourced from open deals/conversations): this is the ONE structural
+ * read on the period's overall trend. Deterministic only (no AI
+ * rewording) — it's already a short, specific instruction, not
+ * narrative prose that benefits from polish the way the
+ * interpretation paragraph does.
  */
 export function buildInterpretationRecommendation(
   metrics: InterpretationMetric[],
+  ctx: InterpretationContext,
 ): InterpretationRecommendation | null {
-  const worst = pickHeadlineEvidence(
-    metrics.filter((m) => m.direction === 'down'),
-    1,
-  )[0]
-  if (worst) return RECOMMENDATION_BY_METRIC[worst.key]
+  const worst = pickHeadlineEvidence(metrics.filter((m) => m.direction === 'down'), 1)[0]
+  if (worst) {
+    if (ctx.moneyAtRiskCount > 0) {
+      const oportunidad = pluralize(ctx.moneyAtRiskCount, 'oportunidad', 'oportunidades')
+      return {
+        title: 'Revisa las oportunidades estancadas primero',
+        description: `${ctx.moneyAtRiskCount} ${oportunidad} llevan más de ${ctx.staleDays} días sin avanzar y representan ${formatCurrency(ctx.moneyAtRiskValue, ctx.currency)}. Empieza por las de mayor valor.`,
+      }
+    }
+    return RECOMMENDATION_BY_METRIC[worst.key]
+  }
 
   const best = pickHeadlineEvidence(
     metrics.filter((m) => m.direction === 'up'),
@@ -238,8 +337,9 @@ export function buildInterpretationSystemPrompt(): string {
     'Reglas estrictas:',
     '- Usa ÚNICAMENTE los números que aparecen en los HECHOS. Nunca inventes, redondees de forma engañosa ni agregues cifras nuevas.',
     '- No hagas ningún cálculo nuevo: los porcentajes y puntos ya vienen calculados.',
+    '- No afirmes una causa que los HECHOS no demuestren. Si la VERSIÓN BASE dice que una caída "coincide con" algo, mantén ese lenguaje de correlación — nunca lo conviertas en "porque" o "debido a".',
     '- No agregues recomendaciones ni conclusiones que no se desprendan directamente de los HECHOS.',
-    '- Tono profesional, directo, sin saludos ni relleno.',
+    '- Tono profesional, directo, sin saludos ni relleno, sin frases genéricas como "hay oportunidades de mejora" o "es importante hacer seguimiento".',
     '',
     'Responde ÚNICAMENTE con un objeto JSON (sin bloques de código, sin comentarios) con esta forma exacta:',
     '{ "interpretation": string }',

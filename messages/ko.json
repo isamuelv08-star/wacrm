@@ -3229,7 +3229,7 @@
     "noComparison": "이전 기간 데이터 없음",
     "points": "포인트",
     "interpretationTitle": "무슨 일이 일어나고 있나요?",
-    "decisionsTitle": "우선순위 결정",
+    "decisionsTitle": "지금 주목해야 할 것은?",
     "breakdownTitle": "비즈니스가 뒤처지고 있는 부분",
     "biggestLeak": "가장 큰 퍼널 누수는 \"{from}\"과(와) \"{to}\" 사이입니다: 리드의 {pct}%가 다음 단계로 넘어가지 못합니다.",
     "sellerColumn": "판매자",
@@ -3250,6 +3250,13 @@
     "askError": "답변을 가져올 수 없습니다. 다시 시도해 주세요.",
     "askNotConfigured": "AI가 아직 설정되지 않았습니다. 설정 → AI 어시스턴트에서 활성화하세요.",
     "avgTicketColumn": "평균 거래 금액",
-    "showWhy": "이유 보기"
+    "showWhy": "이유 보기",
+    "noCriticalProblems": "현재 심각한 문제가 감지되지 않았습니다.",
+    "tierActNow": "🔴 지금 조치",
+    "tierReviewToday": "🟠 오늘 검토",
+    "tierWatch": "🟡 지켜보기",
+    "noActivityThisPeriod": "이번 기간 활동 없음",
+    "noSalesForTicket": "계산할 판매 없음",
+    "noSales": "판매 없음"
   }
 }

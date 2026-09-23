@@ -3229,7 +3229,7 @@
     "noComparison": "No data for the previous period",
     "points": "points",
     "interpretationTitle": "What's happening?",
-    "decisionsTitle": "Priority decisions",
+    "decisionsTitle": "What needs your attention?",
     "breakdownTitle": "Where the business is falling behind",
     "biggestLeak": "The biggest funnel leak is between \"{from}\" and \"{to}\": {pct}% of leads never reach the next stage.",
     "sellerColumn": "Seller",
@@ -3250,6 +3250,13 @@
     "askError": "Could not get an answer. Try again.",
     "askNotConfigured": "AI is not configured yet. Enable it in Settings → AI Assistant.",
     "avgTicketColumn": "Avg. ticket",
-    "showWhy": "See why"
+    "showWhy": "See why",
+    "noCriticalProblems": "No critical problems detected right now.",
+    "tierActNow": "🔴 Act now",
+    "tierReviewToday": "🟠 Review today",
+    "tierWatch": "🟡 Watch",
+    "noActivityThisPeriod": "No activity this period",
+    "noSalesForTicket": "No sales to calculate from",
+    "noSales": "No sales"
   }
 }

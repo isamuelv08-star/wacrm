@@ -23,12 +23,14 @@ import { PeriodSelector } from "@/components/period-selector";
 import { MetricCard, type MetricCardTint } from "@/components/dashboard/metric-card";
 import { SkeletonCard } from "@/components/dashboard/skeleton";
 import { InsightsPanel } from "@/components/dashboard/insights-panel";
+import { groupDecisionsByTier } from "@/lib/decision-center/priority-tiers";
 import { MoneyAtRiskCard } from "@/components/dashboard/ceo/money-at-risk-card";
 import { RecoveryCard } from "@/components/dashboard/recovery-card";
 import { NextBestActionCard } from "@/components/dashboard/next-best-action-card";
 import { AskSaleslid } from "./ask-saleslid";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Insight } from "@/lib/sales-intelligence/insights";
+import type { DecisionAction } from "@/lib/sales-intelligence/decision-actions";
 import type { SellerPeriodPerformance } from "@/lib/dashboard/ceo-queries";
 import type { StageDropoff } from "@/lib/decision-center/breakdown";
 import type { MoneyAtRiskData } from "@/lib/sales-intelligence/aggregate";
@@ -92,6 +94,7 @@ interface DecisionCenterResponse {
   interpretationEvidence: InterpretationMetric[];
   interpretationRecommendation: InterpretationRecommendation | null;
   decisions: Insight[];
+  decisionActions: DecisionAction[];
   todayPriorities: NextBestActionDisplay[];
   money: DecisionCenterMoney;
   breakdown: DecisionCenterBreakdown;
@@ -157,11 +160,33 @@ export function DecisionCenterView() {
 
   const kpis = data?.kpis ?? null;
 
+  const tiers = useMemo(
+    () => groupDecisionsByTier(data?.decisions ?? [], data?.decisionActions ?? []),
+    [data?.decisions, data?.decisionActions],
+  );
+  const hasAnyDecision = tiers.actNow.length + tiers.reviewToday.length + tiers.watch.length > 0;
+
   const deltaLabel = (pct: number | null) => {
     if (pct == null) return t("noComparison");
     if (pct === 0) return t("noChange");
     const sign = pct > 0 ? "+" : "";
     return `${sign}${pct.toFixed(1)}% ${t("vsPreviousPeriod")}`;
+  };
+
+  /** A metric that dropped to a structural zero (no sales, no leads,
+   *  no deal won this period) reads as a rounding artifact when shown
+   *  as "-100%" — the real story is "nothing happened", not "a
+   *  typical decline". Same rule the interpretation narrative already
+   *  applies (see interpretation.ts's own isStructuralZero). */
+  const zeroAwareDeltaLabel = (
+    metricKey: "sales" | "leads" | "avgTicket" | "opportunities",
+    current: number,
+    previous: number,
+  ) => {
+    if (current === 0 && previous > 0) {
+      return metricKey === "avgTicket" ? t("noSalesForTicket") : t("noActivityThisPeriod");
+    }
+    return deltaLabel(pctChange(current, previous));
   };
 
   const pointsLabel = (deltaPts: number | null) => {
@@ -229,7 +254,10 @@ export function DecisionCenterView() {
                 formatCurrency(kpis.sales.current, defaultCurrency),
                 DollarSign,
                 "green",
-                { sign: kpis.sales.current - kpis.sales.previous, label: deltaLabel(pctChange(kpis.sales.current, kpis.sales.previous)) },
+                {
+                  sign: kpis.sales.current - kpis.sales.previous,
+                  label: zeroAwareDeltaLabel("sales", kpis.sales.current, kpis.sales.previous),
+                },
               )}
               {card(
                 "leads",
@@ -237,7 +265,10 @@ export function DecisionCenterView() {
                 kpis.leads.current.toLocaleString(),
                 Users2,
                 "blue",
-                { sign: kpis.leads.current - kpis.leads.previous, label: deltaLabel(pctChange(kpis.leads.current, kpis.leads.previous)) },
+                {
+                  sign: kpis.leads.current - kpis.leads.previous,
+                  label: zeroAwareDeltaLabel("leads", kpis.leads.current, kpis.leads.previous),
+                },
               )}
               {card(
                 "conversion",
@@ -260,12 +291,14 @@ export function DecisionCenterView() {
               {card(
                 "avgTicket",
                 t("kpiAvgTicket"),
-                formatCurrency(kpis.avgTicket.current, defaultCurrency),
+                kpis.avgTicket.current === 0 && kpis.sales.current === 0
+                  ? t("noSales")
+                  : formatCurrency(kpis.avgTicket.current, defaultCurrency),
                 Wallet,
                 "amber",
                 {
                   sign: kpis.avgTicket.current - kpis.avgTicket.previous,
-                  label: deltaLabel(pctChange(kpis.avgTicket.current, kpis.avgTicket.previous)),
+                  label: zeroAwareDeltaLabel("avgTicket", kpis.avgTicket.current, kpis.avgTicket.previous),
                 },
               )}
               {card(
@@ -276,7 +309,7 @@ export function DecisionCenterView() {
                 "rose",
                 {
                   sign: kpis.opportunities.current - kpis.opportunities.previous,
-                  label: deltaLabel(pctChange(kpis.opportunities.current, kpis.opportunities.previous)),
+                  label: zeroAwareDeltaLabel("opportunities", kpis.opportunities.current, kpis.opportunities.previous),
                 },
               )}
             </>
@@ -353,16 +386,34 @@ export function DecisionCenterView() {
         )}
       </section>
 
-      <section className="space-y-3">
+      <section className="space-y-4">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           {t("decisionsTitle")}
         </h2>
-        <InsightsPanel
-          insights={data?.decisions ?? null}
-          loading={loading}
-          currency={defaultCurrency}
-          expandable
-        />
+        {!loading && data && !hasAnyDecision ? (
+          <p className="text-sm text-muted-foreground">{t("noCriticalProblems")}</p>
+        ) : (
+          <div className="space-y-4">
+            {(loading || !data || tiers.actNow.length > 0) && (
+              <div className="space-y-2">
+                <h3 className="text-xs font-semibold text-rose-500">{t("tierActNow")}</h3>
+                <InsightsPanel insights={loading || !data ? null : tiers.actNow} loading={loading} currency={defaultCurrency} expandable />
+              </div>
+            )}
+            {!loading && data && tiers.reviewToday.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-xs font-semibold text-amber-500">{t("tierReviewToday")}</h3>
+                <InsightsPanel insights={tiers.reviewToday} loading={false} currency={defaultCurrency} expandable />
+              </div>
+            )}
+            {!loading && data && tiers.watch.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-xs font-semibold text-yellow-600">{t("tierWatch")}</h3>
+                <InsightsPanel insights={tiers.watch} loading={false} currency={defaultCurrency} expandable />
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
       <section className="space-y-3">
