@@ -286,6 +286,82 @@ export async function loadCommercialMetrics(db: DB, windowDays = 90): Promise<Co
   return { winRatePct, avgTicket, avgSalesCycleDays }
 }
 
+export interface PeriodCommercialTrend {
+  /** Percent, 0-100. Null when the window has no closed deal to score. */
+  winRatePct: { current: number | null; previous: number | null }
+  /** Average VALUE of won deals — 0, not null, when there's nothing won yet. */
+  avgTicket: { current: number; previous: number }
+  /** Deals CREATED in the window (any status, open or already closed) —
+   *  "how many opportunities came in", independent of what happened to
+   *  them since. Distinct from `newClients` (loadCeoMetrics), which
+   *  counts distinct CONTACTS, not deals — one contact can have
+   *  several deals. */
+  opportunitiesCreated: { current: number; previous: number }
+}
+
+/**
+ * The same win-rate/avg-ticket math `loadCommercialMetrics` already
+ * does, and the same current-vs-immediately-preceding-equal-period
+ * comparison `loadCeoMetrics` already does for revenue/leads — this is
+ * the missing third piece: those two functions don't share a common
+ * "arbitrary selected range vs its own prior period" contract
+ * (`loadCommercialMetrics` only ever looks at a fixed trailing window
+ * from today; `loadCeoAlerts`'s win-rate-decline check is the same
+ * fixed-window shape). Centro de Decisiones needs win rate/avg ticket
+ * tied to whatever period the manager picked (today, 7 days, custom…),
+ * so this reuses `previousRange` (date-utils.ts) — the exact helper
+ * `loadCeoMetrics` already uses for revenue/leads — instead of
+ * inventing a second definition of "the period before this one".
+ */
+export async function loadPeriodCommercialTrend(
+  db: DB,
+  range: DateRange,
+  accountId?: string,
+): Promise<PeriodCommercialTrend> {
+  const currentStart = range.start.toISOString()
+  const currentEnd = range.end.toISOString()
+  const previousStart = previousRange(range).start.toISOString()
+
+  let closedQ = db
+    .from('deals')
+    .select('value, status, closed_at')
+    .in('status', ['won', 'lost'])
+    .gte('closed_at', previousStart)
+    .lt('closed_at', currentEnd)
+  let createdQ = db.from('deals').select('id, created_at').gte('created_at', previousStart).lt('created_at', currentEnd)
+  if (accountId) {
+    closedQ = closedQ.eq('account_id', accountId)
+    createdQ = createdQ.eq('account_id', accountId)
+  }
+
+  const [closedRes, createdRes] = await Promise.all([closedQ, createdQ])
+  if (closedRes.error) throw closedRes.error
+  if (createdRes.error) throw createdRes.error
+
+  type ClosedRow = { value: number | null; status: string; closed_at: string | null }
+  const closedRows = (closedRes.data ?? []) as ClosedRow[]
+  const currentClosed = closedRows.filter((r) => r.closed_at && r.closed_at >= currentStart)
+  const previousClosed = closedRows.filter((r) => r.closed_at && r.closed_at < currentStart)
+
+  const winRateOf = (rows: ClosedRow[]) =>
+    rows.length > 0 ? (rows.filter((r) => r.status === 'won').length / rows.length) * 100 : null
+  const avgTicketOf = (rows: ClosedRow[]) => {
+    const won = rows.filter((r) => r.status === 'won')
+    return won.length > 0 ? won.reduce((s, d) => s + (d.value ?? 0), 0) / won.length : 0
+  }
+
+  type CreatedRow = { created_at: string }
+  const createdRows = (createdRes.data ?? []) as CreatedRow[]
+  const currentCreated = createdRows.filter((r) => r.created_at >= currentStart).length
+  const previousCreated = createdRows.filter((r) => r.created_at < currentStart).length
+
+  return {
+    winRatePct: { current: winRateOf(currentClosed), previous: winRateOf(previousClosed) },
+    avgTicket: { current: avgTicketOf(currentClosed), previous: avgTicketOf(previousClosed) },
+    opportunitiesCreated: { current: currentCreated, previous: previousCreated },
+  }
+}
+
 // --- 4. Top sellers vs their individual goal ------------------------------
 
 /**

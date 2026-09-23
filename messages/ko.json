@@ -3213,5 +3213,19 @@
     "owner": "담당자",
     "unassigned": "미배정",
     "origin": "유입 경로"
+  },
+  "DecisionCenter": {
+    "title": "의사결정 센터",
+    "subtitle": "비즈니스 현황을 설명하고 우선순위를 매겨 어디서 행동해야 할지 알려드립니다.",
+    "stateTitle": "비즈니스 현황은 어떤가요?",
+    "kpiSales": "매출",
+    "kpiLeads": "리드",
+    "kpiConversion": "전환율",
+    "kpiAvgTicket": "평균 거래 금액",
+    "kpiOpportunities": "기회",
+    "vsPreviousPeriod": "이전 기간 대비",
+    "noChange": "변동 없음",
+    "noComparison": "이전 기간 데이터 없음",
+    "points": "포인트"
   }
 }

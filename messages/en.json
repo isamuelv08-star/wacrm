@@ -3213,5 +3213,19 @@
     "owner": "Owner",
     "unassigned": "Unassigned",
     "origin": "Source"
+  },
+  "DecisionCenter": {
+    "title": "Decision Center",
+    "subtitle": "The state of your business, explained and prioritized so you know where to act.",
+    "stateTitle": "How is your business doing?",
+    "kpiSales": "Sales",
+    "kpiLeads": "Leads",
+    "kpiConversion": "Conversion",
+    "kpiAvgTicket": "Average ticket",
+    "kpiOpportunities": "Opportunities",
+    "vsPreviousPeriod": "vs. the previous period",
+    "noChange": "No change",
+    "noComparison": "No data for the previous period",
+    "points": "points"
   }
 }

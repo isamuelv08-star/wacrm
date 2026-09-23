@@ -3213,5 +3213,19 @@
     "owner": "Responsável",
     "unassigned": "Sem responsável",
     "origin": "Origem"
+  },
+  "DecisionCenter": {
+    "title": "Centro de Decisões",
+    "subtitle": "A situação do seu negócio, explicada e priorizada para tomar ação.",
+    "stateTitle": "Como está o seu negócio?",
+    "kpiSales": "Vendas",
+    "kpiLeads": "Leads",
+    "kpiConversion": "Conversão",
+    "kpiAvgTicket": "Ticket médio",
+    "kpiOpportunities": "Oportunidades",
+    "vsPreviousPeriod": "vs. o período anterior",
+    "noChange": "Sem mudanças",
+    "noComparison": "Sem dados do período anterior",
+    "points": "pontos"
   }
 }

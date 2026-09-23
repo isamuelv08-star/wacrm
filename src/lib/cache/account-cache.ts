@@ -12,6 +12,16 @@ export const CACHE_TTL = {
    *  acceptable trade for not recomputing on every page view, shared
    *  across every viewer of the same account. */
   dashboardSummary: 180,
+  /** Centro de Decisiones — same "scan/aggregate across deals" cost
+   *  profile as dashboardSummary, but a manager typically opens this
+   *  occasionally rather than leaving it open, and switches between
+   *  several different periods in one visit (each period is its own
+   *  cache key here) — a slightly longer TTL trades a bit more
+   *  staleness for a much better hit rate across those period
+   *  switches, without adding a /revalidate companion route (nothing
+   *  here is edited from elsewhere in the app the way a dragged deal
+   *  invalidates dashboardSummary). */
+  decisionCenter: 300,
 } as const
 
 /**
