@@ -457,6 +457,25 @@ export function DecisionCenterView() {
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          {t("moneyTitle")}
+        </h2>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <MoneyAtRiskCard
+            data={data?.money.atRisk ?? null}
+            loading={loading}
+            currency={defaultCurrency}
+            staleDays={data?.money.staleDays ?? 7}
+          />
+          <RecoveryCard
+            items={data?.money.recoveryOpportunities ?? null}
+            loading={loading}
+            currency={defaultCurrency}
+          />
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           {t("breakdownTitle")}
         </h2>
         {loading || !data ? (
@@ -559,25 +578,6 @@ export function DecisionCenterView() {
             )}
           </div>
         )}
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          {t("moneyTitle")}
-        </h2>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <MoneyAtRiskCard
-            data={data?.money.atRisk ?? null}
-            loading={loading}
-            currency={defaultCurrency}
-            staleDays={data?.money.staleDays ?? 7}
-          />
-          <RecoveryCard
-            items={data?.money.recoveryOpportunities ?? null}
-            loading={loading}
-            currency={defaultCurrency}
-          />
-        </div>
       </section>
 
       <section className="space-y-3">
