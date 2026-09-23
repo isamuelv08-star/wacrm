@@ -3240,6 +3240,7 @@
     "teamPerformanceTitle": "Desempenho da equipe",
     "lostColumn": "Perdidos",
     "biggestDeclineFlag": "Maior queda",
-    "biggestImprovementFlag": "Maior melhora"
+    "biggestImprovementFlag": "Maior melhora",
+    "todayPrioritiesTitle": "O que você deveria fazer hoje"
   }
 }

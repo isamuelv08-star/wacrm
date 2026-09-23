@@ -166,13 +166,15 @@ export async function GET(request: Request) {
           staleDays: STALE_DAYS_DEFAULT,
           overduePromiseCount,
         })
-        // recoveryCandidates is reused as-is for Section 5 ("Dinero y
-        // oportunidades") — buildInsights only ever surfaces the TOP
-        // one as a 🟢 Oportunidad decision; the full list belongs to
-        // that section's <RecoveryCard />, same split ceo-summary's
-        // response already keeps between `insights` and its other
-        // sibling fields.
-        return { decisions, recoveryCandidates }
+        // recoveryCandidates and nextBestActions are both reused as-is
+        // beyond buildInsights: Section 5 ("Dinero y oportunidades")
+        // gets the full recovery list (buildInsights only surfaces the
+        // TOP one as a 🟢 Oportunidad decision), and Section 7 ("Qué
+        // debería hacer hoy") gets the full next-best-action list —
+        // <NextBestActionCard />'s own doc comment already calls it
+        // "Estas son las cosas que debes hacer hoy", so it's reused
+        // directly instead of building a second "today" list.
+        return { decisions, recoveryCandidates, nextBestActions }
       },
     )
 
@@ -208,7 +210,7 @@ export async function GET(request: Request) {
         worstDecliningSeller: worstSeller,
         bestImprovingSeller: bestSeller,
       },
-      { decisions, recoveryCandidates },
+      { decisions, recoveryCandidates, nextBestActions },
       funnelBreakdown,
       moneyAtRisk,
     ] = await Promise.all([getData(), getDecisions(), getFunnelBreakdown(), getMoneyAtRisk()])
@@ -218,6 +220,7 @@ export async function GET(request: Request) {
       kpis,
       interpretation,
       decisions,
+      todayPriorities: nextBestActions,
       money: { atRisk: moneyAtRisk, recoveryOpportunities: recoveryCandidates, staleDays: STALE_DAYS_DEFAULT },
       breakdown: {
         bySeller,

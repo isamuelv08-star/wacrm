@@ -12,12 +12,14 @@ import { SkeletonCard } from "@/components/dashboard/skeleton";
 import { InsightsPanel } from "@/components/dashboard/insights-panel";
 import { MoneyAtRiskCard } from "@/components/dashboard/ceo/money-at-risk-card";
 import { RecoveryCard } from "@/components/dashboard/recovery-card";
+import { NextBestActionCard } from "@/components/dashboard/next-best-action-card";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Insight } from "@/lib/sales-intelligence/insights";
 import type { SellerPeriodPerformance } from "@/lib/dashboard/ceo-queries";
 import type { StageDropoff } from "@/lib/decision-center/breakdown";
 import type { MoneyAtRiskData } from "@/lib/sales-intelligence/aggregate";
 import type { RecoveryCandidate } from "@/lib/sales-intelligence/recovery";
+import type { NextBestActionDisplay } from "@/lib/sales-intelligence/queries";
 
 // ============================================================
 // Centro de Decisiones — client-side content. The role gate already
@@ -73,6 +75,7 @@ interface DecisionCenterResponse {
   kpis: DecisionCenterKpis;
   interpretation: string;
   decisions: Insight[];
+  todayPriorities: NextBestActionDisplay[];
   money: DecisionCenterMoney;
   breakdown: DecisionCenterBreakdown;
 }
@@ -394,6 +397,17 @@ export function DecisionCenterView() {
             currency={defaultCurrency}
           />
         </div>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          {t("todayPrioritiesTitle")}
+        </h2>
+        <NextBestActionCard
+          items={data?.todayPriorities ?? null}
+          loading={loading}
+          currency={defaultCurrency}
+        />
       </section>
     </div>
   );

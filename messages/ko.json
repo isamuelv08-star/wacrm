@@ -3240,6 +3240,7 @@
     "teamPerformanceTitle": "팀 성과",
     "lostColumn": "실패",
     "biggestDeclineFlag": "가장 큰 하락",
-    "biggestImprovementFlag": "가장 큰 개선"
+    "biggestImprovementFlag": "가장 큰 개선",
+    "todayPrioritiesTitle": "오늘 해야 할 일"
   }
 }
