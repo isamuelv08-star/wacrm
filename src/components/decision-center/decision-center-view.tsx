@@ -23,6 +23,7 @@ import { PeriodSelector } from "@/components/period-selector";
 import { MetricCard, type MetricCardTint } from "@/components/dashboard/metric-card";
 import { SkeletonCard } from "@/components/dashboard/skeleton";
 import { InsightsPanel } from "@/components/dashboard/insights-panel";
+import { DecisionActionCard } from "./decision-action-card";
 import { groupDecisionsByTier } from "@/lib/decision-center/priority-tiers";
 import { MoneyAtRiskCard } from "@/components/dashboard/ceo/money-at-risk-card";
 import { RecoveryCard } from "@/components/dashboard/recovery-card";
@@ -100,6 +101,8 @@ interface DecisionCenterResponse {
   breakdown: DecisionCenterBreakdown;
 }
 
+const CARD_DISPLAY_LIMIT = 4;
+
 function todayIso(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -115,6 +118,7 @@ function pctChange(current: number, previous: number): number | null {
 
 export function DecisionCenterView() {
   const t = useTranslations("DecisionCenter");
+  const tInsights = useTranslations("Dashboard.insights");
   const { defaultCurrency } = useAuth();
 
   const [preset, setPreset] = useState<PeriodPreset>("last7Days");
@@ -123,6 +127,8 @@ export function DecisionCenterView() {
   const [data, setData] = useState<DecisionCenterResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [showWhy, setShowWhy] = useState(false);
+  const [expandedActNow, setExpandedActNow] = useState(false);
+  const [expandedReviewToday, setExpandedReviewToday] = useState(false);
 
   const range = useMemo(() => {
     if (preset === "custom" && customStart && customEnd) {
@@ -390,23 +396,56 @@ export function DecisionCenterView() {
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           {t("decisionsTitle")}
         </h2>
-        {!loading && data && !hasAnyDecision ? (
+        {loading || !data ? (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        ) : !hasAnyDecision ? (
           <p className="text-sm text-muted-foreground">{t("noCriticalProblems")}</p>
         ) : (
           <div className="space-y-4">
-            {(loading || !data || tiers.actNow.length > 0) && (
+            {tiers.actNow.length > 0 && (
               <div className="space-y-2">
                 <h3 className="text-xs font-semibold text-rose-500">{t("tierActNow")}</h3>
-                <InsightsPanel insights={loading || !data ? null : tiers.actNow} loading={loading} currency={defaultCurrency} expandable />
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  {(expandedActNow ? tiers.actNow : tiers.actNow.slice(0, CARD_DISPLAY_LIMIT)).map((insight, i) => (
+                    <DecisionActionCard key={`${insight.type}-${i}`} insight={insight} currency={defaultCurrency} tier="actNow" />
+                  ))}
+                </div>
+                {!expandedActNow && tiers.actNow.length > CARD_DISPLAY_LIMIT && (
+                  <button
+                    type="button"
+                    onClick={() => setExpandedActNow(true)}
+                    className="rounded-lg border border-dashed border-border px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+                  >
+                    {tInsights("showMore", { count: tiers.actNow.length - CARD_DISPLAY_LIMIT })}
+                  </button>
+                )}
               </div>
             )}
-            {!loading && data && tiers.reviewToday.length > 0 && (
+            {tiers.reviewToday.length > 0 && (
               <div className="space-y-2">
                 <h3 className="text-xs font-semibold text-amber-500">{t("tierReviewToday")}</h3>
-                <InsightsPanel insights={tiers.reviewToday} loading={false} currency={defaultCurrency} expandable />
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  {(expandedReviewToday ? tiers.reviewToday : tiers.reviewToday.slice(0, CARD_DISPLAY_LIMIT)).map(
+                    (insight, i) => (
+                      <DecisionActionCard key={`${insight.type}-${i}`} insight={insight} currency={defaultCurrency} tier="reviewToday" />
+                    ),
+                  )}
+                </div>
+                {!expandedReviewToday && tiers.reviewToday.length > CARD_DISPLAY_LIMIT && (
+                  <button
+                    type="button"
+                    onClick={() => setExpandedReviewToday(true)}
+                    className="rounded-lg border border-dashed border-border px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+                  >
+                    {tInsights("showMore", { count: tiers.reviewToday.length - CARD_DISPLAY_LIMIT })}
+                  </button>
+                )}
               </div>
             )}
-            {!loading && data && tiers.watch.length > 0 && (
+            {tiers.watch.length > 0 && (
               <div className="space-y-2">
                 <h3 className="text-xs font-semibold text-yellow-600">{t("tierWatch")}</h3>
                 <InsightsPanel insights={tiers.watch} loading={false} currency={defaultCurrency} expandable />

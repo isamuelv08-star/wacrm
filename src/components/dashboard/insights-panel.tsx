@@ -65,7 +65,10 @@ const CATEGORY_STYLE: Record<
   },
 }
 
-function actionHref(insight: Insight): string {
+/** Exported so Centro de Decisiones' richer card format
+ *  (decision-action-card.tsx) can link to the same destination this
+ *  panel's own rows do, without a second copy of this switch. */
+export function actionHref(insight: Insight): string {
   switch (insight.action.kind) {
     case 'goToConversation':
       return `/inbox?c=${insight.action.conversationId}`

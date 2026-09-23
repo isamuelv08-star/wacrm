@@ -3257,6 +3257,9 @@
     "tierWatch": "🟡 지켜보기",
     "noActivityThisPeriod": "이번 기간 활동 없음",
     "noSalesForTicket": "계산할 판매 없음",
-    "noSales": "판매 없음"
+    "noSales": "판매 없음",
+    "whatIsHappening": "무슨 일이 일어나고 있나요",
+    "whatToDo": "해야 할 일",
+    "reviewAction": "검토하기"
   }
 }

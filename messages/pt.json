@@ -3257,6 +3257,9 @@
     "tierWatch": "🟡 Observe",
     "noActivityThisPeriod": "Sem atividade no período",
     "noSalesForTicket": "Sem vendas para calcular",
-    "noSales": "Sem vendas"
+    "noSales": "Sem vendas",
+    "whatIsHappening": "O que está acontecendo",
+    "whatToDo": "O que fazer",
+    "reviewAction": "Revisar"
   }
 }
