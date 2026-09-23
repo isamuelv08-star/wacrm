@@ -1069,7 +1069,8 @@
     },
     "leadSummarySheet": {
       "goToConversation": "대화로 이동",
-      "editDeal": "거래 편집",
+      "tabSummary": "요약",
+      "tabEdit": "편집",
       "noContact": "연결된 연락처 없음"
     }
   },

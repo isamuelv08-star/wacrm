@@ -1069,7 +1069,8 @@
     },
     "leadSummarySheet": {
       "goToConversation": "Ir para conversa",
-      "editDeal": "Editar negócio",
+      "tabSummary": "Resumo",
+      "tabEdit": "Editar",
       "noContact": "Sem contato vinculado"
     }
   },

@@ -1069,7 +1069,8 @@
     },
     "leadSummarySheet": {
       "goToConversation": "Go to conversation",
-      "editDeal": "Edit deal",
+      "tabSummary": "Summary",
+      "tabEdit": "Edit",
       "noContact": "No linked contact"
     }
   },

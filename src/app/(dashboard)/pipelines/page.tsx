@@ -409,16 +409,15 @@ export default function PipelinesPage() {
     [stages],
   );
 
-  const handleEditDeal = useCallback((deal: Deal) => {
-    setEditingDeal(deal);
-    setDefaultStageId(deal.stage_id);
-    setDealFormOpen(true);
-  }, []);
-
   // Clicking a card opens the read-first lead summary (LeadSummarySheet)
-  // instead of jumping straight to the edit form — the summary itself
-  // offers an "Edit deal" button that calls handleEditDeal above, so
-  // editing is still one click away, just no longer the default.
+  // instead of jumping straight to the edit form — that sheet has its
+  // own "Edit" tab (DealFormFields, embedded) for when fields actually
+  // need changing, so editing is still there, just no longer the
+  // default. `DealForm` below is left rendering only `handleAddDeal`'s
+  // create flow now (a brand-new deal has no lead to summarize yet);
+  // `editingDeal` stays permanently null on this page as a result —
+  // still a real prop DealForm supports for contact-sidebar.tsx's own
+  // "click a deal" path, just unused from here.
   const [summaryDeal, setSummaryDeal] = useState<Deal | null>(null);
   const [summarySheetOpen, setSummarySheetOpen] = useState(false);
   const handleOpenDealSummary = useCallback((deal: Deal) => {
@@ -709,7 +708,9 @@ export default function PipelinesPage() {
         deal={summaryDeal}
         open={summarySheetOpen}
         onOpenChange={setSummarySheetOpen}
-        onEdit={handleEditDeal}
+        pipelineId={selectedPipelineId}
+        stages={stages}
+        onSaved={refreshDeals}
       />
     </div>
   );
