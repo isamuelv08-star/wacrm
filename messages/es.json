@@ -3228,6 +3228,13 @@
     "noComparison": "Sin datos del período anterior",
     "points": "puntos",
     "interpretationTitle": "¿Qué está pasando?",
-    "decisionsTitle": "Decisiones prioritarias"
+    "decisionsTitle": "Decisiones prioritarias",
+    "breakdownTitle": "Dónde está cayendo el negocio",
+    "biggestLeak": "La mayor fuga del embudo está entre \"{from}\" y \"{to}\": {pct}% de los leads no avanza a la siguiente etapa.",
+    "sellerColumn": "Vendedor",
+    "wonColumn": "Ganados",
+    "winRateColumn": "Tasa de cierre",
+    "winRateDeltaColumn": "Cambio",
+    "noBreakdownData": "Todavía no hay suficientes datos para este desglose."
   }
 }

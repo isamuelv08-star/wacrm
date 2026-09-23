@@ -3228,6 +3228,13 @@
     "noComparison": "No data for the previous period",
     "points": "points",
     "interpretationTitle": "What's happening?",
-    "decisionsTitle": "Priority decisions"
+    "decisionsTitle": "Priority decisions",
+    "breakdownTitle": "Where the business is falling behind",
+    "biggestLeak": "The biggest funnel leak is between \"{from}\" and \"{to}\": {pct}% of leads never reach the next stage.",
+    "sellerColumn": "Seller",
+    "wonColumn": "Won",
+    "winRateColumn": "Win rate",
+    "winRateDeltaColumn": "Change",
+    "noBreakdownData": "Not enough data yet for this breakdown."
   }
 }

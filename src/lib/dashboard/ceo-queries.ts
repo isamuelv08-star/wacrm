@@ -362,6 +362,87 @@ export async function loadPeriodCommercialTrend(
   }
 }
 
+export interface SellerPeriodPerformance {
+  userId: string
+  name: string
+  dealsWonCurrent: number
+  dealsWonPrevious: number
+  dealsLostCurrent: number
+  dealsLostPrevious: number
+  /** Percent, 0-100. Null when the member had no closed deal in that
+   *  half of the window — no rate to report, not a rate of 0. */
+  winRateCurrent: number | null
+  winRatePrevious: number | null
+  valueWonCurrent: number
+  valueWonPrevious: number
+}
+
+/**
+ * Per-seller current-vs-previous-period win rate — the "who is the
+ * business falling behind on" input for Centro de Decisiones' "Dónde
+ * está cayendo el negocio" breakdown. Same closed-deals-in-window
+ * query `loadPeriodCommercialTrend` already runs for the account-wide
+ * number, just grouped by `assigned_to` instead of aggregated —
+ * deliberately kept as a separate function (not a parameter on that
+ * one) since the two are read independently: the KPI card wants one
+ * account-wide number, this wants one row per member.
+ */
+export async function loadSellerPeriodPerformance(
+  db: DB,
+  range: DateRange,
+): Promise<SellerPeriodPerformance[]> {
+  const currentStart = range.start.toISOString()
+  const currentEnd = range.end.toISOString()
+  const previousStart = previousRange(range).start.toISOString()
+
+  const [membersRes, dealsRes] = await Promise.all([
+    db.from('profiles').select('id, full_name, email'),
+    db
+      .from('deals')
+      .select('assigned_to, value, status, closed_at')
+      .in('status', ['won', 'lost'])
+      .not('assigned_to', 'is', null)
+      .gte('closed_at', previousStart)
+      .lt('closed_at', currentEnd),
+  ])
+  if (membersRes.error) throw membersRes.error
+  if (dealsRes.error) throw dealsRes.error
+
+  type Row = { assigned_to: string; value: number | null; status: string; closed_at: string | null }
+  const rows = (dealsRes.data ?? []) as Row[]
+  const members = (membersRes.data ?? []) as { id: string; full_name: string | null; email: string | null }[]
+
+  const byMember = new Map<string, Row[]>()
+  for (const r of rows) {
+    const list = byMember.get(r.assigned_to) ?? []
+    list.push(r)
+    byMember.set(r.assigned_to, list)
+  }
+
+  const wonOf = (list: Row[]) => list.filter((r) => r.status === 'won')
+  const winRateOf = (list: Row[]) => (list.length > 0 ? (wonOf(list).length / list.length) * 100 : null)
+
+  return members
+    .filter((m) => byMember.has(m.id))
+    .map((m) => {
+      const all = byMember.get(m.id) ?? []
+      const current = all.filter((r) => r.closed_at && r.closed_at >= currentStart)
+      const previous = all.filter((r) => r.closed_at && r.closed_at < currentStart)
+      return {
+        userId: m.id,
+        name: m.full_name || m.email || '—',
+        dealsWonCurrent: wonOf(current).length,
+        dealsWonPrevious: wonOf(previous).length,
+        dealsLostCurrent: current.length - wonOf(current).length,
+        dealsLostPrevious: previous.length - wonOf(previous).length,
+        winRateCurrent: winRateOf(current),
+        winRatePrevious: winRateOf(previous),
+        valueWonCurrent: wonOf(current).reduce((s, d) => s + (d.value ?? 0), 0),
+        valueWonPrevious: wonOf(previous).reduce((s, d) => s + (d.value ?? 0), 0),
+      }
+    })
+}
+
 // --- 4. Top sellers vs their individual goal ------------------------------
 
 /**

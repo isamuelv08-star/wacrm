@@ -3228,6 +3228,13 @@
     "noComparison": "Sem dados do período anterior",
     "points": "pontos",
     "interpretationTitle": "O que está acontecendo?",
-    "decisionsTitle": "Decisões prioritárias"
+    "decisionsTitle": "Decisões prioritárias",
+    "breakdownTitle": "Onde o negócio está caindo",
+    "biggestLeak": "O maior vazamento do funil está entre \"{from}\" e \"{to}\": {pct}% dos leads não avançam para a próxima etapa.",
+    "sellerColumn": "Vendedor",
+    "wonColumn": "Ganhos",
+    "winRateColumn": "Taxa de fechamento",
+    "winRateDeltaColumn": "Mudança",
+    "noBreakdownData": "Ainda não há dados suficientes para este detalhamento."
   }
 }

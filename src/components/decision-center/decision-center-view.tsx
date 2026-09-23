@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { DollarSign, Flame, Sparkles, Target, Users2, Wallet } from "lucide-react";
+import { ArrowDown, ArrowUp, DollarSign, Flame, Sparkles, Target, TrendingDown, Users2, Wallet } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { formatCurrency } from "@/lib/currency";
 import { rangeForPreset, type PeriodPreset } from "@/lib/period";
@@ -12,6 +12,8 @@ import { SkeletonCard } from "@/components/dashboard/skeleton";
 import { InsightsPanel } from "@/components/dashboard/insights-panel";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Insight } from "@/lib/sales-intelligence/insights";
+import type { SellerPeriodPerformance } from "@/lib/dashboard/ceo-queries";
+import type { StageDropoff } from "@/lib/decision-center/breakdown";
 
 // ============================================================
 // Centro de Decisiones — client-side content. The role gate already
@@ -48,11 +50,19 @@ interface DecisionCenterKpis {
   opportunities: PeriodValue;
 }
 
+interface DecisionCenterBreakdown {
+  bySeller: SellerPeriodPerformance[];
+  worstDecliningSeller: (SellerPeriodPerformance & { winRateDeltaPts: number }) | null;
+  stageDropoffs: StageDropoff[];
+  biggestLeakStage: StageDropoff | null;
+}
+
 interface DecisionCenterResponse {
   range: { label: PeriodPreset; start: string; end: string };
   kpis: DecisionCenterKpis;
   interpretation: string;
   decisions: Insight[];
+  breakdown: DecisionCenterBreakdown;
 }
 
 function todayIso(): string {
@@ -251,6 +261,87 @@ export function DecisionCenterView() {
           loading={loading}
           currency={defaultCurrency}
         />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          {t("breakdownTitle")}
+        </h2>
+        {loading || !data ? (
+          <div className="space-y-3">
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {data.breakdown.biggestLeakStage && (data.breakdown.biggestLeakStage.dropPct ?? 0) > 0 && (
+              <Card>
+                <CardContent className="flex items-start gap-3 pt-6">
+                  <TrendingDown className="mt-0.5 h-5 w-5 shrink-0 text-rose-500" />
+                  <p className="text-sm leading-relaxed text-foreground">
+                    {t("biggestLeak", {
+                      from: data.breakdown.biggestLeakStage.fromLabel,
+                      to: data.breakdown.biggestLeakStage.toLabel,
+                      pct: (data.breakdown.biggestLeakStage.dropPct ?? 0).toFixed(1),
+                    })}
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
+            {data.breakdown.bySeller.length > 0 && (
+              <Card>
+                <CardContent className="pt-6">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
+                        <th className="pb-2 font-medium">{t("sellerColumn")}</th>
+                        <th className="pb-2 font-medium">{t("wonColumn")}</th>
+                        <th className="pb-2 font-medium">{t("winRateColumn")}</th>
+                        <th className="pb-2 font-medium">{t("winRateDeltaColumn")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...data.breakdown.bySeller]
+                        .sort((a, b) => {
+                          const da = a.winRateCurrent != null && a.winRatePrevious != null ? a.winRateCurrent - a.winRatePrevious : 0;
+                          const db = b.winRateCurrent != null && b.winRatePrevious != null ? b.winRateCurrent - b.winRatePrevious : 0;
+                          return da - db;
+                        })
+                        .map((s) => {
+                          const delta = s.winRateCurrent != null && s.winRatePrevious != null ? s.winRateCurrent - s.winRatePrevious : null;
+                          const isWorst = data.breakdown.worstDecliningSeller?.userId === s.userId;
+                          return (
+                            <tr key={s.userId} className={`border-b border-border/50 last:border-0 ${isWorst ? "bg-rose-500/[0.06]" : ""}`}>
+                              <td className="py-2 text-foreground">{s.name}</td>
+                              <td className="py-2 tabular-nums text-foreground">{s.dealsWonCurrent}</td>
+                              <td className="py-2 tabular-nums text-foreground">
+                                {s.winRateCurrent != null ? `${s.winRateCurrent.toFixed(1)}%` : "—"}
+                              </td>
+                              <td className="py-2 tabular-nums">
+                                {delta == null ? (
+                                  <span className="text-muted-foreground">—</span>
+                                ) : (
+                                  <span className={`inline-flex items-center gap-1 ${delta < 0 ? "text-rose-500" : delta > 0 ? "text-emerald-500" : "text-muted-foreground"}`}>
+                                    {delta < 0 ? <ArrowDown className="h-3.5 w-3.5" /> : delta > 0 ? <ArrowUp className="h-3.5 w-3.5" /> : null}
+                                    {Math.abs(delta).toFixed(1)} {t("points")}
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </CardContent>
+              </Card>
+            )}
+
+            {data.breakdown.bySeller.length === 0 && !data.breakdown.biggestLeakStage && (
+              <p className="text-sm text-muted-foreground">{t("noBreakdownData")}</p>
+            )}
+          </div>
+        )}
       </section>
     </div>
   );

@@ -7,6 +7,8 @@ import {
   loadCeoMetrics,
   loadCeoAlerts,
   loadPeriodCommercialTrend,
+  loadSellerPeriodPerformance,
+  loadSalesFunnel,
   countHotLeadsUnanswered,
 } from '@/lib/dashboard/ceo-queries'
 import { loadNextBestActions, countOverduePromises } from '@/lib/sales-intelligence/queries'
@@ -21,6 +23,7 @@ import {
   buildDeterministicInterpretation,
   generateExecutiveInterpretation,
 } from '@/lib/decision-center/interpretation'
+import { computeStageDropoffs, biggestStageLeak, worstDecliningSeller } from '@/lib/decision-center/breakdown'
 
 // Same default the ceo-summary route uses for the Alerts card and
 // buildInsights — "Decisiones" is a CURRENT-STATE feed (stalled
@@ -64,9 +67,10 @@ export async function GET(request: Request) {
       [accountId, 'decision-center-kpis', rangeKey],
       CACHE_TTL.decisionCenter,
       async () => {
-        const [ceoMetrics, trend] = await Promise.all([
+        const [ceoMetrics, trend, bySeller] = await Promise.all([
           loadCeoMetrics(supabase, range),
           loadPeriodCommercialTrend(supabase, range),
+          loadSellerPeriodPerformance(supabase, range),
         ])
         const kpis: DecisionCenterKpis = {
           sales: ceoMetrics.salesThisMonth,
@@ -119,7 +123,12 @@ export async function GET(request: Request) {
           }
         }
 
-        return { kpis, interpretation }
+        return {
+          kpis,
+          interpretation,
+          bySeller,
+          worstDecliningSeller: worstDecliningSeller(bySeller),
+        }
       },
     )
 
@@ -154,13 +163,34 @@ export async function GET(request: Request) {
       },
     )
 
-    const [{ kpis, interpretation }, decisions] = await Promise.all([getData(), getDecisions()])
+    // Funnel stage drop-off — like Decisiones, a current-state view of
+    // the open pipeline (loadSalesFunnel's own fixed 90-day window,
+    // the same one the /dashboard funnel widget already uses), not
+    // tied to the manager's KPI period selector.
+    const getFunnelBreakdown = cachedForAccount(
+      [accountId, 'decision-center-funnel-breakdown'],
+      CACHE_TTL.decisionCenter,
+      async () => {
+        const funnel = await loadSalesFunnel(supabase)
+        const stageDropoffs = computeStageDropoffs(funnel.steps)
+        return { stageDropoffs, biggestLeakStage: biggestStageLeak(stageDropoffs) }
+      },
+    )
+
+    const [{ kpis, interpretation, bySeller, worstDecliningSeller: worstSeller }, decisions, funnelBreakdown] =
+      await Promise.all([getData(), getDecisions(), getFunnelBreakdown()])
 
     return NextResponse.json({
       range: { label: range.label, start: range.start.toISOString(), end: range.end.toISOString() },
       kpis,
       interpretation,
       decisions,
+      breakdown: {
+        bySeller,
+        worstDecliningSeller: worstSeller,
+        stageDropoffs: funnelBreakdown.stageDropoffs,
+        biggestLeakStage: funnelBreakdown.biggestLeakStage,
+      },
     })
   } catch (err) {
     return toErrorResponse(err)

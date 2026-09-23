@@ -3228,6 +3228,13 @@
     "noComparison": "이전 기간 데이터 없음",
     "points": "포인트",
     "interpretationTitle": "무슨 일이 일어나고 있나요?",
-    "decisionsTitle": "우선순위 결정"
+    "decisionsTitle": "우선순위 결정",
+    "breakdownTitle": "비즈니스가 뒤처지고 있는 부분",
+    "biggestLeak": "가장 큰 퍼널 누수는 \"{from}\"과(와) \"{to}\" 사이입니다: 리드의 {pct}%가 다음 단계로 넘어가지 못합니다.",
+    "sellerColumn": "판매자",
+    "wonColumn": "성사",
+    "winRateColumn": "성사율",
+    "winRateDeltaColumn": "변동",
+    "noBreakdownData": "아직 이 분석에 필요한 데이터가 충분하지 않습니다."
   }
 }
