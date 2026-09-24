@@ -613,6 +613,7 @@
       "notes": "Notes",
       "deals": "Deals",
       "stageLabel": "Stage",
+      "stageUpdateError": "Couldn't change the stage — try again.",
       "noTags": "No tags",
       "noDeals": "No deals",
       "addNotePlaceholder": "Add a note...",
@@ -621,6 +622,18 @@
       "leadSourcePlaceholder": "Lead source",
       "customFieldPlaceholder": "Enter {name}...",
       "saveFieldError": "Couldn't save — try again.",
+      "tagsInfoTitle": "What are tags for?",
+      "tagsInfoBody": "Tags help you classify and filter contacts — by product interest, campaign source, or segment, for example. You can later search, filter, or export contacts by tag from the Contacts page.",
+      "notesInfoTitle": "What are notes for?",
+      "notesInfoBody": "Notes are internal messages only your team sees — never sent to the customer. Use them to leave context about the conversation, agreements, or reminders for whoever picks up the chat later. You can mention a teammate with @.",
+      "summary": {
+        "title": "Summary and next step",
+        "refresh": "Refresh summary",
+        "nextStep": "Suggested next step",
+        "updating": "Updating…",
+        "generated": "Generated {time}",
+        "analyzing": "Analyzing the conversation…"
+      },
       "aiAssistant": "AI Assistant",
       "aiOwnedByAgent": "A teammate has taken over this chat.",
       "dealWon": "Won",
@@ -638,7 +651,8 @@
     },
     "aiActivity": {
       "leadScored": "The AI scored this lead as {score}",
-      "leadQualified": "The AI moved this lead to Qualified"
+      "leadQualified": "The AI moved this lead to Qualified",
+      "stageChanged": "{actor} moved this lead to {stage}"
     }
   },
   "Contacts": {

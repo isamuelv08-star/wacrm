@@ -613,6 +613,7 @@
       "notes": "메모",
       "deals": "딜",
       "stageLabel": "단계",
+      "stageUpdateError": "단계를 변경하지 못했습니다 — 다시 시도하세요.",
       "noTags": "태그 없음",
       "noDeals": "딜 없음",
       "addNotePlaceholder": "메모 추가...",
@@ -621,6 +622,18 @@
       "leadSourcePlaceholder": "리드 출처",
       "customFieldPlaceholder": "{name} 입력...",
       "saveFieldError": "저장하지 못했습니다 — 다시 시도하세요.",
+      "tagsInfoTitle": "태그는 어디에 쓰나요?",
+      "tagsInfoBody": "태그는 관심 상품, 유입 캠페인, 세그먼트 등으로 연락처를 분류하고 필터링하는 데 도움을 줍니다. 나중에 연락처 페이지에서 태그로 검색, 필터링, 내보내기를 할 수 있어요.",
+      "notesInfoTitle": "메모는 어디에 쓰나요?",
+      "notesInfoBody": "메모는 팀만 볼 수 있는 내부 메시지예요 — 고객에게 전송되지 않습니다. 대화 맥락, 합의 사항, 나중에 이 채팅을 이어받을 사람을 위한 알림을 남기는 데 사용하세요. @로 동료를 멘션할 수 있어요.",
+      "summary": {
+        "title": "요약 및 다음 단계",
+        "refresh": "요약 새로고침",
+        "nextStep": "제안된 다음 단계",
+        "updating": "업데이트 중…",
+        "generated": "{time} 생성됨",
+        "analyzing": "대화를 분석하는 중…"
+      },
       "aiAssistant": "AI 어시스턴트",
       "aiOwnedByAgent": "팀원이 이 대화를 넘겨받았습니다.",
       "dealWon": "성사됨",
@@ -638,7 +651,8 @@
     },
     "aiActivity": {
       "leadScored": "AI가 이 리드를 {score}(으)로 평가했습니다",
-      "leadQualified": "AI가 이 리드를 '검증됨' 단계로 이동했습니다"
+      "leadQualified": "AI가 이 리드를 '검증됨' 단계로 이동했습니다",
+      "stageChanged": "{actor}님이 이 리드를 {stage} 단계로 옮겼습니다"
     }
   },
   "Contacts": {

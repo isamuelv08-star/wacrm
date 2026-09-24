@@ -465,8 +465,14 @@ export interface Message {
  * rendered inline in the Inbox thread as a subtle pill — see
  * src/lib/ai/activity-log.ts (write side) and
  * src/components/inbox/ai-activity-pill.tsx (render side).
+ *
+ * `stage_changed` (migration 109) is the one HUMAN-triggered event
+ * type here — a rep manually moving a deal's stage from the inbox
+ * sidebar — everything else is AI-triggered. Written the same way
+ * (service-role client only, see src/app/api/deals/[id]/stage/route.ts)
+ * so it shows up inline the same way.
  */
-export type AiActivityEventType = 'lead_scored' | 'lead_qualified';
+export type AiActivityEventType = 'lead_scored' | 'lead_qualified' | 'stage_changed';
 
 export interface AiActivityEvent {
   id: string;
@@ -474,8 +480,11 @@ export interface AiActivityEvent {
   conversation_id: string;
   contact_id: string | null;
   event_type: AiActivityEventType;
-  /** Event-specific extras — currently only `{ score }` on `lead_scored`. */
-  payload: { score?: 'hot' | 'warm' | 'cold' };
+  /** Event-specific extras: `{ score }` on `lead_scored`;
+   *  `{ stageName, stageColor, actorName }` on `stage_changed`
+   *  (`actorName` is the acting rep's display name — this event type
+   *  is always human-triggered, never emitted by AI). */
+  payload: { score?: 'hot' | 'warm' | 'cold'; stageName?: string; stageColor?: string; actorName?: string };
   created_at: string;
 }
 

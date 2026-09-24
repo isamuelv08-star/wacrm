@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import {
   ArrowRight,
@@ -18,21 +18,15 @@ import {
   Wallet,
 } from 'lucide-react';
 
-import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { formatCurrency } from '@/lib/currency';
-import { loadLeadProfile, summaryNeedsRefresh, type LeadProfile } from '@/lib/contacts/lead-profile';
+import type { LeadProfile } from '@/lib/contacts/lead-profile';
+import { useLeadSummary, type SummaryStatus } from '@/hooks/use-lead-summary';
 import { LEAD_SCORE_STYLES } from '@/components/leads/lead-score-badge';
 import { cn } from '@/lib/utils';
 import type { Contact } from '@/types';
 
-export type SummaryStatus =
-  | 'idle'
-  | 'generating'
-  | 'error'
-  | 'not_configured'
-  | 'no_messages'
-  | 'no_permission';
+export type { SummaryStatus };
 
 const CHANNEL_LABEL: Record<string, string> = {
   whatsapp: 'WhatsApp',
@@ -434,77 +428,9 @@ export function LeadSummaryView({
 // ------------------------------------------------------------
 
 export function LeadSummaryTab({ contact }: { contact: Contact }) {
-  const locale = useLocale();
-  const { canSendMessages, defaultCurrency } = useAuth();
-  const [profile, setProfile] = useState<LeadProfile | null>(null);
-  const [loadError, setLoadError] = useState(false);
-  const [status, setStatus] = useState<SummaryStatus>('idle');
-  const requestedFor = useRef<string | null>(null);
+  const { defaultCurrency } = useAuth();
   const t = useTranslations('LeadSummary');
-
-  const generate = useCallback(
-    async (force: boolean) => {
-      setStatus('generating');
-      try {
-        const res = await fetch(`/api/contacts/${contact.id}/summary`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ force, locale }),
-        });
-        const json = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          setStatus(
-            json.code === 'ai_not_configured'
-              ? 'not_configured'
-              : json.code === 'no_messages'
-                ? 'no_messages'
-                : 'error',
-          );
-          return;
-        }
-        setProfile((p) => (p ? { ...p, summary: json.summary } : p));
-        setStatus('idle');
-      } catch {
-        setStatus('error');
-      }
-    },
-    [contact.id, locale],
-  );
-
-  useEffect(() => {
-    let alive = true;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- resetting when the contact changes, before the fetch below repopulates it
-    setProfile(null);
-    setLoadError(false);
-    setStatus('idle');
-    loadLeadProfile(createClient(), contact.id)
-      .then((p) => {
-        if (!alive) return;
-        setProfile(p);
-        if (!p.latestMessage) {
-          setStatus('no_messages');
-          return;
-        }
-        if (!summaryNeedsRefresh(p, locale)) return;
-        if (!canSendMessages) {
-          if (!p.summary) setStatus('no_permission');
-          return;
-        }
-        // Once per (contact, newest message, language) per mounted tab —
-        // also absorbs React strict-mode's double effect in dev.
-        const key = `${contact.id}:${p.latestMessage.id}:${locale}`;
-        if (requestedFor.current === key) return;
-        requestedFor.current = key;
-        void generate(false);
-      })
-      .catch((err) => {
-        console.error('[lead-summary] load failed:', err);
-        if (alive) setLoadError(true);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [contact.id, locale, canSendMessages, generate]);
+  const { profile, loadError, status, canRefresh, refresh } = useLeadSummary(contact);
 
   if (loadError) return <p className="py-8 text-center text-sm text-muted-foreground">{t('loadError')}</p>;
   if (!profile) {
@@ -520,8 +446,8 @@ export function LeadSummaryTab({ contact }: { contact: Contact }) {
       contact={contact}
       profile={profile}
       status={status}
-      canRefresh={canSendMessages && !!profile.latestMessage}
-      onRefresh={() => void generate(true)}
+      canRefresh={canRefresh}
+      onRefresh={refresh}
       defaultCurrency={defaultCurrency}
     />
   );

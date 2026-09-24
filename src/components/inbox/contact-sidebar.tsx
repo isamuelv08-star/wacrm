@@ -23,6 +23,7 @@ import {
   PanelRightClose,
   Images,
   PlayCircle,
+  Layers,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -36,6 +37,8 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DealForm } from "@/components/pipelines/deal-form";
 import { ContactNotesPanel } from "@/components/contacts/contact-notes-panel";
+import { LeadSummaryCompact } from "./lead-summary-compact";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useTranslations } from "next-intl";
 import { fetchAiAccountStatus, toggleAiAutoReply } from "@/lib/ai/autoreply-toggle";
 import {
@@ -220,16 +223,29 @@ export function ContactSidebar({
 
       setStageUpdating(true);
       const dealId = statusDealForStages.id;
-      const supabase = createClient();
-      const { error } = await supabase
-        .from("deals")
-        .update({ stage_id: stageId })
-        .eq("id", dealId);
+      // Goes through the server (not a direct client update, unlike
+      // the other quick-edit fields on this panel) so the move gets
+      // logged to ai_activity_events with the acting rep's name —
+      // that table has no INSERT policy for authenticated users on
+      // purpose (migration 075), only the service-role client can
+      // write it. See src/app/api/deals/[id]/stage/route.ts.
+      let res: Response;
+      try {
+        res = await fetch(`/api/deals/${dealId}/stage`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ stage_id: stageId }),
+        });
+      } catch {
+        setStageUpdating(false);
+        toast.error(tSidebar("stageUpdateError"));
+        return;
+      }
       setStageUpdating(false);
 
-      if (error) {
-        console.error("Failed to update deal stage:", error.message);
-        toast.error(tSidebar("saveFieldError"));
+      if (!res.ok) {
+        console.error("Failed to update deal stage:", res.status);
+        toast.error(tSidebar("stageUpdateError"));
         return;
       }
 
@@ -264,6 +280,37 @@ export function ContactSidebar({
       }
     },
     [statusDealForStages, statusDealStages, deals, tags, customFields, contact, user?.id, tSidebar],
+  );
+
+  // Quick-edit the deal's value inline — unlike the stage, this has no
+  // activity-log entry (not something the audit asked to be
+  // announced in the thread), so a plain client-side update is enough,
+  // same posture as saveContactField/saveCustomField below.
+  const handleDealValueChange = useCallback(
+    async (raw: string) => {
+      if (!statusDealForStages) return;
+      const parsed = Number(raw);
+      if (!Number.isFinite(parsed) || parsed < 0 || parsed === statusDealForStages.value) return;
+
+      const dealId = statusDealForStages.id;
+      const updatedDeals = deals.map((d) => (d.id === dealId ? { ...d, value: parsed } : d));
+      setDeals(updatedDeals);
+      if (contact) {
+        writeViewCache<ContactPanelSnapshot>(contactPanelCacheKey(user?.id, contact.id), {
+          deals: updatedDeals,
+          tags,
+          customFields,
+        });
+      }
+
+      const supabase = createClient();
+      const { error } = await supabase.from("deals").update({ value: parsed }).eq("id", dealId);
+      if (error) {
+        console.error("Failed to update deal value:", error.message);
+        toast.error(tSidebar("saveFieldError"));
+      }
+    },
+    [statusDealForStages, deals, tags, customFields, contact, user?.id, tSidebar],
   );
 
   const saveCustomField = useCallback(
@@ -555,39 +602,18 @@ export function ContactSidebar({
                 </span>
               )}
             </div>
-
-            {/* Manual stage override — the badge above sets itself
-                automatically from the deal's stage; this lets a rep
-                correct it directly without opening the full deal
-                form. Only shown once there's an actual deal (and its
-                stages have loaded) to edit. */}
-            {statusDealForStages && statusDealStages.length > 0 && (
-              <div className="mt-1.5 w-full max-w-[11rem]">
-                <Select
-                  value={statusDealForStages.stage_id}
-                  onValueChange={(v) => v && void handleStageChange(v)}
-                  disabled={stageUpdating}
-                >
-                  <SelectTrigger className="h-7 w-full justify-center border-transparent bg-transparent text-[11px] text-muted-foreground hover:border-border hover:bg-muted">
-                    <SelectValue placeholder={tSidebar("stageLabel")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {statusDealStages.map((stage) => (
-                      <SelectItem key={stage.id} value={stage.id}>
-                        <span className="flex items-center gap-1.5">
-                          <span
-                            className="h-2 w-2 shrink-0 rounded-full"
-                            style={{ backgroundColor: stage.color }}
-                          />
-                          {stage.name}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
           </div>
+
+          {/* AI summary + suggested next step — the executive-summary
+              slice of the same profile Contacts → "Resumen" shows in
+              full (useLeadSummary, shared). Right under the identity
+              block, before the editable fields, so it reads as "here's
+              what's going on" before "here's what we know about them". */}
+          {contact && (
+            <div className="mt-4">
+              <LeadSummaryCompact contact={contact} />
+            </div>
+          )}
 
           {/* Phone / Email / Company */}
           <div className="mt-4 space-y-2">
@@ -677,38 +703,55 @@ export function ContactSidebar({
                 </div>
               ),
             )}
-          </div>
 
-          {/* Divider */}
-          <div className="my-4 border-t border-border" />
-
-          {/* AI Assistant */}
-          {conversationId && aiConfigured && (
-            <>
-              <div className="flex items-center justify-between gap-2 px-1">
-                <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  <Sparkles className="h-3 w-3" />
-                  {tSidebar("aiAssistant")}
+            {/* Deal value + stage — quick edits for the same deal the
+                status badge at the top reflects. The stage picker
+                moved here (out from under the badge) to sit with the
+                rest of the contact/deal fields instead of floating
+                under the name. */}
+            {statusDealForStages && (
+              <>
+                <div className="flex items-center gap-2 rounded-lg px-3 py-1.5">
+                  <DollarSign className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <Input
+                    key={`deal-value-${statusDealForStages.id}`}
+                    type="number"
+                    min={0}
+                    defaultValue={statusDealForStages.value}
+                    onBlur={(e) => void handleDealValueChange(e.target.value)}
+                    className="h-7 flex-1 border-transparent bg-transparent px-1.5 text-sm text-foreground placeholder:text-muted-foreground hover:border-border focus:border-primary/50 focus:bg-muted"
+                  />
                 </div>
-                <Switch
-                  checked={!aiPaused}
-                  onCheckedChange={(checked) => handleAiToggle(!checked)}
-                  disabled={aiBusy}
-                  aria-label={tSidebar("aiAssistant")}
-                />
-              </div>
-              <p className="mt-1 px-1 text-xs text-muted-foreground">
-                {aiPaused
-                  ? assignedAgentId
-                    ? tSidebar("aiOwnedByAgent")
-                    : tAiBanner("pausedTitle")
-                  : tAiBanner("activeText")}
-              </p>
-
-              {/* Divider */}
-              <div className="my-4 border-t border-border" />
-            </>
-          )}
+                {statusDealStages.length > 0 && (
+                  <div className="flex items-center gap-2 rounded-lg px-3 py-1.5">
+                    <Layers className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <Select
+                      value={statusDealForStages.stage_id}
+                      onValueChange={(v) => v && void handleStageChange(v)}
+                      disabled={stageUpdating}
+                    >
+                      <SelectTrigger className="h-7 flex-1 border-transparent bg-transparent text-sm text-foreground hover:border-border">
+                        <SelectValue placeholder={tSidebar("stageLabel")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {statusDealStages.map((stage) => (
+                          <SelectItem key={stage.id} value={stage.id}>
+                            <span className="flex items-center gap-1.5">
+                              <span
+                                className="h-2 w-2 shrink-0 rounded-full"
+                                style={{ backgroundColor: stage.color }}
+                              />
+                              {stage.name}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
 
           {/* Media tray — every photo/video from this conversation, newest
               first. Same lightbox the message bubbles open, so a thumbnail
@@ -767,6 +810,7 @@ export function ContactSidebar({
             <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               <TagIcon className="h-3 w-3" />
               {tSidebar("tags")}
+              <InfoTooltip title={tSidebar("tagsInfoTitle")}>{tSidebar("tagsInfoBody")}</InfoTooltip>
             </div>
             <div className="mt-2 flex flex-wrap gap-1">
               {tags.length === 0 ? (
@@ -842,6 +886,7 @@ export function ContactSidebar({
             <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               <StickyNote className="h-3 w-3" />
               {tSidebar("notes")}
+              <InfoTooltip title={tSidebar("notesInfoTitle")}>{tSidebar("notesInfoBody")}</InfoTooltip>
             </div>
             <div className="mt-2">
               {contact && (
@@ -853,6 +898,38 @@ export function ContactSidebar({
               )}
             </div>
           </div>
+
+          {/* AI Assistant — moved to the very bottom (below Tags and
+              Notes) so the fields a rep checks most often (contact
+              info, deal, then tags/notes) come first; the switch stays
+              reachable for quick pause/resume without scrolling past
+              everything else first. */}
+          {conversationId && aiConfigured && (
+            <>
+              {/* Divider */}
+              <div className="my-4 border-t border-border" />
+
+              <div className="flex items-center justify-between gap-2 px-1">
+                <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <Sparkles className="h-3 w-3" />
+                  {tSidebar("aiAssistant")}
+                </div>
+                <Switch
+                  checked={!aiPaused}
+                  onCheckedChange={(checked) => handleAiToggle(!checked)}
+                  disabled={aiBusy}
+                  aria-label={tSidebar("aiAssistant")}
+                />
+              </div>
+              <p className="mt-1 px-1 text-xs text-muted-foreground">
+                {aiPaused
+                  ? assignedAgentId
+                    ? tSidebar("aiOwnedByAgent")
+                    : tAiBanner("pausedTitle")
+                  : tAiBanner("activeText")}
+              </p>
+            </>
+          )}
         </div>
       </ScrollArea>
 

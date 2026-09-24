@@ -2,6 +2,7 @@
 
 import { Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { cn } from "@/lib/utils";
 import type { AiActivityEvent } from "@/types";
 
 /**
@@ -20,6 +21,7 @@ export function AiActivityPill({ event }: { event: AiActivityEvent }) {
   const tScore = useTranslations("Leads");
 
   let label: string;
+  let color: string | undefined;
   switch (event.event_type) {
     case "lead_scored":
       if (!event.payload.score) return null;
@@ -27,6 +29,11 @@ export function AiActivityPill({ event }: { event: AiActivityEvent }) {
       break;
     case "lead_qualified":
       label = t("leadQualified");
+      break;
+    case "stage_changed":
+      if (!event.payload.stageName || !event.payload.actorName) return null;
+      label = t("stageChanged", { actor: event.payload.actorName, stage: event.payload.stageName });
+      color = event.payload.stageColor;
       break;
     default:
       // Unknown/future event type (older client, newer server) —
@@ -36,7 +43,13 @@ export function AiActivityPill({ event }: { event: AiActivityEvent }) {
 
   return (
     <div className="flex items-center justify-center py-1">
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/8 px-3 py-1 text-[11px] font-medium text-primary/80">
+      <span
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-medium",
+          !color && "bg-primary/8 text-primary/80",
+        )}
+        style={color ? { backgroundColor: `${color}15`, color } : undefined}
+      >
         <Sparkles className="h-3 w-3 shrink-0" />
         {label}
       </span>

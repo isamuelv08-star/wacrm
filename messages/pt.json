@@ -613,6 +613,7 @@
       "notes": "Notas",
       "deals": "Negócios",
       "stageLabel": "Etapa",
+      "stageUpdateError": "Não foi possível mudar a etapa — tente novamente.",
       "noTags": "Nenhuma tag",
       "noDeals": "Nenhum negócio",
       "addNotePlaceholder": "Adicionar uma nota...",
@@ -621,6 +622,18 @@
       "leadSourcePlaceholder": "Origem do lead",
       "customFieldPlaceholder": "Digite {name}...",
       "saveFieldError": "Não foi possível salvar — tente novamente.",
+      "tagsInfoTitle": "Para que servem as tags?",
+      "tagsInfoBody": "As tags ajudam a classificar e filtrar contatos — por exemplo, por produto de interesse, campanha de origem ou segmento. Depois você pode buscar, filtrar ou exportar contatos por tag na página de Contatos.",
+      "notesInfoTitle": "Para que servem as notas?",
+      "notesInfoBody": "As notas são mensagens internas que só sua equipe vê — nunca são enviadas ao cliente. Use-as para deixar contexto sobre a conversa, acordos ou lembretes para quem retomar o chat depois. Você pode mencionar um colega com @.",
+      "summary": {
+        "title": "Resumo e próximo passo",
+        "refresh": "Atualizar resumo",
+        "nextStep": "Próximo passo sugerido",
+        "updating": "Atualizando…",
+        "generated": "Gerado {time}",
+        "analyzing": "Analisando a conversa…"
+      },
       "aiAssistant": "Assistente de IA",
       "aiOwnedByAgent": "Um colega de equipe assumiu esta conversa.",
       "dealWon": "Ganho",
@@ -638,7 +651,8 @@
     },
     "aiActivity": {
       "leadScored": "A IA classificou este lead como {score}",
-      "leadQualified": "A IA moveu este lead para Qualificado"
+      "leadQualified": "A IA moveu este lead para Qualificado",
+      "stageChanged": "{actor} moveu este lead para {stage}"
     }
   },
   "Contacts": {
