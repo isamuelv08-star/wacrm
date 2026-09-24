@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { usePresence } from "@/hooks/use-presence";
+import { useServerClock } from "@/hooks/use-server-clock";
 import { PresenceDot } from "@/components/presence/presence-dot";
 import { presenceLabel } from "@/lib/presence";
 import { cn } from "@/lib/utils";
@@ -228,6 +229,7 @@ export function MessageThread({
 
   const { user } = useAuth();
   const { getPresence, getRow, now } = usePresence();
+  const { now: serverNow } = useServerClock();
   // Which conversation's messages the `messages` prop currently holds
   // real data for — null until the very first fetch resolves. Compared
   // against `conversationId` at render time (see the "loading" branch
@@ -333,7 +335,13 @@ export function MessageThread({
 
     if (!lastCustomerMsg) return { expired: true, remaining: "No customer messages" };
 
-    const hoursSince = differenceInHours(new Date(), new Date(lastCustomerMsg.created_at));
+    // Measured against the server's clock (useServerClock), not this
+    // device's own `new Date()` — two agents looking at the exact same
+    // conversation used to see different expired/active verdicts
+    // whenever one of their devices had a wrong/skewed clock, since
+    // the real WhatsApp 24h deadline doesn't care what a phone thinks
+    // the time is.
+    const hoursSince = differenceInHours(serverNow(), new Date(lastCustomerMsg.created_at));
     const expired = hoursSince >= 24;
 
     if (expired) {
@@ -347,7 +355,7 @@ export function MessageThread({
         : tTimer("xmRemaining", { minutes: Math.floor(hoursLeft * 60) });
 
     return { expired, remaining };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- clockTick is a deliberate re-run trigger, not a value read inside
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- clockTick is a deliberate re-run trigger, serverNow() is a stable ref-backed getter, neither is a value read directly
   }, [messages, tTimer, clockTick]);
 
   // Store latest callback in a ref so fetchMessages doesn't need to

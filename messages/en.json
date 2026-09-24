@@ -612,6 +612,7 @@
       "tags": "Tags",
       "notes": "Notes",
       "deals": "Deals",
+      "stageLabel": "Stage",
       "noTags": "No tags",
       "noDeals": "No deals",
       "addNotePlaceholder": "Add a note...",

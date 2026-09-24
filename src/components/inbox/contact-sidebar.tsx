@@ -180,6 +180,92 @@ export function ContactSidebar({
   // to get on its own before this generalized it to the full catalogue.
   const [customFields, setCustomFields] = useState<CustomFieldWithValue[]>([]);
 
+  // Manual stage override for the contact's current deal (the same one
+  // the "etapa de negocio" badge above the phone/email block reflects).
+  // Before this, that badge was purely automatic — the only way to
+  // change a deal's stage was opening the full DealForm sheet via
+  // "Ver oportunidad" below. This adds a quick inline picker right
+  // under the badge for when a rep just wants to correct the stage
+  // without the whole form.
+  const statusDealForStages = deals.find((d) => d.status === "open") ?? deals[0] ?? null;
+  const [statusDealStages, setStatusDealStages] = useState<PipelineStage[]>([]);
+  const [stageUpdating, setStageUpdating] = useState(false);
+  useEffect(() => {
+    const pipelineId = statusDealForStages?.pipeline_id;
+    if (!pipelineId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clearing stale stages when there's no deal/pipeline to load them for
+      setStatusDealStages([]);
+      return;
+    }
+    let cancelled = false;
+    const supabase = createClient();
+    supabase
+      .from("pipeline_stages")
+      .select("*")
+      .eq("pipeline_id", pipelineId)
+      .order("position")
+      .then(({ data }) => {
+        if (!cancelled) setStatusDealStages(data ?? []);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [statusDealForStages?.pipeline_id]);
+
+  const handleStageChange = useCallback(
+    async (stageId: string) => {
+      if (!statusDealForStages || stageId === statusDealForStages.stage_id) return;
+      const nextStage = statusDealStages.find((s) => s.id === stageId);
+      if (!nextStage) return;
+
+      setStageUpdating(true);
+      const dealId = statusDealForStages.id;
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("deals")
+        .update({ stage_id: stageId })
+        .eq("id", dealId);
+      setStageUpdating(false);
+
+      if (error) {
+        console.error("Failed to update deal stage:", error.message);
+        toast.error(tSidebar("saveFieldError"));
+        return;
+      }
+
+      // Optimistic — the on_deal_stage_changed_sync_status trigger
+      // (migration 060) may also flip `status` server-side (won/lost
+      // stage); re-derive it the same way that trigger does rather
+      // than waiting on a refetch, so the badge above updates in the
+      // same click.
+      const updatedDeals = deals.map((d) =>
+        d.id === dealId
+          ? {
+              ...d,
+              stage_id: stageId,
+              stage: nextStage,
+              status: nextStage.is_won_stage
+                ? ("won" as const)
+                : nextStage.is_lost_stage
+                  ? ("lost" as const)
+                  : d.status === "won" || d.status === "lost"
+                    ? ("open" as const)
+                    : d.status,
+            }
+          : d,
+      );
+      setDeals(updatedDeals);
+      if (contact) {
+        writeViewCache<ContactPanelSnapshot>(contactPanelCacheKey(user?.id, contact.id), {
+          deals: updatedDeals,
+          tags,
+          customFields,
+        });
+      }
+    },
+    [statusDealForStages, statusDealStages, deals, tags, customFields, contact, user?.id, tSidebar],
+  );
+
   const saveCustomField = useCallback(
     async (fieldId: string, value: string) => {
       if (!contact) return;
@@ -469,6 +555,38 @@ export function ContactSidebar({
                 </span>
               )}
             </div>
+
+            {/* Manual stage override — the badge above sets itself
+                automatically from the deal's stage; this lets a rep
+                correct it directly without opening the full deal
+                form. Only shown once there's an actual deal (and its
+                stages have loaded) to edit. */}
+            {statusDealForStages && statusDealStages.length > 0 && (
+              <div className="mt-1.5 w-full max-w-[11rem]">
+                <Select
+                  value={statusDealForStages.stage_id}
+                  onValueChange={(v) => v && void handleStageChange(v)}
+                  disabled={stageUpdating}
+                >
+                  <SelectTrigger className="h-7 w-full justify-center border-transparent bg-transparent text-[11px] text-muted-foreground hover:border-border hover:bg-muted">
+                    <SelectValue placeholder={tSidebar("stageLabel")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {statusDealStages.map((stage) => (
+                      <SelectItem key={stage.id} value={stage.id}>
+                        <span className="flex items-center gap-1.5">
+                          <span
+                            className="h-2 w-2 shrink-0 rounded-full"
+                            style={{ backgroundColor: stage.color }}
+                          />
+                          {stage.name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
 
           {/* Phone / Email / Company */}

@@ -612,6 +612,7 @@
       "tags": "Tags",
       "notes": "Notas",
       "deals": "Negócios",
+      "stageLabel": "Etapa",
       "noTags": "Nenhuma tag",
       "noDeals": "Nenhum negócio",
       "addNotePlaceholder": "Adicionar uma nota...",
