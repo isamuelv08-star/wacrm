@@ -3139,7 +3139,8 @@
         "workshop_service": "정비소 / 기술 서비스",
         "professional_services": "전문 서비스 / 컨설팅",
         "other": "기타"
-      }
+      },
+      "currencyLabel": "통화"
     },
     "whatsappMode": {
       "title": "WhatsApp을 어떻게 사용하고 싶으신가요?",
@@ -3161,9 +3162,13 @@
       "multiwhatsappHint": "영업사원별 번호를 선택하셨어요 — 우선 여기서 첫 번째 번호를 연결하세요. 나머지는 설정에서 추가할 수 있어요."
     },
     "pipeline": {
-      "title": "영업 파이프라인",
-      "description": "기본 파이프라인을 이미 만들어 두었어요 — 언제든지 파이프라인 메뉴에서 원하는 대로 바꿀 수 있습니다.",
-      "stagesLabel": "기본 단계"
+      "title": "영업 프로세스는 이렇게 진행돼요",
+      "description": "모든 기회가 거치는 단계예요. 지금 이름을 바꾸거나 나중에 파이프라인 메뉴에서 바꿀 수 있어요.",
+      "creating": "파이프라인을 만드는 중…",
+      "createFailed": "파이프라인을 만들지 못했어요. 다시 시도해 주세요 — 이게 없으면 WhatsApp으로 들어오는 리드가 기회로 전환되지 않아요.",
+      "retry": "다시 시도",
+      "readyBody": "완료됐어요 — 이미 만들어졌습니다. 연필 아이콘을 눌러 단계 이름을 바꿀 수 있어요.",
+      "renameStage": "단계 이름 바꾸기"
     },
     "ai": {
       "title": "AI 리드 분류",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { CheckCircle2 } from "lucide-react";
@@ -18,8 +18,12 @@ import { AiConfig } from "@/components/settings/ai-config";
 import { GoogleCalendarConnect } from "@/components/settings/google-calendar-connect";
 import { InviteMemberDialog } from "@/components/settings/invite-member-dialog";
 import { BusinessTypeStep } from "./business-type-step";
+import { CurrencyConfirm } from "./currency-confirm";
+import { PipelineStep } from "./pipeline-step";
 import { WhatsAppModeStep, type WhatsAppMode } from "./whatsapp-mode-step";
 import { useAuth } from "@/hooks/use-auth";
+import { createClient } from "@/lib/supabase/client";
+import { DEFAULT_CURRENCY, guessCurrencyFromLocale } from "@/lib/currency";
 import { APPOINTMENT_BASED_VERTICALS, type BusinessVertical } from "@/types";
 
 // Order matters — business type first (decides whether "calendar"
@@ -38,7 +42,8 @@ type StepKey =
 export function OnboardingWizard() {
   const t = useTranslations("Onboarding");
   const router = useRouter();
-  const { account } = useAuth();
+  const supabase = createClient();
+  const { account, accountId } = useAuth();
   const [stepIndex, setStepIndex] = useState(0);
   const [finishing, setFinishing] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -48,6 +53,48 @@ export function OnboardingWizard() {
   const [whatsappMode, setWhatsappMode] = useState<WhatsAppMode>(
     account?.whatsapp_mode ?? "shared",
   );
+  // Suggested from the browser's locale, not from account.default_currency —
+  // a brand-new account's currency is always the DB's own silent 'USD'
+  // default at this point, so there's nothing meaningful to read back;
+  // the user confirms or changes this suggestion instead (onboarding
+  // audit finding: currency was never asked OR detected before).
+  const [currency, setCurrency] = useState<string>(() =>
+    typeof navigator !== "undefined"
+      ? guessCurrencyFromLocale(navigator.language)
+      : DEFAULT_CURRENCY,
+  );
+
+  function handleSelectCurrency(next: string) {
+    setCurrency(next);
+    if (!accountId) return;
+    void supabase.from("accounts").update({ default_currency: next }).eq("id", accountId);
+  }
+
+  // Timezone: detected and saved silently, never asked — unlike
+  // currency there's no ambiguity to confirm (the browser's IANA zone
+  // IS the answer), and only when the account still carries the DB's
+  // silent 'UTC' default, so this never overwrites a value someone
+  // already set deliberately in Settings.
+  useEffect(() => {
+    if (!accountId) return;
+    let cancelled = false;
+    (async () => {
+      const res = await fetch("/api/account");
+      if (cancelled || !res.ok) return;
+      const data = (await res.json()) as { account?: { timezone?: string } };
+      if (data.account?.timezone !== "UTC") return;
+      const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (!detected || detected === "UTC") return;
+      await fetch("/api/account", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ timezone: detected }),
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [accountId]);
 
   // "calendar" only shows up for appointment-driven verticals (clinics,
   // spas, travel agencies, etc. — see APPOINTMENT_BASED_VERTICALS) —
@@ -153,7 +200,10 @@ export function OnboardingWizard() {
         </CardHeader>
         <CardContent>
           {step === "businessType" && (
-            <BusinessTypeStep value={businessVertical} onChange={handleSelectVertical} />
+            <>
+              <BusinessTypeStep value={businessVertical} onChange={handleSelectVertical} />
+              <CurrencyConfirm value={currency} onChange={handleSelectCurrency} />
+            </>
           )}
 
           {step === "whatsappMode" && (
@@ -171,14 +221,7 @@ export function OnboardingWizard() {
             </div>
           )}
 
-          {step === "pipeline" && (
-            <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm">
-              <p className="font-medium text-foreground">{t("pipeline.stagesLabel")}</p>
-              <p className="mt-1 text-muted-foreground">
-                New Lead → Qualified → Proposal Sent → Negotiation → Won
-              </p>
-            </div>
-          )}
+          {step === "pipeline" && <PipelineStep />}
 
           {step === "ai" && <AiConfig />}
 

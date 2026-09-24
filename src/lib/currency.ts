@@ -105,3 +105,31 @@ export function formatCompactNumber(value: number): string {
   if (v >= 1_000) return `${(v / 1_000).toFixed(1)}k`;
   return v.toFixed(0);
 }
+
+/**
+ * Best-effort region → currency map, covering every code in
+ * {@link CURRENCIES} plus a few common Eurozone countries. Only used
+ * to pre-select a SUGGESTION in the onboarding currency step (the
+ * account's actual `default_currency` always starts as the DB's own
+ * 'USD' default, so there's nothing on the account yet worth reading
+ * back) — the user still confirms or changes it, never applied
+ * silently the way timezone detection is.
+ */
+const REGION_CURRENCY: Record<string, string> = {
+  US: "USD", EC: "USD", PA: "USD", SV: "USD",
+  GB: "GBP", IN: "INR", AU: "AUD", CA: "CAD", BR: "BRL",
+  JP: "JPY", CN: "CNY", AE: "AED", ZA: "ZAR", NG: "NGN", SG: "SGD",
+  MX: "MXN", CO: "COP",
+  ES: "EUR", DE: "EUR", FR: "EUR", IT: "EUR", PT: "EUR",
+};
+
+/**
+ * Guesses a currency from a BCP-47 locale tag's region subtag (e.g.
+ * "es-EC" → "USD"). Falls back to {@link DEFAULT_CURRENCY} for a
+ * locale with no region, or a region this app doesn't carry a
+ * currency for.
+ */
+export function guessCurrencyFromLocale(locale: string): string {
+  const region = locale.split("-")[1]?.toUpperCase();
+  return (region && REGION_CURRENCY[region]) || DEFAULT_CURRENCY;
+}

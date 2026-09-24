@@ -3139,7 +3139,8 @@
         "workshop_service": "Workshop / Technical service",
         "professional_services": "Professional services / Consulting",
         "other": "Other"
-      }
+      },
+      "currencyLabel": "Currency"
     },
     "whatsappMode": {
       "title": "How do you want to use WhatsApp?",
@@ -3161,9 +3162,13 @@
       "multiwhatsappHint": "You picked one number per seller — connect the first one here for now; you'll be able to add the rest from Settings."
     },
     "pipeline": {
-      "title": "Your sales pipeline",
-      "description": "We've already created a default pipeline for you — customize it anytime from Pipelines.",
-      "stagesLabel": "Default stages"
+      "title": "How your sales process works",
+      "description": "These are the stages every opportunity moves through. Rename them now or later from Pipelines.",
+      "creating": "Creating your pipeline…",
+      "createFailed": "We couldn't create your pipeline. Try again — without it, leads coming in over WhatsApp won't turn into opportunities.",
+      "retry": "Retry",
+      "readyBody": "Done — it's already created. Tap the pencil to rename any stage.",
+      "renameStage": "Rename stage"
     },
     "ai": {
       "title": "AI lead qualification",

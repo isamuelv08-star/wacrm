@@ -34,6 +34,7 @@ import { readViewCache, writeViewCache } from "@/lib/cache/view-cache";
 import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
 import { GatedButton } from "@/components/ui/gated-button";
 import { useTranslations } from "next-intl";
+import { defaultStageRows, ensureDefaultPipeline } from "@/lib/pipelines/default-stages";
 
 // Pipeline creation is admin-class (settings-tier write under
 // the new RLS); deal creation is operational and only requires
@@ -44,49 +45,6 @@ import { useTranslations } from "next-intl";
 // visits — same try/catch localStorage idiom as sidebar.tsx's
 // SIDEBAR_COLLAPSED_STORAGE_KEY.
 const GROUP_BY_DATE_STORAGE_KEY = "saleslid:pipeline:group-by-date";
-
-// Spec-defined seed — name and color per the product spec. Won/Lost
-// carry their outcome flag straight from creation (migration 060's
-// sync trigger reads it off `pipeline_stages`) so a brand-new pipeline
-// already registers a drag into either one — no trip to Settings
-// needed just to get the default board working. Same reasoning for
-// `winProbability` (the dashboard forecast skips stages that have
-// none) and `isQualifiedStage` (the pipeline's "reached qualified"
-// metric hides itself entirely without one): a migration can only
-// backfill pipelines that already exist, so the seed has to carry
-// both or every newly created pipeline reappears with those two
-// metrics reading zero. Probabilities follow the same 10%-90% ramp
-// across open stages that computeStageProbability() applies.
-// Seguimiento (is_followup_stage) is deliberately NOT part of this
-// seed — it's created exactly one way, for every pipeline alike
-// (brand-new or years-old): the one-click CTA on the Dashboard's
-// FollowupCard (src/lib/pipelines/followup-stage.ts). Seeding it here
-// too would give new pipelines a second, silent creation path that
-// skips that CTA, so an account with several pipelines could end up
-// with some auto-seeded and some not — the single-path-only guarantee
-// is the whole point.
-const SPEC_DEFAULT_STAGES = [
-  { name: "New Lead", color: "#3b82f6", position: 0, winProbability: 10 }, // blue
-  { name: "Qualified", color: "#eab308", position: 1, winProbability: 37, isQualifiedStage: true }, // yellow
-  { name: "Proposal Sent", color: "#f97316", position: 2, winProbability: 63 }, // orange
-  { name: "Negotiation", color: "#8b5cf6", position: 3, winProbability: 90 }, // purple
-  { name: "Won", color: "#22c55e", position: 4, isWonStage: true, winProbability: 100 }, // green
-  { name: "Lost", color: "#ef4444", position: 5, isLostStage: true, winProbability: 0 }, // red
-];
-
-function defaultStageRows(pipelineId: string) {
-  return SPEC_DEFAULT_STAGES.map((s) => ({
-    pipeline_id: pipelineId,
-    name: s.name,
-    color: s.color,
-    position: s.position,
-    is_won_stage: "isWonStage" in s ? s.isWonStage : false,
-    is_lost_stage: "isLostStage" in s ? s.isLostStage : false,
-    is_qualified_stage: "isQualifiedStage" in s ? s.isQualifiedStage : false,
-    is_followup_stage: "isFollowupStage" in s ? s.isFollowupStage : false,
-    win_probability: s.winProbability,
-  }));
-}
 
 export default function PipelinesPage() {
   const t = useTranslations("Pipelines.page");
@@ -224,20 +182,7 @@ export default function PipelinesPage() {
     // pipelines.account_id is NOT NULL post-017 with no DB default.
     if (!accountId) return null;
 
-    const { data: pipeline, error } = await supabase
-      .from("pipelines")
-      .insert({ user_id: user.id, account_id: accountId, name: "Sales Pipeline" })
-      .select()
-      .single();
-
-    if (error || !pipeline) {
-      console.error("Failed to seed pipeline:", error?.message);
-      return null;
-    }
-
-    await supabase.from("pipeline_stages").insert(defaultStageRows(pipeline.id));
-
-    return pipeline as Pipeline;
+    return ensureDefaultPipeline(supabase, accountId, user.id);
   }, [supabase, accountId]);
 
   // Initial load + seed-if-empty

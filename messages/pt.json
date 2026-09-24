@@ -3139,7 +3139,8 @@
         "workshop_service": "Oficina / Serviço técnico",
         "professional_services": "Serviços profissionais / Consultoria",
         "other": "Outro"
-      }
+      },
+      "currencyLabel": "Moeda"
     },
     "whatsappMode": {
       "title": "Como você quer usar o WhatsApp?",
@@ -3161,9 +3162,13 @@
       "multiwhatsappHint": "Você escolheu um número por vendedor — conecte o primeiro aqui por enquanto; você poderá adicionar os demais em Configurações."
     },
     "pipeline": {
-      "title": "Seu pipeline de vendas",
-      "description": "Já criamos um pipeline padrão para você — personalize quando quiser em Pipelines.",
-      "stagesLabel": "Etapas padrão"
+      "title": "Como funciona seu processo de vendas",
+      "description": "Estas são as etapas pelas quais cada oportunidade passa. Renomeie agora ou depois em Pipelines.",
+      "creating": "Criando seu pipeline…",
+      "createFailed": "Não conseguimos criar seu pipeline. Tente novamente — sem isso, os leads que chegarem pelo WhatsApp não vão virar oportunidades.",
+      "retry": "Tentar novamente",
+      "readyBody": "Pronto — já foi criado. Toque no lápis para renomear qualquer etapa.",
+      "renameStage": "Renomear etapa"
     },
     "ai": {
       "title": "Qualificação de leads com IA",
