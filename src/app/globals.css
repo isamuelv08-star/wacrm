@@ -2,7 +2,23 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+/* Tailwind's `dark:` variant, wired to this app's actual dark-mode
+ * signal — `document.documentElement.dataset.mode === "dark"` (see
+ * the MODE section below and use-theme.tsx), not a `.dark` class.
+ * This app never adds a `.dark` class anywhere (grepped: confirmed),
+ * so with the shadcn-default `&:is(.dark *)` selector every `dark:*`
+ * utility in the codebase — shadcn's own primitives (button, input,
+ * textarea, select, badge, tabs, avatar's mix-blend-mode ring) and
+ * every semantic status color (red/amber/emerald `dark:text-*` in
+ * the agency panel, dashboard, settings) — was permanently inert: it
+ * never matched, in either mode. Symptom: dark mode silently fell
+ * back to each component's light-mode color/blend values, most
+ * visibly avatar.tsx's `after:mix-blend-darken` (meant to flip to
+ * `mix-blend-lighten` in dark mode) staying stuck on `darken` even
+ * against a dark background, and — worse — staying stuck through a
+ * light→dark or dark→light switch's whole 180ms crossfade below,
+ * since the blend mode itself never updated to match. */
+@custom-variant dark (&:is([data-mode="dark"] *));
 
 @theme inline {
   --color-background: var(--background);

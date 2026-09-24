@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import type { Contact, Deal, Tag, PipelineStage, Message } from "@/types";
 import { collectMediaGallery } from "@/lib/media/gallery";
+import { readViewCache, writeViewCache } from "@/lib/cache/view-cache";
 import { MediaLightbox } from "./media-lightbox";
 import {
   Phone,
@@ -77,6 +78,26 @@ interface ContactSidebarProps {
   messages?: Message[];
 }
 
+/**
+ * Same stale-while-revalidate contract as the inbox's message cache
+ * (lib/cache/view-cache.ts, inbox/page.tsx's messagesCacheKey): this
+ * panel used to hard-clear deals/tags/custom fields to empty on every
+ * contact switch (see the comment on that reset effect below), then
+ * refetch — a visible blank-then-repopulate flash on every single chat
+ * switch, since this panel is always on screen next to the thread.
+ * Caching its last-known snapshot per contact removes that flash the
+ * same way the message thread's own cache already does.
+ */
+function contactPanelCacheKey(userId: string | undefined, contactId: string): string | null {
+  return userId ? `inbox:contactPanel:${userId}:${contactId}` : null;
+}
+
+interface ContactPanelSnapshot {
+  deals: Deal[];
+  tags: (Tag & { contact_tag_id: string })[];
+  customFields: CustomFieldWithValue[];
+}
+
 export function ContactSidebar({
   contact,
   conversationId,
@@ -91,7 +112,7 @@ export function ContactSidebar({
   const tThread = useTranslations("Inbox.messageThread");
   const tAiBanner = useTranslations("Inbox.aiBanner");
 
-  const { accountId } = useAuth();
+  const { accountId, user } = useAuth();
   const [copied, setCopied] = useState(false);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [tags, setTags] = useState<(Tag & { contact_tag_id: string })[]>([]);
@@ -239,20 +260,25 @@ export function ContactSidebar({
     [conversationId, onAiAutoReplyChange, tAiBanner],
   );
 
-  // Reset synchronously whenever the contact changes, BEFORE
-  // fetchContactData's async fetch repopulates it — same "clear, then
-  // the fetch below repopulates it" pattern ContactNotesPanel already
-  // uses for its own per-contact data. Without this, switching contacts
-  // showed the PREVIOUS contact's deals/tags/custom fields for the
-  // length of the fetch — not just a blank flash, actually wrong data
-  // displayed under the new contact's name/avatar, which had already
-  // updated (it comes straight from the `contact` prop, no fetch).
-  /* eslint-disable react-hooks/set-state-in-effect -- resetting per-contact data when the contact changes, before fetchContactData repopulates it */
+  // Seed synchronously whenever the contact changes, BEFORE
+  // fetchContactData's async fetch repopulates it — same "set now,
+  // the fetch below replaces it" pattern the inbox's message cache
+  // uses. Previously this hard-cleared to empty, which meant the
+  // PREVIOUS contact's deals/tags/custom fields showed for the length
+  // of every fetch — not just a blank flash, actually wrong data
+  // displayed under the new contact's name/avatar (which had already
+  // updated, straight from the `contact` prop, no fetch). Reading the
+  // last-known snapshot for the NEW contact fixes both: no stale-wrong
+  // data, and no flash on a contact this session has already loaded.
+  /* eslint-disable react-hooks/set-state-in-effect -- seeding per-contact data when the contact changes, before fetchContactData repopulates it */
   useEffect(() => {
-    setDeals([]);
-    setTags([]);
-    setCustomFields([]);
-  }, [contact?.id]);
+    const cached = contact
+      ? readViewCache<ContactPanelSnapshot>(contactPanelCacheKey(user?.id, contact.id))
+      : undefined;
+    setDeals(cached?.deals ?? []);
+    setTags(cached?.tags ?? []);
+    setCustomFields(cached?.customFields ?? []);
+  }, [contact?.id, user?.id]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Guards against a race: fetchContactData is also called manually
@@ -287,17 +313,28 @@ export function ContactSidebar({
     if (fetchGenerationRef.current !== generation) return; // superseded by a newer call
 
     if (dealsRes.data) setDeals(dealsRes.data);
-    if (tagsRes.data) {
-      const mapped = tagsRes.data
-        .filter((ct: Record<string, unknown>) => ct.tags)
-        .map((ct: Record<string, unknown>) => ({
-          ...(ct.tags as Tag),
-          contact_tag_id: ct.id as string,
-        }));
-      setTags(mapped);
-    }
+    const mappedTags = tagsRes.data
+      ? tagsRes.data
+          .filter((ct: Record<string, unknown>) => ct.tags)
+          .map((ct: Record<string, unknown>) => ({
+            ...(ct.tags as Tag),
+            contact_tag_id: ct.id as string,
+          }))
+      : null;
+    if (mappedTags) setTags(mappedTags);
     setCustomFields(customFieldsResult);
-  }, [contact]);
+
+    // Cache whatever we just fetched successfully — a null result for
+    // one of the three (a transient query error) simply isn't
+    // overwritten in the cache, same "don't clobber good data with a
+    // failed fetch" posture the state updates above already have.
+    const cached = readViewCache<ContactPanelSnapshot>(contactPanelCacheKey(user?.id, contact.id));
+    writeViewCache<ContactPanelSnapshot>(contactPanelCacheKey(user?.id, contact.id), {
+      deals: dealsRes.data ?? cached?.deals ?? [],
+      tags: mappedTags ?? cached?.tags ?? [],
+      customFields: customFieldsResult,
+    });
+  }, [contact, user?.id]);
 
   // Load on contact change. setDeals/setTags/setCustomFields run inside
   // an async Supabase callback, not synchronously in the effect body.
