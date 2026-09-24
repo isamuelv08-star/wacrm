@@ -282,37 +282,6 @@ export function ContactSidebar({
     [statusDealForStages, statusDealStages, deals, tags, customFields, contact, user?.id, tSidebar],
   );
 
-  // Quick-edit the deal's value inline — unlike the stage, this has no
-  // activity-log entry (not something the audit asked to be
-  // announced in the thread), so a plain client-side update is enough,
-  // same posture as saveContactField/saveCustomField below.
-  const handleDealValueChange = useCallback(
-    async (raw: string) => {
-      if (!statusDealForStages) return;
-      const parsed = Number(raw);
-      if (!Number.isFinite(parsed) || parsed < 0 || parsed === statusDealForStages.value) return;
-
-      const dealId = statusDealForStages.id;
-      const updatedDeals = deals.map((d) => (d.id === dealId ? { ...d, value: parsed } : d));
-      setDeals(updatedDeals);
-      if (contact) {
-        writeViewCache<ContactPanelSnapshot>(contactPanelCacheKey(user?.id, contact.id), {
-          deals: updatedDeals,
-          tags,
-          customFields,
-        });
-      }
-
-      const supabase = createClient();
-      const { error } = await supabase.from("deals").update({ value: parsed }).eq("id", dealId);
-      if (error) {
-        console.error("Failed to update deal value:", error.message);
-        toast.error(tSidebar("saveFieldError"));
-      }
-    },
-    [statusDealForStages, deals, tags, customFields, contact, user?.id, tSidebar],
-  );
-
   const saveCustomField = useCallback(
     async (fieldId: string, value: string) => {
       if (!contact) return;
@@ -476,6 +445,34 @@ export function ContactSidebar({
     fetchContactData();
   }, [fetchContactData]);
 
+  // Live-follow this contact's deals so the stage picker and the
+  // Negocios card always show what the AI last wrote (lead-scoring.ts
+  // moves deals to "Calificado", sales-actions.ts sets stage/value) —
+  // without this they only refreshed on a contact switch, so an AI
+  // stage move mid-conversation left the picker showing the old stage.
+  // The picker is just a manual editor on top of that same value.
+  const contactIdForRealtime = contact?.id;
+  useEffect(() => {
+    if (!contactIdForRealtime) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`contact-sidebar-deals:${contactIdForRealtime}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "deals",
+          filter: `contact_id=eq.${contactIdForRealtime}`,
+        },
+        () => void fetchContactData(),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [contactIdForRealtime, fetchContactData]);
+
   const handleCopyPhone = useCallback(async () => {
     if (!contact?.phone) return;
     await navigator.clipboard.writeText(contact.phone);
@@ -568,39 +565,42 @@ export function ContactSidebar({
           conversation-list.tsx hit (issue #229). */}
       <ScrollArea className="min-h-0 flex-1">
         <div className="p-4">
-          {/* Contact Info */}
-          <div className="flex flex-col items-center text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted text-lg font-semibold text-foreground">
+          {/* Contact Info — avatar on the left, name + score/stage
+              capsules to its right; everything else stacks below. */}
+          <div className="flex items-center gap-3">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-lg font-semibold text-foreground">
               {contact.avatar_url ? (
                 <img
                   src={contact.avatar_url}
                   alt={displayName}
-                  className="h-16 w-16 rounded-full object-cover"
+                  className="h-14 w-14 rounded-full object-cover"
                 />
               ) : (
                 initials
               )}
             </div>
-            <h3 className="mt-3 text-sm font-semibold text-foreground">
-              {displayName}
-            </h3>
-            <div className="mt-1.5 flex flex-wrap items-center justify-center gap-1">
-              <LeadScoreBadge
-                score={scoreOverride?.score ?? contact.lead_score}
-                reason={scoreOverride ? scoreOverride.reason : contact.lead_score_reason}
-                updatedAt={contact.lead_score_updated_at}
-                editable
-                contactId={contact.id}
-                onScoreChange={setScoreOverride}
-              />
-              {statusLabel && (
-                <span
-                  className="inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
-                  style={{ backgroundColor: `${statusColor}20`, color: statusColor }}
-                >
-                  {statusLabel}
-                </span>
-              )}
+            <div className="min-w-0 flex-1">
+              <h3 className="truncate text-sm font-semibold text-foreground">
+                {displayName}
+              </h3>
+              <div className="mt-1 flex flex-wrap items-center gap-1">
+                <LeadScoreBadge
+                  score={scoreOverride?.score ?? contact.lead_score}
+                  reason={scoreOverride ? scoreOverride.reason : contact.lead_score_reason}
+                  updatedAt={contact.lead_score_updated_at}
+                  editable
+                  contactId={contact.id}
+                  onScoreChange={setScoreOverride}
+                />
+                {statusLabel && (
+                  <span
+                    className="inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
+                    style={{ backgroundColor: `${statusColor}20`, color: statusColor }}
+                  >
+                    {statusLabel}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -703,140 +703,12 @@ export function ContactSidebar({
                 </div>
               ),
             )}
-
-            {/* Deal value + stage — quick edits for the same deal the
-                status badge at the top reflects. The stage picker
-                moved here (out from under the badge) to sit with the
-                rest of the contact/deal fields instead of floating
-                under the name. */}
-            {statusDealForStages && (
-              <>
-                <div className="flex items-center gap-2 rounded-lg px-3 py-1.5">
-                  <DollarSign className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <Input
-                    key={`deal-value-${statusDealForStages.id}`}
-                    type="number"
-                    min={0}
-                    defaultValue={statusDealForStages.value}
-                    onBlur={(e) => void handleDealValueChange(e.target.value)}
-                    className="h-7 flex-1 border-transparent bg-transparent px-1.5 text-sm text-foreground placeholder:text-muted-foreground hover:border-border focus:border-primary/50 focus:bg-muted"
-                  />
-                </div>
-                {statusDealStages.length > 0 && (
-                  <div className="flex items-center gap-2 rounded-lg px-3 py-1.5">
-                    <Layers className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <Select
-                      value={statusDealForStages.stage_id}
-                      onValueChange={(v) => v && void handleStageChange(v)}
-                      disabled={stageUpdating}
-                    >
-                      <SelectTrigger className="h-7 flex-1 border-transparent bg-transparent text-sm text-foreground hover:border-border">
-                        <SelectValue placeholder={tSidebar("stageLabel")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {statusDealStages.map((stage) => (
-                          <SelectItem key={stage.id} value={stage.id}>
-                            <span className="flex items-center gap-1.5">
-                              <span
-                                className="h-2 w-2 shrink-0 rounded-full"
-                                style={{ backgroundColor: stage.color }}
-                              />
-                              {stage.name}
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              </>
-            )}
           </div>
 
-          {/* Media tray — every photo/video from this conversation, newest
-              first. Same lightbox the message bubbles open, so a thumbnail
-              here pages through the exact same set ← / →. */}
-          {mediaGalleryNewestFirst.length > 0 && (
-            <>
-              <div>
-                <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  <Images className="h-3 w-3" />
-                  {tSidebar("media")}
-                  <span className="text-muted-foreground/70">
-                    {mediaGalleryNewestFirst.length}
-                  </span>
-                </div>
-                <div className="mt-2 grid grid-cols-4 gap-1.5">
-                  {mediaGalleryNewestFirst.map((item) => (
-                    <button
-                      key={item.messageId}
-                      type="button"
-                      onClick={() => setOpenMediaId(item.messageId)}
-                      className="group relative aspect-square overflow-hidden rounded-md bg-muted"
-                    >
-                      {item.kind === "video" ? (
-                        <>
-                          <video
-                            src={item.url}
-                            className="h-full w-full object-cover"
-                            muted
-                            playsInline
-                            preload="metadata"
-                          />
-                          <span className="absolute inset-0 flex items-center justify-center bg-black/20 transition-colors group-hover:bg-black/35">
-                            <PlayCircle className="h-5 w-5 text-white drop-shadow" />
-                          </span>
-                        </>
-                      ) : (
-                        <img
-                          src={item.url}
-                          alt={item.caption || ""}
-                          loading="lazy"
-                          className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                        />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Divider */}
-              <div className="my-4 border-t border-border" />
-            </>
-          )}
-
-          {/* Tags */}
-          <div>
-            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              <TagIcon className="h-3 w-3" />
-              {tSidebar("tags")}
-              <InfoTooltip title={tSidebar("tagsInfoTitle")}>{tSidebar("tagsInfoBody")}</InfoTooltip>
-            </div>
-            <div className="mt-2 flex flex-wrap gap-1">
-              {tags.length === 0 ? (
-                <p className="px-1 text-xs text-muted-foreground">{tSidebar("noTags")}</p>
-              ) : (
-                tags.map((tag) => (
-                  <span
-                    key={tag.contact_tag_id}
-                    className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-                    style={{
-                      backgroundColor: `${tag.color}20`,
-                      color: tag.color,
-                    }}
-                  >
-                    {tag.name}
-                  </span>
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="my-4 border-t border-border" />
-
-          {/* Active Deals */}
-          <div>
+          {/* Negocios — the deal(s) and the value the AI collects,
+              right under the contact fields (Lead Source etc.). Click
+              one to open the full DealForm to edit value/title/etc. */}
+          <div className="mt-4">
             <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               <DollarSign className="h-3 w-3" />
               {tSidebar("deals")}
@@ -878,32 +750,41 @@ export function ContactSidebar({
             </div>
           </div>
 
-          {/* Divider */}
-          <div className="my-4 border-t border-border" />
-
-          {/* Notes */}
-          <div>
-            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              <StickyNote className="h-3 w-3" />
-              {tSidebar("notes")}
-              <InfoTooltip title={tSidebar("notesInfoTitle")}>{tSidebar("notesInfoBody")}</InfoTooltip>
-            </div>
+          {/* Deal stage — mirrors whatever the AI last set on the deal
+              (kept live by the realtime subscription above); picking a
+              value here is only a manual correction on top of that. */}
+          {statusDealForStages && statusDealStages.length > 0 && (
             <div className="mt-2">
-              {contact && (
-                <ContactNotesPanel
-                  contactId={contact.id}
-                  conversationId={conversationId}
-                  compact
-                />
-              )}
+              <div className="flex items-center gap-2 rounded-lg px-3 py-1.5">
+                <Layers className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <Select
+                  value={statusDealForStages.stage_id}
+                  onValueChange={(v) => v && void handleStageChange(v)}
+                  disabled={stageUpdating}
+                >
+                  <SelectTrigger className="h-7 flex-1 border-transparent bg-transparent text-sm text-foreground hover:border-border">
+                    <SelectValue placeholder={tSidebar("stageLabel")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {statusDealStages.map((stage) => (
+                      <SelectItem key={stage.id} value={stage.id}>
+                        <span className="flex items-center gap-1.5">
+                          <span
+                            className="h-2 w-2 shrink-0 rounded-full"
+                            style={{ backgroundColor: stage.color }}
+                          />
+                          {stage.name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* AI Assistant — moved to the very bottom (below Tags and
-              Notes) so the fields a rep checks most often (contact
-              info, deal, then tags/notes) come first; the switch stays
-              reachable for quick pause/resume without scrolling past
-              everything else first. */}
+          {/* AI Assistant — right under the stage picker, above Media,
+              so pause/resume is reachable without scrolling. */}
           {conversationId && aiConfigured && (
             <>
               {/* Divider */}
@@ -930,6 +811,110 @@ export function ContactSidebar({
               </p>
             </>
           )}
+
+          {/* Media tray — every photo/video from this conversation, newest
+              first. Same lightbox the message bubbles open, so a thumbnail
+              here pages through the exact same set ← / →. */}
+          {mediaGalleryNewestFirst.length > 0 && (
+            <>
+              {/* Divider */}
+              <div className="my-4 border-t border-border" />
+
+              <div>
+                <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <Images className="h-3 w-3" />
+                  {tSidebar("media")}
+                  <span className="text-muted-foreground/70">
+                    {mediaGalleryNewestFirst.length}
+                  </span>
+                </div>
+                <div className="mt-2 grid grid-cols-4 gap-1.5">
+                  {mediaGalleryNewestFirst.map((item) => (
+                    <button
+                      key={item.messageId}
+                      type="button"
+                      onClick={() => setOpenMediaId(item.messageId)}
+                      className="group relative aspect-square overflow-hidden rounded-md bg-muted"
+                    >
+                      {item.kind === "video" ? (
+                        <>
+                          <video
+                            src={item.url}
+                            className="h-full w-full object-cover"
+                            muted
+                            playsInline
+                            preload="metadata"
+                          />
+                          <span className="absolute inset-0 flex items-center justify-center bg-black/20 transition-colors group-hover:bg-black/35">
+                            <PlayCircle className="h-5 w-5 text-white drop-shadow" />
+                          </span>
+                        </>
+                      ) : (
+                        <img
+                          src={item.url}
+                          alt={item.caption || ""}
+                          loading="lazy"
+                          className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                        />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Divider */}
+          <div className="my-4 border-t border-border" />
+
+          {/* Tags */}
+          <div>
+            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <TagIcon className="h-3 w-3" />
+              {tSidebar("tags")}
+              <InfoTooltip title={tSidebar("tagsInfoTitle")}>{tSidebar("tagsInfoBody")}</InfoTooltip>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1">
+              {tags.length === 0 ? (
+                <p className="px-1 text-xs text-muted-foreground">{tSidebar("noTags")}</p>
+              ) : (
+                tags.map((tag) => (
+                  <span
+                    key={tag.contact_tag_id}
+                    className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                    style={{
+                      backgroundColor: `${tag.color}20`,
+                      color: tag.color,
+                    }}
+                  >
+                    {tag.name}
+                  </span>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="my-4 border-t border-border" />
+
+          {/* Notes */}
+          <div>
+            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <StickyNote className="h-3 w-3" />
+              {tSidebar("notes")}
+              <InfoTooltip title={tSidebar("notesInfoTitle")}>{tSidebar("notesInfoBody")}</InfoTooltip>
+            </div>
+            <div className="mt-2">
+              {contact && (
+                <ContactNotesPanel
+                  contactId={contact.id}
+                  conversationId={conversationId}
+                  compact
+                />
+              )}
+            </div>
+          </div>
+
         </div>
       </ScrollArea>
 
