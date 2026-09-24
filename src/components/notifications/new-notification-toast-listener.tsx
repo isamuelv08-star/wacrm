@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useServerClock } from "@/hooks/use-server-clock";
 import {
   DESKTOP_NOTIFICATIONS_STORAGE_KEY,
   isDesktopNotificationsSupported,
@@ -62,6 +63,7 @@ export function NewNotificationToastListener() {
   const { user, account } = useAuth();
   const userId = user?.id ?? null;
   const whatsappMode = account?.whatsapp_mode ?? null;
+  const { now: serverNow } = useServerClock();
 
   // Audio is blocked until the first user gesture — arm the unlock once.
   useEffect(() => installAudioUnlock(), []);
@@ -218,8 +220,12 @@ export function NewNotificationToastListener() {
     // Leads assigned while the app was closed: still unread → still here.
     let alive = true;
     if (userId && whatsappMode === "shared") {
+      // Measured against the server's clock (useServerClock), same fix
+      // as the inbox's 24h session timer — a device with a wrong clock
+      // used to compute a skewed cutoff here, catching up on either
+      // fewer or more pending-assignment toasts than it should.
       const since = new Date(
-        Date.now() - PENDING_ASSIGNMENT_WINDOW_HOURS * 3_600_000,
+        serverNow().getTime() - PENDING_ASSIGNMENT_WINDOW_HOURS * 3_600_000,
       ).toISOString();
       void supabase
         .from("notifications")
@@ -244,6 +250,11 @@ export function NewNotificationToastListener() {
       alive = false;
       supabase.removeChannel(channel);
     };
+    // serverNow is a stable ref-backed getter (useServerClock) — reading
+    // it here isn't meant to resubscribe the realtime channel on every
+    // render, the same posture message-thread.tsx's sessionInfo memo
+    // already takes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, t, userId, whatsappMode]);
 
   // One-time invitation to turn on browser notifications. The opt-in
