@@ -2822,7 +2822,7 @@
     "checkEmailDesc": "Te enviamos un link de confirmación a {email}. Revisá tu bandeja de entrada y hacé clic en el link para verificar tu cuenta.",
     "backToSignIn": "Volver a iniciar sesión",
     "passwordMismatch": "Las contraseñas no coinciden",
-    "passwordTooShort": "La contraseña debe tener al menos 6 caracteres",
+    "passwordTooShort": "La contraseña debe tener al menos 8 caracteres",
     "continueWithGoogle": "Continuar con Google",
     "orDivider": "o"
   },

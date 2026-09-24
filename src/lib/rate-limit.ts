@@ -223,6 +223,28 @@ export const RATE_LIMITS = {
    *  a longer window than the per-IP one since the threat here is
    *  sustained targeting of one account, not a quick burst. */
   loginEmail: { limit: 8, windowMs: 5 * 60_000 },
+  /** Password-reset request ("forgot password"), per IP. 5/min is
+   *  plenty for a human who fat-fingered their email or re-sent the
+   *  link, while bounding a script from mass-triggering reset emails
+   *  (an inbox-bombing / mail-reputation nuisance even though the
+   *  endpoint never confirms whether an address exists). */
+  passwordResetRequest: { limit: 5, windowMs: 60_000 },
+  /** Password-reset request, per email, 15-minute window. Separate
+   *  from the per-IP budget so repeated targeting of one victim's
+   *  inbox from many IPs still gets capped — same rationale as
+   *  loginEmail above. */
+  passwordResetRequestEmail: { limit: 5, windowMs: 15 * 60_000 },
+  /** Password-reset submit (setting the new password once a recovery
+   *  session exists), per IP. Requires an active recovery session
+   *  first, so this isn't a credential-guessing surface by itself —
+   *  bounded for defense in depth against a hijacked session or a
+   *  script racing a victim's own link. */
+  passwordUpdate: { limit: 10, windowMs: 60_000 },
+  /** Signup, per IP. New accounts still need manual admin approval
+   *  (migration 088), so this isn't an account-takeover surface, but
+   *  it bounds mass account/spam creation and inbox-bombing (every
+   *  call sends a verification email). */
+  signup: { limit: 5, windowMs: 60_000 },
   /** Public booking page (view + slot lookup), per IP. Generous — a
    *  visitor flipping through days/services on a Calendly-style picker
    *  can easily fire a dozen requests, and this endpoint only reads. */

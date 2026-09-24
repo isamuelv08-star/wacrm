@@ -2822,7 +2822,7 @@
     "checkEmailDesc": "We've sent a confirmation link to {email}. Please check your inbox and click the link to verify your account.",
     "backToSignIn": "Back to sign in",
     "passwordMismatch": "Passwords do not match",
-    "passwordTooShort": "Password must be at least 6 characters",
+    "passwordTooShort": "Password must be at least 8 characters",
     "continueWithGoogle": "Continue with Google",
     "orDivider": "or"
   },

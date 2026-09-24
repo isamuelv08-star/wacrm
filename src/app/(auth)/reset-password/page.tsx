@@ -83,10 +83,33 @@ export default function ResetPasswordPage() {
     }
 
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({ password });
 
-    if (error) {
-      setError(translateAuthError(error.message, tErrors));
+    // Goes through our own /api/auth/reset-password instead of calling
+    // supabase.auth.updateUser directly from the browser, so the app's
+    // own rate limiter sits in front of every attempt — see that route
+    // for why a direct client call couldn't be rate-limited at all.
+    // The recovery session set up above (via setSession or the
+    // existing PKCE cookie) travels along as this fetch's cookies.
+    let res: Response;
+    try {
+      res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+    } catch {
+      setError(tErrors("networkError"));
+      setLoading(false);
+      return;
+    }
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(
+        res.status === 429
+          ? tErrors("rateLimited")
+          : translateAuthError(data.error ?? "", tErrors),
+      );
       setLoading(false);
       return;
     }

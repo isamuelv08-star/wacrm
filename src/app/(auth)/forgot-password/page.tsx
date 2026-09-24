@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { createClient } from "@/lib/supabase/client";
 import { translateAuthError } from "@/lib/supabase/auth-errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,13 +23,18 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const supabase = createClient();
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
+    // Goes through our own /api/auth/forgot-password instead of calling
+    // supabase.auth.resetPasswordForEmail directly from the browser, so
+    // the app's own rate limiter (per-IP and per-email) sits in front of
+    // every attempt — see that route for why a direct client call
+    // couldn't be rate-limited at all.
+    //
     // Straight to /reset-password, NOT through /auth/callback: this Supabase
     // project issues recovery links as an implicit grant (`#access_token=...`
     // in the URL fragment) rather than a PKCE `?code=`, regardless of the
@@ -40,12 +44,29 @@ export default function ForgotPasswordPage() {
     // /auth/callback first would have it redirect away (no `?code` to find)
     // before the browser ever gets to read the hash. /reset-password's
     // client-side code reads it directly instead (see its useEffect).
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          redirectTo: `${window.location.origin}/reset-password`,
+        }),
+      });
+    } catch {
+      setError(tErrors("networkError"));
+      setLoading(false);
+      return;
+    }
 
-    if (error) {
-      setError(translateAuthError(error.message, tErrors));
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(
+        res.status === 429
+          ? tErrors("rateLimited")
+          : translateAuthError(data.error ?? "", tErrors),
+      );
       setLoading(false);
       return;
     }

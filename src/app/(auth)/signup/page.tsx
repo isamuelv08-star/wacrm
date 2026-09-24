@@ -4,7 +4,6 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { createClient } from "@/lib/supabase/client";
 import { translateAuthError } from "@/lib/supabase/auth-errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,7 +40,6 @@ function SignupPageInner() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const supabase = createClient();
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,7 +50,7 @@ function SignupPageInner() {
       return;
     }
 
-    if (password.length < 6) {
+    if (password.length < 8) {
       setError(t("passwordTooShort"));
       return;
     }
@@ -67,19 +65,36 @@ function SignupPageInner() {
       ? `${window.location.origin}/join/${encodeURIComponent(inviteToken)}`
       : undefined;
 
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
-        },
-        ...(emailRedirectTo ? { emailRedirectTo } : {}),
-      },
-    });
+    // Goes through our own /api/auth/signup instead of calling
+    // supabase.auth.signUp directly from the browser, so the app's
+    // own rate limiter sits in front of every attempt — see that
+    // route for why a direct client call couldn't be rate-limited
+    // at all.
+    let res: Response;
+    try {
+      res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          password,
+          fullName,
+          ...(emailRedirectTo ? { emailRedirectTo } : {}),
+        }),
+      });
+    } catch {
+      setError(tErrors("networkError"));
+      setLoading(false);
+      return;
+    }
 
-    if (error) {
-      setError(translateAuthError(error.message, tErrors));
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(
+        res.status === 429
+          ? tErrors("rateLimited")
+          : translateAuthError(data.error ?? "", tErrors),
+      );
       setLoading(false);
       return;
     }
@@ -212,6 +227,7 @@ function SignupPageInner() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
+            minLength={8}
             className="h-11 border-border bg-[#12141C] text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
           />
         </div>
@@ -230,6 +246,7 @@ function SignupPageInner() {
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
+            minLength={8}
             className="h-11 border-border bg-[#12141C] text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
           />
         </div>
