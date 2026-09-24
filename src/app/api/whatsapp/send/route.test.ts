@@ -121,6 +121,15 @@ function makeSupabaseMock() {
         data: { user: { id: 'user-1' } },
         error: null,
       })),
+      // No enrolled MFA factors in this test — aal1 is already the
+      // "fully signed in" state, matching real GoTrue's behavior for
+      // a user with zero verified factors.
+      mfa: {
+        getAuthenticatorAssuranceLevel: vi.fn(async () => ({
+          data: { currentLevel: 'aal1', nextLevel: 'aal1', currentAuthenticationMethods: [] },
+          error: null,
+        })),
+      },
     },
     from: vi.fn((table: string) => builder(table)),
   }

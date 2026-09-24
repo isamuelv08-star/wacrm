@@ -15,6 +15,16 @@ function makeClient(opts: { user: { id: string } | null; userErr?: unknown }) {
           data: { user: opts.user },
           error: opts.userErr ?? null,
         }),
+      // No enrolled MFA factors in these tests — aal1 is already the
+      // "fully signed in" state, matching real GoTrue's behavior for
+      // a user with zero verified factors.
+      mfa: {
+        getAuthenticatorAssuranceLevel: () =>
+          Promise.resolve({
+            data: { currentLevel: "aal1", nextLevel: "aal1", currentAuthenticationMethods: [] },
+            error: null,
+          }),
+      },
     },
   };
 }

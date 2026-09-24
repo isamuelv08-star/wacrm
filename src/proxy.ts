@@ -24,6 +24,7 @@ const AGENCY_STANDALONE_EXACT_PATHS = new Set([
   '/agency',
   '/forgot-password',
   '/reset-password',
+  '/login-mfa',
 ])
 // '/api/auth' (email/password sign-in — see /api/auth/login/route.ts)
 // was missing here originally: with only '/login' itself allowed,
@@ -116,6 +117,26 @@ export async function proxy(request: NextRequest) {
     return response
   }
 
+  // MFA step-up gate. getAuthenticatorAssuranceLevel() reads the
+  // already-loaded session (decodes the access token's `aal` claim
+  // and checks the signed-in user's verified factors) — no extra
+  // network round trip. A user with a verified TOTP factor whose
+  // session hasn't completed that second factor yet (nextLevel is
+  // 'aal2' but currentLevel is still 'aal1') isn't treated as fully
+  // signed in for page navigation purposes.
+  //
+  // This redirect is UX only — it walks the user through entering
+  // their code instead of the dashboard rendering and then every API
+  // call 401ing. The real enforcement is in getCurrentAccount()
+  // (src/lib/auth/account.ts) and requireSuperAdmin()
+  // (src/lib/auth/agency.ts), which every route ends up going
+  // through regardless of what happens here.
+  let needsMfaStepUp = false
+  if (user) {
+    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+    needsMfaStepUp = !!aal && aal.nextLevel === 'aal2' && aal.currentLevel !== aal.nextLevel
+  }
+
   // Agency-standalone deployment: collapse the entire app down to just
   // '/login' + '/agency' (+ their supporting API routes). Everything else
   // — including '/dashboard', which the login page's post-auth
@@ -125,6 +146,12 @@ export async function proxy(request: NextRequest) {
   // deployment.
   if (AGENCY_STANDALONE) {
     const pathname = request.nextUrl.pathname
+    if (user && needsMfaStepUp && pathname !== '/login-mfa') {
+      const url = request.nextUrl.clone()
+      url.pathname = '/login-mfa'
+      url.search = ''
+      return withRefreshedCookies(NextResponse.redirect(url))
+    }
     if (!isAgencyStandaloneAllowedPath(pathname)) {
       const url = request.nextUrl.clone()
       url.pathname = user ? '/agency' : '/login'
@@ -151,19 +178,23 @@ export async function proxy(request: NextRequest) {
     request.nextUrl.pathname === '/signup' ||
     request.nextUrl.pathname === '/forgot-password'
   )) {
-    const url = request.nextUrl.clone()
     const inviteToken = request.nextUrl.searchParams.get('invite')
-    if (
+    const destination =
       inviteToken &&
       (request.nextUrl.pathname === '/login' ||
         request.nextUrl.pathname === '/signup')
-    ) {
-      url.pathname = `/join/${encodeURIComponent(inviteToken)}`
+        ? `/join/${encodeURIComponent(inviteToken)}`
+        : '/dashboard'
+
+    const url = request.nextUrl.clone()
+    if (needsMfaStepUp) {
+      url.pathname = '/login-mfa'
       url.search = ''
-    } else {
-      url.pathname = '/dashboard'
-      url.search = ''
+      url.searchParams.set('next', destination)
+      return withRefreshedCookies(NextResponse.redirect(url))
     }
+    url.pathname = destination
+    url.search = ''
     return withRefreshedCookies(NextResponse.redirect(url))
   }
 
@@ -172,6 +203,22 @@ export async function proxy(request: NextRequest) {
   if (!user && protectedPaths.some(path => request.nextUrl.pathname.startsWith(path))) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
+    return withRefreshedCookies(NextResponse.redirect(url))
+  }
+
+  // MFA step-up gate for protected pages — see the comment above where
+  // needsMfaStepUp is computed. /login-mfa itself must stay reachable.
+  if (
+    user &&
+    needsMfaStepUp &&
+    request.nextUrl.pathname !== '/login-mfa' &&
+    protectedPaths.some(path => request.nextUrl.pathname.startsWith(path))
+  ) {
+    const next = request.nextUrl.pathname + request.nextUrl.search
+    const url = request.nextUrl.clone()
+    url.pathname = '/login-mfa'
+    url.search = ''
+    url.searchParams.set('next', next)
     return withRefreshedCookies(NextResponse.redirect(url))
   }
 

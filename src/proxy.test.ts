@@ -9,6 +9,10 @@ import { NextRequest } from "next/server";
 //                      of the test is that these must survive onto whatever
 //                      response the proxy returns — including redirects.
 let mockUser: { id: string } | null = null;
+// "aal1" (default) = no verified MFA factor, or step-up already done.
+// "aal2" = a verified TOTP factor exists but this session hasn't
+// completed it yet — exercises the /login-mfa redirect.
+let mockNextAal: "aal1" | "aal2" = "aal1";
 // How many times the proxy actually asked Supabase Auth to validate a session.
 let getUserCalls = 0;
 let refreshedCookies: Array<{
@@ -34,6 +38,16 @@ vi.mock("@supabase/ssr", () => ({
         if (refreshedCookies.length) opts.cookies.setAll(refreshedCookies);
         return { data: { user: mockUser } };
       },
+      // No enrolled MFA factors in these tests — aal1 is already the
+      // "fully signed in" state, matching real GoTrue's behavior for
+      // a user with zero verified factors. The step-up redirect gets
+      // its own dedicated describe block below.
+      mfa: {
+        getAuthenticatorAssuranceLevel: async () => ({
+          data: { currentLevel: "aal1", nextLevel: mockNextAal, currentAuthenticationMethods: [] },
+          error: null,
+        }),
+      },
     },
   }),
 }));
@@ -46,6 +60,7 @@ beforeEach(() => {
   process.env.NEXT_PUBLIC_SUPABASE_URL = "https://test.supabase.co";
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
   mockUser = null;
+  mockNextAal = "aal1";
   refreshedCookies = [];
   getUserCalls = 0;
   delete process.env.PROXY_AUTH_CACHE_MS;
@@ -168,5 +183,45 @@ describe("proxy — session validation memo", () => {
     await proxy(withSession("tok-a"));
     await proxy(withSession("tok-a"));
     expect(getUserCalls).toBe(2);
+  });
+});
+
+describe("proxy — MFA step-up gate", () => {
+  it("redirects a protected page to /login-mfa when a step-up is pending", async () => {
+    mockUser = { id: "user-1" };
+    mockNextAal = "aal2";
+
+    const res = await proxy(new NextRequest("https://app.test/dashboard"));
+
+    expect(res.headers.get("location")).toContain("/login-mfa");
+    expect(res.headers.get("location")).toContain("next=%2Fdashboard");
+  });
+
+  it("redirects off /login to /login-mfa (not /dashboard) when a step-up is pending", async () => {
+    mockUser = { id: "user-1" };
+    mockNextAal = "aal2";
+
+    const res = await proxy(new NextRequest("https://app.test/login"));
+
+    expect(res.headers.get("location")).toContain("/login-mfa");
+    expect(res.headers.get("location")).not.toContain("/dashboard");
+  });
+
+  it("lets a pending-step-up user reach /login-mfa itself", async () => {
+    mockUser = { id: "user-1" };
+    mockNextAal = "aal2";
+
+    const res = await proxy(new NextRequest("https://app.test/login-mfa"));
+
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("does not redirect when the session already satisfies aal2 (no factor, or already stepped up)", async () => {
+    mockUser = { id: "user-1" };
+    mockNextAal = "aal1";
+
+    const res = await proxy(new NextRequest("https://app.test/dashboard"));
+
+    expect(res.headers.get("location")).toBeNull();
   });
 });

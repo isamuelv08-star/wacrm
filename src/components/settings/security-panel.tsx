@@ -1,6 +1,7 @@
 'use client';
 
 import { PasswordForm } from './password-form';
+import { TwoFactorCard } from './two-factor-card';
 import { SessionsCard } from './sessions-card';
 import { SettingsPanelHead } from './settings-panel-head';
 import { useTranslations } from 'next-intl';
@@ -19,6 +20,7 @@ export function SecurityPanel() {
       />
       <div className="space-y-4">
         <PasswordForm />
+        <TwoFactorCard />
         <SessionsCard />
       </div>
     </section>

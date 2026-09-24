@@ -140,6 +140,21 @@ export async function getCurrentAccount(): Promise<AccountContext> {
     throw new UnauthorizedError();
   }
 
+  // MFA step-up gate. getAuthenticatorAssuranceLevel() reads the
+  // already-loaded session (decodes the access token's `aal` claim
+  // and checks the user's verified factors) — no extra network round
+  // trip. A user with a verified TOTP factor whose session hasn't
+  // completed that second factor yet (nextLevel is 'aal2' but
+  // currentLevel is still 'aal1') is treated exactly like "not signed
+  // in": this is the actual enforcement point for all ~85 routes that
+  // go through requireRole()/getCurrentAccount(), same reasoning as
+  // the restricted-access gate below — proxy.ts's redirect to
+  // /login-mfa is UX only, not the security boundary.
+  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (aal && aal.nextLevel === "aal2" && aal.currentLevel !== aal.nextLevel) {
+    throw new UnauthorizedError("MFA verification required");
+  }
+
   const { data, error } = await supabase
     .from("profiles")
     .select("account_id, account_role")

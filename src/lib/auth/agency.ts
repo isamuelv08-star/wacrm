@@ -55,6 +55,17 @@ export async function requireSuperAdmin(): Promise<{ userId: string }> {
   if (!user) {
     throw new UnauthorizedError();
   }
+
+  // Same MFA step-up gate as getCurrentAccount() (account.ts) — the
+  // super admin identity is the single highest-value target in this
+  // app, so a session that's merely aal1 (password/OAuth only) when
+  // this user has a verified TOTP factor doesn't get treated as fully
+  // authenticated here either.
+  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (aal && aal.nextLevel === "aal2" && aal.currentLevel !== aal.nextLevel) {
+    throw new UnauthorizedError("MFA verification required");
+  }
+
   if (user.id !== superAdminId) {
     throw new ForbiddenError();
   }
