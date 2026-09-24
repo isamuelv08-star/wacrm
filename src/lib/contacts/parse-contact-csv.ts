@@ -3,16 +3,19 @@
  * tag-column handling stays aligned with phone/name/email/company.
  */
 
+import { parseCsvLine, findHeaderIndex as findHeaderIndexBySynonyms } from '@/lib/import/csv-utils';
+
 /**
  * Synonym → canonical header lookup (onboarding audit finding C: this
  * used to require the EXACT header names below, so a real-world
  * export using "Teléfono"/"Celular"/"Correo" failed outright with no
- * explanation). Matched against a normalized header (lowercased,
- * accents stripped, non-alphanumerics removed), so "Teléfono",
- * "telefono", "Tel." and "phone_number" all resolve the same way.
- * Order matters only in that the FIRST canonical field whose synonym
- * list matches a given header wins — headers are otherwise matched
- * independently per field below.
+ * explanation). Matched via findHeaderIndex's normalization
+ * (lowercased, accents stripped, non-alphanumerics removed), so
+ * "Teléfono", "telefono", "Tel." and "phone_number" all resolve the
+ * same way. Shared with parse-deal-csv.ts's own HEADER_SYNONYMS via
+ * csv-utils.ts's normalization, not this exact map — each importer
+ * still owns its own field list since contacts and deals need
+ * different columns.
  */
 const HEADER_SYNONYMS: Record<'phone' | 'name' | 'email' | 'company' | 'tags', string[]> = {
   phone: ['phone', 'phonenumber', 'telefono', 'tel', 'celular', 'movil', 'whatsapp', 'numero', 'number'],
@@ -22,20 +25,8 @@ const HEADER_SYNONYMS: Record<'phone' | 'name' | 'email' | 'company' | 'tags', s
   tags: ['tags', 'etiquetas', 'tag', 'etiqueta'],
 };
 
-function normalizeHeader(header: string): string {
-  return header
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '');
-}
-
-/** Finds the first header whose normalized form matches one of
- *  `field`'s known synonyms. Returns -1 when none match, same
- *  contract as `Array.prototype.indexOf`. */
 function findHeaderIndex(headers: string[], field: keyof typeof HEADER_SYNONYMS): number {
-  const synonyms = HEADER_SYNONYMS[field].map(normalizeHeader);
-  return headers.findIndex((h) => synonyms.includes(normalizeHeader(h)));
+  return findHeaderIndexBySynonyms(headers, HEADER_SYNONYMS[field]);
 }
 
 export interface ParsedContactRow {
@@ -128,24 +119,4 @@ export function parseContactCsv(text: string): ParseContactCsvResult {
     hasTagsColumn: tagsIdx >= 0,
     hasCompanyColumn: companyIdx >= 0,
   };
-}
-
-/** Simple CSV line parse (handles quoted fields). */
-function parseCsvLine(line: string): string[] {
-  const values: string[] = [];
-  let current = '';
-  let inQuotes = false;
-
-  for (const char of line) {
-    if (char === '"') {
-      inQuotes = !inQuotes;
-    } else if (char === ',' && !inQuotes) {
-      values.push(current.trim());
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-  values.push(current.trim());
-  return values;
 }

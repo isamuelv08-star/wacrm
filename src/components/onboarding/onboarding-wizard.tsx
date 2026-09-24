@@ -19,6 +19,7 @@ import { AiToneStep } from "./ai-tone-step";
 import { BusinessTypeStep } from "./business-type-step";
 import { CurrencyConfirm } from "./currency-confirm";
 import { FirstDiagnosisStep } from "./first-diagnosis-step";
+import { ImportStep } from "./import-step";
 import { MonthlyGoalInput } from "./monthly-goal-input";
 import { PipelineStep } from "./pipeline-step";
 import { WhatsAppModeStep, type WhatsAppMode } from "./whatsapp-mode-step";
@@ -33,7 +34,7 @@ import { APPOINTMENT_BASED_VERTICALS, type BusinessVertical } from "@/types";
 // nothing else in the product works without a channel connected
 // (inbox/broadcasts/AI auto-reply are all inert without one). The
 // rest are informational/optional.
-const BASE_STEP_KEYS = ["businessType", "whatsappMode", "whatsapp", "pipeline", "ai"] as const;
+const BASE_STEP_KEYS = ["businessType", "whatsappMode", "whatsapp", "pipeline", "import", "ai"] as const;
 const TAIL_STEP_KEYS = ["invite", "done"] as const;
 type StepKey =
   | (typeof BASE_STEP_KEYS)[number]
@@ -265,6 +266,8 @@ export function OnboardingWizard() {
           )}
 
           {step === "pipeline" && <PipelineStep />}
+
+          {step === "import" && <ImportStep />}
 
           {step === "ai" && <AiToneStep />}
 

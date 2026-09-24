@@ -3172,6 +3172,34 @@
       "readyBody": "Pronto — já foi criado. Toque no lápis para renomear qualquer etapa.",
       "renameStage": "Renomear etapa"
     },
+    "import": {
+      "title": "Importe o que você já tem",
+      "description": "Opcional — se você já tem contatos ou oportunidades em outro lugar, envie aqui. Começando do zero? Pode seguir em frente.",
+      "contactsTitle": "Contatos",
+      "contactsDescription": "Envie um CSV com seus contatos existentes.",
+      "contactsCta": "Importar contatos",
+      "deals": {
+        "title": "Oportunidades",
+        "description": "Envie um CSV com oportunidades já em andamento — cada uma é criada no seu pipeline recém-criado.",
+        "dropzone": "Clique para enviar um CSV",
+        "noValidRows": "Não encontramos linhas válidas — verifique se há uma coluna de telefone.",
+        "noPipeline": "Você ainda não tem um pipeline criado — volte para a etapa anterior.",
+        "rowsReady": "{count, plural, one {# linha pronta} other {# linhas prontas}}",
+        "columns": {
+          "phone": "Telefone",
+          "title": "Oportunidade",
+          "value": "Valor"
+        },
+        "moreRows": "+ {count} mais",
+        "importBtn": "{count, plural, one {Importar # oportunidade} other {Importar # oportunidades}}",
+        "toastImported": "{count, plural, one {# oportunidade importada} other {# oportunidades importadas}}",
+        "toastFailed": "{count, plural, one {# oportunidade não pôde ser importada} other {# oportunidades não puderam ser importadas}}",
+        "toastError": "Não conseguimos processar o arquivo.",
+        "resultImported": "{count} importadas",
+        "resultSkipped": "{count} duplicadas",
+        "resultFailed": "{count} falharam"
+      }
+    },
     "ai": {
       "title": "Qualificação de leads com IA",
       "description": "Opcional — classifica automaticamente cada conversa como HOT, WARM ou COLD. Você pode configurar isso depois em Configurações, se preferir pular por agora."

@@ -3172,6 +3172,34 @@
       "readyBody": "Done — it's already created. Tap the pencil to rename any stage.",
       "renameStage": "Rename stage"
     },
+    "import": {
+      "title": "Import what you already have",
+      "description": "Optional — if you already have contacts or opportunities somewhere else, upload them here. Starting from scratch? Just move on.",
+      "contactsTitle": "Contacts",
+      "contactsDescription": "Upload a CSV with your existing contacts.",
+      "contactsCta": "Import contacts",
+      "deals": {
+        "title": "Opportunities",
+        "description": "Upload a CSV with opportunities already in progress — each one is created in your brand-new pipeline.",
+        "dropzone": "Click to upload a CSV",
+        "noValidRows": "We couldn't find any valid rows — make sure there's a phone column.",
+        "noPipeline": "You don't have a pipeline yet — go back to the previous step.",
+        "rowsReady": "{count, plural, one {# row ready} other {# rows ready}}",
+        "columns": {
+          "phone": "Phone",
+          "title": "Opportunity",
+          "value": "Value"
+        },
+        "moreRows": "+ {count} more",
+        "importBtn": "{count, plural, one {Import # opportunity} other {Import # opportunities}}",
+        "toastImported": "{count, plural, one {Imported # opportunity} other {Imported # opportunities}}",
+        "toastFailed": "{count, plural, one {# opportunity couldn't be imported} other {# opportunities couldn't be imported}}",
+        "toastError": "We couldn't process the file.",
+        "resultImported": "{count} imported",
+        "resultSkipped": "{count} duplicates",
+        "resultFailed": "{count} failed"
+      }
+    },
     "ai": {
       "title": "AI lead qualification",
       "description": "Optional — automatically score every conversation as HOT, WARM, or COLD. You can set this up later from Settings if you'd rather skip it for now."

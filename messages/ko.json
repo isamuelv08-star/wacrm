@@ -3172,6 +3172,34 @@
       "readyBody": "완료됐어요 — 이미 만들어졌습니다. 연필 아이콘을 눌러 단계 이름을 바꿀 수 있어요.",
       "renameStage": "단계 이름 바꾸기"
     },
+    "import": {
+      "title": "이미 가지고 있는 데이터를 가져오세요",
+      "description": "선택 사항이에요 — 다른 곳에 이미 연락처나 기회가 있다면 여기서 업로드하세요. 처음부터 시작하신다면 그냥 넘어가셔도 돼요.",
+      "contactsTitle": "연락처",
+      "contactsDescription": "기존 연락처가 담긴 CSV 파일을 업로드하세요.",
+      "contactsCta": "연락처 가져오기",
+      "deals": {
+        "title": "기회",
+        "description": "이미 진행 중인 기회가 담긴 CSV를 업로드하세요 — 각 항목이 방금 만든 파이프라인에 생성됩니다.",
+        "dropzone": "클릭해서 CSV 업로드",
+        "noValidRows": "유효한 행을 찾지 못했어요 — 전화번호 열이 있는지 확인하세요.",
+        "noPipeline": "아직 파이프라인이 없어요 — 이전 단계로 돌아가세요.",
+        "rowsReady": "{count}행 준비됨",
+        "columns": {
+          "phone": "전화번호",
+          "title": "기회",
+          "value": "가치"
+        },
+        "moreRows": "+{count}개 더",
+        "importBtn": "{count}개 기회 가져오기",
+        "toastImported": "{count}개 기회를 가져왔어요",
+        "toastFailed": "{count}개 기회를 가져오지 못했어요",
+        "toastError": "파일을 처리하지 못했어요.",
+        "resultImported": "{count}개 가져옴",
+        "resultSkipped": "{count}개 중복",
+        "resultFailed": "{count}개 실패"
+      }
+    },
     "ai": {
       "title": "AI 리드 분류",
       "description": "선택 사항이에요 — 모든 대화를 HOT, WARM, COLD로 자동 분류합니다. 지금은 건너뛰고 나중에 설정 메뉴에서 설정할 수 있어요."
