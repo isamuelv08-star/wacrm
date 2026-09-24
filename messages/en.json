@@ -3126,7 +3126,7 @@
     "skipSetup": "Skip setup",
     "back": "Back",
     "next": "Next",
-    "finish": "Go to dashboard",
+    "finish": "See my Decision Center",
     "businessType": {
       "title": "What's your business?",
       "description": "This just helps us tailor a couple of suggestions later — nothing here locks you into anything.",
@@ -3140,7 +3140,9 @@
         "professional_services": "Professional services / Consulting",
         "other": "Other"
       },
-      "currencyLabel": "Currency"
+      "currencyLabel": "Currency",
+      "monthlyGoalLabel": "How much do you want to sell this month? (optional)",
+      "monthlyGoalPlaceholder": "e.g. 10000"
     },
     "whatsappMode": {
       "title": "How do you want to use WhatsApp?",
@@ -3174,6 +3176,40 @@
       "title": "AI lead qualification",
       "description": "Optional — automatically score every conversation as HOT, WARM, or COLD. You can set this up later from Settings if you'd rather skip it for now."
     },
+    "aiTone": {
+      "providerLabel": "AI provider",
+      "apiKeyLabel": "Your API key",
+      "apiKeyRequired": "Enter your API key to turn on AI.",
+      "toneLabel": "How should your AI sound?",
+      "tones": {
+        "professional": "Professional",
+        "friendly": "Friendly",
+        "consultative": "Consultative",
+        "direct": "Direct"
+      },
+      "tonePrompts": {
+        "professional": "Reply professionally and clearly, formal but warm. Be precise and direct in your answers.",
+        "friendly": "Reply warmly and casually, like a teammate talking to a customer they already know. Keep it relaxed and friendly.",
+        "consultative": "Reply consultatively: ask questions to understand the customer's need well before proposing a solution, like a trusted advisor.",
+        "direct": "Reply directly and concisely, getting to the point quickly, no fluff."
+      },
+      "fieldsLabel": "What should it collect before handing the lead to a seller?",
+      "fields": {
+        "name": "Name",
+        "city": "City",
+        "product": "Product of interest",
+        "need": "Need",
+        "budget": "Budget"
+      },
+      "qualificationTemplate": "Before considering a lead ready for a seller, try to collect in the conversation: {fields}.",
+      "save": "Save and turn on AI",
+      "saving": "Saving…",
+      "saveFailed": "Couldn't save the AI configuration.",
+      "networkError": "Couldn't reach the server.",
+      "savedBody": "Done — your AI is set up. You can turn on auto-reply whenever you want from Settings → AI.",
+      "alreadyConfiguredBody": "AI is already set up.",
+      "reconfigure": "Reconfigure"
+    },
     "calendar": {
       "title": "Connect Google Calendar",
       "description": "Optional — businesses like yours usually run on appointments. Connect Google Calendar so the AI agent can check availability and book them for you.",
@@ -3185,9 +3221,12 @@
       "cta": "Invite a teammate"
     },
     "done": {
-      "title": "You're all set",
-      "description": "Your account is ready to go.",
-      "body": "You can revisit anything you skipped from Settings at any time."
+      "title": "Done. Let's start reading your sales operation.",
+      "description": "Here's what Saleslid already found with the data you have so far."
+    },
+    "diagnosis": {
+      "clientsFound": "{count, plural, =0 {No clients yet} one {Found # client} other {Found # clients}}",
+      "emptyBody": "Not enough activity yet to show a diagnosis. Once your first WhatsApp messages come in, you'll see this filled with real data."
     }
   },
   "ContactNotes": {

@@ -19,6 +19,22 @@ export const AI_PROVIDER_DEFAULT_MODEL: Record<AiProvider, string> = {
   openrouter: 'openai/gpt-4o-mini',
 }
 
+/** Display label per provider — shared by the full Settings → AI panel
+ *  and the onboarding wizard's simplified AI step. */
+export const AI_PROVIDER_LABEL: Record<AiProvider, string> = {
+  openai: 'OpenAI',
+  anthropic: 'Anthropic (Claude)',
+  openrouter: 'OpenRouter',
+}
+
+/** API-key input placeholder per provider — same two callers as
+ *  {@link AI_PROVIDER_LABEL}. */
+export const AI_PROVIDER_KEY_PLACEHOLDER: Record<AiProvider, string> = {
+  openai: 'sk-...',
+  anthropic: 'sk-ant-...',
+  openrouter: 'sk-or-...',
+}
+
 /**
  * Sentinel the model is instructed to emit (in auto-reply mode) when it
  * can't confidently help and a human should take over. This exact

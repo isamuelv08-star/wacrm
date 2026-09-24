@@ -70,4 +70,35 @@ describe('parseContactCsv', () => {
       ],
     });
   });
+
+  // Onboarding audit finding C: a real-world export rarely uses the
+  // exact English header names — this must still resolve them.
+  it('detects Spanish/synonym headers (Teléfono, Nombre, Correo, Empresa, Etiquetas)', () => {
+    const csv = `Teléfono,Nombre,Correo,Empresa,Etiquetas
++15551234567,Alicia,alicia@example.com,Acme,"VIP, Lead"`;
+
+    expect(parseContactCsv(csv)).toEqual({
+      hasTagsColumn: true,
+      hasCompanyColumn: true,
+      rows: [
+        {
+          phone: '+15551234567',
+          name: 'Alicia',
+          email: 'alicia@example.com',
+          company: 'Acme',
+          tagNames: ['VIP', 'Lead'],
+        },
+      ],
+    });
+  });
+
+  it('detects other common phone synonyms (Celular, WhatsApp)', () => {
+    expect(parseContactCsv(`Celular,Nombre\n+15551234567,Alice`).rows).toHaveLength(1);
+    expect(parseContactCsv(`WhatsApp,Nombre\n+15551234567,Alice`).rows).toHaveLength(1);
+  });
+
+  it('still returns nothing when no header resembles a phone column', () => {
+    const csv = `id,notes\n1,hello`;
+    expect(parseContactCsv(csv)).toEqual({ rows: [], hasTagsColumn: false, hasCompanyColumn: false });
+  });
 });

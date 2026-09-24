@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -14,11 +13,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { WhatsAppChannelOptions } from "@/components/settings/whatsapp-channel-options";
-import { AiConfig } from "@/components/settings/ai-config";
 import { GoogleCalendarConnect } from "@/components/settings/google-calendar-connect";
 import { InviteMemberDialog } from "@/components/settings/invite-member-dialog";
+import { AiToneStep } from "./ai-tone-step";
 import { BusinessTypeStep } from "./business-type-step";
 import { CurrencyConfirm } from "./currency-confirm";
+import { FirstDiagnosisStep } from "./first-diagnosis-step";
+import { MonthlyGoalInput } from "./monthly-goal-input";
 import { PipelineStep } from "./pipeline-step";
 import { WhatsAppModeStep, type WhatsAppMode } from "./whatsapp-mode-step";
 import { useAuth } from "@/hooks/use-auth";
@@ -114,6 +115,41 @@ export function OnboardingWizard() {
   const isFirst = stepIndex === 0;
   const isLast = stepIndex === STEP_KEYS.length - 1;
 
+  // Resume where the user left off (migration 108) instead of always
+  // restarting at step 0 — onboarding audit finding D.9: closing the
+  // tab mid-wizard used to lose all progress except the two
+  // auto-saved fields above, forcing a full repeat of every screen.
+  // Runs once STEP_KEYS is known (it depends on businessVertical,
+  // which resolves from `account` a beat after this component mounts).
+  const resumeAttempted = useRef(false);
+  useEffect(() => {
+    if (!accountId || resumeAttempted.current) return;
+    resumeAttempted.current = true;
+    (async () => {
+      const { data } = await supabase
+        .from("accounts")
+        .select("onboarding_current_step")
+        .eq("id", accountId)
+        .maybeSingle();
+      const saved = data?.onboarding_current_step as string | null | undefined;
+      if (!saved) return;
+      const idx = STEP_KEYS.indexOf(saved as StepKey);
+      if (idx > 0) setStepIndex(idx);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountId]);
+
+  // Persist progress on every step change — best-effort, same
+  // fire-and-forget posture as handleSelectVertical/handleSelectWhatsAppMode.
+  useEffect(() => {
+    if (!accountId || !resumeAttempted.current) return;
+    void fetch("/api/account", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ onboarding_current_step: step }),
+    });
+  }, [step, accountId]);
+
   function handleSelectVertical(vertical: BusinessVertical) {
     setBusinessVertical(vertical);
     // Best-effort, fire-and-forget — same posture as the rest of this
@@ -139,16 +175,22 @@ export function OnboardingWizard() {
   }
 
   // Marks the account onboarded and leaves the wizard — used by both
-  // "Skip setup" (from any step) and the final step's "Finish" button.
-  // Best-effort: even if the request fails, don't trap the user here —
-  // they'll just see the wizard again next login, which is safe (the
-  // column stays NULL, nothing else depends on it).
+  // "Skip setup" (from any step) and the final step's CTA. Best-effort:
+  // even if the request fails, don't trap the user here — they'll just
+  // see the wizard again next login, which is safe (the column stays
+  // NULL, nothing else depends on it).
+  //
+  // Lands on Centro de Decisiones, not /dashboard (onboarding audit
+  // section 13/Fase 5) — "ya conocemos lo suficiente de tu operación,
+  // ahora vamos a mostrarte dónde deberías prestar atención" applies
+  // whether the user finished the wizard or skipped straight out of
+  // it; either way this is their first real session.
   const complete = async () => {
     setFinishing(true);
     try {
       await fetch("/api/onboarding/complete", { method: "POST" });
     } finally {
-      router.push("/dashboard");
+      router.push("/dashboard/centro-de-decisiones");
     }
   };
 
@@ -203,6 +245,7 @@ export function OnboardingWizard() {
             <>
               <BusinessTypeStep value={businessVertical} onChange={handleSelectVertical} />
               <CurrencyConfirm value={currency} onChange={handleSelectCurrency} />
+              <MonthlyGoalInput currency={currency} />
             </>
           )}
 
@@ -223,7 +266,7 @@ export function OnboardingWizard() {
 
           {step === "pipeline" && <PipelineStep />}
 
-          {step === "ai" && <AiConfig />}
+          {step === "ai" && <AiToneStep />}
 
           {step === "calendar" && (
             <div className="flex flex-col items-start gap-3">
@@ -249,12 +292,7 @@ export function OnboardingWizard() {
             </div>
           )}
 
-          {step === "done" && (
-            <div className="flex flex-col items-center gap-3 py-6 text-center">
-              <CheckCircle2 className="h-12 w-12 text-primary" />
-              <p className="text-muted-foreground">{t("done.body")}</p>
-            </div>
-          )}
+          {step === "done" && <FirstDiagnosisStep />}
         </CardContent>
         <CardFooter className="flex justify-between">
           {isFirst ? (

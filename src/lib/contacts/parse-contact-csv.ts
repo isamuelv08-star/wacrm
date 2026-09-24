@@ -3,6 +3,41 @@
  * tag-column handling stays aligned with phone/name/email/company.
  */
 
+/**
+ * Synonym → canonical header lookup (onboarding audit finding C: this
+ * used to require the EXACT header names below, so a real-world
+ * export using "Teléfono"/"Celular"/"Correo" failed outright with no
+ * explanation). Matched against a normalized header (lowercased,
+ * accents stripped, non-alphanumerics removed), so "Teléfono",
+ * "telefono", "Tel." and "phone_number" all resolve the same way.
+ * Order matters only in that the FIRST canonical field whose synonym
+ * list matches a given header wins — headers are otherwise matched
+ * independently per field below.
+ */
+const HEADER_SYNONYMS: Record<'phone' | 'name' | 'email' | 'company' | 'tags', string[]> = {
+  phone: ['phone', 'phonenumber', 'telefono', 'tel', 'celular', 'movil', 'whatsapp', 'numero', 'number'],
+  name: ['name', 'fullname', 'nombre', 'cliente', 'contacto', 'contact'],
+  email: ['email', 'correo', 'correoelectronico', 'mail', 'e-mail'],
+  company: ['company', 'empresa', 'compania', 'negocio', 'organization', 'organizacion'],
+  tags: ['tags', 'etiquetas', 'tag', 'etiqueta'],
+};
+
+function normalizeHeader(header: string): string {
+  return header
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
+/** Finds the first header whose normalized form matches one of
+ *  `field`'s known synonyms. Returns -1 when none match, same
+ *  contract as `Array.prototype.indexOf`. */
+function findHeaderIndex(headers: string[], field: keyof typeof HEADER_SYNONYMS): number {
+  const synonyms = HEADER_SYNONYMS[field].map(normalizeHeader);
+  return headers.findIndex((h) => synonyms.includes(normalizeHeader(h)));
+}
+
 export interface ParsedContactRow {
   phone: string;
   name?: string;
@@ -49,15 +84,15 @@ export function parseContactCsv(text: string): ParseContactCsvResult {
     .split(',')
     .map((h) => h.trim().toLowerCase().replace(/["']/g, ''));
 
-  const phoneIdx = headers.indexOf('phone');
+  const phoneIdx = findHeaderIndex(headers, 'phone');
   if (phoneIdx === -1) {
     return { rows: [], hasTagsColumn: false, hasCompanyColumn: false };
   }
 
-  const nameIdx = headers.indexOf('name');
-  const emailIdx = headers.indexOf('email');
-  const companyIdx = headers.indexOf('company');
-  const tagsIdx = headers.indexOf('tags');
+  const nameIdx = findHeaderIndex(headers, 'name');
+  const emailIdx = findHeaderIndex(headers, 'email');
+  const companyIdx = findHeaderIndex(headers, 'company');
+  const tagsIdx = findHeaderIndex(headers, 'tags');
 
   const rows: ParsedContactRow[] = [];
 

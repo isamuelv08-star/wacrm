@@ -35,6 +35,7 @@ import {
   RATE_LIMITS,
 } from "@/lib/rate-limit";
 import { isValidTimezone } from "@/lib/automations/schedule";
+import { isMissingColumnError } from "@/lib/whatsapp/external-outbound";
 import type { BusinessVertical } from "@/types";
 
 const BUSINESS_VERTICALS: readonly BusinessVertical[] = [
@@ -93,6 +94,7 @@ export async function PATCH(request: Request) {
       timezone?: unknown;
       business_vertical?: unknown;
       whatsapp_mode?: unknown;
+      onboarding_current_step?: unknown;
     } | null;
 
     const update: Record<string, unknown> = {};
@@ -196,6 +198,21 @@ export async function PATCH(request: Request) {
       update.whatsapp_mode = raw;
     }
 
+    // Onboarding progress (migration 108) — the step key the wizard
+    // left off on, so reopening it resumes there instead of always
+    // restarting at step 0. A plain string (a StepKey value from
+    // onboarding-wizard.tsx), or null to clear it once finished.
+    if (body && "onboarding_current_step" in body) {
+      const raw = body.onboarding_current_step;
+      if (raw !== null && (typeof raw !== "string" || raw.length === 0 || raw.length > 40)) {
+        return NextResponse.json(
+          { error: "'onboarding_current_step' must be a non-empty string or null" },
+          { status: 400 },
+        );
+      }
+      update.onboarding_current_step = raw;
+    }
+
     if (Object.keys(update).length === 0) {
       return NextResponse.json(
         { error: "Nothing to update" },
@@ -206,12 +223,32 @@ export async function PATCH(request: Request) {
     // RLS allows this UPDATE because accounts_update requires
     // `is_account_member(id, 'admin')`, and requireRole already
     // guaranteed the caller is admin+.
-    const { data, error } = await ctx.supabase
+    const SELECT_COLUMNS =
+      "id, name, hot_lead_alert_minutes, followup_after_hours, timezone, business_vertical, whatsapp_mode, onboarding_current_step";
+    let { data, error } = await ctx.supabase
       .from("accounts")
       .update(update)
       .eq("id", ctx.accountId)
-      .select("id, name, hot_lead_alert_minutes, followup_after_hours, timezone, business_vertical, whatsapp_mode")
+      .select(SELECT_COLUMNS)
       .single();
+
+    // Deployed before migration 108 (onboarding_current_step) was
+    // applied: retry without that column rather than failing the
+    // whole save — same "an unapplied migration never blocks
+    // everything else" posture as the messages.sent_from_phone /
+    // deleted_at fallbacks elsewhere in this codebase.
+    if (error && isMissingColumnError(error) && "onboarding_current_step" in update) {
+      const { onboarding_current_step: _omit, ...updateWithoutStep } = update;
+      void _omit;
+      ({ data, error } = await ctx.supabase
+        .from("accounts")
+        .update(updateWithoutStep)
+        .eq("id", ctx.accountId)
+        .select(
+          "id, name, hot_lead_alert_minutes, followup_after_hours, timezone, business_vertical, whatsapp_mode",
+        )
+        .single());
+    }
 
     if (error) {
       console.error("[PATCH /api/account] update error:", error);

@@ -29,7 +29,11 @@ import {
 import { SettingsPanelHead } from './settings-panel-head';
 import { AiKnowledgeCard } from './ai-knowledge';
 import { AiMediaLibraryCard } from './ai-media-library';
-import { AI_PROVIDER_DEFAULT_MODEL } from '@/lib/ai/defaults';
+import {
+  AI_PROVIDER_DEFAULT_MODEL,
+  AI_PROVIDER_LABEL,
+  AI_PROVIDER_KEY_PLACEHOLDER,
+} from '@/lib/ai/defaults';
 import type { AiProvider } from '@/lib/ai/types';
 import type { AccountMember } from '@/types';
 import { fetchAccountMembers, memberLabel } from '@/lib/account/members';
@@ -46,17 +50,8 @@ const TIMEZONE_OPTIONS = listTimezones();
 // unassigned" choice gets a sentinel that maps to null in the payload.
 const HANDOFF_QUEUE = '__queue__';
 
-const PROVIDER_LABEL: Record<AiProvider, string> = {
-  openai: 'OpenAI',
-  anthropic: 'Anthropic (Claude)',
-  openrouter: 'OpenRouter',
-};
-
-const KEY_PLACEHOLDER: Record<AiProvider, string> = {
-  openai: 'sk-...',
-  anthropic: 'sk-ant-...',
-  openrouter: 'sk-or-...',
-};
+const PROVIDER_LABEL = AI_PROVIDER_LABEL;
+const KEY_PLACEHOLDER = AI_PROVIDER_KEY_PLACEHOLDER;
 
 export function AiConfig() {
   const { accountId, accountRole, profileLoading } = useAuth();

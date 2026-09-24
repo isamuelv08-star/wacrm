@@ -3126,7 +3126,7 @@
     "skipSetup": "Saltar configuración",
     "back": "Atrás",
     "next": "Siguiente",
-    "finish": "Ir al panel",
+    "finish": "Ver mi Centro de Decisiones",
     "businessType": {
       "title": "¿Cuál es tu negocio?",
       "description": "Esto solo nos sirve para adaptar un par de sugerencias más adelante — no te compromete a nada.",
@@ -3140,7 +3140,9 @@
         "professional_services": "Servicios profesionales / Consultoría",
         "other": "Otro"
       },
-      "currencyLabel": "Moneda"
+      "currencyLabel": "Moneda",
+      "monthlyGoalLabel": "¿Cuánto querés vender este mes? (opcional)",
+      "monthlyGoalPlaceholder": "Ej: 10000"
     },
     "whatsappMode": {
       "title": "¿Cómo querés usar WhatsApp?",
@@ -3174,6 +3176,40 @@
       "title": "Calificación de leads con IA",
       "description": "Opcional — califica automáticamente cada conversación como HOT, WARM o COLD. Podés configurarlo después desde Configuración si preferís saltarlo por ahora."
     },
+    "aiTone": {
+      "providerLabel": "Proveedor de IA",
+      "apiKeyLabel": "Tu clave de API",
+      "apiKeyRequired": "Ingresá tu clave de API para activar la IA.",
+      "toneLabel": "¿Cómo querés que atienda tu IA?",
+      "tones": {
+        "professional": "Profesional",
+        "friendly": "Cercana",
+        "consultative": "Consultiva",
+        "direct": "Directa"
+      },
+      "tonePrompts": {
+        "professional": "Respondé de forma profesional y clara, con un tono formal pero cercano. Sé preciso y directo en tus respuestas.",
+        "friendly": "Respondé de forma cálida y cercana, como si fueras parte del equipo hablando con un cliente conocido. Usá un tono relajado y amigable.",
+        "consultative": "Respondé de forma consultiva: hacé preguntas para entender bien la necesidad del cliente antes de proponer una solución, como un asesor de confianza.",
+        "direct": "Respondé de forma directa y concisa, yendo al punto rápido, sin rodeos."
+      },
+      "fieldsLabel": "¿Qué debe recolectar antes de pasar el lead a un vendedor?",
+      "fields": {
+        "name": "Nombre",
+        "city": "Ciudad",
+        "product": "Producto de interés",
+        "need": "Necesidad",
+        "budget": "Presupuesto"
+      },
+      "qualificationTemplate": "Antes de considerar que un lead está listo para un vendedor, intentá recolectar en la conversación: {fields}.",
+      "save": "Guardar y activar IA",
+      "saving": "Guardando…",
+      "saveFailed": "No pudimos guardar la configuración de IA.",
+      "networkError": "No se pudo conectar con el servidor.",
+      "savedBody": "Listo — tu IA ya está configurada. Podés activar las respuestas automáticas cuando quieras desde Configuración → IA.",
+      "alreadyConfiguredBody": "Ya tenés la IA configurada.",
+      "reconfigure": "Reconfigurar"
+    },
     "calendar": {
       "title": "Conectá Google Calendar",
       "description": "Opcional — los negocios como el tuyo suelen funcionar a base de citas. Conectá Google Calendar para que el agente de IA pueda revisar disponibilidad y agendarlas por vos.",
@@ -3185,9 +3221,12 @@
       "cta": "Invitar a un miembro"
     },
     "done": {
-      "title": "Todo listo",
-      "description": "Tu cuenta está lista para usar.",
-      "body": "Podés volver a cualquier paso que hayas saltado desde Configuración cuando quieras."
+      "title": "Listo. Ya podemos empezar a leer tu operación comercial.",
+      "description": "Esto es lo que Saleslid ya encontró con los datos que tenés hasta ahora."
+    },
+    "diagnosis": {
+      "clientsFound": "{count, plural, =0 {Todavía no hay clientes} one {Encontramos # cliente} other {Encontramos # clientes}}",
+      "emptyBody": "Todavía no hay suficiente actividad para mostrar un diagnóstico. En cuanto lleguen tus primeros mensajes de WhatsApp, vas a ver esto poblado con datos reales."
     }
   },
   "ContactNotes": {
