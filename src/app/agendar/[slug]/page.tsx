@@ -47,8 +47,14 @@ type Step = 'loading' | 'not_found' | 'pick_service' | 'pick_slot' | 'contact' |
 
 const MAX_DAYS_SHOWN = 30
 
+// Local calendar day, matching the day number the button shows
+// (`d.getDate()`). `toISOString()` gave the UTC day, so after 19:00 in
+// Ecuador the "Wed 24" button loaded Thursday's slots.
 function toDateKey(d: Date): string {
-  return d.toISOString().slice(0, 10)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
 export default function BookingPage() {

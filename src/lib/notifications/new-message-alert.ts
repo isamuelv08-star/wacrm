@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { resolveOwnersAndAdmins } from './recipients'
+import { serverNotificationText } from '@/lib/i18n/server-text'
 
 // ============================================================
 // Real-time popup + tray notification for every inbound customer
@@ -37,7 +38,7 @@ export async function notifyNewMessage(
         type: 'new_message' as const,
         conversation_id: args.conversationId,
         contact_id: args.contactId,
-        title: `New message from ${contactLabel}`,
+        title: serverNotificationText()('newMessageTitle', { name: contactLabel }),
         body: args.preview,
       })),
     )

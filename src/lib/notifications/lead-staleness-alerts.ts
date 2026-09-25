@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { resolveOwnersAndAdmins } from './recipients'
-import { computeStalenessTier, stalenessTierLabelKey } from '@/lib/pipelines/lead-staleness'
+import { computeStalenessTier } from '@/lib/pipelines/lead-staleness'
+import { serverNotificationText } from '@/lib/i18n/server-text'
 
 // ============================================================
 // Escalating "lead going cold" alerting — the pipeline-board analog of
@@ -31,73 +32,85 @@ import { computeStalenessTier, stalenessTierLabelKey } from '@/lib/pipelines/lea
 // deal — one failure must never stop the rest of the scan.
 // ============================================================
 
-const MAX_CANDIDATES_PER_SCAN = 200
+const PAGE_SIZE = 500
+const CONTACT_CHUNK = 100
+/** The first staleness tier's threshold — nothing younger can alert. */
+const MIN_STALE_MINUTES = 5
 
 export interface LeadStalenessScanResult {
   scanned: number
   alerted: number
 }
 
-interface CandidateDeal {
-  id: string
-  account_id: string
-  contact_id: string
-  contacts: { name: string | null; phone: string } | null
-}
-
 interface ConversationRow {
   id: string
+  account_id: string
   contact_id: string
   assigned_agent_id: string | null
   last_message_at: string | null
   last_message_sender_type: string | null
   stale_alert_tier: number
   stale_alert_message_at: string | null
+  contacts: { name: string | null; phone: string } | null
 }
 
 export async function runLeadStalenessAlertScan(
   db: SupabaseClient,
 ): Promise<LeadStalenessScanResult> {
-  const { data: deals, error: dealsErr } = await db
-    .from('deals')
-    .select('id, account_id, contact_id, contacts(name, phone)')
-    .eq('status', 'open')
-    .not('contact_id', 'is', null)
-    .limit(MAX_CANDIDATES_PER_SCAN)
-
-  if (dealsErr) {
-    console.error('[lead-staleness-alerts] deal scan failed:', dealsErr.message)
-    return { scanned: 0, alerted: 0 }
-  }
-  if (!deals || deals.length === 0) return { scanned: 0, alerted: 0 }
-
-  const contactIds = (deals as unknown as CandidateDeal[]).map((d) => d.contact_id)
-  const { data: conversations, error: convErr } = await db
-    .from('conversations')
-    .select(
-      'id, contact_id, assigned_agent_id, last_message_at, last_message_sender_type, stale_alert_tier, stale_alert_message_at',
-    )
-    .in('contact_id', contactIds)
-
-  if (convErr) {
-    console.error('[lead-staleness-alerts] conversation lookup failed:', convErr.message)
-    return { scanned: deals.length, alerted: 0 }
-  }
-
-  const convByContact = new Map<string, ConversationRow>()
-  for (const c of (conversations ?? []) as ConversationRow[]) {
-    convByContact.set(c.contact_id, c)
-  }
-
-  let alerted = 0
   const now = Date.now()
+  const cutoff = new Date(now - MIN_STALE_MINUTES * 60_000).toISOString()
 
-  for (const deal of deals as unknown as CandidateDeal[]) {
+  // Conversations waiting on us, oldest silence first, paged. Starting
+  // from conversations (not deals) means one alert per thread even when
+  // a contact has two open deals, and the "waiting on us" filter runs
+  // in SQL — the old scan took 200 open deals across ALL accounts with
+  // no ORDER BY, so beyond 200 the same rows came back every run and
+  // everyone else never got an alert.
+  const waiting: ConversationRow[] = []
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data: page, error } = await db
+      .from('conversations')
+      .select(
+        'id, account_id, contact_id, assigned_agent_id, last_message_at, last_message_sender_type, stale_alert_tier, stale_alert_message_at, contacts(name, phone)',
+      )
+      .eq('last_message_sender_type', 'customer')
+      .lte('last_message_at', cutoff)
+      .not('contact_id', 'is', null)
+      .order('last_message_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1)
+    if (error) {
+      console.error('[lead-staleness-alerts] conversation scan failed:', error.message)
+      break
+    }
+    if (!page || page.length === 0) break
+    waiting.push(...(page as unknown as ConversationRow[]))
+    if (page.length < PAGE_SIZE) break
+  }
+  if (waiting.length === 0) return { scanned: 0, alerted: 0 }
+
+  // Only leads that are still in play (an open deal).
+  const withOpenDeal = new Set<string>()
+  const contactIds = [...new Set(waiting.map((c) => c.contact_id))]
+  for (let i = 0; i < contactIds.length; i += CONTACT_CHUNK) {
+    const { data: deals, error } = await db
+      .from('deals')
+      .select('contact_id')
+      .eq('status', 'open')
+      .in('contact_id', contactIds.slice(i, i + CONTACT_CHUNK))
+    if (error) {
+      console.error('[lead-staleness-alerts] deal lookup failed:', error.message)
+      continue
+    }
+    for (const d of (deals ?? []) as { contact_id: string }[]) withOpenDeal.add(d.contact_id)
+  }
+
+  const t = serverNotificationText()
+  let alerted = 0
+
+  for (const conv of waiting) {
     try {
-      const conv = convByContact.get(deal.contact_id)
-      if (!conv || conv.last_message_sender_type !== 'customer' || !conv.last_message_at) {
-        continue // no conversation yet, or nothing unanswered
-      }
+      if (!withOpenDeal.has(conv.contact_id) || !conv.last_message_at) continue
 
       const minutesUnanswered = (now - new Date(conv.last_message_at).getTime()) / 60000
       const tier = computeStalenessTier(minutesUnanswered)
@@ -113,11 +126,10 @@ export async function runLeadStalenessAlertScan(
           new Date(conv.last_message_at).getTime()
       if (sameMessage && conv.stale_alert_tier >= tier) continue
 
-      const recipients = await resolveRecipients(db, deal.account_id, conv.assigned_agent_id)
+      const recipients = await resolveRecipients(db, conv.account_id, conv.assigned_agent_id)
       if (recipients.length === 0) continue
 
-      const contactName = deal.contacts?.name || deal.contacts?.phone || 'A lead'
-      const labelKey = stalenessTierLabelKey(tier)
+      const contactName = conv.contacts?.name || conv.contacts?.phone || t('aLead')
       const elapsed =
         minutesUnanswered >= 60
           ? `${Math.floor(minutesUnanswered / 60)}h`
@@ -125,13 +137,13 @@ export async function runLeadStalenessAlertScan(
 
       const { error: insertErr } = await db.from('notifications').insert(
         recipients.map((userId) => ({
-          account_id: deal.account_id,
+          account_id: conv.account_id,
           user_id: userId,
           type: 'lead_stale' as const,
           conversation_id: conv.id,
-          contact_id: deal.contact_id,
-          title: tier >= 4 ? 'Lead at risk' : 'Lead going cold',
-          body: `${contactName} has gone unanswered for over ${elapsed} (${labelKey ?? 'cooling'}).`,
+          contact_id: conv.contact_id,
+          title: tier >= 4 ? t('leadAtRiskTitle') : t('leadCoolingTitle'),
+          body: t('leadStaleBody', { name: contactName, elapsed }),
         })),
       )
       if (insertErr) {
@@ -149,11 +161,11 @@ export async function runLeadStalenessAlertScan(
 
       alerted++
     } catch (err) {
-      console.error('[lead-staleness-alerts] scan failed for deal', deal.id, err)
+      console.error('[lead-staleness-alerts] scan failed for conversation', conv.id, err)
     }
   }
 
-  return { scanned: deals.length, alerted }
+  return { scanned: waiting.length, alerted }
 }
 
 /** Same fallback rule as hot-lead-alerts.ts: the assigned agent if

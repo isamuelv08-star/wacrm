@@ -1541,7 +1541,8 @@
         "matchWordHint": "Matches the keyword only as a standalone word, so \"k\" no longer fires on \"thanks\". Best for short keywords in space-separated languages; use Contains for languages written without spaces.",
         "matchExact": "Exact",
         "closeConversationHint": "Sets the conversation status to \"closed\". No configuration needed."
-      }
+      },
+      "delete": "Delete"
     }
   },
   "Flows": {
@@ -3383,5 +3384,21 @@
     "whatIsHappening": "What's happening",
     "whatToDo": "What to do",
     "reviewAction": "Review"
+  },
+  "ServerNotifications": {
+    "hotLeadTitle": "HOT lead waiting for a reply",
+    "hotLeadBody": "{name} hasn't heard back in over {minutes} minutes.",
+    "newMessageTitle": "New message from {name}",
+    "aiStoppedTitle": "The AI assistant stopped answering",
+    "aiStoppedBody": "{error} It will keep failing to reply until this is fixed in Settings → AI Assistant.",
+    "aiKeyUnreadable": "The saved AI API key could not be read — please re-enter it.",
+    "leadAtRiskTitle": "Lead at risk",
+    "leadCoolingTitle": "Lead going cold",
+    "leadStaleBody": "{name} has gone unanswered for over {elapsed}.",
+    "aLead": "A lead",
+    "eventReminderWith": "{title} with {name} starts {when}",
+    "eventReminder": "{title} starts {when}",
+    "whenNow": "now",
+    "whenInMinutes": "in {minutes} minutes"
   }
 }

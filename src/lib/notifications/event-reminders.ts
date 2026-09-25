@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendAppointmentNotification } from '@/lib/booking/notify'
+import { serverNotificationText } from '@/lib/i18n/server-text'
 
 // ============================================================
 // Calendar event reminders.
@@ -15,7 +16,9 @@ import { sendAppointmentNotification } from '@/lib/booking/notify'
 // per event — one failure must never stop the rest of the scan.
 // ============================================================
 
-const MAX_CANDIDATES_PER_SCAN = 200
+const PAGE_SIZE = 500
+/** Upper bound on any configurable reminder lead time. */
+const MAX_REMINDER_LOOKAHEAD_MS = 8 * 24 * 60 * 60_000
 
 export interface EventReminderScanResult {
   scanned: number
@@ -43,34 +46,46 @@ interface DueEventRow {
 export async function runEventReminderScan(
   db: SupabaseClient,
 ): Promise<EventReminderScanResult> {
-  const nowIso = new Date().toISOString()
+  const now = Date.now()
+  const nowIso = new Date(now).toISOString()
+  const horizonIso = new Date(now + MAX_REMINDER_LOOKAHEAD_MS).toISOString()
 
   // reminder_minutes_before varies per row, so the actual "is this
   // due yet" check happens per-candidate below rather than in SQL —
-  // this just narrows to pending, unreminded, still-future events.
-  const { data: candidates, error } = await db
-    .from('calendar_events')
-    .select(
-      'id, account_id, assigned_to, created_by, contact_id, title, type, starts_at, reminder_minutes_before, contacts(name, phone)',
-    )
-    .eq('status', 'pending')
-    .not('reminder_minutes_before', 'is', null)
-    .is('reminder_sent_at', null)
-    .gt('starts_at', nowIso)
-    .limit(MAX_CANDIDATES_PER_SCAN)
-
-  if (error) {
-    console.error('[event-reminders] candidate scan failed:', error.message)
-    return { scanned: 0, notified: 0 }
+  // this narrows to pending, unreminded events starting soon enough to
+  // possibly be due, soonest first and paged (a bare LIMIT 200 with no
+  // ORDER BY could keep returning far-future events and never reach
+  // one that was due).
+  const candidates: DueEventRow[] = []
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data: page, error } = await db
+      .from('calendar_events')
+      .select(
+        'id, account_id, assigned_to, created_by, contact_id, title, type, starts_at, reminder_minutes_before, contacts(name, phone)',
+      )
+      .eq('status', 'pending')
+      .not('reminder_minutes_before', 'is', null)
+      .is('reminder_sent_at', null)
+      .gt('starts_at', nowIso)
+      .lte('starts_at', horizonIso)
+      .order('starts_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1)
+    if (error) {
+      console.error('[event-reminders] candidate scan failed:', error.message)
+      break
+    }
+    if (!page || page.length === 0) break
+    candidates.push(...(page as unknown as DueEventRow[]))
+    if (page.length < PAGE_SIZE) break
   }
-  if (!candidates || candidates.length === 0) {
+  if (candidates.length === 0) {
     return { scanned: 0, notified: 0 }
   }
 
   let notified = 0
-  const now = Date.now()
 
-  for (const event of candidates as unknown as DueEventRow[]) {
+  for (const event of candidates) {
     try {
       const msUntilStart = new Date(event.starts_at).getTime() - now
       const reminderWindowMs = event.reminder_minutes_before * 60_000
@@ -95,6 +110,23 @@ export async function runEventReminderScan(
       }
       if (!recipientProfile) continue // assignee's profile was removed
 
+      // Claim the event BEFORE notifying: a conditional update that only
+      // one run can win. The old order (notify, then mark) re-sent the
+      // reminder — WhatsApp to the customer included — every run when
+      // the mark failed, or when two runs overlapped.
+      const { data: claimed, error: claimErr } = await db
+        .from('calendar_events')
+        .update({ reminder_sent_at: new Date().toISOString() })
+        .eq('id', event.id)
+        .is('reminder_sent_at', null)
+        .select('id')
+        .maybeSingle()
+      if (claimErr) {
+        console.error('[event-reminders] failed to claim event:', claimErr.message)
+        continue
+      }
+      if (!claimed) continue // another run already sent it
+
       const contactName = event.contacts?.name || event.contacts?.phone
       // A relative "in N minutes" label rather than an absolute clock
       // time: this cron runs on the server (UTC on Vercel), and there
@@ -109,8 +141,9 @@ export async function runEventReminderScan(
       // opened, so the exact configured value could already overstate
       // how much time is actually left.
       const minutesLeft = Math.max(0, Math.round(msUntilStart / 60_000))
+      const t = serverNotificationText()
       const timingLabel =
-        minutesLeft <= 1 ? 'now' : `in ${minutesLeft} minutes`
+        minutesLeft <= 1 ? t('whenNow') : t('whenInMinutes', { minutes: minutesLeft })
 
       const { error: insertErr } = await db.from('notifications').insert({
         account_id: event.account_id,
@@ -119,20 +152,11 @@ export async function runEventReminderScan(
         contact_id: event.contact_id,
         title: event.title,
         body: contactName
-          ? `${event.title} with ${contactName} starting ${timingLabel}`
-          : `${event.title} starting ${timingLabel}`,
+          ? t('eventReminderWith', { title: event.title, name: contactName, when: timingLabel })
+          : t('eventReminder', { title: event.title, when: timingLabel }),
       })
       if (insertErr) {
         console.error('[event-reminders] notification insert failed:', insertErr.message)
-        continue
-      }
-
-      const { error: markErr } = await db
-        .from('calendar_events')
-        .update({ reminder_sent_at: new Date().toISOString() })
-        .eq('id', event.id)
-      if (markErr) {
-        console.error('[event-reminders] failed to mark event reminded:', markErr.message)
       }
 
       // An 'appointment' is a customer-facing commitment, unlike the

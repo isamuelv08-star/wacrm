@@ -89,3 +89,24 @@ export function localDateTimeToUtcIso(
   const offset = zoneOffsetMs(new Date(guessUtcMs), tz)
   return new Date(guessUtcMs - offset).toISOString()
 }
+
+/**
+ * The calendar day (YYYY-MM-DD) an instant falls on in `timezone`.
+ * `toISOString().slice(0, 10)` gives the UTC day instead — for a
+ * business in Ecuador (UTC-5) anything after 19:00 lands on the next
+ * day, which made the public booking API re-check the wrong day's
+ * slots and reject valid evening bookings.
+ */
+export function dayKeyInTimezone(instant: Date | string | number, timezone: string): string {
+  const d = instant instanceof Date ? instant : new Date(instant)
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(d)
+  } catch {
+    return d.toISOString().slice(0, 10)
+  }
+}

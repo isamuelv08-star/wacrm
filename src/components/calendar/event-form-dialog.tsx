@@ -182,6 +182,10 @@ export function EventFormDialog({
       return
     }
     const endsAt = endTime ? new Date(`${date}T${endTime}`) : null
+    if (endsAt && endsAt.getTime() < startsAt.getTime()) {
+      toast.error(t('toastInvalidDate'))
+      return
+    }
 
     const input: CalendarEventInput = {
       type,
@@ -201,15 +205,23 @@ export function EventFormDialog({
     // the rest of this file) so the save can also push to the account's
     // connected Google Calendar server-side — the browser never holds a
     // Google access token. See src/app/api/calendar/events/*.
-    const res = await fetch(event ? `/api/calendar/events/${event.id}` : '/api/calendar/events', {
-      method: event ? 'PATCH' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
-    })
-    setSaving(false)
-    savingRef.current = false
+    // try/finally: a network error used to leave savingRef stuck at
+    // true, so Save silently did nothing until a page reload.
+    let res: Response | null = null
+    try {
+      res = await fetch(event ? `/api/calendar/events/${event.id}` : '/api/calendar/events', {
+        method: event ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      })
+    } catch {
+      res = null
+    } finally {
+      setSaving(false)
+      savingRef.current = false
+    }
 
-    if (!res.ok) {
+    if (!res || !res.ok) {
       toast.error(event ? t('toastFailedSave') : t('toastFailedCreate'))
       return
     }
@@ -221,9 +233,15 @@ export function EventFormDialog({
   async function handleDelete() {
     if (!event) return
     setDeleting(true)
-    const res = await fetch(`/api/calendar/events/${event.id}`, { method: 'DELETE' })
-    setDeleting(false)
-    if (!res.ok) {
+    let res: Response | null = null
+    try {
+      res = await fetch(`/api/calendar/events/${event.id}`, { method: 'DELETE' })
+    } catch {
+      res = null
+    } finally {
+      setDeleting(false)
+    }
+    if (!res || !res.ok) {
       toast.error(t('toastFailedDelete'))
       return
     }

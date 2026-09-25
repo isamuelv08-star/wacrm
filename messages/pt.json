@@ -1541,7 +1541,8 @@
         "matchWordHint": "Corresponde à palavra-chave apenas como uma palavra isolada, então \"k\" não é mais acionado por \"obrigado\". Melhor para palavras-chave curtas em idiomas separados por espaço; use Contém para idiomas escritos sem espaços.",
         "matchExact": "Exata",
         "closeConversationHint": "Define o status da conversa como \"fechada\". Nenhuma configuração necessária."
-      }
+      },
+      "delete": "Excluir"
     }
   },
   "Flows": {
@@ -3383,5 +3384,21 @@
     "whatIsHappening": "O que está acontecendo",
     "whatToDo": "O que fazer",
     "reviewAction": "Revisar"
+  },
+  "ServerNotifications": {
+    "hotLeadTitle": "Lead QUENTE aguardando resposta",
+    "hotLeadBody": "{name} está há mais de {minutes} minutos sem resposta.",
+    "newMessageTitle": "Nova mensagem de {name}",
+    "aiStoppedTitle": "O assistente de IA parou de responder",
+    "aiStoppedBody": "{error} Ele continuará sem responder até que isso seja corrigido em Configurações → Assistente de IA.",
+    "aiKeyUnreadable": "Não foi possível ler a chave de API de IA salva — insira-a novamente.",
+    "leadAtRiskTitle": "Lead em risco",
+    "leadCoolingTitle": "Lead esfriando",
+    "leadStaleBody": "{name} está há mais de {elapsed} sem resposta.",
+    "aLead": "Um lead",
+    "eventReminderWith": "{title} com {name} começa {when}",
+    "eventReminder": "{title} começa {when}",
+    "whenNow": "agora",
+    "whenInMinutes": "em {minutes} minutos"
   }
 }

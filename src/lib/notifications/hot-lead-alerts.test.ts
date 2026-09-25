@@ -32,7 +32,11 @@ function makeDb(opts: {
           select: () => ({
             eq: () => ({
               eq: () => ({
-                limit: () => Promise.resolve({ data: opts.candidates ?? [], error: null }),
+                eq: () => ({
+                  order: () => ({
+                    limit: () => Promise.resolve({ data: opts.candidates ?? [], error: null }),
+                  }),
+                }),
               }),
             }),
           }),

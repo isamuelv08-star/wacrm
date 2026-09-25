@@ -3,6 +3,7 @@ import { decrypt } from '@/lib/whatsapp/encryption'
 import { isMissingColumnError } from '@/lib/whatsapp/external-outbound'
 import { AiError, type AiConfig, type AiProvider } from './types'
 import { notifyProviderErrorIfNeeded } from './provider-alert'
+import { serverNotificationText } from '@/lib/i18n/server-text'
 
 interface AiConfigRow {
   provider: AiProvider
@@ -138,7 +139,7 @@ export async function loadAiConfig(
     await notifyProviderErrorIfNeeded(
       db,
       accountId,
-      new AiError('The saved AI API key could not be read — please re-enter it in Settings', {
+      new AiError(serverNotificationText()('aiKeyUnreadable'), {
         code: 'invalid_key',
         status: 401,
       }),

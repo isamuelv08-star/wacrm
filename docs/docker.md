@@ -133,6 +133,21 @@ step:
   provider when it already matched a cheap keyword filter, never one
   call per message. Skipping this cron just means promises never get
   detected; it costs nothing else.
+- Same story for calendar reminders (migration 057/079): point the
+  scheduler at `GET /api/cron/event-reminders` too, same
+  `x-cron-secret` header and `AUTOMATION_CRON_SECRET`, every 5 minutes.
+  Raises each event's in-app reminder and, for appointments, the
+  customer's WhatsApp reminder. Without it no reminder is ever sent.
+- Same story for "lead going cold" alerts (migration 050): point the
+  scheduler at `GET /api/cron/lead-staleness-alerts` too, same
+  `x-cron-secret` header and `AUTOMATION_CRON_SECRET`, every 5 minutes
+  (the first tier fires at 5 minutes unanswered).
+- Full list of crons to schedule, all every 5 minutes with the same
+  header: `/api/automations/cron`, `/api/flows/cron`,
+  `/api/cron/hot-lead-alerts`, `/api/cron/ai-auto-resume`,
+  `/api/cron/followup-stage`, `/api/cron/sales-intelligence`,
+  `/api/cron/promise-tracker`, `/api/cron/event-reminders`,
+  `/api/cron/lead-staleness-alerts`.
 - Database backups are the one exception to "point an external
   scheduler at this deployment" — they run as a GitHub Actions
   workflow instead (`.github/workflows/backup.yml`), deliberately

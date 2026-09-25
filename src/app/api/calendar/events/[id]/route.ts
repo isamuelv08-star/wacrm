@@ -20,7 +20,7 @@ import { syncEventToGoogle, deleteEventFromGoogle } from '@/lib/calendar/google-
 import { googleCalendarAdmin } from '@/lib/google-calendar/admin-client'
 import type { CalendarEventType } from '@/types'
 
-const EVENT_TYPES: readonly CalendarEventType[] = ['call', 'meeting', 'follow_up', 'task', 'other']
+const EVENT_TYPES: readonly CalendarEventType[] = ['call', 'meeting', 'follow_up', 'task', 'appointment', 'other']
 
 function bad(message: string) {
   return NextResponse.json({ error: message }, { status: 400 })
@@ -56,6 +56,24 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const assignedTo = typeof body.assignedTo === 'string' && body.assignedTo ? body.assignedTo : null
     const reminderMinutesBefore =
       typeof body.reminderMinutesBefore === 'number' ? body.reminderMinutesBefore : null
+    if (endsAt && Date.parse(endsAt) < Date.parse(startsAt)) {
+      return bad('endsAt must be after startsAt')
+    }
+
+    // Only re-arm the reminder when its timing actually changed —
+    // resetting it on every edit (e.g. just fixing the notes) re-sent a
+    // reminder that had already gone out, WhatsApp to the customer
+    // included.
+    const { data: existing } = await ctx.supabase
+      .from('calendar_events')
+      .select('starts_at, reminder_minutes_before')
+      .eq('id', id)
+      .eq('account_id', ctx.accountId)
+      .maybeSingle()
+    if (!existing) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+    const timingChanged =
+      Date.parse(existing.starts_at) !== Date.parse(startsAt) ||
+      (existing.reminder_minutes_before ?? null) !== reminderMinutesBefore
 
     const { data, error } = await ctx.supabase
       .from('calendar_events')
@@ -69,9 +87,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         starts_at: startsAt,
         ends_at: endsAt,
         reminder_minutes_before: reminderMinutesBefore,
-        // Editing a still-pending reminder's timing should re-arm it —
-        // mirrors src/lib/calendar/queries.ts's own updateEvent.
-        reminder_sent_at: null,
+        ...(timingChanged ? { reminder_sent_at: null } : {}),
       })
       .eq('id', id)
       .eq('account_id', ctx.accountId)

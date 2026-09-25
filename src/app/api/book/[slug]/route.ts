@@ -19,6 +19,7 @@ import { computeAvailableSlots } from '@/lib/booking/availability'
 import { sendAppointmentNotification } from '@/lib/booking/notify'
 import { findOrCreateContact, resolveAuditUserId, ContactError } from '@/lib/api/v1/contacts'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
+import { dayKeyInTimezone } from '@/lib/ai/timezone'
 
 function getClientIp(request: Request): string {
   const xff = request.headers.get('x-forwarded-for')
@@ -138,7 +139,8 @@ export async function POST(
 
   const account = page.accounts as unknown as { timezone: string } | null
   const timezone = page.timezone || account?.timezone || 'UTC'
-  const date = new Date(startsAt).toISOString().slice(0, 10)
+  // The business's local day — computeAvailableSlots works in local days.
+  const date = dayKeyInTimezone(startsAt, timezone)
 
   // Re-derive the actual open slots for this exact day/service/staff and
   // confirm the requested start is still one of them — the authoritative
@@ -217,6 +219,12 @@ export async function POST(
       booking_page_id: page.id,
       source: 'public_link',
       reminder_minutes_before: 60 * 24, // 24h ahead, matches a typical appointment reminder
+      // Booked inside that window already: the confirmation below IS the
+      // reminder — otherwise the next cron tick sent a second WhatsApp
+      // right after it.
+      ...(Date.parse(chosen.startsAt) - Date.now() <= 24 * 60 * 60_000
+        ? { reminder_sent_at: new Date().toISOString() }
+        : {}),
     })
     .select('id')
     .single()

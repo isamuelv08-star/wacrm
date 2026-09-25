@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { resolveOwnersAndAdmins } from './recipients'
+import { serverNotificationText } from '@/lib/i18n/server-text'
 
 // ============================================================
 // HOT lead response-time alerting.
@@ -54,6 +55,11 @@ export async function runHotLeadAlertScan(
     )
     .eq('status', 'open')
     .eq('contacts.lead_score', 'hot')
+    // Only threads actually waiting on us, longest-waiting first — a
+    // bare LIMIT with no filter/order kept returning the same rows
+    // (mostly already answered) and starved the rest.
+    .eq('last_message_sender_type', 'customer')
+    .order('last_message_at', { ascending: true })
     .limit(MAX_CANDIDATES_PER_SCAN)
 
   if (error) {
@@ -66,6 +72,7 @@ export async function runHotLeadAlertScan(
 
   let alerted = 0
   const now = Date.now()
+  const t = serverNotificationText()
 
   for (const conv of candidates as unknown as CandidateConversation[]) {
     try {
@@ -110,8 +117,8 @@ export async function runHotLeadAlertScan(
           type: 'hot_lead_unanswered' as const,
           conversation_id: conv.id,
           contact_id: conv.contact_id,
-          title: 'HOT lead waiting for a reply',
-          body: `${contactName} hasn't heard back in over ${thresholdMinutes} minutes.`,
+          title: t('hotLeadTitle'),
+          body: t('hotLeadBody', { name: contactName, minutes: thresholdMinutes }),
         })),
       )
       if (insertErr) {

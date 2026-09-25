@@ -1541,7 +1541,8 @@
         "matchWordHint": "키워드가 독립된 단어일 때만 일치하므로 \"k\"가 \"thanks\"에서 실행되지 않습니다. 공백으로 단어를 구분하는 언어의 짧은 키워드에 적합하며, 공백 없이 표기하는 언어에는 \"포함\"을 사용하세요.",
         "matchExact": "정확히 일치",
         "closeConversationHint": "대화 상태를 \"닫힘\"으로 설정합니다. 추가 설정이 필요 없습니다."
-      }
+      },
+      "delete": "삭제"
     }
   },
   "Flows": {
@@ -3383,5 +3384,21 @@
     "whatIsHappening": "무슨 일이 일어나고 있나요",
     "whatToDo": "해야 할 일",
     "reviewAction": "검토하기"
+  },
+  "ServerNotifications": {
+    "hotLeadTitle": "답변을 기다리는 HOT 리드",
+    "hotLeadBody": "{name}님이 {minutes}분 넘게 답변을 받지 못했습니다.",
+    "newMessageTitle": "{name}님의 새 메시지",
+    "aiStoppedTitle": "AI 어시스턴트가 응답을 멈췄습니다",
+    "aiStoppedBody": "{error} 설정 → AI 어시스턴트에서 해결할 때까지 응답하지 않습니다.",
+    "aiKeyUnreadable": "저장된 AI API 키를 읽을 수 없습니다. 다시 입력해 주세요.",
+    "leadAtRiskTitle": "위험한 리드",
+    "leadCoolingTitle": "식어가는 리드",
+    "leadStaleBody": "{name}님이 {elapsed} 넘게 답변을 받지 못했습니다.",
+    "aLead": "리드",
+    "eventReminderWith": "{title} ({name}) {when} 시작",
+    "eventReminder": "{title} {when} 시작",
+    "whenNow": "지금",
+    "whenInMinutes": "{minutes}분 후"
   }
 }

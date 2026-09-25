@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { AiError } from './types'
 import { resolveOwnersAndAdmins } from '@/lib/notifications/recipients'
 import { isMissingColumnError } from '@/lib/whatsapp/external-outbound'
+import { serverNotificationText } from '@/lib/i18n/server-text'
 
 /**
  * How long to stay quiet after alerting once, before a still-failing
@@ -69,14 +70,15 @@ export async function notifyProviderErrorIfNeeded(
 
     const recipients = await resolveOwnersAndAdmins(db, accountId)
     if (recipients.length === 0) return
+    const t = serverNotificationText()
 
     const { error: insertErr } = await db.from('notifications').insert(
       recipients.map((userId) => ({
         account_id: accountId,
         user_id: userId,
         type: 'ai_provider_error' as const,
-        title: 'The AI assistant stopped answering',
-        body: `${err.message} It will keep failing to reply until this is fixed in Settings → AI Assistant.`,
+        title: t('aiStoppedTitle'),
+        body: t('aiStoppedBody', { error: err.message }),
       })),
     )
     if (insertErr) {

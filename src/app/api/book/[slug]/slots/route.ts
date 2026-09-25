@@ -10,6 +10,7 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/booking/admin-client'
 import { computeAvailableSlots } from '@/lib/booking/availability'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
+import { dayKeyInTimezone } from '@/lib/ai/timezone'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -51,8 +52,13 @@ export async function GET(
     return NextResponse.json({ ok: false, reason: 'not_found' }, { status: 404 })
   }
 
+  // "Today" is the business's local today, not the UTC one — in the
+  // evening in Ecuador UTC is already tomorrow, which hid today's
+  // remaining slots and shifted the booking window by a day.
+  const pageTimezone =
+    page.timezone || (page.accounts as unknown as { timezone: string } | null)?.timezone || 'UTC'
   const requestedDate = new Date(`${date}T00:00:00Z`)
-  const today = new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z')
+  const today = new Date(`${dayKeyInTimezone(new Date(), pageTimezone)}T00:00:00Z`)
   const daysOut = Math.round((requestedDate.getTime() - today.getTime()) / 86_400_000)
   if (daysOut < 0 || daysOut > page.booking_window_days) {
     return NextResponse.json({ ok: true, slots: [] })
