@@ -5,6 +5,8 @@ import {
   processWebhookPayload,
   type WhatsAppWebhookEntry,
 } from '@/lib/whatsapp/webhook-processor'
+import { enqueueWebhook, runQueuedWebhook } from '@/lib/webhooks/inbox'
+import { supabaseAdmin as inboxAdmin } from '@/lib/notifications/admin-client'
 
 // Webhook route for Coexistence connections (e.g. Dualhook).
 //
@@ -63,8 +65,16 @@ export async function POST(
   // subset of inbound messages. See the comment in
   // `/api/whatsapp/webhook/route.ts` (issue #301) for why a detached
   // floating promise isn't safe here.
+  // Stored before the 200 (migration 112) so a restart mid-processing
+  // can't lose it — the webhook-retry cron re-runs anything unfinished.
+  const inboxDb = inboxAdmin()
+  const inboxId = await enqueueWebhook(inboxDb, 'dualhook', body)
   after(async () => {
     try {
+      if (inboxId) {
+        await runQueuedWebhook(inboxDb, inboxId)
+        return
+      }
       await processWebhookPayload(body, { coexistenceOnly: true })
     } catch (error) {
       console.error('Error processing Dualhook webhook:', error)

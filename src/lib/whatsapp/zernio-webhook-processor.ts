@@ -1,0 +1,489 @@
+import {
+  processMessage,
+  supabaseAdmin,
+  applyMessageStatusUpdate,
+  applyMessageDeletedUpdate,
+  recordExternalOutboundMessage,
+  type WhatsAppMessage,
+} from '@/lib/whatsapp/webhook-processor'
+import { ingestMessengerMessage } from '@/lib/messenger/webhook-processor'
+import type { MetaReferral } from '@/lib/contacts/lead-source'
+import { classifyZernioEvent } from '@/lib/whatsapp/zernio-events'
+
+// ============================================================
+// Inbound webhook for WhatsApp accounts connected through Zernio.
+//
+// Zernio is NOT a thin Cloud-API broker — it holds the Meta
+// credentials itself and pushes inbound messages to a webhook
+// subscription WE register with it (see scripts/zernio-setup-webhook.js),
+// signed with a shared secret rather than Meta's own app-secret HMAC
+// (that's what the direct-Meta and Dualhook routes verify instead).
+// One subscription covers every Zernio-connected account on this
+// self-hosted instance — the payload's `account.id` tells us which
+// one, resolved against `client_zernio_accounts.whatsapp_account_id`.
+//
+// This route only adapts Zernio's `message.received` shape into the
+// same `WhatsAppMessage` + contact shape the direct-Meta pipeline
+// already consumes, then hands off to the exact same `processMessage`
+// — so automations, Flows, AI auto-reply, notifications, round-robin
+// assignment, and lead-deal creation all work identically regardless
+// of which provider delivered the message.
+//
+// Known gaps in this first pass (all silently degrade rather than
+// crash): reactions, and Flow (nfm_reply) submissions. Swipe-replies,
+// button/list taps, text, image/video/document/audio, voice
+// transcription, image description, click-to-WhatsApp ad referral
+// capture, and outbound messages sent from outside this CRM (the
+// native WhatsApp app, or Zernio's own dashboard) all work (see
+// downloadInboundMedia in src/lib/whatsapp/inbound-media.ts for how
+// the transcription/description reach Zernio-bridged media too).
+//
+// Also handles `message.delivered` / `message.read` / `message.failed`
+// (see handleZernioStatusUpdate below) — these carry the delivery-tick
+// state the inbox already renders (single check → sent, double check
+// → delivered, blue double check → read) — and `message.deleted` (see
+// handleZernioMessageDeleted below), which flags a bubble as "This
+// message was deleted" instead of removing it. No `message.edited`
+// handling: WhatsApp isn't in the set of platforms Zernio delivers
+// that event for at all (Instagram/Messenger/Telegram only) — Meta's
+// WhatsApp Business Platform has no edit-forwarding webhook, so this
+// isn't a Zernio gap to work around, it's a WhatsApp platform limit.
+// ============================================================
+
+
+// Moved out of the route (src/app/api/whatsapp/webhook/zernio/route.ts)
+// so the webhook inbox retry cron can re-run a stored event too.
+
+export interface ZernioWebhookPayload {
+  event: string
+  account?: { id?: string; platform?: string }
+  /** Only present on `message.deleted` — when the delete happened. */
+  deletedAt?: string
+  message?: {
+    platform?: string
+    platformMessageId?: string
+    direction?: 'incoming' | 'outgoing'
+    /** WhatsApp send origin on `message.sent`: 'whatsapp_business_app' when the
+     *  business typed it in the phone app (Coexistence), 'cloud_api' when it went
+     *  through Zernio. Absent on other platforms and on `message.received`. */
+    source?: 'whatsapp_business_app' | 'cloud_api'
+    text?: string | null
+    attachments?: Array<{ type: string; url: string }>
+    sender?: {
+      id?: string
+      name?: string
+      phoneNumber?: string | null
+    }
+    sentAt?: string
+  }
+  // participantId/participantName identify the CUSTOMER side of the
+  // conversation regardless of who sent this particular message — the
+  // one field that stays reliable on an outgoing event, where
+  // `message.sender` is the business instead (see the outgoing-message
+  // branch below for why that matters).
+  conversation?: { id?: string; participantId?: string; participantName?: string }
+  metadata?: {
+    quotedMessageId?: string
+    interactiveType?: 'button_reply' | 'list_reply' | 'nfm_reply'
+    interactiveId?: string
+    // WhatsApp Click-to-WhatsApp Ads attribution, forwarded verbatim by
+    // Zernio (same shape as Meta's own `messages[].referral` — see
+    // MetaReferral's doc comment). Only ever present on the first
+    // inbound message after the click.
+    referral?: MetaReferral
+  } | null
+}
+
+export async function processZernioEvent(payload: ZernioWebhookPayload) {
+  const kind = classifyZernioEvent(payload)
+
+  if (kind === 'status') {
+    await handleZernioStatusUpdate(payload)
+    return
+  }
+
+  if (kind === 'deleted') {
+    await handleZernioMessageDeleted(payload)
+    return
+  }
+
+  if (kind === 'ignore') return
+  const message = payload.message
+  const account = payload.account
+  if (!message || !account?.id) return
+
+  // Facebook (Messenger) is a separate, narrower pipeline — see
+  // processZernioFacebookMessage below for why it doesn't reuse
+  // processMessage() the way WhatsApp does. Instagram connect exists
+  // in Settings but has no send/receive pipeline yet either — out of
+  // scope for this pass. Outbound-message capture (below) is WhatsApp-only
+  // for now, so an outgoing Facebook event is still just dropped here.
+  if (message.platform === 'facebook') {
+    if (message.direction !== 'incoming') return
+    await processZernioFacebookMessage(payload, message, account)
+    return
+  }
+  if (message.platform !== 'whatsapp') return
+
+  const { data: zernioAccount, error: zernioAccountError } = await supabaseAdmin()
+    .from('client_zernio_accounts')
+    .select('account_id, connected_by_user_id')
+    .eq('whatsapp_account_id', account.id)
+    .maybeSingle()
+
+  if (zernioAccountError) {
+    console.error('[webhook/zernio] account lookup failed:', zernioAccountError.message)
+    return
+  }
+  if (!zernioAccount) {
+    console.warn('[webhook/zernio] no account matches Zernio accountId:', account.id)
+    return
+  }
+  if (!zernioAccount.connected_by_user_id) {
+    console.error(
+      '[webhook/zernio] account has no connected_by_user_id (connected before migration 056) — reconnect WhatsApp in Settings to fix:',
+      account.id,
+    )
+    return
+  }
+
+  if (message.direction !== 'incoming') {
+    // `kind === 'phone_sent'` (message.sent + source=whatsapp_business_app)
+    // always has direction 'outgoing' too, so this condition already
+    // covers it — the `kind`/`sentFromPhone` split used to matter here
+    // and no longer does; see the phone-badge note below.
+    //
+    // On an outgoing event `message.sender` is the BUSINESS, not the
+    // customer (Zernio's own InboxWebhookMessage.sender doc: "omitted
+    // for outgoing/business sender" — and for WhatsApp `sender.id`
+    // would otherwise resolve to OUR number, not theirs). The customer
+    // side of the thread only stays identifiable through the
+    // conversation's participant, so that's what has to drive contact/
+    // conversation resolution here — using `message.sender` the way the
+    // incoming branch does would silently record the message against a
+    // bogus "contact" for our own business number instead of the real
+    // customer thread (why external phone replies were never showing up
+    // in the inbox).
+    const customerPhone = payload.conversation?.participantId?.replace(/^\+/, '')
+    if (!customerPhone) {
+      console.warn('[webhook/zernio] outgoing message has no resolvable conversation participant; skipping')
+      return
+    }
+    const adapted = adaptZernioMessage(message, payload.metadata, customerPhone)
+
+    // Two things Zernio reports as "outgoing" look identical here: an
+    // echo of a message THIS CRM already sent (send-message.ts already
+    // inserted it, keyed by the same platformMessageId as
+    // messages.message_id), or a message a human agent sent from
+    // OUTSIDE this CRM — the native WhatsApp app, or Zernio's own
+    // dashboard — which we've never recorded. Tell them apart by
+    // whether a row for this message_id already exists; only the
+    // second case needs recording (see recordExternalOutboundMessage's
+    // doc comment for why it's not routed through processMessage).
+    if (adapted.id) {
+      const { data: existing } = await supabaseAdmin()
+        .from('messages')
+        .select('id')
+        .eq('message_id', adapted.id)
+        .limit(1)
+        .maybeSingle()
+      if (existing) return
+    }
+
+    // Reaching this line means the dedupe check above found no row —
+    // this message was NOT one this CRM sent through send-message.ts,
+    // a Flow, an automation, or the AI. `message.sent` events with
+    // `source: 'cloud_api'` (a Zernio send that already round-tripped
+    // through our own code) were filtered to 'ignore' well before this
+    // function was even called (see classifyZernioEvent), so every
+    // event still reaching here is external by construction.
+    //
+    // The bug this replaced: the phone badge used to require `message`
+    // to carry `source: 'whatsapp_business_app'` — present ONLY on
+    // `message.sent` events. But Zernio doesn't always deliver an
+    // outgoing WhatsApp message that way; some (a message.received
+    // event with direction 'outgoing' — the very case this whole
+    // branch exists for, see the outgoing-message-sender-bug fix this
+    // pattern came from) carry no `source` field at all, so they always
+    // computed `sentFromPhone = false` even though they'd already been
+    // routed here as "clearly not ours". Those messages got recorded —
+    // just silently without the badge. Overwhelmingly these are the
+    // WhatsApp Business phone app (Coexistence); on paper a message
+    // sent from Zernio's own dashboard would look identical, but this
+    // account only ever sends through the CRM or the phone.
+    const sentFromPhone = true
+
+    // zernioAccount was already resolved (and connected_by_user_id
+    // already validated) above — reused here, not re-queried.
+    await recordExternalOutboundMessage(
+      adapted,
+      customerPhone,
+      payload.conversation?.participantName || customerPhone,
+      zernioAccount.account_id,
+      zernioAccount.connected_by_user_id,
+      payload.conversation?.id ?? null,
+      sentFromPhone,
+    )
+    return
+  }
+
+  const senderPhone = message.sender?.id || message.sender?.phoneNumber?.replace(/^\+/, '')
+  if (!senderPhone) {
+    console.warn('[webhook/zernio] message has no resolvable sender phone; skipping')
+    return
+  }
+
+  const adapted = adaptZernioMessage(message, payload.metadata, senderPhone)
+
+  // Zernio's own conversation id is already known here — passed straight
+  // into processMessage so it stamps `conversations.zernio_conversation_id`
+  // BEFORE flows/automations/AI auto-reply get a chance to reply (see
+  // that function's doc comment on the `zernioConversationId` param for
+  // why this used to be stamped too late, and what it broke). Any reply
+  // to THIS message — including the very first one in a brand-new
+  // conversation — now sends via Zernio's "reply in this conversation"
+  // endpoint instead of wrongly trying to cold-start a new one, which
+  // only Meta accounts with the unusual "Direct Send" capability can do.
+  await processMessage(
+    adapted,
+    { profile: { name: message.sender?.name || senderPhone }, wa_id: senderPhone },
+    zernioAccount.account_id,
+    zernioAccount.connected_by_user_id,
+    '', // no Meta access token for a Zernio-bridged account
+    'zernio',
+    payload.conversation?.id ?? null,
+  )
+}
+
+const ZERNIO_ATTACHMENT_TO_CONTENT_TYPE: Record<string, string> = {
+  image: 'image',
+  sticker: 'image',
+  video: 'video',
+  audio: 'audio',
+}
+
+/**
+ * A Facebook Page connected through Zernio. Deliberately does NOT go
+ * through processMessage() the way the WhatsApp branch above does —
+ * that pipeline's contact/conversation model is phone-number-keyed
+ * throughout (normalizePhone, wa_id, findOrCreateContact-by-phone),
+ * which doesn't fit a Messenger PSID. Instead this reuses the exact
+ * same ingestion core the direct Graph API Messenger webhook uses
+ * (src/lib/messenger/webhook-processor.ts's ingestMessengerMessage),
+ * so a Facebook Page behaves identically whether it's bridged through
+ * Zernio or connected directly with a Page Access Token — same known
+ * gap either way: no automations/Flows/AI auto-reply yet, since those
+ * engines currently only know how to reply over WhatsApp (meta-api.ts
+ * / zernio-send.ts). See src/lib/messenger/ for the rest of that
+ * pipeline's scope notes.
+ */
+async function processZernioFacebookMessage(
+  payload: ZernioWebhookPayload,
+  message: NonNullable<ZernioWebhookPayload['message']>,
+  account: NonNullable<ZernioWebhookPayload['account']>,
+) {
+  const psid = message.sender?.id
+  if (!psid) {
+    console.warn('[webhook/zernio] Facebook message has no resolvable sender psid; skipping')
+    return
+  }
+
+  const { data: zernioAccount, error: zernioAccountError } = await supabaseAdmin()
+    .from('client_zernio_accounts')
+    .select('account_id, connected_by_user_id')
+    .eq('facebook_account_id', account.id)
+    .maybeSingle()
+
+  if (zernioAccountError) {
+    console.error('[webhook/zernio] facebook account lookup failed:', zernioAccountError.message)
+    return
+  }
+  if (!zernioAccount) {
+    console.warn('[webhook/zernio] no account matches Zernio facebook accountId:', account.id)
+    return
+  }
+  if (!zernioAccount.connected_by_user_id) {
+    console.error(
+      '[webhook/zernio] facebook account has no connected_by_user_id — reconnect Messenger in Settings to fix:',
+      account.id,
+    )
+    return
+  }
+
+  const attachment = message.attachments?.[0]
+  const contentType = attachment ? (ZERNIO_ATTACHMENT_TO_CONTENT_TYPE[attachment.type] ?? 'document') : 'text'
+  // Same proxy-token trick as WhatsApp's Zernio bridge below
+  // (adaptZernioMessage) — Zernio's attachment URL needs the Zernio
+  // API key attached server-side, so it's never handed to the browser
+  // directly. /api/whatsapp/media/zernio/[token]/route.ts is generic
+  // despite its path (decodes + fetches + streams), so it's reused
+  // as-is here.
+  const mediaUrl = attachment
+    ? `/api/whatsapp/media/zernio/${Buffer.from(attachment.url, 'utf8').toString('base64url')}`
+    : null
+
+  await ingestMessengerMessage({
+    accountId: zernioAccount.account_id,
+    configOwnerUserId: zernioAccount.connected_by_user_id,
+    psid,
+    displayName: message.sender?.name ?? null,
+    mid: message.platformMessageId || '',
+    contentType,
+    contentText: message.text ?? null,
+    mediaUrl,
+    occurredAt:
+      message.sentAt && Number.isFinite(new Date(message.sentAt).getTime())
+        ? new Date(message.sentAt)
+        : new Date(),
+    zernioConversationId: payload.conversation?.id ?? null,
+  })
+}
+
+const ZERNIO_STATUS_EVENT: Record<string, 'delivered' | 'read' | 'failed'> = {
+  'message.delivered': 'delivered',
+  'message.read': 'read',
+  'message.failed': 'failed',
+}
+
+/**
+ * Delivery-state updates for a message we already sent — the Zernio
+ * counterpart to the direct-Meta path's `handleStatusUpdate` in
+ * webhook-processor.ts. Without this, every Zernio-bridged message
+ * stayed on "sent" (single check) forever: this route used to drop
+ * every event that wasn't `message.received`, so the double-check
+ * (delivered) and blue double-check (read) ticks the inbox already
+ * knows how to render (see message-bubble.tsx's `StatusIcon`) never
+ * had anything to render them FROM.
+ *
+ * Matches `messages.message_id` against `platformMessageId` via the
+ * shared `applyMessageStatusUpdate` (forward-only ladder guard, same
+ * "message_id isn't unique, updates 0..N rows" posture as the
+ * direct-Meta path — migration 009, Meta ids can repeat across
+ * numbers — plus a loud warning when nothing matches at all, which is
+ * the one signal worth watching if ticks are reported stuck: it means
+ * `sendViaZernio`'s stored `message_id` and this webhook's
+ * `platformMessageId` disagree for that message).
+ */
+async function handleZernioStatusUpdate(payload: ZernioWebhookPayload) {
+  const status = ZERNIO_STATUS_EVENT[payload.event]
+  const platformMessageId = payload.message?.platformMessageId
+  if (!status || !platformMessageId) return
+
+  await applyMessageStatusUpdate(platformMessageId, status, '[webhook/zernio]')
+}
+
+/**
+ * `message.deleted` — the sender unsent a message ("delete for
+ * everyone"). Zernio's own docs list this as supported on WhatsApp
+ * specifically "when the business deletes an outgoing message via the
+ * Cloud API"; whether it also fires for a delete made natively in the
+ * WhatsApp Business phone app (Coexistence) is unconfirmed — this
+ * handler covers it either way and is a no-op if it never arrives for
+ * that case. See applyMessageDeletedUpdate's doc comment for what
+ * happens to the row (content kept, `deleted_at` stamped).
+ */
+async function handleZernioMessageDeleted(payload: ZernioWebhookPayload) {
+  const platformMessageId = payload.message?.platformMessageId
+  const deletedAt = payload.deletedAt ?? new Date().toISOString()
+  if (!platformMessageId) return
+
+  await applyMessageDeletedUpdate(platformMessageId, deletedAt, '[webhook/zernio]')
+}
+
+/**
+ * Convert Zernio's message shape into the same `WhatsAppMessage`
+ * shape processMessage() already knows how to handle (see the type's
+ * doc comment in webhook-processor.ts). Media attachments get a
+ * synthetic "id": the base64url-encoded original Zernio attachment
+ * URL, which /api/whatsapp/media/zernio/[token]/route.ts decodes and
+ * proxies through with the Zernio API key attached server-side —
+ * there's no bare Meta media id to hand out here the way there is on
+ * the direct-Meta path.
+ */
+function adaptZernioMessage(
+  message: NonNullable<ZernioWebhookPayload['message']>,
+  metadata: ZernioWebhookPayload['metadata'],
+  senderPhone: string,
+): WhatsAppMessage {
+  const id = message.platformMessageId || ''
+  const sentMs = message.sentAt ? new Date(message.sentAt).getTime() : NaN
+  const timestamp = String(Math.floor((Number.isFinite(sentMs) ? sentMs : Date.now()) / 1000))
+
+  const base: WhatsAppMessage = {
+    id,
+    from: senderPhone,
+    timestamp,
+    type: 'text',
+    ...(metadata?.referral ? { referral: metadata.referral } : {}),
+  }
+
+  if (metadata?.interactiveType === 'button_reply' && metadata.interactiveId) {
+    return {
+      ...base,
+      type: 'interactive',
+      interactive: {
+        type: 'button_reply',
+        button_reply: { id: metadata.interactiveId, title: message.text || metadata.interactiveId },
+      },
+    }
+  }
+  if (metadata?.interactiveType === 'list_reply' && metadata.interactiveId) {
+    return {
+      ...base,
+      type: 'interactive',
+      interactive: {
+        type: 'list_reply',
+        list_reply: { id: metadata.interactiveId, title: message.text || metadata.interactiveId },
+      },
+    }
+  }
+
+  const attachment = message.attachments?.[0]
+  if (attachment) {
+    const token = Buffer.from(attachment.url, 'utf8').toString('base64url')
+    const withContext = (m: WhatsAppMessage): WhatsAppMessage =>
+      metadata?.quotedMessageId ? { ...m, context: { id: metadata.quotedMessageId } } : m
+
+    switch (attachment.type) {
+      case 'image':
+        return withContext({
+          ...base,
+          type: 'image',
+          image: { id: token, mime_type: '', caption: message.text || undefined },
+        })
+      case 'sticker':
+        return withContext({
+          ...base,
+          type: 'sticker',
+          sticker: { id: token, mime_type: '' },
+        })
+      case 'video':
+        return withContext({
+          ...base,
+          type: 'video',
+          video: { id: token, mime_type: '', caption: message.text || undefined },
+        })
+      case 'audio':
+        return withContext({
+          ...base,
+          type: 'audio',
+          audio: { id: token, mime_type: '' },
+        })
+      default:
+        return withContext({
+          ...base,
+          type: 'document',
+          document: { id: token, mime_type: '', caption: message.text || undefined },
+        })
+    }
+  }
+
+  const withText: WhatsAppMessage = {
+    ...base,
+    type: 'text',
+    text: { body: message.text || '' },
+  }
+  return metadata?.quotedMessageId
+    ? { ...withText, context: { id: metadata.quotedMessageId } }
+    : withText
+}

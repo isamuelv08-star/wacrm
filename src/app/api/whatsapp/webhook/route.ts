@@ -5,6 +5,8 @@ import {
   processWebhookPayload,
   type WhatsAppWebhookEntry,
 } from '@/lib/whatsapp/webhook-processor'
+import { enqueueWebhook, runQueuedWebhook } from '@/lib/webhooks/inbox'
+import { supabaseAdmin as inboxAdmin } from '@/lib/notifications/admin-client'
 
 // The `after()` callback in POST runs within this route's max duration.
 // Inbound processing can fan out to per-media Meta verification calls,
@@ -66,8 +68,16 @@ export async function POST(request: Request) {
   // (see issue #301). `after()` hands the callback to the runtime, which
   // keeps the function alive until it resolves (within the route's
   // maxDuration).
+  // Stored before the 200 (migration 112) so a restart mid-processing
+  // can't lose it — the webhook-retry cron re-runs anything unfinished.
+  const inboxDb = inboxAdmin()
+  const inboxId = await enqueueWebhook(inboxDb, 'meta', body)
   after(async () => {
     try {
+      if (inboxId) {
+        await runQueuedWebhook(inboxDb, inboxId)
+        return
+      }
       await processWebhookPayload(body)
     } catch (error) {
       console.error('Error processing webhook:', error)

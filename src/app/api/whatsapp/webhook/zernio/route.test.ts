@@ -29,6 +29,13 @@ vi.mock('@/lib/whatsapp/webhook-processor', () => ({
   }),
 }))
 vi.mock('@/lib/messenger/webhook-processor', () => ({ ingestMessengerMessage: vi.fn() }))
+// Durable inbox (migration 112) not under test here: enqueue "fails", so
+// the route processes in memory exactly as it did before the inbox.
+vi.mock('@/lib/webhooks/inbox', () => ({
+  enqueueWebhook: vi.fn(async () => null),
+  runQueuedWebhook: vi.fn(),
+}))
+vi.mock('@/lib/notifications/admin-client', () => ({ supabaseAdmin: () => ({}) }))
 
 // `after()` only works inside a request scope — run its callback and let the
 // test await it.

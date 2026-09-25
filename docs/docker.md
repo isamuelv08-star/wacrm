@@ -147,7 +147,12 @@ step:
   `/api/cron/hot-lead-alerts`, `/api/cron/ai-auto-resume`,
   `/api/cron/followup-stage`, `/api/cron/sales-intelligence`,
   `/api/cron/promise-tracker`, `/api/cron/event-reminders`,
-  `/api/cron/lead-staleness-alerts`, `/api/cron/archive-media`.
+  `/api/cron/lead-staleness-alerts`, `/api/cron/archive-media`,
+  `/api/cron/webhook-retry` (this one every 1–2 minutes).
+- `/api/cron/webhook-retry` (migration 112) re-runs inbound WhatsApp /
+  Zernio / Messenger events that a restart or deploy interrupted after
+  the provider already got its 200 — without it such an event is lost,
+  since the provider never redelivers an acked webhook.
 - `/api/cron/archive-media` (migration 111) copies recent customer
   photos / videos / voice notes into the private `inbound-media`
   bucket when the webhook's inline copy missed them — Meta deletes its

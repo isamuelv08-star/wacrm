@@ -4,6 +4,8 @@ import {
   handleMessengerWebhookVerificationGET,
   processMessengerWebhookPayload,
 } from '@/lib/messenger/webhook-processor'
+import { enqueueWebhook, runQueuedWebhook } from '@/lib/webhooks/inbox'
+import { supabaseAdmin as inboxAdmin } from '@/lib/notifications/admin-client'
 
 // See src/app/api/whatsapp/webhook/route.ts for why this runs after()
 // the response instead of inline or as a floating promise.
@@ -34,8 +36,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
+  // Stored before the 200 (migration 112) so a restart mid-processing
+  // can't lose it — the webhook-retry cron re-runs anything unfinished.
+  const inboxDb = inboxAdmin()
+  const inboxId = await enqueueWebhook(inboxDb, 'messenger', body)
   after(async () => {
     try {
+      if (inboxId) {
+        await runQueuedWebhook(inboxDb, inboxId)
+        return
+      }
       await processMessengerWebhookPayload(body)
     } catch (error) {
       console.error('[messenger webhook] Error processing webhook:', error)
