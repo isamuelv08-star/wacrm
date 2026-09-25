@@ -539,6 +539,11 @@ export function ContactSidebar({
   // stale won/lost deal from months ago doesn't outrank an active
   // negotiation; fall back to the single most recent deal otherwise.
   const statusDeal = deals.find((d) => d.status === "open") ?? deals[0] ?? null;
+  // The stage currently on the deal (AI-set or manually corrected),
+  // resolved against the pipeline's stage list, falling back to the
+  // joined `stage` row the deals query already brings.
+  const currentStage =
+    statusDealStages.find((st) => st.id === statusDeal?.stage_id) ?? statusDeal?.stage ?? null;
   const statusLabel =
     statusDeal?.status === "won"
       ? tSidebar("dealWon")
@@ -727,23 +732,10 @@ export function ContactSidebar({
                     <p className="text-sm font-medium text-foreground">
                       {deal.title}
                     </p>
-                    <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-                      <span>
-                        {deal.currency ?? "$"}
-                        {deal.value.toLocaleString()}
-                      </span>
-                      {deal.stage && (
-                        <span
-                          className="rounded-full px-1.5 py-0.5 text-[10px]"
-                          style={{
-                            backgroundColor: `${deal.stage.color}20`,
-                            color: deal.stage.color,
-                          }}
-                        >
-                          {deal.stage.name}
-                        </span>
-                      )}
-                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {deal.currency ?? "$"}
+                      {deal.value.toLocaleString()}
+                    </p>
                   </button>
                 ))
               )}
@@ -763,7 +755,23 @@ export function ContactSidebar({
                   disabled={stageUpdating}
                 >
                   <SelectTrigger className="h-7 flex-1 border-transparent bg-transparent text-sm text-foreground hover:border-border">
-                    <SelectValue placeholder={tSidebar("stageLabel")} />
+                    {/* Base UI's Select.Value renders the raw value (the
+                        stage UUID) unless given children, so resolve the
+                        deal's current stage — the one the AI last set —
+                        to its name + color explicitly. */}
+                    <SelectValue placeholder={tSidebar("stageLabel")}>
+                      {currentStage ? (
+                        <span className="flex items-center gap-1.5">
+                          <span
+                            className="h-2 w-2 shrink-0 rounded-full"
+                            style={{ backgroundColor: currentStage.color }}
+                          />
+                          {currentStage.name}
+                        </span>
+                      ) : (
+                        tSidebar("stageLabel")
+                      )}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {statusDealStages.map((stage) => (
