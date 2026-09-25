@@ -3,7 +3,12 @@
  * tag-column handling stays aligned with phone/name/email/company.
  */
 
-import { parseCsvLine, findHeaderIndex as findHeaderIndexBySynonyms } from '@/lib/import/csv-utils';
+import {
+  detectDelimiter,
+  parseCsvLine,
+  splitCsvRecords,
+  findHeaderIndex as findHeaderIndexBySynonyms,
+} from '@/lib/import/csv-utils';
 
 /**
  * Synonym → canonical header lookup (onboarding audit finding C: this
@@ -66,14 +71,13 @@ export interface ParseContactCsvResult {
 }
 
 export function parseContactCsv(text: string): ParseContactCsvResult {
-  const lines = text.trim().split(/\r?\n/);
+  const lines = splitCsvRecords(text);
   if (lines.length < 2) {
     return { rows: [], hasTagsColumn: false, hasCompanyColumn: false };
   }
 
-  const headers = lines[0]
-    .split(',')
-    .map((h) => h.trim().toLowerCase().replace(/["']/g, ''));
+  const delimiter = detectDelimiter(lines[0]);
+  const headers = parseCsvLine(lines[0], delimiter).map((h) => h.toLowerCase());
 
   const phoneIdx = findHeaderIndex(headers, 'phone');
   if (phoneIdx === -1) {
@@ -91,26 +95,18 @@ export function parseContactCsv(text: string): ParseContactCsvResult {
     const line = lines[i].trim();
     if (!line) continue;
 
-    const values = parseCsvLine(line);
-    const phone = values[phoneIdx]?.replace(/["']/g, '').trim();
+    // Quotes are already consumed by parseCsvLine — apostrophes are
+    // real data ("O'Brien") and are no longer stripped.
+    const values = parseCsvLine(line, delimiter);
+    const phone = values[phoneIdx]?.trim();
     if (!phone) continue;
 
     rows.push({
       phone,
-      name:
-        nameIdx >= 0
-          ? values[nameIdx]?.replace(/["']/g, '').trim() || undefined
-          : undefined,
-      email:
-        emailIdx >= 0
-          ? values[emailIdx]?.replace(/["']/g, '').trim() || undefined
-          : undefined,
-      company:
-        companyIdx >= 0
-          ? values[companyIdx]?.replace(/["']/g, '').trim() || undefined
-          : undefined,
-      tagNames:
-        tagsIdx >= 0 ? parseTagCell(values[tagsIdx]?.replace(/["']/g, '')) : [],
+      name: nameIdx >= 0 ? values[nameIdx]?.trim() || undefined : undefined,
+      email: emailIdx >= 0 ? values[emailIdx]?.trim() || undefined : undefined,
+      company: companyIdx >= 0 ? values[companyIdx]?.trim() || undefined : undefined,
+      tagNames: tagsIdx >= 0 ? parseTagCell(values[tagsIdx]) : [],
     });
   }
 

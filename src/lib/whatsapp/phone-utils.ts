@@ -18,16 +18,42 @@ export function normalizePhone(phone: string): string {
 }
 
 /**
- * Compare two phone numbers accounting for trunk prefix differences.
- * e.g. "370063949836" (with trunk 0) matches "37063949836" (without trunk 0)
- * by comparing the last 8 digits.
+ * Compare two phone numbers, tolerating the formatting variants the
+ * same subscriber actually shows up with — but NOT two different
+ * subscribers who merely share their last digits.
+ *
+ * The old rule ("last 8 digits equal") merged distinct customers:
+ * +58 414 1234567 and +58 424 1234567 share `41234567`, so the second
+ * customer landed in the first one's contact and thread, and replies
+ * went to the wrong person. Now accepted:
+ *   - identical digits;
+ *   - a local number vs the same number with its country code
+ *     ("0987654321" / "987654321" vs "593987654321" — the whole
+ *     national number must match, ≥ 8 digits, prefix ≤ 3 digits);
+ *   - one inserted digit near the front, i.e. a trunk / mobile marker
+ *     after the country code: "370063949836" vs "37063949836" (trunk
+ *     0), "5215512345678" vs "525512345678" (Mexico's 1),
+ *     "5491112345678" vs "541112345678" (Argentina's 9).
  */
 export function phonesMatch(phone1: string, phone2: string): boolean {
   const n1 = normalizePhone(phone1)
   const n2 = normalizePhone(phone2)
+  if (!n1 || !n2) return false
   if (n1 === n2) return true
-  if (n1.length >= 8 && n2.length >= 8) {
-    return n1.slice(-8) === n2.slice(-8)
+
+  const a = n1.replace(/^0+/, '')
+  const b = n2.replace(/^0+/, '')
+  if (a === b) return a.length >= 8
+  const [short, long] = a.length <= b.length ? [a, b] : [b, a]
+
+  // Local number vs the same number with a country code in front.
+  if (short.length >= 8 && long.length - short.length <= 3 && long.endsWith(short)) return true
+
+  // One extra digit right after the country code (trunk 0, MX 1, AR 9).
+  if (long.length - short.length === 1 && short.length >= 10) {
+    for (let i = 1; i <= 4; i++) {
+      if (long.slice(0, i) + long.slice(i + 1) === short) return true
+    }
   }
   return false
 }

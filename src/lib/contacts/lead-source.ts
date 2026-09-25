@@ -59,6 +59,12 @@ export async function ensureLeadSourceField(
     .select('id')
     .eq('account_id', accountId)
     .eq('field_name', LEAD_SOURCE_FIELD_NAME)
+    // Oldest wins: there's no unique index on (account_id, field_name),
+    // so two concurrent first-referral webhooks could each create one —
+    // and a bare maybeSingle() then errored forever after, so Lead
+    // Source was never captured again.
+    .order('created_at', { ascending: true })
+    .limit(1)
     .maybeSingle()
   if (findErr) {
     console.error('[lead-source] field lookup failed:', findErr.message)

@@ -59,3 +59,22 @@ describe('parseDealCsv', () => {
     expect(rows[0].phone).toBe('+15551234567');
   });
 });
+
+describe('parseDealCsv — Spanish exports', () => {
+  it('reads a ;-separated file with comma decimals', () => {
+    const { rows } = parseDealCsv('Nombre;Teléfono;Valor\nAna Pérez;0987654321;1.234,50')
+    expect(rows).toEqual([
+      { phone: '0987654321', title: 'Ana Pérez', contactName: 'Ana Pérez', value: 1234.5 },
+    ])
+  })
+
+  it('treats "Nombre" as the contact name, not the deal title, when there is no contact column', () => {
+    const { rows } = parseDealCsv('Nombre,Teléfono,Producto\nLuis,0991112222,4 llantas')
+    expect(rows[0]).toMatchObject({ contactName: 'Luis', title: '4 llantas' })
+  })
+
+  it('uses "Nombre" as the title when the file names the contact separately', () => {
+    const { rows } = parseDealCsv('Nombre,Cliente,Teléfono\nLlantas 205,Luis,0991112222')
+    expect(rows[0]).toMatchObject({ contactName: 'Luis', title: 'Llantas 205' })
+  })
+})

@@ -57,6 +57,22 @@ describe("phonesMatch", () => {
     expect(phonesMatch("1234567", "9991234567")).toBe(false);
   });
 
+  it("never merges two subscribers that only share their last digits", () => {
+    // Venezuela: 0414 vs 0424 carriers, same 7-digit subscriber number.
+    expect(phonesMatch("584141234567", "584241234567")).toBe(false);
+    expect(phonesMatch("+12125551234", "+13105551234")).toBe(false);
+  });
+
+  it("matches a local number against the same number with country code", () => {
+    expect(phonesMatch("0987654321", "593987654321")).toBe(true);
+    expect(phonesMatch("987654321", "+593 98 765 4321")).toBe(true);
+  });
+
+  it("matches Mexico's and Argentina's mobile markers", () => {
+    expect(phonesMatch("5215512345678", "525512345678")).toBe(true);
+    expect(phonesMatch("5491112345678", "541112345678")).toBe(true);
+  });
+
   it("ignores formatting noise on both sides", () => {
     expect(phonesMatch("+370 6 394 9836", "37063949836")).toBe(true);
     expect(phonesMatch("(415) 555-1212", "+1 415-555-1212")).toBe(true);

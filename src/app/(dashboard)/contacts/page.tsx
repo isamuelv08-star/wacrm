@@ -75,12 +75,26 @@ interface ContactWithTags extends Contact {
  * detail page's export (src/app/(dashboard)/broadcasts/[id]/page.tsx).
  */
 function toCsv(rows: string[][]): string {
-  const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+  const escape = (v: string) => `"${neutralizeFormula(v).replace(/"/g, '""')}"`;
   return rows.map((r) => r.map(escape).join(',')).join('\n');
 }
 
+/**
+ * CSV/formula injection guard: a WhatsApp profile name is customer-
+ * controlled, so a contact named `=HYPERLINK(...)` became a live
+ * formula when the export was opened in Excel/Sheets. Prefix anything
+ * that would be read as a formula with an apostrophe. A plain signed
+ * number ("+593987654321") is left alone — it isn't a formula, and the
+ * phone column must round-trip through import.
+ */
+function neutralizeFormula(v: string): string {
+  if (/^[=@\t\r]/.test(v) || /^[+-](?![\d\s().-]*$)/.test(v)) return `'${v}`;
+  return v;
+}
+
 function downloadCsv(filename: string, content: string) {
-  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+  // UTF-8 BOM so Excel on Windows reads accents ("José", not "JosÃ©").
+  const blob = new Blob(['﻿', content], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -416,13 +430,18 @@ export default function ContactsPage() {
       // just for every contact at once instead of one page — tagsMap
       // itself is already the full account tag list (loaded once on
       // mount), so this only needs the join rows.
+      // Small id batches: 1000 UUIDs in one `.in()` is a ~37 KB URL that
+      // proxies reject, and the error used to be ignored — the export
+      // then silently had no tags. Fail loudly instead.
+      const TAG_BATCH = 150;
       const tagNamesByContact: Record<string, string[]> = {};
-      for (let i = 0; i < allContacts.length; i += BATCH) {
-        const idBatch = allContacts.slice(i, i + BATCH).map((c) => c.id);
-        const { data: ctRows } = await supabase
+      for (let i = 0; i < allContacts.length; i += TAG_BATCH) {
+        const idBatch = allContacts.slice(i, i + TAG_BATCH).map((c) => c.id);
+        const { data: ctRows, error: ctErr } = await supabase
           .from('contact_tags')
           .select('contact_id, tag_id')
           .in('contact_id', idBatch);
+        if (ctErr) throw ctErr;
         ctRows?.forEach((ct) => {
           const name = tagsMap[ct.tag_id]?.name;
           if (!name) return;

@@ -138,17 +138,23 @@ async function scanAccountForPromises(
   const messages = (rows ?? []) as unknown as CandidateMessageRow[]
   if (messages.length === 0) return { candidatesChecked: 0, promisesDetected: 0 }
 
-  const latestCreatedAt = messages[messages.length - 1].created_at
+  const allCandidates = messages.filter((m) => looksLikePromise(m.content_text ?? ''))
+  const candidates = allCandidates.slice(0, MAX_CANDIDATES_PER_ACCOUNT_SCAN)
+
+  // Advance the cursor only as far as this run actually got. When the
+  // candidate cap cut the list short, stop at the last candidate we
+  // process — the old code jumped to the last of all 500 fetched
+  // messages, so every candidate past the first 20 was lost for good.
+  const cursorAt =
+    allCandidates.length > candidates.length
+      ? candidates[candidates.length - 1].created_at
+      : messages[messages.length - 1].created_at
   const { error: cursorErr } = await db
     .from('promise_scan_cursor')
-    .upsert({ account_id: accountId, last_scanned_message_created_at: latestCreatedAt })
+    .upsert({ account_id: accountId, last_scanned_message_created_at: cursorAt })
   if (cursorErr) {
     console.error('[promise-tracker] cursor update failed for account', accountId, cursorErr.message)
   }
-
-  const candidates = messages
-    .filter((m) => looksLikePromise(m.content_text ?? ''))
-    .slice(0, MAX_CANDIDATES_PER_ACCOUNT_SCAN)
 
   let promisesDetected = 0
   for (const m of candidates) {

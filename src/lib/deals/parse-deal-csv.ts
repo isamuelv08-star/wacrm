@@ -1,4 +1,10 @@
-import { parseCsvLine, findHeaderIndex } from '@/lib/import/csv-utils';
+import {
+  detectDelimiter,
+  findHeaderIndex,
+  parseCsvLine,
+  parseMoney,
+  splitCsvRecords,
+} from '@/lib/import/csv-utils';
 
 /**
  * CSV parsing for the onboarding wizard's deals/opportunities import
@@ -24,7 +30,10 @@ export interface ParsedDealRow {
 
 const HEADER_SYNONYMS = {
   phone: ['phone', 'phonenumber', 'telefono', 'tel', 'celular', 'movil', 'whatsapp', 'numero', 'number'],
-  title: ['title', 'deal', 'oportunidad', 'nombre', 'titulo', 'producto', 'product', 'name'],
+  title: ['title', 'deal', 'oportunidad', 'negocio', 'titulo', 'producto', 'product'],
+  /** Ambiguous: a person's name in a "Nombre,Teléfono,Valor" export, a
+   *  deal title only when the file also names the contact separately. */
+  name: ['nombre', 'name'],
   contactName: ['contactname', 'cliente', 'contacto', 'contact', 'customername'],
   value: ['value', 'valor', 'monto', 'amount', 'precio', 'price', 'total'],
 };
@@ -35,16 +44,25 @@ export interface ParseDealCsvResult {
 }
 
 export function parseDealCsv(text: string): ParseDealCsvResult {
-  const lines = text.trim().split(/\r?\n/);
+  const lines = splitCsvRecords(text);
   if (lines.length < 2) return { rows: [], hasValueColumn: false };
 
-  const headers = lines[0].split(',').map((h) => h.trim().replace(/["']/g, ''));
+  const delimiter = detectDelimiter(lines[0]);
+  const headers = parseCsvLine(lines[0], delimiter);
 
   const phoneIdx = findHeaderIndex(headers, HEADER_SYNONYMS.phone);
   if (phoneIdx === -1) return { rows: [], hasValueColumn: false };
 
-  const titleIdx = findHeaderIndex(headers, HEADER_SYNONYMS.title);
-  const contactNameIdx = findHeaderIndex(headers, HEADER_SYNONYMS.contactName);
+  // "Nombre" used to be read as the deal TITLE, so a plain
+  // "Nombre,Teléfono,Valor" file created every new contact with no
+  // name. It's the contact's name unless the file has its own contact
+  // column; it's the title only when no explicit title column exists.
+  const explicitTitleIdx = findHeaderIndex(headers, HEADER_SYNONYMS.title);
+  const nameIdx = findHeaderIndex(headers, HEADER_SYNONYMS.name);
+  const explicitContactIdx = findHeaderIndex(headers, HEADER_SYNONYMS.contactName);
+  const contactNameIdx = explicitContactIdx >= 0 ? explicitContactIdx : nameIdx;
+  const titleIdx =
+    explicitTitleIdx >= 0 ? explicitTitleIdx : explicitContactIdx >= 0 ? nameIdx : -1;
   const valueIdx = findHeaderIndex(headers, HEADER_SYNONYMS.value);
 
   const rows: ParsedDealRow[] = [];
@@ -53,15 +71,15 @@ export function parseDealCsv(text: string): ParseDealCsvResult {
     const line = lines[i].trim();
     if (!line) continue;
 
-    const values = parseCsvLine(line);
-    const phone = values[phoneIdx]?.replace(/["']/g, '').trim();
+    const values = parseCsvLine(line, delimiter);
+    const phone = values[phoneIdx]?.trim();
     if (!phone) continue;
 
     const contactName =
-      contactNameIdx >= 0 ? values[contactNameIdx]?.replace(/["']/g, '').trim() || undefined : undefined;
-    const rawTitle = titleIdx >= 0 ? values[titleIdx]?.replace(/["']/g, '').trim() : '';
-    const rawValue = valueIdx >= 0 ? values[valueIdx]?.replace(/["'$,]/g, '').trim() : '';
-    const parsedValue = Number(rawValue);
+      contactNameIdx >= 0 ? values[contactNameIdx]?.trim() || undefined : undefined;
+    const rawTitle = titleIdx >= 0 ? values[titleIdx]?.trim() : '';
+    // Both "1,234.50" and "1.234,50" — see parseMoney.
+    const parsedValue = valueIdx >= 0 ? parseMoney(values[valueIdx] ?? '') : NaN;
 
     rows.push({
       phone,

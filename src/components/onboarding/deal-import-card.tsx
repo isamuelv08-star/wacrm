@@ -96,10 +96,22 @@ export function DealImportCard() {
         return;
       }
 
+      // One open deal per contact — the same invariant the webhook and
+      // the AI enforce. A second row for the same phone, or a contact
+      // that already has an open deal, is skipped instead of creating a
+      // parallel card.
       const { unique, duplicates } = dedupeByPhone(rows);
       let imported = 0;
-      const skipped = duplicates;
+      let skipped = duplicates;
       let failed = 0;
+
+      // The account's currency, not the deals.currency DB default (USD).
+      const { data: account } = await supabase
+        .from("accounts")
+        .select("default_currency")
+        .eq("id", accountId)
+        .maybeSingle();
+      const currency = account?.default_currency ?? "USD";
 
       for (const row of unique) {
         let contactId: string | null = null;
@@ -135,6 +147,18 @@ export function DealImportCard() {
           continue;
         }
 
+        const { data: openDeal } = await supabase
+          .from("deals")
+          .select("id")
+          .eq("contact_id", contactId)
+          .eq("status", "open")
+          .limit(1)
+          .maybeSingle();
+        if (openDeal) {
+          skipped++;
+          continue;
+        }
+
         const { error: dealErr } = await supabase.from("deals").insert({
           account_id: accountId,
           user_id: user.id,
@@ -143,6 +167,7 @@ export function DealImportCard() {
           contact_id: contactId,
           title: row.title,
           value: row.value,
+          currency,
           status: "open",
         });
         if (dealErr) failed++;

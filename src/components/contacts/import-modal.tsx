@@ -38,6 +38,7 @@ import {
   Tag,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { phonesMatch } from '@/lib/whatsapp/phone-utils';
 
 const DEFAULT_TAG_COLOR = '#3b82f6';
 const PREVIEW_LIMIT = 5;
@@ -226,22 +227,35 @@ export function ImportModal({
       const { unique, duplicates: inFileDupes } = dedupeByPhone(parsedRows);
       skipped += inFileDupes;
 
-      // 2) Skip numbers already in this account. One read of the
-      //    generated `phone_normalized` column (migration 022) → Set.
-      const { data: existingRows } = await supabase
-        .from('contacts')
-        .select('phone_normalized')
-        .eq('account_id', accountId);
-      const existing = new Set(
-        (existingRows ?? [])
-          .map(
-            (r) => (r as { phone_normalized: string | null }).phone_normalized
-          )
-          .filter((p): p is string => !!p)
-      );
+      // 2) Skip numbers already in this account. Paged read of the
+      //    generated `phone_normalized` column (migration 022) — a single
+      //    unpaged select stopped at Supabase's 1000-row cap, so bigger
+      //    accounts re-imported duplicates. Matched with phonesMatch, so
+      //    "0987654321" in the file finds the "593987654321" contact
+      //    WhatsApp already created, instead of a second contact.
+      const existingBySuffix = new Map<string, string[]>();
+      for (let from = 0; ; from += 1000) {
+        const { data: page, error: pageErr } = await supabase
+          .from('contacts')
+          .select('phone_normalized')
+          .eq('account_id', accountId)
+          .order('id')
+          .range(from, from + 999);
+        if (pageErr || !page || page.length === 0) break;
+        for (const r of page as { phone_normalized: string | null }[]) {
+          if (!r.phone_normalized) continue;
+          const key = r.phone_normalized.slice(-8);
+          const list = existingBySuffix.get(key);
+          if (list) list.push(r.phone_normalized);
+          else existingBySuffix.set(key, [r.phone_normalized]);
+        }
+        if (page.length < 1000) break;
+      }
 
       const toInsert = unique.filter((row) => {
-        if (existing.has(normalizeKey(row.phone))) {
+        const normalized = normalizeKey(row.phone);
+        const candidates = existingBySuffix.get(normalized.slice(-8)) ?? [];
+        if (candidates.some((existing) => phonesMatch(existing, normalized))) {
           skipped++;
           return false;
         }

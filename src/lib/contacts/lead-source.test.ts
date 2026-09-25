@@ -29,11 +29,14 @@ function makeDb(opts: FakeDbOpts = {}) {
         return {
           select: () => ({
             eq: () => ({
-              eq: () =>
-                ({
-                  maybeSingle: () =>
-                    Promise.resolve(opts.customFieldsSelect ?? { data: null, error: null }),
+              eq: () => ({
+                order: () => ({
+                  limit: () => ({
+                    maybeSingle: () =>
+                      Promise.resolve(opts.customFieldsSelect ?? { data: null, error: null }),
+                  }),
                 }),
+              }),
             }),
           }),
           insert: insertCustomField,
