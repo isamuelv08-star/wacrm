@@ -19,6 +19,7 @@ import {
   deleteTeamChatMessage,
   loadTeamChatMessages,
   markTeamChatRead,
+  TEAM_CHAT_READ_EVENT,
   type TeamChatMessage as TeamChatMessageData,
 } from '@/lib/team-chat/queries';
 import { TeamChatComposer } from '@/components/team-chat/team-chat-composer';
@@ -60,11 +61,22 @@ export default function TeamChatPage() {
         listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
       });
     });
-    void markTeamChatRead(db, user.id);
     return () => {
       cancelled = true;
     };
   }, [accountId, user?.id]);
+
+  // Mark read up to the newest message — on open AND whenever a new one
+  // arrives while this page is showing (the dot used to keep counting
+  // up while you were reading, and never cleared until a new message).
+  const messagesLoaded = messages !== null;
+  const newestCreatedAt = messages && messages.length > 0 ? messages[messages.length - 1].createdAt : null;
+  useEffect(() => {
+    if (!user?.id || !messagesLoaded) return;
+    void markTeamChatRead(createClient(), user.id, newestCreatedAt ?? undefined)
+      .then(() => window.dispatchEvent(new Event(TEAM_CHAT_READ_EVENT)))
+      .catch((err) => console.error("[team-chat] mark read failed:", err));
+  }, [user?.id, newestCreatedAt, messagesLoaded]);
 
   // Resolve contact names for any referenced conversations in the
   // currently-loaded page, batched into one query rather than one per

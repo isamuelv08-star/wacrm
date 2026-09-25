@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { safeRedirectPath } from './safe-redirect'
+import { safeRedirectPath, sameOriginUrl } from './safe-redirect'
 
 describe('safeRedirectPath', () => {
   it('keeps same-origin paths, including query and hash', () => {
@@ -29,5 +29,20 @@ describe('safeRedirectPath', () => {
 
   it('uses the given fallback', () => {
     expect(safeRedirectPath('//x', '/login')).toBe('/login')
+  })
+})
+
+describe('sameOriginUrl', () => {
+  const origin = 'https://app.saleslid.com'
+  it('keeps same-origin URLs and resolves paths', () => {
+    expect(sameOriginUrl('https://app.saleslid.com/auth/callback?next=/inbox', origin)).toBe(
+      'https://app.saleslid.com/auth/callback?next=/inbox',
+    )
+    expect(sameOriginUrl('/reset-password', origin)).toBe('https://app.saleslid.com/reset-password')
+  })
+  it('drops other origins and junk', () => {
+    expect(sameOriginUrl('https://evil.com/cb', origin)).toBeUndefined()
+    expect(sameOriginUrl('//evil.com/cb', origin)).toBeUndefined()
+    expect(sameOriginUrl(42, origin)).toBeUndefined()
   })
 })

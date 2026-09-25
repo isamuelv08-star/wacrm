@@ -129,6 +129,14 @@ export default function ContactsPage() {
   // here (instead of the inbox) when a match has no open conversation
   // to jump straight into.
   const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
+  // The query runs off a 300ms-debounced copy — every keystroke used to
+  // fire an ilike over three columns with an exact count (plus the tag
+  // lookup), and out-of-order responses could briefly show stale rows.
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(id);
+  }, [search]);
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(cachedFirstPage?.totalCount ?? 0);
   // Tag filter — contacts shown must have ANY of these tags (OR).
@@ -185,7 +193,7 @@ export default function ContactsPage() {
 
     const from = page * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
-    const term = sanitizeOrSearchTerm(search);
+    const term = sanitizeOrSearchTerm(debouncedSearch);
 
     let contactRows: Contact[];
     let count: number;
@@ -270,7 +278,7 @@ export default function ContactsPage() {
     if (page === 0 && !term && selectedTagIds.length === 0) {
       writeViewCache(cacheKey, { contacts: enriched, totalCount: count });
     }
-  }, [supabase, page, search, selectedTagIds, tagsMap, t, cacheKey]);
+  }, [supabase, page, debouncedSearch, selectedTagIds, tagsMap, t, cacheKey]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not

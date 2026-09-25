@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { loadTeamChatUnreadCount } from "@/lib/team-chat/queries";
+import { loadTeamChatUnreadCount, TEAM_CHAT_READ_EVENT } from "@/lib/team-chat/queries";
 
 /**
  * Unread team-chat message count for the sidebar nav dot — same job
@@ -18,6 +19,7 @@ import { loadTeamChatUnreadCount } from "@/lib/team-chat/queries";
 export function useTeamChatUnread(): number {
   const { accountId, user } = useAuth();
   const [count, setCount] = useState(0);
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!accountId || !user?.id) return;
@@ -56,11 +58,18 @@ export function useTeamChatUnread(): number {
       )
       .subscribe();
 
+    // The page marks read → refresh now instead of waiting for the next
+    // message (the dot used to stay lit after reading).
+    const onRead = () => void refresh();
+    window.addEventListener(TEAM_CHAT_READ_EVENT, onRead);
+
     return () => {
       cancelled = true;
       supabase.removeChannel(channel);
+      window.removeEventListener(TEAM_CHAT_READ_EVENT, onRead);
     };
   }, [accountId, user?.id]);
 
-  return count;
+  // Nothing is "unread" while you're looking at it.
+  return pathname?.startsWith("/team-chat") ? 0 : count;
 }

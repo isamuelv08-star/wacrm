@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
+import { sameOriginUrl } from '@/lib/http/safe-redirect'
+import { getPublicOrigin } from '@/lib/http/request-origin'
 
 const MAX_EMAIL_LEN = 254
 
@@ -38,7 +40,7 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => null)
   const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
-  const redirectTo = typeof body?.redirectTo === 'string' ? body.redirectTo : undefined
+  const redirectTo = sameOriginUrl(body?.redirectTo, getPublicOrigin(request))
 
   if (!email || email.length > MAX_EMAIL_LEN) {
     return NextResponse.json({ error: 'Invalid email' }, { status: 400 })

@@ -10,6 +10,7 @@
 
 import { requireApiKey } from '@/lib/auth/api-context';
 import { ok, fail, toApiErrorResponse } from '@/lib/api/v1/respond';
+import { assertUuid } from '@/lib/api/v1/respond';
 
 export async function GET(
   request: Request,
@@ -18,6 +19,7 @@ export async function GET(
   try {
     const ctx = await requireApiKey(request, 'broadcasts:send');
     const { id } = await params;
+    assertUuid(id);
 
     const { data, error } = await ctx.supabase
       .from('broadcasts')

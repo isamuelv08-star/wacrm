@@ -317,7 +317,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!mounted) return;
       const currentUser = session?.user ?? null;
-      setUser(currentUser);
+      // Token refreshes / tab focus fire this with a NEW object for the
+      // same, unchanged user — keeping the old reference stops every
+      // useAuth() consumer (i.e. the whole app) from re-rendering.
+      setUser((prev) => (sameUser(prev, currentUser) ? prev : currentUser));
 
       if (currentUser) {
         if (currentUser.id !== lastFetchedUserIdRef.current) {
@@ -383,20 +386,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [profile?.account_role, profile?.account_id, profile?.dashboard_permissions]);
 
+  const value = useMemo(
+    () => ({
+      user,
+      profile,
+      loading,
+      profileLoading,
+      signOut,
+      refreshProfile,
+      account,
+      defaultCurrency: account?.default_currency ?? DEFAULT_CURRENCY,
+      ...derived,
+    }),
+    [user, profile, loading, profileLoading, signOut, refreshProfile, account, derived],
+  );
+
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        profile,
-        loading,
-        profileLoading,
-        signOut,
-        refreshProfile,
-        account,
-        defaultCurrency: account?.default_currency ?? DEFAULT_CURRENCY,
-        ...derived,
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
@@ -437,4 +443,11 @@ export function useAuth(): AuthContextValue {
     };
   }
   return ctx;
+}
+
+/** Same signed-in user with no change worth re-rendering for. */
+function sameUser(a: User | null, b: User | null): boolean {
+  if (a === b) return true
+  if (!a || !b) return false
+  return a.id === b.id && a.updated_at === b.updated_at && a.email === b.email
 }

@@ -9,6 +9,7 @@
 
 import { requireApiKey } from '@/lib/auth/api-context';
 import { ok, fail, toApiErrorResponse } from '@/lib/api/v1/respond';
+import { assertUuid } from '@/lib/api/v1/respond';
 import { normalizeEvents } from '@/lib/webhooks/events';
 import {
   WEBHOOK_PUBLIC_COLUMNS,
@@ -23,6 +24,7 @@ export async function GET(
   try {
     const ctx = await requireApiKey(request, 'webhooks:manage');
     const { id } = await params;
+    assertUuid(id);
 
     const { data, error } = await ctx.supabase
       .from('webhook_endpoints')
@@ -50,6 +52,7 @@ export async function PATCH(
   try {
     const ctx = await requireApiKey(request, 'webhooks:manage');
     const { id } = await params;
+    assertUuid(id);
 
     const body = (await request.json().catch(() => null)) as Record<
       string,
@@ -128,6 +131,7 @@ export async function DELETE(
   try {
     const ctx = await requireApiKey(request, 'webhooks:manage');
     const { id } = await params;
+    assertUuid(id);
 
     const { data, error } = await ctx.supabase
       .from('webhook_endpoints')

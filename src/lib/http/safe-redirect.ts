@@ -21,3 +21,21 @@ export function safeRedirectPath(next: string | null | undefined, fallback = '/d
     return fallback
   }
 }
+
+/**
+ * A client-supplied absolute redirect URL (Supabase `emailRedirectTo` /
+ * `redirectTo`), accepted only when it points at our own origin.
+ * Returns undefined otherwise, so the caller falls back to Supabase's
+ * configured Site URL. Supabase's redirect allowlist is the other line
+ * of defense; this keeps a lax allowlist from turning signup and
+ * password-reset emails into links to someone else's site.
+ */
+export function sameOriginUrl(raw: unknown, origin: string): string | undefined {
+  if (typeof raw !== 'string' || !raw) return undefined
+  try {
+    const url = new URL(raw, origin)
+    return url.origin === new URL(origin).origin ? url.toString() : undefined
+  } catch {
+    return undefined
+  }
+}

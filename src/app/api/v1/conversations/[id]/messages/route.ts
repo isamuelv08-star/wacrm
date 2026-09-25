@@ -8,6 +8,7 @@
 
 import { requireApiKey } from '@/lib/auth/api-context';
 import { okList, fail, toApiErrorResponse } from '@/lib/api/v1/respond';
+import { assertUuid } from '@/lib/api/v1/respond';
 import {
   parseListParams,
   keysetFilter,
@@ -23,6 +24,7 @@ export async function GET(
   try {
     const ctx = await requireApiKey(request, 'messages:read');
     const { id } = await params;
+    assertUuid(id);
     const { limit, cursor } = parseListParams(request);
 
     // Gate on account ownership of the conversation first.

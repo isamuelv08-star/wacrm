@@ -5,6 +5,7 @@
 
 import { requireApiKey } from '@/lib/auth/api-context';
 import { ok, fail, toApiErrorResponse } from '@/lib/api/v1/respond';
+import { assertUuid } from '@/lib/api/v1/respond';
 import {
   CONVERSATION_SELECT,
   normalizeConversation,
@@ -19,6 +20,7 @@ export async function GET(
   try {
     const ctx = await requireApiKey(request, 'conversations:read');
     const { id } = await params;
+    assertUuid(id);
 
     const { data, error } = await ctx.supabase
       .from('conversations')

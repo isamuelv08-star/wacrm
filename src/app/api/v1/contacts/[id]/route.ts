@@ -10,6 +10,7 @@
 
 import { requireApiKey } from '@/lib/auth/api-context';
 import { ok, fail, toApiErrorResponse } from '@/lib/api/v1/respond';
+import { assertUuid } from '@/lib/api/v1/respond';
 import {
   getContactById,
   setContactTags,
@@ -24,6 +25,7 @@ export async function GET(
   try {
     const ctx = await requireApiKey(request, 'contacts:read');
     const { id } = await params;
+    assertUuid(id);
     const contact = await getContactById(ctx.supabase, ctx.accountId, id);
     if (!contact) return fail('not_found', 'Contact not found', 404);
     return ok(contact);
@@ -39,6 +41,7 @@ export async function PATCH(
   try {
     const ctx = await requireApiKey(request, 'contacts:write');
     const { id } = await params;
+    assertUuid(id);
 
     const body = (await request.json().catch(() => null)) as Record<
       string,

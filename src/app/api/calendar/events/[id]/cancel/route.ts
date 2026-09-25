@@ -35,6 +35,16 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
     await deleteEventFromGoogle(googleCalendarAdmin(), ctx.accountId, data.google_event_id)
 
+    // The Google event is gone — forget its id, or a later reopen+edit
+    // tried to sync into a deleted Google event instead of creating one.
+    if (data.google_event_id) {
+      await ctx.supabase
+        .from('calendar_events')
+        .update({ google_event_id: null })
+        .eq('id', id)
+        .eq('account_id', ctx.accountId)
+    }
+
     return NextResponse.json({ success: true })
   } catch (err) {
     return toErrorResponse(err)

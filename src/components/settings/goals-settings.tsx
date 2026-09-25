@@ -109,6 +109,10 @@ export function GoalsSettings() {
     void load();
   }, [load]);
 
+  async function deleteGoal(existing: GoalRow) {
+    return supabase.from("sales_goals").delete().eq("id", existing.id);
+  }
+
   async function upsertGoal(userId: string | null, existing: GoalRow | null, value: number) {
     if (existing) {
       return supabase.from("sales_goals").update({ target_value: value }).eq("id", existing.id);
@@ -133,8 +137,12 @@ export function GoalsSettings() {
     try {
       const writes: Promise<{ error: { message: string; code?: string } | null }>[] = [];
 
+      // Clearing an existing goal's input removes the goal — there was
+      // no way to delete one before (an empty input was just skipped).
       const accountValue = Number(accountGoalInput);
-      if (accountGoalInput.trim() !== "" && !Number.isNaN(accountValue) && accountValue >= 0) {
+      if (accountGoalInput.trim() === "") {
+        if (accountGoal) writes.push(deleteGoal(accountGoal));
+      } else if (!Number.isNaN(accountValue) && accountValue >= 0) {
         writes.push(upsertGoal(null, accountGoal, accountValue));
       }
 
@@ -143,10 +151,14 @@ export function GoalsSettings() {
         // 053), not the auth user id — profile_id, not user_id, is
         // what has to go in that column.
         const raw = memberInputs[m.profile_id];
-        if (raw === undefined || raw.trim() === "") continue;
+        const existing = memberGoals[m.profile_id] ?? null;
+        if (raw === undefined) continue;
+        if (raw.trim() === "") {
+          if (existing) writes.push(deleteGoal(existing));
+          continue;
+        }
         const value = Number(raw);
         if (Number.isNaN(value) || value < 0) continue;
-        const existing = memberGoals[m.profile_id] ?? null;
         // Skip untouched rows — a member with no goal set and an empty
         // input shouldn't create a $0 row.
         if (!existing && value === 0) continue;

@@ -131,3 +131,11 @@ export function toApiErrorResponse(err: unknown): NextResponse {
     { status: 500 }
   );
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Path ids are UUIDs — anything else is a 400, not a Postgres cast
+ *  error surfacing as a 500. */
+export function assertUuid(id: string, name = 'id'): void {
+  if (!UUID_RE.test(id)) throw badRequest(`${name} must be a UUID`);
+}

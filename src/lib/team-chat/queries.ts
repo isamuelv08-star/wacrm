@@ -99,13 +99,23 @@ export async function deleteTeamChatMessage(db: DB, messageId: string): Promise<
 
 /** Advances the caller's own read watermark — drives the sidebar's
  *  unread dot the same way opening the notifications page clears it. */
-export async function markTeamChatRead(db: DB, userId: string): Promise<void> {
+/**
+ * `readAt` should be the newest message's server `created_at` when
+ * known: the unread count compares server timestamps, and a browser
+ * clock that's off by a few minutes marked messages read that weren't
+ * (or left read ones unread).
+ */
+export async function markTeamChatRead(db: DB, userId: string, readAt?: string): Promise<void> {
   const { error } = await db
     .from('profiles')
-    .update({ team_chat_last_read_at: new Date().toISOString() })
+    .update({ team_chat_last_read_at: readAt ?? new Date().toISOString() })
     .eq('user_id', userId)
   if (error) throw error
 }
+
+/** Window event the team-chat page fires after marking read, so the
+ *  sidebar dot (useTeamChatUnread) refreshes immediately. */
+export const TEAM_CHAT_READ_EVENT = 'team-chat-read'
 
 /**
  * Unread count for the sidebar nav dot — messages from anyone else,

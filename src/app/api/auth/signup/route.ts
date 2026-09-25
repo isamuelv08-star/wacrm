@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
+import { sameOriginUrl } from '@/lib/http/safe-redirect'
+import { getPublicOrigin } from '@/lib/http/request-origin'
 
 const MAX_EMAIL_LEN = 254
 const MAX_PASSWORD_LEN = 200
@@ -43,8 +45,7 @@ export async function POST(request: Request) {
   const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
   const password = typeof body?.password === 'string' ? body.password : ''
   const fullName = typeof body?.fullName === 'string' ? body.fullName.trim() : ''
-  const emailRedirectTo =
-    typeof body?.emailRedirectTo === 'string' ? body.emailRedirectTo : undefined
+  const emailRedirectTo = sameOriginUrl(body?.emailRedirectTo, getPublicOrigin(request))
 
   if (
     !email ||
