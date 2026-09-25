@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { AccountRole } from '@/lib/auth/roles'
 import { loadDashboardAccess } from '@/lib/auth/dashboard-access'
-import { rangeForPreset } from '@/lib/period'
+import { rangeForPresetInTimezone } from '@/lib/period'
 import { formatCurrency } from '@/lib/currency'
 import {
   loadCeoMetrics,
@@ -32,8 +32,10 @@ export async function buildAssistantSnapshot(args: {
   role: AccountRole
   userId: string
   currency: string
+  /** accounts.timezone — "this month" is the account's, not the UTC server's. */
+  timezone?: string | null
 }): Promise<string> {
-  const { db, role, userId, currency } = args
+  const { db, role, userId, currency, timezone } = args
   const { can } = await loadDashboardAccess(db, { role, userId })
 
   const sections: string[] = []
@@ -67,7 +69,7 @@ export async function buildAssistantSnapshot(args: {
     can('alerts')
 
   if (hasAnySalesAccess) {
-    const range = rangeForPreset('thisMonth')
+    const range = rangeForPresetInTimezone('thisMonth', timezone || 'UTC')
     const money = (n: number) => formatCurrency(n, currency)
 
     if (can('salesKpis') || can('salesVsGoal')) {

@@ -1,3 +1,4 @@
+import { dayKeyInTimezone, localDateTimeToUtcIso } from "@/lib/ai/timezone";
 // Shared date-range presets — a real calendar period (a month, a
 // quarter, a custom pick) rather than a rolling "last N days" window.
 // Used by both the Pipeline Analytics period selector and the
@@ -166,5 +167,97 @@ export function formatRangeLabel(range: PeriodRange, t: (key: string) => string)
       const inclusiveEnd = new Date(range.end.getTime() - 1);
       return `${range.start.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${inclusiveEnd.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
     }
+  }
+}
+
+/**
+ * Query string for /api/dashboard/ceo-summary: the preset label plus
+ * the range's exact bounds, computed HERE in the viewer's browser
+ * timezone. The server runs in UTC (node:20-alpine) and used to
+ * recompute "today" / "this month" there — so for a business in
+ * Ecuador (UTC-5) "today" ran 19:00→19:00 and sales on the last
+ * evening of the month counted toward the next month.
+ */
+export function ceoSummaryRangeParams(range: PeriodRange): URLSearchParams {
+  return new URLSearchParams({
+    preset: range.label,
+    from: range.start.toISOString(),
+    to: range.end.toISOString(),
+  });
+}
+
+/**
+ * Server side of `ceoSummaryRangeParams`: the client's exact bounds
+ * when present and sane, else null (caller falls back to computing the
+ * preset itself). Bounded to a sensible span so a crafted request
+ * can't ask for a decade-long scan.
+ */
+export function parseClientRange(
+  label: PeriodPreset,
+  from: string | null,
+  to: string | null,
+): PeriodRange | null {
+  if (!from || !to) return null;
+  const start = new Date(from);
+  const end = new Date(to);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+  const spanDays = (end.getTime() - start.getTime()) / 86_400_000;
+  if (spanDays <= 0 || spanDays > 366 * 10) return null;
+  return { start, end, label };
+}
+
+/**
+ * `rangeForPreset`, but with day/week/month boundaries at local
+ * midnight in `timezone` (the account's `accounts.timezone`) instead
+ * of the process's own zone. For server-side callers with no browser
+ * behind them (decision center, AI assistant snapshot, risk-engine
+ * cron): the container runs in UTC, so "this month" for a UTC-5
+ * business used to start at 19:00 on the last day of the previous
+ * month. 'custom' has no meaning without explicit bounds and falls
+ * back to `rangeForPreset`.
+ */
+export function rangeForPresetInTimezone(
+  preset: PeriodPreset,
+  timezone: string,
+  now: Date = new Date(),
+): PeriodRange {
+  if (preset === "custom") return rangeForPreset(preset);
+
+  const [y, m, d] = dayKeyInTimezone(now, timezone).split("-").map(Number);
+  // Local midnight of a (possibly overflowing) calendar date in `timezone`.
+  const at = (yy: number, mm: number, dd: number): Date => {
+    const key = new Date(Date.UTC(yy, mm - 1, dd)).toISOString().slice(0, 10);
+    return new Date(localDateTimeToUtcIso(`${key}T00:00`, timezone) ?? `${key}T00:00:00Z`);
+  };
+  const weekday = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0 = Sunday
+  const mondayOffset = (weekday + 6) % 7;
+
+  switch (preset) {
+    case "today":
+      return { start: at(y, m, d), end: at(y, m, d + 1), label: preset };
+    case "yesterday":
+      return { start: at(y, m, d - 1), end: at(y, m, d), label: preset };
+    case "last7Days":
+      return { start: at(y, m, d - 6), end: at(y, m, d + 1), label: preset };
+    case "last15Days":
+      return { start: at(y, m, d - 14), end: at(y, m, d + 1), label: preset };
+    case "last30Days":
+      return { start: at(y, m, d - 29), end: at(y, m, d + 1), label: preset };
+    case "thisWeek":
+      return { start: at(y, m, d - mondayOffset), end: at(y, m, d - mondayOffset + 7), label: preset };
+    case "lastWeek":
+      return { start: at(y, m, d - mondayOffset - 7), end: at(y, m, d - mondayOffset), label: preset };
+    case "thisMonth":
+      return { start: at(y, m, 1), end: at(y, m + 1, 1), label: preset };
+    case "lastMonth":
+      return { start: at(y, m - 1, 1), end: at(y, m, 1), label: preset };
+    case "thisQuarter": {
+      const qm = Math.floor((m - 1) / 3) * 3 + 1;
+      return { start: at(y, qm, 1), end: at(y, qm + 3, 1), label: preset };
+    }
+    case "thisYear":
+      return { start: at(y, 1, 1), end: at(y + 1, 1, 1), label: preset };
+    case "allTime":
+      return { start: at(2020, 1, 1), end: at(y + 1, 1, 1), label: preset };
   }
 }

@@ -74,10 +74,21 @@ export async function POST(request: Request) {
       )
     }
 
-    const currencyRow = await supabase.from('accounts').select('default_currency').eq('id', accountId).maybeSingle()
-    const currency = (currencyRow.data as { default_currency: string } | null)?.default_currency ?? DEFAULT_CURRENCY
+    const currencyRow = await supabase
+      .from('accounts')
+      .select('default_currency, timezone')
+      .eq('id', accountId)
+      .maybeSingle()
+    const acctRow = currencyRow.data as { default_currency: string; timezone: string | null } | null
+    const currency = acctRow?.default_currency ?? DEFAULT_CURRENCY
 
-    const snapshot = await buildAssistantSnapshot({ db: supabase, role, userId, currency })
+    const snapshot = await buildAssistantSnapshot({
+      db: supabase,
+      role,
+      userId,
+      currency,
+      timezone: acctRow?.timezone,
+    })
     const systemPrompt = buildAssistantSystemPrompt({
       accountName: ctx.account.name,
       snapshot,

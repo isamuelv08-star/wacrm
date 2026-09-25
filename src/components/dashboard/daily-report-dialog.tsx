@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button"
 import { InsightsPanel } from "./insights-panel"
 import type { Insight } from "@/lib/sales-intelligence/insights"
 import type { CeoMetrics, CommercialMetrics } from "@/lib/dashboard/ceo-types"
+import { ceoSummaryRangeParams, rangeForPreset } from "@/lib/period"
 
 interface ReportResponse {
   ceoMetrics: CeoMetrics | null
@@ -55,7 +56,7 @@ export function DailyReportDialog({
   useEffect(() => {
     if (!open) return
     let cancelled = false
-    fetch("/api/dashboard/ceo-summary?preset=thisMonth")
+    fetch(`/api/dashboard/ceo-summary?${ceoSummaryRangeParams(rangeForPreset("thisMonth")).toString()}`)
       .then((res) => {
         if (!res.ok) throw new Error(`ceo-summary request failed: ${res.status}`)
         return res.json() as Promise<ReportResponse>

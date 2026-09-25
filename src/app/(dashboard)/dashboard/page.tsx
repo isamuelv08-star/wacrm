@@ -28,7 +28,7 @@ import {
 import { resolveSellerScope, type SellerScope } from '@/lib/dashboard/seller-scope'
 import { loadTeamRoster, type TeamMember } from '@/lib/dashboard/member-detail'
 import { MemberBreakdownCard } from '@/components/dashboard/member-breakdown-card'
-import { rangeForPreset, formatRangeLabel, type PeriodPreset, type PeriodRange } from '@/lib/period'
+import { ceoSummaryRangeParams, rangeForPreset, formatRangeLabel, type PeriodPreset, type PeriodRange } from '@/lib/period'
 import { PeriodSelector } from '@/components/period-selector'
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback'
 import type {
@@ -111,7 +111,8 @@ async function fetchCeoSummary(
   staleDays: number,
   customRange?: { start: string; end: string },
 ): Promise<CeoSummaryResponse> {
-  const params = new URLSearchParams({ preset: range.label, staleDays: String(staleDays) })
+  const params = ceoSummaryRangeParams(range)
+  params.set('staleDays', String(staleDays))
   if (range.label === 'custom' && customRange) {
     params.set('start', customRange.start)
     params.set('end', customRange.end)

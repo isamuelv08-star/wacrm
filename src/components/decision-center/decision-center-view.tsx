@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { formatCurrency } from "@/lib/currency";
-import { rangeForPreset, type PeriodPreset } from "@/lib/period";
+import { ceoSummaryRangeParams, rangeForPreset, type PeriodPreset } from "@/lib/period";
 import { PeriodSelector } from "@/components/period-selector";
 import { MetricCard, type MetricCardTint } from "@/components/dashboard/metric-card";
 import { SkeletonCard } from "@/components/dashboard/skeleton";
@@ -141,7 +141,8 @@ export function DecisionCenterView() {
     let cancelled = false;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- entering a loading state for the fetch this same effect kicks off below
     setLoading(true);
-    const params = new URLSearchParams({ preset: range.label });
+    // Exact bounds in the viewer's timezone (see ceoSummaryRangeParams).
+    const params = ceoSummaryRangeParams(range);
     if (range.label === "custom") {
       params.set("start", customStart);
       params.set("end", customEnd);

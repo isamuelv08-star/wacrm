@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { loadCeoMetrics, loadCeoAlerts } from '../dashboard/ceo-queries'
-import { rangeForPreset } from '../period'
+import { rangeForPresetInTimezone } from '../period'
 import { buildBrokenPromiseSignal, buildSignalsFromAlerts } from './rules'
 import { ALL_SIGNAL_TYPES } from './types'
 
@@ -39,19 +39,20 @@ export interface RiskEngineScanResult {
 }
 
 export async function runRiskEngineScan(db: SupabaseClient): Promise<RiskEngineScanResult> {
-  const { data: accounts, error } = await db.from('accounts').select('id').eq('status', 'active')
+  const { data: accounts, error } = await db.from('accounts').select('id, timezone').eq('status', 'active')
   if (error) {
     console.error('[sales-intelligence] account scan failed:', error.message)
     return { accountsScanned: 0, signalsOpened: 0, signalsUpdated: 0, signalsResolved: 0 }
   }
 
-  const range = rangeForPreset('thisMonth')
   let signalsOpened = 0
   let signalsUpdated = 0
   let signalsResolved = 0
 
-  for (const account of (accounts ?? []) as { id: string }[]) {
+  for (const account of (accounts ?? []) as { id: string; timezone: string | null }[]) {
     try {
+      // Each account's own "this month" (the cron runs in UTC).
+      const range = rangeForPresetInTimezone('thisMonth', account.timezone || 'UTC')
       const metrics = await loadCeoMetrics(db, range, account.id)
       const alerts = await loadCeoAlerts(db, metrics, 7, 90, account.id)
       const drafts = buildSignalsFromAlerts(alerts)

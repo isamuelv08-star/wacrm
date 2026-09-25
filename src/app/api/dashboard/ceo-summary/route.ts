@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { loadDashboardAccess } from '@/lib/auth/dashboard-access'
 import { cachedForAccount, CACHE_TTL, dashboardSummaryCacheTag } from '@/lib/cache/account-cache'
-import { rangeForPreset, type PeriodPreset } from '@/lib/period'
+import { parseClientRange, rangeForPreset, type PeriodPreset } from '@/lib/period'
 import {
   loadCeoMetrics,
   loadCeoAlerts,
@@ -217,6 +217,10 @@ export async function GET(request: Request) {
 
 function parseRange(searchParams: URLSearchParams) {
   const preset = (searchParams.get('preset') as PeriodPreset | null) ?? 'thisMonth'
+  // Bounds computed in the viewer's timezone (see ceoSummaryRangeParams)
+  // win — this server runs in UTC.
+  const clientRange = parseClientRange(preset, searchParams.get('from'), searchParams.get('to'))
+  if (clientRange) return clientRange
   if (preset === 'custom') {
     const start = searchParams.get('start')
     const end = searchParams.get('end')

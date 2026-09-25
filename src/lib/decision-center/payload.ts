@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 import { cachedForAccount, CACHE_TTL } from '@/lib/cache/account-cache'
-import { rangeForPreset, type PeriodRange } from '@/lib/period'
+import { rangeForPresetInTimezone, parseClientRange, rangeForPreset, type PeriodRange } from '@/lib/period'
 import {
   loadCeoMetrics,
   loadCeoAlerts,
@@ -136,7 +136,13 @@ export async function loadDecisionCenterPayload(
     [accountId, 'decision-center-decisions'],
     CACHE_TTL.decisionCenter,
     async () => {
-      const thisMonthMetrics = await loadCeoMetrics(supabase, rangeForPreset('thisMonth'))
+      // The account's own "this month" — no browser behind this cached,
+      // period-independent block, and the server runs in UTC.
+      const { data: acctTz } = await supabase.from('accounts').select('timezone').eq('id', accountId).maybeSingle()
+      const thisMonthMetrics = await loadCeoMetrics(
+        supabase,
+        rangeForPresetInTimezone('thisMonth', (acctTz as { timezone: string | null } | null)?.timezone || 'UTC'),
+      )
       const [alerts, hotUnanswered, nextBestActions, recoveryCandidates, overduePromiseCount] = await Promise.all([
         loadCeoAlerts(supabase, thisMonthMetrics, STALE_DAYS_DEFAULT),
         countHotLeadsUnanswered(supabase),
@@ -289,6 +295,9 @@ export async function loadDecisionCenterPayload(
 
 export function parseDecisionCenterRange(searchParams: URLSearchParams): PeriodRange {
   const preset = (searchParams.get('preset') as PeriodRange['label'] | null) ?? 'last7Days'
+  // Bounds computed in the viewer's timezone win (this server is UTC).
+  const clientRange = parseClientRange(preset, searchParams.get('from'), searchParams.get('to'))
+  if (clientRange) return clientRange
   if (preset === 'custom') {
     const start = searchParams.get('start')
     const end = searchParams.get('end')
