@@ -30,6 +30,8 @@
 --      contact already has one", serialized per contact with an
 --      advisory lock — closes the duplicate-deal race for good.
 --   8. Missing indexes on hot filters / FKs.
+--   9. bump_conversation_on_inbound(): atomic unread_count + 1.
+--  10. profiles.round_robin_opt_in joins the RPC-only columns.
 --
 -- Idempotent — safe to re-run.
 -- ============================================================
@@ -380,3 +382,58 @@ BEGIN
   END LOOP;
 END;
 $$;
+
+-- ------------------------------------------------------------
+-- 9. bump_conversation_on_inbound — atomic unread increment
+-- ------------------------------------------------------------
+-- The webhooks computed `unread_count = <value read earlier> + 1` in
+-- JS: concurrent inbounds lost increments, and an agent opening the
+-- thread (unread_count = 0) in between got overwritten back to N.
+-- Server-only, same as every other webhook write.
+CREATE OR REPLACE FUNCTION public.bump_conversation_on_inbound(
+  p_conversation_id UUID,
+  p_preview TEXT
+) RETURNS VOID
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  UPDATE conversations
+  SET unread_count = COALESCE(unread_count, 0) + 1,
+      last_message_text = p_preview,
+      last_message_at = NOW(),
+      updated_at = NOW()
+  WHERE id = p_conversation_id;
+$$;
+
+ALTER FUNCTION public.bump_conversation_on_inbound(UUID, TEXT) OWNER TO postgres;
+REVOKE ALL ON FUNCTION public.bump_conversation_on_inbound(UUID, TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.bump_conversation_on_inbound(UUID, TEXT) TO service_role;
+
+-- ------------------------------------------------------------
+-- 10. profiles.round_robin_opt_in — RPC-only, like the columns 034/073
+--     already protect (an agent could PATCH themselves into the lead
+--     rotation; set_member_round_robin_opt_in, SECURITY DEFINER, is the
+--     legitimate writer and is unaffected).
+-- ------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.enforce_profile_privilege_columns()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  IF (NEW.account_role IS DISTINCT FROM OLD.account_role
+      OR NEW.account_id IS DISTINCT FROM OLD.account_id
+      OR NEW.dashboard_permissions IS DISTINCT FROM OLD.dashboard_permissions
+      OR NEW.round_robin_opt_in IS DISTINCT FROM OLD.round_robin_opt_in)
+     AND current_user = 'authenticated'
+  THEN
+    RAISE EXCEPTION
+      'account_role, account_id, dashboard_permissions and round_robin_opt_in cannot be changed directly; use the account member RPCs'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+ALTER FUNCTION public.enforce_profile_privilege_columns() OWNER TO postgres;

@@ -25,6 +25,7 @@ import {
   isTemplateWebhookField,
 } from '@/lib/whatsapp/template-webhook'
 import { isMissingColumnError, isNewestMessage, sentAtIso } from './external-outbound'
+import { bumpConversationOnInbound } from '@/lib/conversations/bump-inbound'
 
 // ============================================================
 // Shared inbound-webhook processing pipeline.
@@ -1178,20 +1179,12 @@ export async function processMessage(
     }
   }
 
-  // Update conversation
-  const { error: convError } = await supabaseAdmin()
-    .from('conversations')
-    .update({
-      last_message_text: contentText || `[${message.type}]`,
-      last_message_at: new Date().toISOString(),
-      unread_count: (conversation.unread_count || 0) + 1,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', conversation.id)
-
-  if (convError) {
-    console.error('Error updating conversation:', convError)
-  }
+  // Update conversation — atomic +1 unread (see bumpConversationOnInbound).
+  await bumpConversationOnInbound(supabaseAdmin(), {
+    conversationId: conversation.id,
+    preview: contentText || `[${message.type}]`,
+    knownUnreadCount: conversation.unread_count,
+  })
 
   // A customer writing again re-opens the thread (issue #409). Kept as a
   // separate conditional statement rather than a `status` field on the

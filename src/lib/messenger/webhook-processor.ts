@@ -11,6 +11,7 @@ import { ensureLeadDeal } from '@/lib/whatsapp/webhook-processor'
 import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
 import { classifyLeadIfNeeded } from '@/lib/ai/lead-classify'
 import { observeConversationIfNeeded } from '@/lib/ai/observer'
+import { bumpConversationOnInbound } from '@/lib/conversations/bump-inbound'
 
 // ============================================================
 // Messenger inbound-webhook processing pipeline — the counterpart to
@@ -458,18 +459,11 @@ export async function ingestMessengerMessage(args: {
     return
   }
 
-  const { error: convError } = await supabaseAdmin()
-    .from('conversations')
-    .update({
-      last_message_text: contentText || `[${contentType}]`,
-      last_message_at: new Date().toISOString(),
-      unread_count: (conversation.unread_count || 0) + 1,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', conversation.id)
-  if (convError) {
-    console.error('[messenger webhook] Error updating conversation:', convError)
-  }
+  await bumpConversationOnInbound(supabaseAdmin(), {
+    conversationId: conversation.id,
+    preview: contentText || `[${contentType}]`,
+    knownUnreadCount: conversation.unread_count,
+  })
 
   await reopenClosedConversation(supabaseAdmin(), conversation)
 
