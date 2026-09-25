@@ -28,6 +28,10 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { zernioClient } from '@/lib/whatsapp/zernio-client'
 import { SendMessageError, type SendMessageParams } from '@/lib/whatsapp/send-message'
 import type { InteractiveMessagePayload } from '@/lib/whatsapp/interactive'
+import {
+  flattenTemplateComponentsForZernio,
+  type MetaSendComponent,
+} from '@/lib/whatsapp/template-send-builder'
 
 /**
  * The Zernio SocialAccount id for this account's WhatsApp channel, or
@@ -88,14 +92,27 @@ export async function sendViaZernio(
     | 'templateName'
     | 'templateLanguage'
     | 'templateParams'
-  >,
+  > & {
+    /** Full Meta send components (header media, body, buttons) built
+     *  from the stored template row — without them a template with an
+     *  image header or a URL button failed through Zernio. */
+    templateComponents?: MetaSendComponent[]
+  },
   /** Meta wamid of the message being swipe-replied to, if any. */
   contextMessageId?: string,
   /** Required when messageType === 'interactive'. */
   interactivePayload?: InteractiveMessagePayload | null,
 ): Promise<ZernioSendResult> {
-  const { messageType, contentText, mediaUrl, filename, templateName, templateLanguage, templateParams } =
-    params
+  const {
+    messageType,
+    contentText,
+    mediaUrl,
+    filename,
+    templateName,
+    templateLanguage,
+    templateParams,
+    templateComponents,
+  } = params
 
   if (messageType === 'interactive' && !existingZernioConversationId) {
     throw new SendMessageError(
@@ -150,9 +167,11 @@ export async function sendViaZernio(
                   {
                     name: templateName,
                     language: templateLanguage || 'en_US',
-                    ...(templateParams && templateParams.length > 0
-                      ? { components: buildTemplateComponents(templateParams) }
-                      : {}),
+                    ...(templateComponents && templateComponents.length > 0
+                      ? { components: templateComponents }
+                      : templateParams && templateParams.length > 0
+                        ? { components: buildTemplateComponents(templateParams) }
+                        : {}),
                   },
                 ],
               }
@@ -180,6 +199,13 @@ export async function sendViaZernio(
     )
   }
 
+  // New thread: Zernio wants the variables flat (header, body, URL
+  // buttons) plus an optional header asset — derived from the full
+  // components when we have them.
+  const flat =
+    messageType === 'template' && templateComponents && templateComponents.length > 0
+      ? flattenTemplateComponentsForZernio(templateComponents)
+      : null
   const { data, error } = await client.messages.createInboxConversation({
     body: {
       accountId: zernioSocialAccountId,
@@ -188,7 +214,11 @@ export async function sendViaZernio(
       category: messageType === 'text' ? 'utility' : undefined,
       templateName: messageType === 'template' ? templateName || undefined : undefined,
       templateLanguage: messageType === 'template' ? templateLanguage || 'en_US' : undefined,
-      templateParams: messageType === 'template' ? templateParams : undefined,
+      templateParams:
+        messageType === 'template' ? (flat ? flat.templateParams : templateParams) : undefined,
+      ...(flat?.headerMedia?.link || flat?.headerMedia?.id
+        ? { headerMedia: flat.headerMedia }
+        : {}),
     },
   })
 

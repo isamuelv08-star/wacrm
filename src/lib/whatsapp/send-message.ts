@@ -47,6 +47,7 @@ import {
 } from '@/lib/whatsapp/phone-utils';
 import type { MessageTemplate } from '@/types';
 import { isMessageTemplate } from '@/lib/whatsapp/template-row-guard';
+import { resolveTemplateComponents, type SendTimeParams } from '@/lib/whatsapp/template-send-builder';
 
 export const MEDIA_KINDS = ['image', 'video', 'document', 'audio'] as const;
 export const VALID_MESSAGE_TYPES = [
@@ -350,11 +351,34 @@ export async function sendMessageToConversation(
   let waMessageId = '';
 
   if (zernioSocialAccountId) {
+    // Same template row + components the Meta branch builds, so media
+    // headers and URL buttons reach Zernio too.
+    const zernioTemplateRow =
+      messageType === 'template' && templateName
+        ? await loadTemplateRow(db, accountId, templateName, templateLanguage)
+        : null;
+    const templateComponents =
+      messageType === 'template'
+        ? resolveTemplateComponents(
+            zernioTemplateRow,
+            (templateMessageParams as SendTimeParams | undefined) ?? undefined,
+            templateParams,
+          )
+        : undefined;
     const result = await sendViaZernio(
       zernioSocialAccountId,
       (conversation.zernio_conversation_id as string | null) ?? null,
       sanitizedPhone,
-      { messageType, contentText, mediaUrl, filename, templateName, templateLanguage, templateParams },
+      {
+        messageType,
+        contentText,
+        mediaUrl,
+        filename,
+        templateName,
+        templateLanguage,
+        templateParams,
+        templateComponents,
+      },
       contextMessageId,
       interactivePayload,
     );
@@ -420,24 +444,10 @@ export async function sendMessageToConversation(
 
     // Template row (for header + button components). isMessageTemplate
     // guards against a malformed local row crashing the send-builder.
-    let templateRow: MessageTemplate | null = null;
-    if (messageType === 'template' && templateName) {
-      const { data } = await db
-        .from('message_templates')
-        .select('*')
-        .eq('account_id', accountId)
-        .eq('name', templateName)
-        .eq('language', templateLanguage || 'en_US')
-        .maybeSingle();
-      if (data && !isMessageTemplate(data)) {
-        throw new SendMessageError(
-          'template_malformed',
-          'Template row is malformed locally — run "Sync from Meta" in Settings to repair it.',
-          500
-        );
-      }
-      templateRow = data ?? null;
-    }
+    const templateRow: MessageTemplate | null =
+      messageType === 'template' && templateName
+        ? await loadTemplateRow(db, accountId, templateName, templateLanguage)
+        : null;
 
     const attempt = async (phone: string): Promise<string> => {
       if (messageType === 'template') {
@@ -639,4 +649,32 @@ export async function sendMessageToConversation(
   }
 
   return { messageId: messageRecord.id, whatsappMessageId: waMessageId };
+}
+
+/**
+ * The stored template row (for header + button components).
+ * isMessageTemplate guards against a malformed local row crashing the
+ * send-builder.
+ */
+async function loadTemplateRow(
+  db: SupabaseClient,
+  accountId: string,
+  templateName: string,
+  templateLanguage: string | null | undefined,
+): Promise<MessageTemplate | null> {
+  const { data } = await db
+    .from('message_templates')
+    .select('*')
+    .eq('account_id', accountId)
+    .eq('name', templateName)
+    .eq('language', templateLanguage || 'en_US')
+    .maybeSingle();
+  if (data && !isMessageTemplate(data)) {
+    throw new SendMessageError(
+      'template_malformed',
+      'Template row is malformed locally — run "Sync from Meta" in Settings to repair it.',
+      500
+    );
+  }
+  return data ?? null;
 }

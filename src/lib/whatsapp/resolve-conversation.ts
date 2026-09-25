@@ -24,6 +24,7 @@ import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe';
 import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils';
 import { SendMessageError } from '@/lib/whatsapp/send-message';
 import { resolveAuditUserId, ContactError } from '@/lib/api/v1/contacts';
+import { resolveZernioSocialAccountId } from '@/lib/whatsapp/zernio-send';
 
 export interface ResolvedConversation {
   conversationId: string;
@@ -60,11 +61,17 @@ export async function resolveConversationByPhone(
   // incorrectly report "not configured" for a multiwhatsapp account
   // (085) with 2+ direct-Meta numbers (.maybeSingle() errors, rather
   // than picks one, on 2+ matches).
-  const { data: configRows } = await db
-    .from('whatsapp_config')
-    .select('id')
-    .eq('account_id', accountId)
-    .limit(1);
+  // A Zernio-bridged account has no whatsapp_config row at all — the
+  // send goes through Zernio (send-message.ts) — so it counts as
+  // connected too (the public API used to reject it as "not configured").
+  const zernioSocialAccountId = await resolveZernioSocialAccountId(db, accountId);
+  const { data: configRows } = zernioSocialAccountId
+    ? { data: [{ id: 'zernio' }] }
+    : await db
+        .from('whatsapp_config')
+        .select('id')
+        .eq('account_id', accountId)
+        .limit(1);
   if (!configRows || configRows.length === 0) {
     throw new SendMessageError(
       'whatsapp_not_configured',

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildSendComponents } from './template-send-builder';
+import { buildSendComponents, flattenTemplateComponentsForZernio } from './template-send-builder';
 import type { MessageTemplate } from '@/types';
 
 function row(overrides: Partial<MessageTemplate> = {}): MessageTemplate {
@@ -275,3 +275,26 @@ describe('buildSendComponents — end-to-end mix', () => {
     expect((components[2] as { index: string }).index).toBe('1');
   });
 });
+
+describe('flattenTemplateComponentsForZernio', () => {
+  it('orders header text, body, then URL-button values and extracts header media', () => {
+    const out = flattenTemplateComponentsForZernio([
+      { type: 'header', parameters: [{ type: 'image', image: { link: 'https://x/a.jpg' } }] },
+      { type: 'body', parameters: [{ type: 'text', text: 'Ana' }, { type: 'text', text: '205/55R16' }] },
+      { type: 'button', sub_type: 'quick_reply', index: '0', parameters: [{ type: 'payload', payload: 'yes' }] },
+      { type: 'button', sub_type: 'url', index: '1', parameters: [{ type: 'text', text: 'order-9' }] },
+    ])
+    expect(out).toEqual({
+      templateParams: ['Ana', '205/55R16', 'order-9'],
+      headerMedia: { type: 'image', link: 'https://x/a.jpg' },
+    })
+  })
+
+  it('puts a text-header variable first', () => {
+    const out = flattenTemplateComponentsForZernio([
+      { type: 'header', parameters: [{ type: 'text', text: 'Hola' }] },
+      { type: 'body', parameters: [{ type: 'text', text: 'b1' }] },
+    ])
+    expect(out).toEqual({ templateParams: ['Hola', 'b1'] })
+  })
+})

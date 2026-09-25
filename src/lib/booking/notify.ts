@@ -4,6 +4,9 @@ import { decrypt } from '@/lib/whatsapp/encryption'
 import { sendTemplateMessage } from '@/lib/whatsapp/meta-api'
 import { isMessageTemplate } from '@/lib/whatsapp/template-row-guard'
 import { isValidTimezone } from '@/lib/automations/schedule'
+import { resolveZernioSocialAccountId, sendViaZernio } from '@/lib/whatsapp/zernio-send'
+import { resolveTemplateComponents } from '@/lib/whatsapp/template-send-builder'
+import { sanitizePhoneForMeta } from '@/lib/whatsapp/phone-utils'
 
 // ============================================================
 // WhatsApp confirmation/reminder sends for appointments (migration
@@ -94,7 +97,8 @@ export async function sendAppointmentNotification(
       db.from('message_templates').select('*').eq('id', templateId).maybeSingle(),
     ])
     const config = configRows?.[0] ?? null
-    if (!config) {
+    const zernioSocialAccountId = config ? null : await resolveZernioSocialAccountId(db, args.accountId)
+    if (!config && !zernioSocialAccountId) {
       console.warn('[booking notify] WhatsApp not configured — skipping', args.kind)
       return false
     }
@@ -108,7 +112,6 @@ export async function sendAppointmentNotification(
       return false
     }
 
-    const accessToken = decrypt(config.access_token)
     const line = formatAppointmentLine(
       args.serviceName,
       args.staffName,
@@ -116,15 +119,43 @@ export async function sendAppointmentNotification(
       args.timezone,
     )
 
+    const messageParams = { body: [args.contactName, line] }
+
+    if (!config && zernioSocialAccountId) {
+      // Zernio-bridged account — confirmations/reminders were silently
+      // skipped for these (no whatsapp_config row).
+      const { data: conv } = await db
+        .from('conversations')
+        .select('zernio_conversation_id')
+        .eq('contact_id', args.contactId)
+        .not('zernio_conversation_id', 'is', null)
+        .order('last_message_at', { ascending: false, nullsFirst: false })
+        .limit(1)
+        .maybeSingle()
+      await sendViaZernio(
+        zernioSocialAccountId,
+        (conv?.zernio_conversation_id as string | null) ?? null,
+        sanitizePhoneForMeta(args.contactPhone),
+        {
+          messageType: 'template',
+          templateName: template.name,
+          templateLanguage: template.language || 'es',
+          templateParams: messageParams.body,
+          templateComponents: resolveTemplateComponents(template, messageParams, null),
+        },
+      )
+      return true
+    }
+
     await sendTemplateMessage({
-      phoneNumberId: config.phone_number_id,
-      accessToken,
+      phoneNumberId: config!.phone_number_id,
+      accessToken: decrypt(config!.access_token),
       to: args.contactPhone,
       templateName: template.name,
       language: template.language || 'es',
       template,
-      messageParams: { body: [args.contactName, line] },
-      apiBase: config.send_api_base ?? undefined,
+      messageParams,
+      apiBase: config!.send_api_base ?? undefined,
     })
 
     return true

@@ -234,3 +234,57 @@ export function buildSendComponents(
   }
   return out;
 }
+
+/**
+ * Full send-time components for a template, the same way the direct
+ * Meta path builds them (meta-api.ts sendTemplateMessage): from the
+ * stored row when we have it, else the legacy body-only shape.
+ */
+export function resolveTemplateComponents(
+  template: MessageTemplate | null | undefined,
+  messageParams: SendTimeParams | null | undefined,
+  legacyBodyParams: string[] | null | undefined,
+): MetaSendComponent[] {
+  if (template) {
+    return buildSendComponents(template, {
+      body: messageParams?.body ?? legacyBodyParams ?? undefined,
+      headerText: messageParams?.headerText,
+      headerMediaUrl: messageParams?.headerMediaUrl,
+      headerMediaId: messageParams?.headerMediaId,
+      buttonParams: messageParams?.buttonParams,
+    });
+  }
+  if (legacyBodyParams && legacyBodyParams.length > 0) {
+    return [{ type: 'body', parameters: legacyBodyParams.map((text) => ({ type: 'text', text })) }];
+  }
+  return [];
+}
+
+/**
+ * Zernio's "start a new conversation with a template" call takes the
+ * variables as ONE flat array — header text vars, then body vars, then
+ * one value per dynamic URL button — plus an optional `headerMedia`
+ * override. Converts the Meta components into that shape.
+ */
+export function flattenTemplateComponentsForZernio(components: MetaSendComponent[]): {
+  templateParams: string[];
+  headerMedia?: { type: 'image' | 'video' | 'document'; link?: string; id?: string };
+} {
+  const texts = (c: MetaSendComponent | undefined) =>
+    (c?.parameters ?? []).flatMap((p) => (p.type === 'text' ? [p.text] : []));
+  const header = components.find((c) => c.type === 'header');
+  const body = components.find((c) => c.type === 'body');
+  const urlButtons = components.filter((c) => c.type === 'button' && c.sub_type === 'url');
+
+  let headerMedia: { type: 'image' | 'video' | 'document'; link?: string; id?: string } | undefined;
+  for (const p of header?.parameters ?? []) {
+    if (p.type === 'image') headerMedia = { type: 'image', ...p.image };
+    else if (p.type === 'video') headerMedia = { type: 'video', ...p.video };
+    else if (p.type === 'document') headerMedia = { type: 'document', ...p.document };
+  }
+
+  return {
+    templateParams: [...texts(header), ...texts(body), ...urlButtons.flatMap((b) => texts(b))],
+    ...(headerMedia ? { headerMedia } : {}),
+  };
+}

@@ -15,6 +15,8 @@ import {
   rateLimitResponse,
   RATE_LIMITS,
 } from '@/lib/rate-limit'
+import { resolveZernioSocialAccountId, sendViaZernio } from '@/lib/whatsapp/zernio-send'
+import { resolveTemplateComponents } from '@/lib/whatsapp/template-send-builder'
 
 interface BroadcastResult {
   phone: string
@@ -125,15 +127,20 @@ export async function POST(request: Request) {
     // multiwhatsapp account (085) always uses its oldest connected
     // number here rather than crashing. Zero change for a 'shared'
     // account (only ever one row).
-    const { data: configRows, error: configError } = await supabase
-      .from('whatsapp_config')
-      .select('*')
-      .eq('account_id', accountId)
-      .order('created_at', { ascending: true })
-      .limit(1)
+    // Zernio-bridged accounts have no whatsapp_config row — they
+    // broadcast through Zernio (this used to 400 "not configured").
+    const zernioSocialAccountId = await resolveZernioSocialAccountId(supabase, accountId)
+    const { data: configRows, error: configError } = zernioSocialAccountId
+      ? { data: null, error: null }
+      : await supabase
+          .from('whatsapp_config')
+          .select('*')
+          .eq('account_id', accountId)
+          .order('created_at', { ascending: true })
+          .limit(1)
     const config = configRows?.[0] ?? null
 
-    if (configError || !config) {
+    if (!zernioSocialAccountId && (configError || !config)) {
       return NextResponse.json(
         {
           error:
@@ -143,7 +150,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const accessToken = decrypt(config.access_token)
+    const accessToken = config ? decrypt(config.access_token) : ''
 
     // Load the template row once so sendTemplateMessage can build
     // header + button components on each iteration. Loading inside
@@ -191,7 +198,26 @@ export async function POST(request: Request) {
       let sentMessageId: string | null = null
       let lastError: string | null = null
 
-      for (const variant of variants) {
+      if (zernioSocialAccountId) {
+        try {
+          const result = await sendViaZernio(zernioSocialAccountId, null, sanitized, {
+            messageType: 'template',
+            templateName: template_name,
+            templateLanguage: template_language || 'en_US',
+            templateParams: recipient.params ?? [],
+            templateComponents: resolveTemplateComponents(
+              templateRow,
+              recipient.messageParams,
+              recipient.params ?? [],
+            ),
+          })
+          sentMessageId = result.waMessageId
+        } catch (error) {
+          lastError = error instanceof Error ? error.message : 'Unknown error'
+        }
+      }
+
+      for (const variant of zernioSocialAccountId || !config ? [] : variants) {
         try {
           const result = await sendTemplateMessage({
             phoneNumberId: config.phone_number_id,

@@ -13,6 +13,9 @@ import {
 } from '@/lib/whatsapp/phone-utils'
 import { resolveZernioSocialAccountId, sendViaZernio } from '@/lib/whatsapp/zernio-send'
 import { supabaseAdmin } from './admin-client'
+import type { MessageTemplate } from '@/types'
+import { isMessageTemplate } from '@/lib/whatsapp/template-row-guard'
+import { resolveTemplateComponents } from '@/lib/whatsapp/template-send-builder'
 
 // ------------------------------------------------------------
 // Automation-side Meta sender.
@@ -134,6 +137,22 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
 
   const zernioSocialAccountId = await resolveZernioSocialAccountId(db, input.accountId)
 
+  // The stored template row, so image/video/document headers and URL
+  // buttons actually go out (automations used to send body-only, which
+  // Meta rejects for any template with a media header). A malformed row
+  // falls back to the old body-only send rather than failing the step.
+  let templateRow: MessageTemplate | null = null
+  if (input.kind === 'template') {
+    const { data: row } = await db
+      .from('message_templates')
+      .select('*')
+      .eq('account_id', input.accountId)
+      .eq('name', input.templateName)
+      .eq('language', input.language || 'en_US')
+      .maybeSingle()
+    templateRow = row && isMessageTemplate(row) ? row : null
+  }
+
   let waMessageId: string
   if (zernioSocialAccountId) {
     const { data: conv } = await db
@@ -152,6 +171,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
             templateName: input.templateName,
             templateLanguage: input.language,
             templateParams: input.params,
+            templateComponents: resolveTemplateComponents(templateRow, undefined, input.params),
           }
         : { messageType: 'text', contentText: input.text },
     )
@@ -207,6 +227,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
           templateName: input.templateName,
           language: input.language,
           params: input.params,
+          template: templateRow ?? undefined,
           apiBase: config.send_api_base ?? undefined,
         })
         return r.messageId

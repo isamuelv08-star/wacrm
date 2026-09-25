@@ -29,6 +29,8 @@ import {
 import { isMessageTemplate } from '@/lib/whatsapp/template-row-guard';
 import type { MessageTemplate } from '@/types';
 import { findOrCreateContact } from '@/lib/api/v1/contacts';
+import { resolveZernioSocialAccountId, sendViaZernio } from '@/lib/whatsapp/zernio-send';
+import { resolveTemplateComponents } from '@/lib/whatsapp/template-send-builder';
 
 /** Thrown by createBroadcast on a caller-visible failure; route maps it. */
 export class BroadcastError extends Error {
@@ -58,6 +60,7 @@ export interface CreateBroadcastParams {
 
 interface PlannedRecipient {
   recipientRowId: string;
+  contactId: string;
   phone: string;
   params: string[];
 }
@@ -70,6 +73,10 @@ export interface BroadcastPlan {
   accessToken: string;
   /** Per-connection override (e.g. a Coexistence provider). Defaults to Meta. */
   apiBase?: string | null;
+  /** Set for Zernio-bridged accounts — they have no whatsapp_config row
+   *  (Zernio holds the Meta credentials), and broadcasting used to fail
+   *  for them with "WhatsApp not configured". */
+  zernioSocialAccountId?: string | null;
   templateRow: MessageTemplate | null;
   planned: PlannedRecipient[];
   /** Phones rejected up front (invalid E.164) — counted as failed. */
@@ -125,21 +132,24 @@ export async function createBroadcast(
   // whatsapp_config_id before that's correct, tracked as follow-up.
   // Zero behavior change for a 'shared' account, which only ever has
   // the one row this already picked.
-  const { data: configRows, error: configError } = await db
-    .from('whatsapp_config')
-    .select('*')
-    .eq('account_id', accountId)
-    .order('created_at', { ascending: true })
-    .limit(1);
+  const zernioSocialAccountId = await resolveZernioSocialAccountId(db, accountId);
+  const { data: configRows, error: configError } = zernioSocialAccountId
+    ? { data: null, error: null }
+    : await db
+        .from('whatsapp_config')
+        .select('*')
+        .eq('account_id', accountId)
+        .order('created_at', { ascending: true })
+        .limit(1);
   const config = configRows?.[0] ?? null;
-  if (configError || !config) {
+  if (!zernioSocialAccountId && (configError || !config)) {
     throw new BroadcastError(
       'whatsapp_not_configured',
       'WhatsApp not configured. Please set up your WhatsApp integration first.',
       400
     );
   }
-  const accessToken = decrypt(config.access_token);
+  const accessToken = config ? decrypt(config.access_token) : '';
 
   // Template row (once) for header/button components; guard a
   // malformed local row rather than N identical opaque failures.
@@ -247,16 +257,22 @@ export async function createBroadcast(
   const byContact = new Map(deduped.map((r) => [r.contactId, r]));
   const planned: PlannedRecipient[] = recipientRows.map((row) => {
     const r = byContact.get(row.contact_id as string)!;
-    return { recipientRowId: row.id as string, phone: r.phone, params: r.params };
+    return {
+      recipientRowId: row.id as string,
+      contactId: r.contactId,
+      phone: r.phone,
+      params: r.params,
+    };
   });
 
   return {
     broadcastId: broadcast.id,
     templateName,
     templateLanguage,
-    phoneNumberId: config.phone_number_id,
+    phoneNumberId: config?.phone_number_id ?? '',
     accessToken,
-    apiBase: config.send_api_base,
+    apiBase: config?.send_api_base ?? null,
+    zernioSocialAccountId,
     templateRow,
     planned,
     rejected,
@@ -287,7 +303,37 @@ export async function deliverBroadcast(
     let sentMessageId: string | null = null;
     let lastError: string | null = null;
 
-    for (const variant of variants) {
+    if (plan.zernioSocialAccountId) {
+      // Zernio: reply in the contact's existing thread when there is
+      // one, otherwise open a new one with the template.
+      try {
+        const { data: conv } = await db
+          .from('conversations')
+          .select('zernio_conversation_id')
+          .eq('contact_id', recipient.contactId)
+          .not('zernio_conversation_id', 'is', null)
+          .order('last_message_at', { ascending: false, nullsFirst: false })
+          .limit(1)
+          .maybeSingle();
+        const result = await sendViaZernio(
+          plan.zernioSocialAccountId,
+          (conv?.zernio_conversation_id as string | null) ?? null,
+          recipient.phone,
+          {
+            messageType: 'template',
+            templateName: plan.templateName,
+            templateLanguage: plan.templateLanguage,
+            templateParams: recipient.params,
+            templateComponents: resolveTemplateComponents(plan.templateRow, undefined, recipient.params),
+          },
+        );
+        sentMessageId = result.waMessageId;
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : 'Unknown error';
+      }
+    }
+
+    for (const variant of plan.zernioSocialAccountId ? [] : variants) {
       try {
         const result = await sendTemplateMessage({
           phoneNumberId: plan.phoneNumberId,
