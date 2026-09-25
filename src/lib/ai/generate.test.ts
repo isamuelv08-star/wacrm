@@ -50,6 +50,14 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('parseGeneration', () => {
+  it('never lets a repeated or malformed sentinel reach the customer', () => {
+    const r = parseGeneration(
+      'Claro, te ayudo. [[SUMMARY:first]] [[SUMMARY:second]]\n\n\n[[DEAL_VALUE:$1,500]] Saludos',
+    )
+    expect(r.text).not.toContain('[[')
+    expect(r.text).toBe('Claro, te ayudo.\n\nSaludos')
+  })
+
   it('returns text with no handoff', () => {
     expect(parseGeneration('Hello there')).toEqual({
       text: 'Hello there',

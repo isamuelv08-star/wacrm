@@ -35,6 +35,9 @@ const h = vi.hoisted(() => ({
 process.env.AI_AUTOREPLY_DEBOUNCE_MS = '0'
 
 vi.mock('./config', () => ({ loadAiConfig: h.loadAiConfig }))
+vi.mock('@/lib/automations/responders', () => ({
+  hasMatchingAutoResponder: async () => h.state.autoResponders.length > 0,
+}))
 vi.mock('./context', () => ({ buildConversationContext: h.buildConversationContext }))
 vi.mock('./knowledge', () => ({ retrieveKnowledge: h.retrieveKnowledge }))
 vi.mock('./generate', () => ({ generateReply: h.generateReply }))
@@ -102,7 +105,7 @@ vi.mock('./admin-client', () => ({
   }),
 }))
 
-import { dispatchInboundToAiReply } from './auto-reply'
+import { dispatchInboundToAiReply, isReplyableCustomerMessage } from './auto-reply'
 
 const ARGS = {
   accountId: 'acct-1',
@@ -209,7 +212,7 @@ describe('dispatchInboundToAiReply — eligibility gates', () => {
     expect(h.engineSendText).not.toHaveBeenCalled()
   })
 
-  it('stands down when an active message-level automation exists', async () => {
+  it('stands down when a matching automation will reply itself', async () => {
     h.state.autoResponders = [{ id: 'auto-1' }]
     await dispatchInboundToAiReply(ARGS)
     expect(h.generateReply).not.toHaveBeenCalled()
@@ -463,5 +466,36 @@ describe('dispatchInboundToAiReply — provider failure', () => {
     await expect(dispatchInboundToAiReply(ARGS)).resolves.toBeUndefined()
     expect(h.notifyProviderErrorIfNeeded).not.toHaveBeenCalled()
     expect(h.engineSendText).not.toHaveBeenCalled()
+  })
+})
+
+describe('isReplyableCustomerMessage', () => {
+  const now = Date.parse('2026-09-25T12:00:00Z')
+  const base = { content_type: 'text', content_text: null, created_at: '2026-09-25T11:00:00Z' }
+
+  it('counts plain text, audio and video', () => {
+    expect(isReplyableCustomerMessage({ ...base, content_text: 'precio?' }, now)).toBe(true)
+    expect(isReplyableCustomerMessage({ ...base, content_type: 'audio' }, now)).toBe(true)
+    expect(isReplyableCustomerMessage({ ...base, content_type: 'video' }, now)).toBe(true)
+  })
+
+  it('ignores stickers, blank text and button taps', () => {
+    expect(isReplyableCustomerMessage({ ...base, content_type: 'image' }, now)).toBe(false)
+    expect(isReplyableCustomerMessage({ ...base, content_text: '   ' }, now)).toBe(false)
+    expect(
+      isReplyableCustomerMessage({ ...base, content_text: 'Sí', interactive_reply_id: 'btn-1' }, now),
+    ).toBe(false)
+  })
+
+  it('counts a described image, and one still waiting on its description', () => {
+    expect(
+      isReplyableCustomerMessage({ ...base, content_type: 'image', ai_image_description: 'a tire' }, now),
+    ).toBe(true)
+    expect(
+      isReplyableCustomerMessage(
+        { ...base, content_type: 'image', created_at: '2026-09-25T11:59:50Z' },
+        now,
+      ),
+    ).toBe(true)
   })
 })

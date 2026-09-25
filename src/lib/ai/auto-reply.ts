@@ -22,6 +22,7 @@ import { engineSendText, resolveSendContext } from '@/lib/flows/meta-send'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 import { pickRoundRobinAgent } from '@/lib/assignment/round-robin'
 import { signalTyping } from '@/lib/whatsapp/typing-indicator'
+import { hasMatchingAutoResponder } from '@/lib/automations/responders'
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -45,6 +46,55 @@ async function countCustomerMessages(db: SupabaseClient, conversationId: string)
     .eq('conversation_id', conversationId)
     .eq('sender_type', 'customer')
   return count ?? 0
+}
+
+/** How long a captionless image may still be waiting on its AI description. */
+const IMAGE_DESCRIPTION_PENDING_MS = 30_000
+
+/**
+ * Would a customer message get its own AI dispatch? Mirrors the
+ * webhook's gate (webhook-processor.ts: plain text, audio/video, or an
+ * image the bot can read; never an interactive tap). A sticker, an
+ * undescribed photo or a button tap does NOT dispatch, so it must not
+ * make an earlier text's dispatch stand down — that left the customer
+ * with no reply at all. An image still inside its description window
+ * counts as replyable (its dispatch is on the way).
+ */
+export function isReplyableCustomerMessage(
+  row: {
+    content_type: string | null
+    content_text: string | null
+    ai_image_description?: string | null
+    interactive_reply_id?: string | null
+    created_at: string
+  },
+  now = Date.now(),
+): boolean {
+  if (row.interactive_reply_id) return false
+  if (row.content_text && row.content_text.trim()) return true
+  if (row.content_type === 'audio' || row.content_type === 'video') return true
+  if (row.content_type === 'image') {
+    if (row.ai_image_description && row.ai_image_description.trim()) return true
+    return now - Date.parse(row.created_at) < IMAGE_DESCRIPTION_PENDING_MS
+  }
+  return false
+}
+
+/** Id of the newest customer message that gets its own AI dispatch. */
+async function latestReplyableCustomerMessageId(
+  db: SupabaseClient,
+  conversationId: string,
+): Promise<string | null> {
+  const { data } = await db
+    .from('messages')
+    .select('id, content_type, content_text, ai_image_description, interactive_reply_id, created_at')
+    .eq('conversation_id', conversationId)
+    .eq('sender_type', 'customer')
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(10)
+  const now = Date.now()
+  return (data ?? []).find((row) => isReplyableCustomerMessage(row, now))?.id ?? null
 }
 
 /**
@@ -78,6 +128,16 @@ interface DispatchArgs {
    * having to be touched.
    */
   platform?: 'whatsapp' | 'messenger'
+  /**
+   * The inbound message this dispatch was fired for. When present, the
+   * debounce asks "is MY message still the newest one the bot would
+   * answer?" instead of comparing customer-message counts — the count
+   * check (a) stood down when a sticker/photo/button followed the text,
+   * leaving no reply at all, and (b) let two dispatches both reply when
+   * a slow one (voice note → transcription) took its baseline after a
+   * faster message had already landed.
+   */
+  triggerMessageId?: string
 }
 
 /**
@@ -120,20 +180,14 @@ export async function dispatchInboundToAiReply(
     if (!config) return
 
     // Deterministic, user-configured responders win over the LLM — the
-    // caller already excludes messages a Flow consumed. Message-level
-    // automations (`new_message_received` / `keyword_match`) are
-    // dispatched independently for this same inbound and may send their
-    // own reply, so if the account has any active one we stand down to
-    // avoid double-texting the customer. (Relationship triggers like
-    // `first_inbound_message` don't count — they're not per-message
-    // auto-responders.)
-    const { data: autoResponders } = await db
-      .from('automations')
-      .select('id')
-      .eq('account_id', accountId)
-      .eq('is_active', true)
-      .in('trigger_type', ['new_message_received', 'keyword_match'])
-      .limit(1)
+    // caller already excludes messages a Flow consumed. Stand down only
+    // when an automation that matches THIS message will send its own
+    // reply (see hasMatchingAutoResponder).
+    const autoResponderWillReply = await hasMatchingAutoResponder(db, {
+      accountId,
+      conversationId,
+      platform,
+    })
 
     const { data: conv, error: convErr } = await db
       .from('conversations')
@@ -150,7 +204,7 @@ export async function dispatchInboundToAiReply(
     const silence = aiSilenceReason({
       autoReplyEnabled: config.autoReplyEnabled,
       channelAllowed: config.autoreplyChannels.includes(platform),
-      hasMessageAutomations: !!autoResponders && autoResponders.length > 0,
+      hasMessageAutomations: autoResponderWillReply,
       assignedAgentId: conv.assigned_agent_id ?? null,
       replyWhenAssigned: config.replyWhenAssigned,
       aiAutoreplyDisabled: conv.ai_autoreply_disabled === true,
@@ -169,15 +223,25 @@ export async function dispatchInboundToAiReply(
     // fragment: whichever delivery is the last to still see no newer
     // customer message once its own wait ends is the one that actually
     // replies; every earlier one quietly stands down.
-    const customerMsgCountAtStart = await countCustomerMessages(db, conversationId)
+    const { triggerMessageId } = args
+    const customerMsgCountAtStart = triggerMessageId
+      ? 0
+      : await countCustomerMessages(db, conversationId)
     // Cosmetic, same fire-and-forget posture as every other signalTyping
     // call — shows "typing…" right away instead of the customer staring
     // at silence for the whole debounce window.
     void signalTyping(db, accountId, conversationId)
     await sleep(debounceMs())
-    const customerMsgCountAfterWait = await countCustomerMessages(db, conversationId)
-    if (customerMsgCountAfterWait > customerMsgCountAtStart) {
-      return // a newer message arrived — its own dispatch will reply instead
+    let customerMsgCountAfterWait = 0
+    if (triggerMessageId) {
+      if ((await latestReplyableCustomerMessageId(db, conversationId)) !== triggerMessageId) {
+        return // a newer replyable message arrived — its own dispatch will reply instead
+      }
+    } else {
+      customerMsgCountAfterWait = await countCustomerMessages(db, conversationId)
+      if (customerMsgCountAfterWait > customerMsgCountAtStart) {
+        return // a newer message arrived — its own dispatch will reply instead
+      }
     }
 
     // Account-wide throttle on the shared BYO key. The per-conversation
@@ -347,50 +411,86 @@ export async function dispatchInboundToAiReply(
     // webhook processor, is now the single scoring path regardless of
     // auto-reply/provider. See its doc comment for why.
 
-    // Independent of handoff/reply outcome — a handoff and a stage
-    // move/close/summary can all be true
-    // in the same turn ("customer confirmed the order AND wants a
-    // human for delivery details"). applySalesActions owns its own
-    // try/catch and never throws.
-    if (stageMove || dealWon || dealLost || summary || dealValue != null) {
-      await applySalesActions(db, {
-        accountId,
-        contactId,
-        stageMove,
-        dealWon,
-        dealLost,
-        summary,
-        dealValue,
-      })
+    // Second debounce check — this is the fix for the intermittent
+    // "double reply" bug: the FIRST check (above, before the LLM call)
+    // only catches a customer message that arrives during the ~12s
+    // debounce sleep. It says nothing about a message that arrives
+    // WHILE the provider call itself is running, which for a
+    // reasoning-heavy model can easily take longer than the debounce
+    // window. Without this, that later message spins up its OWN
+    // dispatch (own debounce, own context build, own LLM call) that
+    // runs concurrently with this one — and BOTH independently claim a
+    // slot and send, since claim_ai_reply_slot only enforces the
+    // per-conversation cap, not "is another dispatch already mid-flight
+    // for this same customer turn." The result was two bot messages
+    // landing back to back: one answering only the earlier message
+    // (already stale by the time it sends), one answering everything.
+    // Standing down here is safe — the newer message's own dispatch
+    // will generate a fresh reply covering both, with the fuller
+    // context this one no longer has.
+    const staleAfterLlm = triggerMessageId
+      ? (await latestReplyableCustomerMessageId(db, conversationId)) !== triggerMessageId
+      : (await countCustomerMessages(db, conversationId)) > customerMsgCountAfterWait
+    if (staleAfterLlm) {
+      console.log(
+        `[ai auto-reply] conversation ${conversationId}: a newer customer message arrived during the provider call — standing down instead of sending a stale reply.`,
+      )
+      return
     }
 
-    // Independent of handoff/reply outcome, same as the blocks above —
-    // a customer can state their name in the same turn the bot hands
-    // off. applyContactName owns its own try/catch and never throws.
-    if (contactName) {
-      await applyContactName(db, { contactId, name: contactName })
-    }
+    // The turn's side effects (deal stage/won/lost/value/summary,
+    // contact name, scheduled event). Applied only once this reply is
+    // known to still be current — they used to run before the stale
+    // check and the slot claim, so a reply that was then discarded had
+    // already moved/closed the deal.
+    const applyTurnSideEffects = async () => {
+      // Independent of handoff/reply outcome — a handoff and a stage
+      // move/close/summary can all be true
+      // in the same turn ("customer confirmed the order AND wants a
+      // human for delivery details"). applySalesActions owns its own
+      // try/catch and never throws.
+      if (stageMove || dealWon || dealLost || summary || dealValue != null) {
+        await applySalesActions(db, {
+          accountId,
+          contactId,
+          stageMove,
+          dealWon,
+          dealLost,
+          summary,
+          dealValue,
+        })
+      }
 
-    // Same "independent of handoff/reply outcome" posture as the two
-    // blocks above — a handoff and a fresh appointment/callback commitment
-    // can land in the same turn ("I'll have someone call you tomorrow at
-    // 10 to sort out delivery"). applyScheduledEvent owns its own
-    // try/catch and never throws.
-    if (config.aiSchedulingEnabled && schedule) {
-      await applyScheduledEvent(db, {
-        accountId,
-        contactId,
-        configOwnerUserId,
-        handoffAgentId: config.handoffAgentId,
-        timezone: accountTimezone,
-        localDateTime: schedule.localDateTime,
-        type: schedule.type,
-        title: schedule.title,
-        googleCalendarSyncEnabled: config.googleCalendarSyncEnabled,
-      })
+      // Independent of handoff/reply outcome, same as the blocks above —
+      // a customer can state their name in the same turn the bot hands
+      // off. applyContactName owns its own try/catch and never throws.
+      if (contactName) {
+        await applyContactName(db, { contactId, name: contactName })
+      }
+
+      // Same "independent of handoff/reply outcome" posture as the two
+      // blocks above — a handoff and a fresh appointment/callback commitment
+      // can land in the same turn ("I'll have someone call you tomorrow at
+      // 10 to sort out delivery"). applyScheduledEvent owns its own
+      // try/catch and never throws.
+      if (config.aiSchedulingEnabled && schedule) {
+        await applyScheduledEvent(db, {
+          accountId,
+          contactId,
+          configOwnerUserId,
+          handoffAgentId: config.handoffAgentId,
+          timezone: accountTimezone,
+          localDateTime: schedule.localDateTime,
+          type: schedule.type,
+          title: schedule.title,
+          googleCalendarSyncEnabled: config.googleCalendarSyncEnabled,
+        })
+      }
     }
 
     if (handoff || !text) {
+      await applyTurnSideEffects()
+
       // The model can't (or shouldn't) answer — stop auto-replying on
       // this thread and hand it to a human. We (a) pause the bot here
       // (sticky until re-enabled), (b) route the conversation to the
@@ -454,31 +554,6 @@ export async function dispatchInboundToAiReply(
       return
     }
 
-    // Second debounce check — this is the fix for the intermittent
-    // "double reply" bug: the FIRST check (above, before the LLM call)
-    // only catches a customer message that arrives during the ~12s
-    // debounce sleep. It says nothing about a message that arrives
-    // WHILE the provider call itself is running, which for a
-    // reasoning-heavy model can easily take longer than the debounce
-    // window. Without this, that later message spins up its OWN
-    // dispatch (own debounce, own context build, own LLM call) that
-    // runs concurrently with this one — and BOTH independently claim a
-    // slot and send, since claim_ai_reply_slot only enforces the
-    // per-conversation cap, not "is another dispatch already mid-flight
-    // for this same customer turn." The result was two bot messages
-    // landing back to back: one answering only the earlier message
-    // (already stale by the time it sends), one answering everything.
-    // Standing down here is safe — the newer message's own dispatch
-    // will generate a fresh reply covering both, with the fuller
-    // context this one no longer has.
-    const customerMsgCountAfterLlm = await countCustomerMessages(db, conversationId)
-    if (customerMsgCountAfterLlm > customerMsgCountAfterWait) {
-      console.log(
-        `[ai auto-reply] conversation ${conversationId}: a newer customer message arrived during the provider call — standing down instead of sending a stale reply.`,
-      )
-      return
-    }
-
     // Atomically claim a reply slot: the cap check + increment happen in
     // one UPDATE, so concurrent inbounds can never overshoot the cap. If
     // another inbound just took the last slot, `claimed` is false and we
@@ -500,6 +575,8 @@ export async function dispatchInboundToAiReply(
       return
     }
     if (claimed !== true) return // lost the per-conversation cap race
+
+    await applyTurnSideEffects()
 
     // Sent as separate consecutive messages (up to MAX_REPLY_PARTS) rather
     // than one block, with a short pause in between — closer to how a

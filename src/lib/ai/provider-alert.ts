@@ -42,6 +42,12 @@ export async function notifyProviderErrorIfNeeded(
   accountId: string,
   err: AiError,
 ): Promise<void> {
+  // A one-off timeout / network blip / momentary rate limit fixes
+  // itself on the next message — alerting "the assistant stopped
+  // answering" for it cried wolf. Out-of-credits/quota (often a 429 at
+  // OpenAI) is persistent, so it still alerts.
+  if (isTransientAiError(err)) return
+
   try {
     const { data: cfg, error: cfgErr } = await db
       .from('ai_configs')
@@ -90,6 +96,12 @@ export async function notifyProviderErrorIfNeeded(
   } catch (e) {
     console.error('[ai] provider-alert threw:', e instanceof Error ? e.message : e)
   }
+}
+
+/** Failures that clear up on their own — see notifyProviderErrorIfNeeded. */
+export function isTransientAiError(err: AiError): boolean {
+  if (/quota|credit|billing|insufficient/i.test(err.message)) return false
+  return err.code === 'timeout' || err.code === 'network_error' || err.code === 'rate_limited'
 }
 
 /** Type guard so call sites can narrow before calling the above without

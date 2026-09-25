@@ -13,6 +13,7 @@ import { logAiUsage } from './usage'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 import type { CalendarEventType } from '@/types'
 import type { ChatMessage } from './types'
+import { hasMatchingAutoResponder } from '@/lib/automations/responders'
 
 /**
  * "Observer" mode: the AI keeps READING a conversation that it is not
@@ -247,19 +248,13 @@ export async function observeConversationIfNeeded(args: ObserveArgs): Promise<vo
     const config = await loadAiConfig(db, accountId)
     if (!config || !config.observeHumanThreads) return
 
-    const [{ data: conv }, { data: autoResponders }] = await Promise.all([
+    const [{ data: conv }, autoResponderWillReply] = await Promise.all([
       db
         .from('conversations')
         .select('assigned_agent_id, ai_autoreply_disabled, ai_reply_count')
         .eq('id', conversationId)
         .maybeSingle(),
-      db
-        .from('automations')
-        .select('id')
-        .eq('account_id', accountId)
-        .eq('is_active', true)
-        .in('trigger_type', ['new_message_received', 'keyword_match'])
-        .limit(1),
+      hasMatchingAutoResponder(db, { accountId, conversationId, platform }),
     ])
     if (!conv) return
 
@@ -269,7 +264,7 @@ export async function observeConversationIfNeeded(args: ObserveArgs): Promise<vo
     const silence = aiSilenceReason({
       autoReplyEnabled: config.autoReplyEnabled,
       channelAllowed: config.autoreplyChannels.includes(platform),
-      hasMessageAutomations: !!autoResponders && autoResponders.length > 0,
+      hasMessageAutomations: autoResponderWillReply,
       assignedAgentId: conv.assigned_agent_id ?? null,
       replyWhenAssigned: config.replyWhenAssigned,
       aiAutoreplyDisabled: conv.ai_autoreply_disabled === true,

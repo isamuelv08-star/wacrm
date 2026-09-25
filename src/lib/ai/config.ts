@@ -1,7 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { isMissingColumnError } from '@/lib/whatsapp/external-outbound'
-import type { AiConfig, AiProvider } from './types'
+import { AiError, type AiConfig, type AiProvider } from './types'
+import { notifyProviderErrorIfNeeded } from './provider-alert'
 
 interface AiConfigRow {
   provider: AiProvider
@@ -125,10 +126,30 @@ export async function loadAiConfig(
     }
   }
 
+  // A key that can't be decrypted (ENCRYPTION_KEY rotated, corrupted
+  // row) made every AI job throw a plain Error here — no AiError, so no
+  // alert, and the bot just went silent. Treat it as "AI unavailable"
+  // and tell the owners to re-enter the key.
+  let apiKey: string
+  try {
+    apiKey = decrypt(row.api_key)
+  } catch {
+    console.error(`[ai config] API key for account ${accountId} could not be decrypted`)
+    await notifyProviderErrorIfNeeded(
+      db,
+      accountId,
+      new AiError('The saved AI API key could not be read — please re-enter it in Settings', {
+        code: 'invalid_key',
+        status: 401,
+      }),
+    )
+    return null
+  }
+
   return {
     provider: row.provider,
     model: row.model,
-    apiKey: decrypt(row.api_key),
+    apiKey,
     systemPrompt: row.system_prompt,
     qualificationCriteria: row.qualification_criteria,
     isActive: row.is_active,

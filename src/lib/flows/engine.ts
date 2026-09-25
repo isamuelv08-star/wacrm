@@ -438,16 +438,30 @@ async function executeHandoff(
   node: FlowNodeRow,
 ): Promise<void> {
   const cfg = node.config as { assign_to?: string; note?: string };
+  const now = new Date().toISOString();
+  // Same pause the AI's own handoff applies (auto-reply.ts): without it
+  // the bot kept answering a customer the Flow had just handed to a
+  // human (replyWhenAssigned defaults to true). `ai_paused_at` marks
+  // it as an automated pause, so the opt-in auto-resume can lift it.
   const convUpdate: Record<string, unknown> = {
     status: "pending",
-    updated_at: new Date().toISOString(),
+    ai_autoreply_disabled: true,
+    ai_paused_at: now,
+    updated_at: now,
   };
-  if (cfg.assign_to) convUpdate.assigned_agent_id = cfg.assign_to;
   if (run.conversation_id) {
     await db
       .from("conversations")
       .update(convUpdate)
       .eq("id", run.conversation_id);
+    // Never stomp an existing human assignment — only fill it in.
+    if (cfg.assign_to) {
+      await db
+        .from("conversations")
+        .update({ assigned_agent_id: cfg.assign_to })
+        .eq("id", run.conversation_id)
+        .is("assigned_agent_id", null);
+    }
   }
   await logEvent(db, run.id, "handoff", node.node_key, {
     note: cfg.note ?? null,

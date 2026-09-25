@@ -27,6 +27,9 @@ import { generateOpenAi } from './providers/openai'
 import { generateAnthropic } from './providers/anthropic'
 import { generateOpenRouter } from './providers/openrouter'
 
+/** Any leftover `[[TAG]]` / `[[TAG:...]]` control sentinel. */
+const LEFTOVER_SENTINEL_PATTERN = /\[\[[A-Z_]+(?::[^\]]*)?\]\]/g
+
 export interface GenerateArgs {
   config: AiConfig
   /** Fully-built system prompt (see `buildSystemPrompt`). */
@@ -390,6 +393,14 @@ export function parseGeneration(
     .replace(SEND_BOOKING_LINK_SENTINEL_PATTERN, '')
     .replace(CONTACT_NAME_SENTINEL_PATTERN, '')
     .replace(DEAL_VALUE_SENTINEL_PATTERN, '')
+    // Belt-and-braces: the patterns above are non-global (first match
+    // only) and format-strict, so a repeated sentinel or a malformed one
+    // ("[[DEAL_VALUE:$1,500]]") used to reach the customer verbatim over
+    // WhatsApp. Strip anything still shaped like a control tag.
+    .replace(LEFTOVER_SENTINEL_PATTERN, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/[ \t]*\n[ \t]*/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
     .trim()
   return {
     text,

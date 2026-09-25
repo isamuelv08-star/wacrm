@@ -40,6 +40,7 @@ export async function applySalesActions(
       .eq('contact_id', contactId)
       .eq('account_id', accountId)
       .eq('status', 'open')
+      .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle()
     if (dealErr) {
@@ -54,20 +55,21 @@ export async function applySalesActions(
     const update: Record<string, unknown> = {}
 
     if (stageMove) {
-      const { data: stage, error: stageErr } = await db
+      const { data: stages, error: stageErr } = await db
         .from('pipeline_stages')
-        .select('id, name')
+        .select('id, name, position, is_won_stage, is_lost_stage, is_followup_stage')
         .eq('pipeline_id', openDeal.pipeline_id)
-        .ilike('name', stageMove)
-        .maybeSingle()
-      if (stageErr) {
-        console.error('[ai sales-actions] stage lookup failed:', stageErr.message)
-      } else if (!stage) {
-        console.warn(
-          `[ai sales-actions] model asked for stage "${stageMove}" — no exact match on pipeline ${openDeal.pipeline_id}, ignoring`,
-        )
-      } else if (stage.id !== openDeal.stage_id) {
-        update.stage_id = stage.id
+      if (stageErr || !Array.isArray(stages)) {
+        console.error('[ai sales-actions] stage lookup failed:', stageErr?.message)
+      } else {
+        const target = pickStageMove(stages, openDeal.stage_id, stageMove)
+        if (target.ok) {
+          if (target.stageId !== openDeal.stage_id) update.stage_id = target.stageId
+        } else {
+          console.warn(
+            `[ai sales-actions] ignoring stage move to "${stageMove}" on pipeline ${openDeal.pipeline_id}: ${target.reason}`,
+          )
+        }
       }
     }
 
@@ -115,6 +117,45 @@ export async function applySalesActions(
   }
 }
 
+interface StageRow {
+  id: string
+  name: string
+  position: number
+  is_won_stage?: boolean | null
+  is_lost_stage?: boolean | null
+  is_followup_stage?: boolean | null
+}
+
+/**
+ * Validate a [[STAGE:...]] request against the pipeline:
+ *  - exact (case/whitespace-insensitive) name match — `.ilike()` used
+ *    to treat `_`/`%` in stage names as wildcards, and a multi-match
+ *    made maybeSingle() error so the move was silently dropped;
+ *  - never a won/lost stage: closing goes through [[DEAL_WON]] /
+ *    [[DEAL_LOST]] and their prompt rules, not a stage name;
+ *  - never backwards (except out of the follow-up stage, which sits
+ *    last by position but means "went quiet").
+ */
+export function pickStageMove(
+  stages: StageRow[],
+  currentStageId: string,
+  requested: string,
+): { ok: true; stageId: string } | { ok: false; reason: string } {
+  const norm = (v: string) => v.trim().replace(/\s+/g, ' ').toLowerCase()
+  const matches = stages.filter((st) => norm(st.name) === norm(requested))
+  if (matches.length === 0) return { ok: false, reason: 'no stage with that name' }
+  if (matches.length > 1) return { ok: false, reason: 'ambiguous stage name' }
+  const target = matches[0]
+  if (target.is_won_stage || target.is_lost_stage) {
+    return { ok: false, reason: 'outcome stages are set via DEAL_WON / DEAL_LOST' }
+  }
+  const current = stages.find((st) => st.id === currentStageId)
+  if (current && !current.is_followup_stage && target.position < current.position) {
+    return { ok: false, reason: 'would move the deal backwards' }
+  }
+  return { ok: true, stageId: target.id }
+}
+
 /** Ordered stage list (+ which one is current) for the contact's open
  *  deal, fed into the sales-mode system prompt. Null when there's no
  *  open deal — sales mode has nothing to drive in that case. */
@@ -137,6 +178,7 @@ export async function loadDealStageContext(
       .eq('contact_id', contactId)
       .eq('account_id', accountId)
       .eq('status', 'open')
+      .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle()
     if (dealErr || !openDeal) return { hasOpenDeal: false, stages: [], currency: null }

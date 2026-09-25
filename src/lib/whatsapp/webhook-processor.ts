@@ -76,6 +76,13 @@ export interface WhatsAppMessage {
     button_reply?: { id: string; title: string }
     list_reply?: { id: string; title: string; description?: string }
   }
+  /**
+   * Set when the customer taps a quick-reply button on a TEMPLATE
+   * message (broadcasts, follow-ups). Different shape from
+   * `interactive.button_reply`, which only covers session interactive
+   * messages.
+   */
+  button?: { text?: string; payload?: string }
   /** Present when the customer swipe-replies to one of our messages. */
   context?: { id: string }
   /**
@@ -1317,6 +1324,7 @@ export async function processMessage(
       conversationId: conversation.id,
       contactId: contactRecord.id,
       configOwnerUserId,
+      triggerMessageId: insertedMessage.id,
     })
 
     // Standalone lead classification — covers accounts where auto-reply
@@ -1509,6 +1517,17 @@ async function parseMessageContent(
       }
       return { ...empty, contentText: '[Interactive reply]' }
     }
+
+    case 'button':
+      // Template quick-reply tap ("Sí, me interesa"). Stored as plain
+      // text on purpose — not as an interactive reply id — so keyword
+      // automations and the AI treat it like the customer typing those
+      // words (it used to land as "[Unsupported message type: button]",
+      // matching nothing and feeding the AI garbage).
+      return {
+        ...empty,
+        contentText: message.button?.text || message.button?.payload || '[Button reply]',
+      }
 
     default:
       return {
