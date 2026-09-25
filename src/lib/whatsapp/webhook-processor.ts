@@ -26,6 +26,7 @@ import {
 } from '@/lib/whatsapp/template-webhook'
 import { isMissingColumnError, isNewestMessage, sentAtIso } from './external-outbound'
 import { bumpConversationOnInbound } from '@/lib/conversations/bump-inbound'
+import { archiveMessageMedia } from '@/lib/media/archive'
 
 // ============================================================
 // Shared inbound-webhook processing pipeline.
@@ -1372,6 +1373,11 @@ export async function processMessage(
     content_type: contentType,
     text: contentText,
   })
+
+  // Keep a permanent copy of the customer's media (migration 111) —
+  // last, so the download never delays the AI reply. Best-effort; the
+  // archive-media cron retries anything this misses.
+  if (mediaUrl) await archiveMessageMedia(supabaseAdmin(), insertedMessage.id)
 }
 
 async function parseMessageContent(

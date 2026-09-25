@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { proxyInboundMedia, InboundMediaError } from '@/lib/whatsapp/inbound-media'
+import { supabaseAdmin } from '@/lib/ai/admin-client'
+import { archivedCopyForProxyUrl } from '@/lib/media/archive'
 
 // ============================================================
 // Proxies inbound WhatsApp media for Zernio-bridged accounts.
@@ -72,6 +74,16 @@ export async function GET(
       .maybeSingle()
     if (!owningMessage) {
       return NextResponse.json({ error: 'Media not found' }, { status: 404 })
+    }
+
+    // Archived copy first (migration 111) — the provider's own copy
+    // expires, the archived one doesn't.
+    const archived = await archivedCopyForProxyUrl(supabase, supabaseAdmin(), `/api/whatsapp/media/zernio/${token}`)
+    if (archived) {
+      return NextResponse.redirect(archived, {
+        status: 302,
+        headers: { 'Cache-Control': 'private, max-age=1800' },
+      })
     }
 
     // Forward the browser's Range header (video/audio scrubbing) and

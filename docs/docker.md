@@ -147,7 +147,11 @@ step:
   `/api/cron/hot-lead-alerts`, `/api/cron/ai-auto-resume`,
   `/api/cron/followup-stage`, `/api/cron/sales-intelligence`,
   `/api/cron/promise-tracker`, `/api/cron/event-reminders`,
-  `/api/cron/lead-staleness-alerts`.
+  `/api/cron/lead-staleness-alerts`, `/api/cron/archive-media`.
+- `/api/cron/archive-media` (migration 111) copies recent customer
+  photos / videos / voice notes into the private `inbound-media`
+  bucket when the webhook's inline copy missed them — Meta deletes its
+  copy after ~30 days, so without it old media stops loading.
 - Database backups are the one exception to "point an external
   scheduler at this deployment" — they run as a GitHub Actions
   workflow instead (`.github/workflows/backup.yml`), deliberately

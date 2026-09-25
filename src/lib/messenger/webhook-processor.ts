@@ -12,6 +12,7 @@ import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
 import { classifyLeadIfNeeded } from '@/lib/ai/lead-classify'
 import { observeConversationIfNeeded } from '@/lib/ai/observer'
 import { bumpConversationOnInbound } from '@/lib/conversations/bump-inbound'
+import { archiveMessageMedia } from '@/lib/media/archive'
 
 // ============================================================
 // Messenger inbound-webhook processing pipeline — the counterpart to
@@ -509,6 +510,10 @@ export async function ingestMessengerMessage(args: {
       platform: 'messenger',
     })
   }
+
+  // Messenger CDN URLs expire — keep a permanent copy (migration 111),
+  // after the AI work so it never delays a reply.
+  if (mediaUrl) await archiveMessageMedia(supabaseAdmin(), insertedMessage.id)
 }
 
 /**

@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { proxyInboundMedia, InboundMediaError } from '@/lib/whatsapp/inbound-media'
+import { supabaseAdmin } from '@/lib/ai/admin-client'
+import { archivedCopyForProxyUrl } from '@/lib/media/archive'
 
 export async function GET(
   request: Request,
@@ -46,6 +48,16 @@ export async function GET(
         { error: 'Your profile is not linked to an account.' },
         { status: 403 },
       )
+    }
+
+    // Archived copy first (migration 111) — the provider's own copy
+    // expires, the archived one doesn't.
+    const archived = await archivedCopyForProxyUrl(supabase, supabaseAdmin(), `/api/whatsapp/media/${mediaId}`)
+    if (archived) {
+      return NextResponse.redirect(archived, {
+        status: 302,
+        headers: { 'Cache-Control': 'private, max-age=1800' },
+      })
     }
 
     // Fetch and decrypt WhatsApp config. This route only gets a bare
