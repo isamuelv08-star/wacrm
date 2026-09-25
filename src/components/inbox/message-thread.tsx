@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useLayoutEffect, useRef, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { usePresence } from "@/hooks/use-presence";
@@ -189,7 +189,9 @@ function groupItemsByDate(items: ThreadItem[]) {
 // Matches Supabase/PostgREST's own default "Max Rows" cap — see the
 // fetch effect below for why this must be paired with a descending
 // order (newest-first) rather than left as an implicit ascending cap.
-const MESSAGE_FETCH_LIMIT = 1000;
+// Newest page loaded on open; older pages on demand ("load older").
+// Opening a long thread used to pull up to 1000 messages at once.
+const MESSAGE_FETCH_LIMIT = 150;
 
 const STATUS_OPTIONS: { label: string; value: ConversationStatus; color: string }[] = [
   { label: "Open", value: "open", color: "text-primary" },
@@ -366,9 +368,19 @@ export function MessageThread({
   // during render (React 19 refs rule); consumers only read `.current`
   // inside the async fetch completion, which runs after the render.
   const onMessagesLoadedRef = useRef(onMessagesLoaded);
+  const messagesRef = useRef(messages);
   useEffect(() => {
     onMessagesLoadedRef.current = onMessagesLoaded;
+    messagesRef.current = messages;
   });
+  // Whether older history exists beyond what's loaded, per thread.
+  const [olderFor, setOlderFor] = useState<{ conversationId: string | undefined; hasOlder: boolean }>({
+    conversationId: undefined,
+    hasOlder: false,
+  });
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  // Scroll height before a prepend, so the reader's position is kept.
+  const prependAnchorRef = useRef<number | null>(null);
 
   const conversationId = conversation?.id;
   const hasUnread = (conversation?.unread_count ?? 0) > 0;
@@ -385,6 +397,44 @@ export function MessageThread({
     },
     [conversationId],
   );
+
+  const hasOlder = olderFor.conversationId === conversationId && olderFor.hasOlder;
+  const loadOlder = useCallback(async () => {
+    const current = messagesRef.current;
+    const oldest = current.find((m) => !m.id.startsWith("temp-"));
+    if (!conversationId || !oldest || loadingOlder) return;
+    setLoadingOlder(true);
+    try {
+      const { data, error } = await createClient()
+        .from("messages")
+        .select("*")
+        .eq("conversation_id", conversationId)
+        .lt("created_at", oldest.created_at)
+        .order("created_at", { ascending: false })
+        .limit(MESSAGE_FETCH_LIMIT);
+      if (error) {
+        console.error("Failed to load older messages:", error);
+        return;
+      }
+      const older = [...(data ?? [])].reverse();
+      const known = new Set(current.map((m) => m.id));
+      prependAnchorRef.current = scrollRef.current?.scrollHeight ?? null;
+      onMessagesLoadedRef.current([...older.filter((m) => !known.has(m.id)), ...current]);
+      setOlderFor({ conversationId, hasOlder: older.length === MESSAGE_FETCH_LIMIT });
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [conversationId, loadingOlder]);
+
+  // After older messages are prepended, keep what the agent was reading
+  // in place instead of jumping.
+  useLayoutEffect(() => {
+    const anchor = prependAnchorRef.current;
+    const el = scrollRef.current;
+    if (anchor === null || !el) return;
+    prependAnchorRef.current = null;
+    el.scrollTop += el.scrollHeight - anchor;
+  }, [messages]);
 
   // Fetch messages whenever the selected conversation changes. Kept
   // separate from the unread-reset effect so that incoming messages
@@ -425,7 +475,22 @@ export function MessageThread({
       if (error) {
         console.error("Failed to fetch messages:", error);
       } else {
-        onMessagesLoadedRef.current([...(data ?? [])].reverse());
+        const latest = [...(data ?? [])].reverse();
+        // A resync refetches only the newest page — keep any older
+        // history already loaded for this same thread.
+        const oldestLatest = latest[0]?.created_at;
+        const keptOlder =
+          oldestLatest && latest.length === MESSAGE_FETCH_LIMIT
+            ? messagesRef.current.filter(
+                (m) => m.conversation_id === conversationId && m.created_at < oldestLatest,
+              )
+            : [];
+        onMessagesLoadedRef.current([...keptOlder, ...latest]);
+        setOlderFor((prev) =>
+          prev.conversationId === conversationId && keptOlder.length > 0
+            ? prev
+            : { conversationId, hasOlder: (data ?? []).length === MESSAGE_FETCH_LIMIT },
+        );
       }
 
       // Marks this conversation "loaded" whether the fetch succeeded or
@@ -1286,6 +1351,18 @@ export function MessageThread({
           square, mismatched-with-theme) scrollbar for a thin themed one,
           same treatment pipeline-board.tsx's horizontal scroll uses. */}
       <div ref={scrollRef} className="chat-scroll flex-1 overflow-y-auto px-4 py-5 sm:px-6">
+        {hasOlder && (
+          <div className="mb-3 flex justify-center">
+            <button
+              type="button"
+              onClick={() => void loadOlder()}
+              disabled={loadingOlder}
+              className="rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted disabled:opacity-60"
+            >
+              {loadingOlder ? t("loadingOlder") : t("loadOlder")}
+            </button>
+          </div>
+        )}
         {conversation.ad_referral && (
           <AdReferralCard referral={conversation.ad_referral} />
         )}

@@ -494,7 +494,9 @@
       "today": "Today",
       "yesterday": "Yesterday",
       "startedFromAd": "This conversation started from an ad",
-      "viewAd": "View ad"
+      "viewAd": "View ad",
+      "loadOlder": "Load earlier messages",
+      "loadingOlder": "Loading…"
     },
     "sessionTimer": {
       "expired": "Expired",

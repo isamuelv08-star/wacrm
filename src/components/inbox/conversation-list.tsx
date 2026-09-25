@@ -2,8 +2,13 @@
 
 import { memo, useState, useEffect, useCallback, useDeferredValue, useMemo, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { sanitizeOrSearchTerm } from "@/lib/search";
 import {
+  CONVERSATION_PAGE_SIZE,
   CONVERSATION_SELECT,
+  CONVERSATION_SELECT_CONTACT_INNER,
+  cursorAfter,
+  type ConversationCursor,
   matchesContactFilters,
   normalizeConversations,
 } from "@/lib/inbox/conversations";
@@ -39,6 +44,9 @@ interface ConversationListProps {
   onSelect: (conversation: Conversation) => void;
   conversations: Conversation[];
   onConversationsLoaded: (conversations: Conversation[]) => void;
+  /** Rows beyond the first page (older pages, server-side search hits)
+   *  for the parent to merge in — see mergeConversationRows. */
+  onMoreConversationsLoaded?: (conversations: Conversation[]) => void;
   /**
    * Increment to force the fetch effect below to refire. The parent
    * bumps this on realtime reconnect / tab visibility → visible so the
@@ -57,6 +65,9 @@ const STATUS_COLORS: Record<ConversationStatus, string> = {
 
 
 type InboxFilter = ConversationStatus | "all" | "unread" | "mine";
+
+/** Rows rendered per slice — see the sentinel near the list's end. */
+const RENDER_STEP = 150;
 type PlatformFilter = ConversationPlatform | "all";
 type LeadScoreFilter = Score | "unscored" | "all";
 
@@ -116,6 +127,7 @@ export function ConversationList({
   onSelect,
   conversations,
   onConversationsLoaded,
+  onMoreConversationsLoaded,
   resyncToken = 0,
 }: ConversationListProps) {
   const t = useTranslations("Inbox.conversationList");
@@ -253,6 +265,42 @@ export function ConversationList({
   // the fetch runs once on mount so it's fine to read the slightly
   // older value — the very next render updates the ref for any
   // subsequent async completion.
+  // Keyset pagination (last_message_at desc, id desc).
+  const cursorRef = useRef<ConversationCursor | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const loadingMoreRef = useRef(false);
+  const onMoreRef = useRef(onMoreConversationsLoaded);
+  useEffect(() => {
+    onMoreRef.current = onMoreConversationsLoaded;
+  });
+  const loadMore = useCallback(async () => {
+    const cursor = cursorRef.current;
+    if (!cursor || loadingMoreRef.current) return;
+    loadingMoreRef.current = true;
+    try {
+      const keyset = cursor.lastMessageAt
+        ? `last_message_at.lt."${cursor.lastMessageAt}",and(last_message_at.eq."${cursor.lastMessageAt}",id.lt.${cursor.id})`
+        : `last_message_at.not.is.null,and(last_message_at.is.null,id.lt.${cursor.id})`;
+      const { data, error } = await createClient()
+        .from("conversations")
+        .select(CONVERSATION_SELECT)
+        .or(keyset)
+        .order("last_message_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(CONVERSATION_PAGE_SIZE);
+      if (error) {
+        console.error("Failed to load more conversations:", error.message);
+        return;
+      }
+      const page = normalizeConversations(data ?? []);
+      if (page.length > 0) cursorRef.current = cursorAfter(page);
+      setHasMore(page.length === CONVERSATION_PAGE_SIZE);
+      if (page.length > 0) onMoreRef.current?.(page);
+    } finally {
+      loadingMoreRef.current = false;
+    }
+  }, []);
+
   const onConversationsLoadedRef = useRef(onConversationsLoaded);
   useEffect(() => {
     onConversationsLoadedRef.current = onConversationsLoaded;
@@ -263,10 +311,16 @@ export function ConversationList({
     let cancelled = false;
 
     (async () => {
+      // First page only (keyset-paged below). An unbounded select
+      // silently stopped at Supabase's 1000-row cap — older threads
+      // never showed and search couldn't find them — and re-downloaded
+      // everything on every tab focus.
       const { data, error } = await supabase
         .from("conversations")
         .select(CONVERSATION_SELECT)
-        .order("last_message_at", { ascending: false });
+        .order("last_message_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(CONVERSATION_PAGE_SIZE);
 
       if (cancelled) return;
 
@@ -282,7 +336,10 @@ export function ConversationList({
         return;
       }
 
-      onConversationsLoadedRef.current(normalizeConversations(data ?? []));
+      const firstPage = normalizeConversations(data ?? []);
+      cursorRef.current = cursorAfter(firstPage);
+      setHasMore(firstPage.length === CONVERSATION_PAGE_SIZE);
+      onConversationsLoadedRef.current(firstPage);
       setLoading(false);
     })();
 
@@ -401,6 +458,59 @@ export function ConversationList({
     }
     return preLeadScoreFiltered.filter((c) => c.contact?.lead_score === leadScoreFilter);
   }, [preLeadScoreFiltered, leadScoreFilter]);
+
+  // Search also asks the server once the list is paged, so a thread
+  // that isn't loaded yet can still be found by name or phone. Hits
+  // are merged into the list like any other page.
+  useEffect(() => {
+    const term = sanitizeOrSearchTerm(deferredSearch);
+    if (!hasMore || term.length < 2) return;
+    let cancelled = false;
+    const id = setTimeout(async () => {
+      const { data, error } = await createClient()
+        .from("conversations")
+        .select(CONVERSATION_SELECT_CONTACT_INNER)
+        .or(`name.ilike.%${term}%,phone.ilike.%${term}%`, { referencedTable: "contact" })
+        .order("last_message_at", { ascending: false })
+        .limit(50);
+      if (cancelled) return;
+      if (error) {
+        console.error("Conversation search failed:", error.message);
+        return;
+      }
+      const hits = normalizeConversations(data ?? []);
+      if (hits.length > 0) onMoreRef.current?.(hits);
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(id);
+    };
+  }, [deferredSearch, hasMore]);
+
+  // Render the (unvirtualized) list in slices: the first RENDER_STEP
+  // rows, more as the agent scrolls near the end — then the next server
+  // page once every loaded row is showing. Hundreds of rows in the DOM
+  // made scrolling and typing in the search box stutter.
+  const [visibleCount, setVisibleCount] = useState(RENDER_STEP);
+  const [visibleFor, setVisibleFor] = useState(filtered);
+  if (visibleFor !== filtered && filtered.length < visibleCount) {
+    // A narrower filter doesn't need the extra rows kept around.
+    setVisibleFor(filtered);
+    setVisibleCount(RENDER_STEP);
+  }
+  const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((e) => e.isIntersecting)) return;
+      if (visibleCount < filtered.length) setVisibleCount((n) => n + RENDER_STEP);
+      else if (hasMore) void loadMore();
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [visibleCount, filtered.length, hasMore, loadMore]);
 
   const toggleTag = useCallback((id: string) => {
     setSelectedTagIds((prev) =>
@@ -744,7 +854,7 @@ export function ConversationList({
           </div>
         ) : (
           <div className="flex flex-col">
-            {filtered.map((conv) => (
+            {visible.map((conv) => (
               <ConversationItem
                 key={conv.id}
                 conversation={conv}
@@ -755,6 +865,9 @@ export function ConversationList({
                 analyzing={isAnalyzing(conv, hasQualificationCriteria, now)}
               />
             ))}
+            {(visibleCount < filtered.length || hasMore) && (
+              <div ref={sentinelRef} className="h-10" aria-hidden />
+            )}
           </div>
         )}
       </ScrollArea>

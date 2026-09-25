@@ -494,7 +494,9 @@
       "today": "오늘",
       "yesterday": "어제",
       "startedFromAd": "이 대화는 광고에서 시작되었습니다",
-      "viewAd": "광고 보기"
+      "viewAd": "광고 보기",
+      "loadOlder": "이전 메시지 불러오기",
+      "loadingOlder": "불러오는 중…"
     },
     "sessionTimer": {
       "expired": "만료됨",

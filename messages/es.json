@@ -494,7 +494,9 @@
       "today": "Hoy",
       "yesterday": "Ayer",
       "startedFromAd": "Esta conversación inició desde un anuncio",
-      "viewAd": "Ver anuncio"
+      "viewAd": "Ver anuncio",
+      "loadOlder": "Cargar mensajes anteriores",
+      "loadingOlder": "Cargando…"
     },
     "sessionTimer": {
       "expired": "Expirado",

@@ -6,6 +6,8 @@ import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import {
   CONVERSATION_SELECT,
+  mergeConversationRows,
+  mergeFirstPage,
   normalizeConversation,
 } from "@/lib/inbox/conversations";
 import type { Conversation, Message, Contact, ConversationStatus } from "@/types";
@@ -527,9 +529,15 @@ function InboxPageInner() {
     setResyncToken((n) => n + 1);
   }, []);
 
+  // Older pages and server-side search hits from the (paged) list.
+  const handleMoreConversationsLoaded = useCallback((rows: Conversation[]) => {
+    setConversations((prev) => mergeConversationRows(prev, rows));
+  }, []);
+
   const handleConversationsLoaded = useCallback(
     (loaded: Conversation[]) => {
-      setConversations(loaded);
+      // A (re)loaded FIRST page — keep older pages already scrolled into.
+      setConversations((prev) => mergeFirstPage(prev, loaded));
       // Resolve a pending deep-link here rather than in an effect — this
       // is an event handler, so the setState calls below are allowed by
       // react-hooks/set-state-in-effect. Runs once per ?c=<id> URL value
@@ -552,6 +560,24 @@ function InboxPageInner() {
         // full page reload rehydrated state from scratch.
         if (activeConversation?.id === deepLinkConvId) return;
         const match = loaded.find((c) => c.id === deepLinkConvId);
+        if (!match) {
+          // The list is paged now — an older deep-linked thread isn't in
+          // the first page. Fetch it directly and open it.
+          const linkedId = deepLinkConvId;
+          void createClient()
+            .from("conversations")
+            .select(CONVERSATION_SELECT)
+            .eq("id", linkedId)
+            .maybeSingle()
+            .then(({ data }) => {
+              if (!data) return;
+              const linked = normalizeConversation(data);
+              setConversations((prev) => mergeConversationRows(prev, [linked]));
+              setActiveConversation(linked);
+              setActiveContact(linked.contact ?? null);
+              setMessages(readViewCache<Message[]>(messagesCacheKey(user?.id, linked.id)) ?? []);
+            });
+        }
         if (match) {
           setActiveConversation(match);
           setActiveContact(match.contact ?? null);
@@ -770,6 +796,7 @@ function InboxPageInner() {
             onSelect={handleSelectConversation}
             conversations={conversations}
             onConversationsLoaded={handleConversationsLoaded}
+            onMoreConversationsLoaded={handleMoreConversationsLoaded}
             resyncToken={resyncToken}
           />
         </div>
