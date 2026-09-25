@@ -360,6 +360,8 @@ async function processWebhookChange(
         // conversation on this number should be assigned to instead
         // of round-robinned, when splitByNumber is true (087).
         config.owner_user_id ?? null,
+        // AI only after the batch's last message — see processMessage.
+        i === value.messages.length - 1,
       )
     } catch (err) {
       console.error('[webhook] failed to process message', message.id, err)
@@ -880,6 +882,13 @@ export async function processMessage(
   // whatsapp_config.owner_user_id for whatsappConfigId, when known —
   // see findOrCreateConversation's doc comment (087).
   numberOwnerUserId: string | null = null,
+  // False for every message of a multi-message webhook payload except
+  // the last one: the AI reply (and scoring / observer) reads the whole
+  // conversation, so running it once, after all of the batch is stored,
+  // gives one reply covering everything. Processed one by one, the
+  // first message's ~12s AI debounce ran before the next one was even
+  // inserted — a partial reply, or two.
+  runAiForThisMessage: boolean = true,
 ) {
   const senderPhone = normalizePhone(message.from)
   const contactName = contact.profile.name
@@ -1323,7 +1332,7 @@ export async function processMessage(
   // dispatch below); `dispatchInboundToAiReply` owns its eligibility
   // gates + try/catch and never throws.
   const hasMediaForAi = hasImageDescription || contentType === 'video' || contentType === 'audio'
-  if (!flowConsumed && !interactiveReplyId && (inboundText.trim() || hasMediaForAi)) {
+  if (runAiForThisMessage && !flowConsumed && !interactiveReplyId && (inboundText.trim() || hasMediaForAi)) {
     await dispatchInboundToAiReply({
       accountId,
       conversationId: conversation.id,
