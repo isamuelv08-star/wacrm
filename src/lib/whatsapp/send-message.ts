@@ -48,6 +48,7 @@ import {
 import type { MessageTemplate } from '@/types';
 import { isMessageTemplate } from '@/lib/whatsapp/template-row-guard';
 import { resolveTemplateComponents, type SendTimeParams } from '@/lib/whatsapp/template-send-builder';
+import { isUniqueViolation } from '@/lib/contacts/dedupe';
 
 export const MEDIA_KINDS = ['image', 'video', 'document', 'audio'] as const;
 export const VALID_MESSAGE_TYPES = [
@@ -101,7 +102,9 @@ export interface SendMessageParams {
 
 export interface SendMessageResult {
   /** Our `messages.id` (the persisted row). */
-  messageId: string;
+  /** Our stored row id — null in the rare case the message went out but
+   *  couldn't be saved (see the insert retry in sendMessageToConversation). */
+  messageId: string | null;
   /** Meta's `wamid` for the delivered message. */
   whatsappMessageId: string;
 }
@@ -573,31 +576,44 @@ export async function sendMessageToConversation(
   const interactiveBody =
     messageType === 'interactive' ? interactivePayload!.body : null;
 
-  const { data: messageRecord, error: msgError } = await db
-    .from('messages')
-    .insert({
-      conversation_id: conversationId,
-      sender_type: 'agent',
-      content_type: messageType,
-      content_text: interactiveBody ?? contentText ?? null,
-      media_url: mediaUrl || null,
-      template_name: templateName || null,
-      interactive_payload:
-        messageType === 'interactive' ? interactivePayload : null,
-      message_id: waMessageId,
-      status: 'sent',
-      reply_to_message_id: replyToMessageId || null,
-    })
-    .select()
-    .single();
-
-  if (msgError) {
-    console.error('[send-message] error inserting sent message:', msgError);
-    throw new SendMessageError(
-      'db_error',
-      `Message sent to Meta but failed to save to DB: ${msgError.message}`,
-      500
-    );
+  // The message has ALREADY gone out at this point, so a failure here
+  // must never surface as a send error — the agent would retry and the
+  // customer would get it twice. Retry transient DB errors, treat a
+  // unique conflict (the provider's echo recorded it first) as saved,
+  // and otherwise report success without a stored row (a resync picks
+  // it up if the echo lands later).
+  const row = {
+    conversation_id: conversationId,
+    sender_type: 'agent',
+    content_type: messageType,
+    content_text: interactiveBody ?? contentText ?? null,
+    media_url: mediaUrl || null,
+    template_name: templateName || null,
+    interactive_payload: messageType === 'interactive' ? interactivePayload : null,
+    message_id: waMessageId,
+    status: 'sent',
+    reply_to_message_id: replyToMessageId || null,
+  };
+  let messageRecord: { id: string } | null = null;
+  for (let attempt = 0; attempt < 3 && !messageRecord; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, attempt * 400));
+    const { data, error: msgError } = await db.from('messages').insert(row).select('id').single();
+    if (!msgError && data) {
+      messageRecord = data as { id: string };
+      break;
+    }
+    if (msgError && isUniqueViolation(msgError) && waMessageId) {
+      const { data: existing } = await db
+        .from('messages')
+        .update({ sender_type: 'agent' })
+        .eq('conversation_id', conversationId)
+        .eq('message_id', waMessageId)
+        .select('id')
+        .maybeSingle();
+      if (existing) messageRecord = existing as { id: string };
+      break;
+    }
+    console.error(`[send-message] saving the sent message failed (attempt ${attempt + 1}):`, msgError);
   }
 
   const lastMessageText =
@@ -648,7 +664,7 @@ export async function sendMessageToConversation(
     await pauseAiForAgentReply({ accountId, conversationId });
   }
 
-  return { messageId: messageRecord.id, whatsappMessageId: waMessageId };
+  return { messageId: messageRecord?.id ?? null, whatsappMessageId: waMessageId };
 }
 
 /**

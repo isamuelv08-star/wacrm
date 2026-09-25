@@ -442,7 +442,7 @@ export async function applyMessageStatusUpdate(
   messageId: string,
   incomingStatus: string,
   logPrefix: string,
-): Promise<void> {
+): Promise<boolean> {
   const { data: rows, error: findErr } = await supabaseAdmin()
     .from('messages')
     .select('id, status')
@@ -450,23 +450,16 @@ export async function applyMessageStatusUpdate(
 
   if (findErr) {
     console.error(`${logPrefix} status lookup failed:`, findErr.message)
-    return
+    return true // not a "no such message" case — don't buffer
   }
 
-  if (!rows || rows.length === 0) {
-    console.warn(
-      `${logPrefix} status update for message_id="${messageId}" (-> ${incomingStatus}) matched NO rows in messages — ` +
-        `either this message was never persisted with that id, or it was sent through a path that stored a different ` +
-        `id for it than the one this status event reports. Ticks for this message cannot update.`,
-    )
-    return
-  }
+  if (!rows || rows.length === 0) return false
 
   const idsToUpdate = (rows as { id: string; status: string }[])
     .filter((r) => isValidStatusTransition(r.status, incomingStatus))
     .map((r) => r.id)
 
-  if (idsToUpdate.length === 0) return // every match is already >= this status — nothing to do
+  if (idsToUpdate.length === 0) return true // every match is already >= this status — nothing to do
 
   const { error: updateErr } = await supabaseAdmin()
     .from('messages')
@@ -476,6 +469,7 @@ export async function applyMessageStatusUpdate(
   if (updateErr) {
     console.error(`${logPrefix} status update failed:`, updateErr.message)
   }
+  return true
 }
 
 /**
@@ -533,19 +527,59 @@ export async function applyMessageDeletedUpdate(
   }
 }
 
-async function handleStatusUpdate(status: {
+type StatusEvent = {
   id: string
   status: string
   timestamp: string
   recipient_id: string
-}) {
+}
+
+/** How long an unmatched status is retried (migration 113). */
+const STATUS_BUFFER_TTL_MS = 60 * 60_000
+
+/**
+ * Re-apply statuses that arrived before their message row existed
+ * (see handleStatusUpdate). Called by the webhook-retry cron.
+ */
+export async function replayBufferedStatuses(): Promise<{ applied: number; expired: number }> {
+  const db = supabaseAdmin()
+  const cutoff = new Date(Date.now() - STATUS_BUFFER_TTL_MS).toISOString()
+  const { count: expired } = await db
+    .from('status_buffer')
+    .delete({ count: 'exact' })
+    .lt('created_at', cutoff)
+  const { data: rows, error } = await db
+    .from('status_buffer')
+    .select('id, message_id, status, status_timestamp, recipient_id')
+    .order('created_at', { ascending: true })
+    .limit(200)
+  if (error) return { applied: 0, expired: expired ?? 0 }
+  let applied = 0
+  for (const r of (rows ?? []) as { id: string; message_id: string; status: string; status_timestamp: string; recipient_id: string | null }[]) {
+    const matched = await handleStatusUpdate(
+      { id: r.message_id, status: r.status, timestamp: r.status_timestamp, recipient_id: r.recipient_id ?? '' },
+      { bufferIfUnmatched: false },
+    )
+    if (matched) {
+      applied++
+      await db.from('status_buffer').delete().eq('id', r.id)
+    }
+  }
+  return { applied, expired: expired ?? 0 }
+}
+
+/** Returns whether the status matched a message or broadcast recipient. */
+async function handleStatusUpdate(
+  status: StatusEvent,
+  opts: { bufferIfUnmatched: boolean } = { bufferIfUnmatched: true },
+): Promise<boolean> {
   // 1) Mirror onto messages (legacy behavior) — Meta's status values
   //    already match the CHECK constraint on messages.status.
   //    message_id is NOT unique (migration 009 — Meta ids repeat
   //    across numbers), so this can touch 0..N rows; see
   //    applyMessageStatusUpdate's doc comment for the forward-only
   //    ladder guard and the "matched nothing" diagnostic.
-  await applyMessageStatusUpdate(status.id, status.status, '[webhook]')
+  const matchedMessage = await applyMessageStatusUpdate(status.id, status.status, '[webhook]')
 
   // Webhook fan-out for this status change happens at the END of this
   // handler (after the broadcast mirror below), so a slow subscriber
@@ -555,7 +589,7 @@ async function handleStatusUpdate(status: {
   //    (added in migration 003). The aggregate trigger on
   //    broadcast_recipients re-derives the parent broadcast's
   //    sent/delivered/read/failed counts automatically.
-  const tsIso = new Date(parseInt(status.timestamp) * 1000).toISOString()
+  const tsIso = safeUnixToIso(status.timestamp)
 
   const { data: recipient, error: recFetchErr } = await supabaseAdmin()
     .from('broadcast_recipients')
@@ -586,6 +620,24 @@ async function handleStatusUpdate(status: {
     }
   }
 
+  // Nothing to attach it to yet — the send that produced this id may
+  // still be writing its row. Park it; the webhook-retry cron re-applies
+  // it (migration 113) instead of the tick being lost for good.
+  if (!matchedMessage && !recipient && !recFetchErr) {
+    if (opts.bufferIfUnmatched) {
+      const { error: bufErr } = await supabaseAdmin().from('status_buffer').insert({
+        message_id: status.id,
+        status: status.status,
+        status_timestamp: status.timestamp,
+        recipient_id: status.recipient_id || null,
+      })
+      if (bufErr && !/status_buffer/.test(bufErr.message)) {
+        console.error('[webhook] buffering an unmatched status failed:', bufErr.message)
+      }
+    }
+    return false
+  }
+
   // 3) Webhook fan-out for messages we store (inbox / API sends).
   //    Runs last so a slow subscriber can't delay the mirrors above.
   //    Bounded to one row (message_id isn't unique) purely to resolve
@@ -613,6 +665,7 @@ async function handleStatusUpdate(status: {
       )
     }
   }
+  return true
 }
 
 /**

@@ -1,5 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { processWebhookPayload, type WhatsAppWebhookEntry } from '@/lib/whatsapp/webhook-processor'
+import {
+  processWebhookPayload,
+  replayBufferedStatuses,
+  type WhatsAppWebhookEntry,
+} from '@/lib/whatsapp/webhook-processor'
 import { processMessengerWebhookPayload } from '@/lib/messenger/webhook-processor'
 import { processZernioEvent, type ZernioWebhookPayload } from '@/lib/whatsapp/zernio-webhook-processor'
 
@@ -111,7 +115,7 @@ export async function runQueuedWebhook(db: SupabaseClient, id: string): Promise<
  */
 export async function runWebhookRetryScan(
   db: SupabaseClient,
-): Promise<{ retried: number; pruned: number }> {
+): Promise<{ retried: number; pruned: number; statusesApplied: number }> {
   const now = Date.now()
   const pendingBefore = new Date(now - PENDING_GRACE_MS).toISOString()
   const stuckBefore = new Date(now - STUCK_PROCESSING_MS).toISOString()
@@ -154,5 +158,8 @@ export async function runWebhookRetryScan(
     .eq('status', 'done')
     .lt('processed_at', keepAfter)
 
-  return { retried, pruned: count ?? 0 }
+  // Early delivery/read ticks whose message row didn't exist yet (migration 113).
+  const { applied } = await replayBufferedStatuses().catch(() => ({ applied: 0 }))
+
+  return { retried, pruned: count ?? 0, statusesApplied: applied }
 }
