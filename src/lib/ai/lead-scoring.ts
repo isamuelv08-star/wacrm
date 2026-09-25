@@ -3,7 +3,7 @@ import type { LeadScore } from './types'
 import { resolveProfileId } from './profile-id'
 import { pickRoundRobinAgent } from '@/lib/assignment/round-robin'
 import { logAiActivity } from './activity-log'
-import { keepOnlyOldestOpenDeal } from '@/lib/deals/dedupe-open-deal'
+import { ensureOpenDeal } from '@/lib/deals/dedupe-open-deal'
 
 // ============================================================
 // Apply a lead score — either the AI emitted via the `[[SCORE:...]]`
@@ -59,6 +59,13 @@ export async function applyLeadScore(
      *  the manual-override route, which has no single conversation to
      *  anchor a badge change to. */
     conversationId?: string | null
+    /** Client for the deal-side effects (qualified-stage advance). The
+     *  manual-override route writes the score with its RLS client (so
+     *  lead_score_history attributes the change) but must create/move
+     *  the deal with the service-role client — ensure_open_deal
+     *  (migration 110) isn't executable by `authenticated`. Defaults
+     *  to `db`. */
+    dealDb?: SupabaseClient
   },
 ): Promise<void> {
   const {
@@ -71,6 +78,7 @@ export async function applyLeadScore(
     preferredAgentUserId = null,
     leadAutoAssignEnabled = false,
     conversationId = null,
+    dealDb = db,
   } = args
 
   try {
@@ -80,10 +88,18 @@ export async function applyLeadScore(
     // activity feed with a duplicate pill every time.
     const { data: before } = await db
       .from('contacts')
-      .select('lead_score')
+      .select('lead_score, lead_score_source, lead_score_updated_at')
       .eq('id', contactId)
       .maybeSingle()
     const previousScore = (before?.lead_score as LeadScore | null) ?? null
+
+    // A rep's manual correction wins over the AI for a while — the
+    // classifier runs on every inbound and used to overwrite it on the
+    // very next message (and, if it said HOT, move the deal too).
+    if (source === 'ai' && before?.lead_score_source === 'manual') {
+      const setAt = before.lead_score_updated_at ? Date.parse(before.lead_score_updated_at) : NaN
+      if (Number.isFinite(setAt) && Date.now() - setAt < MANUAL_SCORE_HOLD_MS) return
+    }
 
     const { error: scoreErr } = await db
       .from('contacts')
@@ -110,7 +126,7 @@ export async function applyLeadScore(
 
     if (score !== 'hot') return // only HOT advances the deal — see applyLeadScore's doc comment
 
-    await ensureDealInQualifiedStage(db, {
+    await ensureDealInQualifiedStage(dealDb, {
       accountId,
       contactId,
       configOwnerUserId,
@@ -122,6 +138,9 @@ export async function applyLeadScore(
     console.error('[ai lead-scoring] applyLeadScore failed:', err)
   }
 }
+
+/** How long a manual score override is protected from AI re-scoring. */
+const MANUAL_SCORE_HOLD_MS = 7 * 24 * 60 * 60 * 1000
 
 // ============================================================
 // Advance the contact's open deal to whichever stage the account has
@@ -162,8 +181,8 @@ export async function ensureDealInQualifiedStage(
     preferredAgentUserId?: string | null
     leadAutoAssignEnabled?: boolean
     /** Conversation this qualification happened in, if any — drives the
-     *  inline "AI activity" pill (migration 075). See applyLeadScore's
-     *  matching parameter. */
+     *  inline "AI activity" pill (migration 075) and is stamped on a
+     *  newly created deal. See applyLeadScore's matching parameter. */
     conversationId?: string | null
   },
 ): Promise<void> {
@@ -183,6 +202,7 @@ export async function ensureDealInQualifiedStage(
       .eq('contact_id', contactId)
       .eq('account_id', accountId)
       .eq('status', 'open')
+      .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle()
     if (dealErr) {
@@ -191,50 +211,38 @@ export async function ensureDealInQualifiedStage(
     }
 
     if (openDeal) {
-      const qualifiedStageId = await findQualifiedStageId(db, openDeal.pipeline_id)
-      if (!qualifiedStageId) {
-        console.warn(
-          `[ai lead-scoring] pipeline ${openDeal.pipeline_id} has no stage marked as qualified — leaving deal ${openDeal.id} in place`,
-        )
-        return
-      }
-
-      const movingToQualified = openDeal.stage_id !== qualifiedStageId
-      const updates: Record<string, unknown> = {}
-      if (movingToQualified) {
-        updates.stage_id = qualifiedStageId
-      }
-      if (!openDeal.assigned_to) {
-        const ownerProfileId = await resolveDealOwnerProfileId(db, {
-          accountId,
-          preferredAgentUserId,
-          leadAutoAssignEnabled,
-        })
-        if (ownerProfileId) updates.assigned_to = ownerProfileId
-      }
-      if (Object.keys(updates).length === 0) return // already qualified + owned — nothing to do
-
-      updates.updated_at = new Date().toISOString()
-      const { error: moveErr } = await db.from('deals').update(updates).eq('id', openDeal.id)
-      if (moveErr) {
-        console.error('[ai lead-scoring] failed to update deal (stage/owner):', moveErr.message)
-      } else if (movingToQualified) {
-        // Only a real stage transition counts as "the AI qualified this
-        // lead" — filling in `assigned_to` alone (deal was already
-        // sitting in the qualified stage) isn't a qualification event.
-        await logAiActivity(db, {
-          accountId,
-          conversationId,
-          contactId,
-          eventType: 'lead_qualified',
-        })
-      }
+      await advanceOpenDealToQualified(db, openDeal, {
+        accountId,
+        contactId,
+        preferredAgentUserId,
+        leadAutoAssignEnabled,
+        conversationId,
+      })
       return
     }
 
-    // No open deal — same "first pipeline by created_at" convention as
-    // ensureLeadDeal, but land straight in the qualified stage rather
-    // than the first one.
+    // No open deal. If one just closed (won/lost), this HOT verdict or
+    // handoff is about THAT sale ("ya pagué, quiero hablar con alguien")
+    // — creating a fresh card here left a phantom open deal in
+    // Qualified next to the won one.
+    const graceSince = new Date(Date.now() - CLOSED_DEAL_GRACE_MS).toISOString()
+    const { data: recentlyClosed, error: closedErr } = await db
+      .from('deals')
+      .select('id')
+      .eq('contact_id', contactId)
+      .eq('account_id', accountId)
+      .in('status', ['won', 'lost'])
+      .gte('closed_at', graceSince)
+      .limit(1)
+      .maybeSingle()
+    if (closedErr) {
+      console.error('[ai lead-scoring] closed-deal lookup failed:', closedErr.message)
+      return
+    }
+    if (recentlyClosed) return
+
+    // Same "first pipeline by created_at" convention as ensureLeadDeal,
+    // but land straight in the qualified stage.
     const { data: pipeline, error: pipelineErr } = await db
       .from('pipelines')
       .select('id')
@@ -274,42 +282,121 @@ export async function ensureDealInQualifiedStage(
       resolveDealOwnerProfileId(db, { accountId, preferredAgentUserId, leadAutoAssignEnabled }),
     ])
 
-    const { data: inserted, error: insertErr } = await db
-      .from('deals')
-      .insert({
-        account_id: accountId,
-        user_id: configOwnerUserId,
-        pipeline_id: pipeline.id,
-        stage_id: qualifiedStageId,
-        contact_id: contactId,
-        title: contact.name || contact.phone,
-        value: 0,
-        currency: acct?.default_currency ?? 'USD',
-        status: 'open',
-        assigned_to: ownerProfileId,
-      })
-      .select('id')
-      .single()
-    if (insertErr || !inserted) {
-      console.error('[ai lead-scoring] failed to create deal in qualified stage:', insertErr?.message)
-    } else if (
-      !(await keepOnlyOldestOpenDeal(db, { accountId, contactId, insertedDealId: inserted.id }))
-    ) {
-      // Lost a creation race (e.g. to the webhook's ensureLeadDeal) and
-      // our row was dropped — rerun so the surviving deal gets moved to
-      // the qualified stage instead. That pass finds the open deal and
-      // takes the update branch above, so it can't recurse again.
-      await ensureDealInQualifiedStage(db, args)
-    } else {
+    // Atomic per contact (migration 110). If the webhook's ensureLeadDeal
+    // won the race, we get ITS deal back and advance that one instead.
+    const result = await ensureOpenDeal(db, {
+      accountId,
+      contactId,
+      userId: configOwnerUserId,
+      pipelineId: pipeline.id,
+      stageId: qualifiedStageId,
+      conversationId,
+      title: contact.name || contact.phone,
+      currency: acct?.default_currency ?? 'USD',
+      assignedTo: ownerProfileId,
+    })
+    if (!result) return
+
+    if (result.created) {
       await logAiActivity(db, {
         accountId,
         conversationId,
         contactId,
         eventType: 'lead_qualified',
       })
+      return
+    }
+
+    const { data: raced } = await db
+      .from('deals')
+      .select('id, pipeline_id, stage_id, assigned_to')
+      .eq('id', result.dealId)
+      .maybeSingle()
+    if (raced) {
+      await advanceOpenDealToQualified(db, raced, {
+        accountId,
+        contactId,
+        preferredAgentUserId,
+        leadAutoAssignEnabled,
+        conversationId,
+      })
     }
   } catch (err) {
     console.error('[ai lead-scoring] ensureDealInQualifiedStage failed:', err)
+  }
+}
+
+/** See the grace-period comment in ensureDealInQualifiedStage. */
+const CLOSED_DEAL_GRACE_MS = 3 * 24 * 60 * 60 * 1000
+
+/**
+ * Move an open deal FORWARD to the qualified stage and fill in a
+ * missing owner. Forward-only: a deal already past qualified
+ * (Proposal, Negotiation — moved there by the AI's sales mode or by a
+ * rep) stays put; before this, every HOT re-score yanked it back to
+ * Qualified and re-fired the "Lead qualified" notification. The one
+ * exception is the follow-up stage, which sits at the END of the
+ * pipeline by position but means "went quiet" — a HOT lead coming back
+ * from it does move to Qualified.
+ */
+async function advanceOpenDealToQualified(
+  db: SupabaseClient,
+  deal: { id: string; pipeline_id: string; stage_id: string; assigned_to: string | null },
+  args: {
+    accountId: string
+    contactId: string
+    preferredAgentUserId: string | null
+    leadAutoAssignEnabled: boolean
+    conversationId: string | null
+  },
+): Promise<void> {
+  const { data: stages, error: stagesErr } = await db
+    .from('pipeline_stages')
+    .select('id, position, is_qualified_stage, is_followup_stage, is_won_stage, is_lost_stage')
+    .eq('pipeline_id', deal.pipeline_id)
+  if (stagesErr || !Array.isArray(stages)) {
+    console.error('[ai lead-scoring] stage lookup failed:', stagesErr?.message)
+    return
+  }
+
+  const qualified = stages.find((st) => st.is_qualified_stage)
+  if (!qualified) {
+    console.warn(
+      `[ai lead-scoring] pipeline ${deal.pipeline_id} has no stage marked as qualified — leaving deal ${deal.id} in place`,
+    )
+    return
+  }
+  const current = stages.find((st) => st.id === deal.stage_id)
+  const movingToQualified =
+    deal.stage_id !== qualified.id &&
+    (!current ||
+      current.is_followup_stage === true ||
+      (!current.is_won_stage && !current.is_lost_stage && current.position < qualified.position))
+
+  const updates: Record<string, unknown> = {}
+  if (movingToQualified) updates.stage_id = qualified.id
+  if (!deal.assigned_to) {
+    const ownerProfileId = await resolveDealOwnerProfileId(db, {
+      accountId: args.accountId,
+      preferredAgentUserId: args.preferredAgentUserId,
+      leadAutoAssignEnabled: args.leadAutoAssignEnabled,
+    })
+    if (ownerProfileId) updates.assigned_to = ownerProfileId
+  }
+  if (Object.keys(updates).length === 0) return
+
+  updates.updated_at = new Date().toISOString()
+  const { error: moveErr } = await db.from('deals').update(updates).eq('id', deal.id)
+  if (moveErr) {
+    console.error('[ai lead-scoring] failed to update deal (stage/owner):', moveErr.message)
+  } else if (movingToQualified) {
+    // Only a real stage transition counts as "the AI qualified this lead".
+    await logAiActivity(db, {
+      accountId: args.accountId,
+      conversationId: args.conversationId,
+      contactId: args.contactId,
+      eventType: 'lead_qualified',
+    })
   }
 }
 

@@ -20,6 +20,7 @@ import type {
   AssignConversationStepConfig,
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
+import { ensureOpenDeal } from '@/lib/deals/dedupe-open-deal'
 import { addContactTagIfAbsent } from '@/lib/contacts/tag-write'
 import { MAX_TAG_CHAIN_DEPTH, getTagChainDepth } from '@/lib/contacts/tag-chain'
 import { engineSendText, engineSendTemplate, engineSendInteractive } from './meta-send'
@@ -591,19 +592,40 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         .select('default_currency')
         .eq('id', args.automation.account_id)
         .maybeSingle()
-      await db.from('deals').insert({
+      if (!args.contactId) {
+        // No contact to dedupe against — plain insert, as before.
+        const { error: insertErr } = await db.from('deals').insert({
+          account_id: args.automation.account_id,
+          user_id: args.automation.user_id,
+          pipeline_id: cfg.pipeline_id,
+          stage_id: cfg.stage_id,
+          contact_id: null,
+          title: interpolate(cfg.title, args),
+          value: cfg.value ?? 0,
+          currency: acct?.default_currency ?? 'USD',
+          status: 'open',
+        })
+        if (insertErr) throw new Error(`create_deal: insert failed: ${insertErr.message}`)
+        return 'deal created'
+      }
+      // One open deal per contact: a new contact usually already got one
+      // from the webhook's ensureLeadDeal moments earlier, and inserting
+      // blindly here left two open cards. Atomic via ensure_open_deal
+      // (migration 110).
+      const result = await ensureOpenDeal(db, {
         // Tenancy + audit, same split as automation_logs above.
-        account_id: args.automation.account_id,
-        user_id: args.automation.user_id,
-        pipeline_id: cfg.pipeline_id,
-        stage_id: cfg.stage_id,
-        contact_id: args.contactId,
+        accountId: args.automation.account_id,
+        userId: args.automation.user_id,
+        pipelineId: cfg.pipeline_id,
+        stageId: cfg.stage_id,
+        contactId: args.contactId,
+        conversationId: conversationIdFromContext(args.context),
         title: interpolate(cfg.title, args),
         value: cfg.value ?? 0,
         currency: acct?.default_currency ?? 'USD',
-        status: 'open',
       })
-      return 'deal created'
+      if (!result) throw new Error('create_deal: failed to create deal')
+      return result.created ? 'deal created' : 'contact already has an open deal; skipped'
     }
 
     case 'move_deal_stage': {
@@ -627,13 +649,19 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       // Automations carry no deal_id — resolve "the" deal the same way
       // the AI sales mode does (src/lib/ai/sales-actions.ts): the
       // contact's single open deal, if any.
-      const { data: openDeal } = await db
+      // Oldest open deal, explicitly ordered + limited: a bare
+      // .maybeSingle() errors when a contact has two open deals, which
+      // used to fall through to the insert below and create a THIRD.
+      const { data: openDeal, error: openDealErr } = await db
         .from('deals')
         .select('id')
         .eq('contact_id', args.contactId)
         .eq('account_id', args.automation.account_id)
         .eq('status', 'open')
+        .order('created_at', { ascending: true })
+        .limit(1)
         .maybeSingle()
+      if (openDealErr) throw new Error(`move_deal_stage: deal lookup failed: ${openDealErr.message}`)
 
       if (openDeal) {
         // Update pipeline_id too, not just stage_id — the target stage may
@@ -641,10 +669,11 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         // moving into a dedicated "Postventa" pipeline). The stage-outcome
         // sync trigger (migration 060) reacts to this UPDATE and keeps
         // deals.status/closed_at consistent automatically.
-        await db
+        const { error: moveErr } = await db
           .from('deals')
           .update({ pipeline_id: cfg.pipeline_id, stage_id: cfg.stage_id })
           .eq('id', openDeal.id)
+        if (moveErr) throw new Error(`move_deal_stage: update failed: ${moveErr.message}`)
         return `deal moved to stage ${cfg.stage_id}`
       }
 
@@ -662,17 +691,26 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         .select('name, phone')
         .eq('id', args.contactId)
         .maybeSingle()
-      await db.from('deals').insert({
-        account_id: args.automation.account_id,
-        user_id: args.automation.user_id,
-        pipeline_id: cfg.pipeline_id,
-        stage_id: cfg.stage_id,
-        contact_id: args.contactId,
+      const created = await ensureOpenDeal(db, {
+        accountId: args.automation.account_id,
+        userId: args.automation.user_id,
+        pipelineId: cfg.pipeline_id,
+        stageId: cfg.stage_id,
+        contactId: args.contactId,
+        conversationId: conversationIdFromContext(args.context),
         title: contact?.name || contact?.phone || 'Automation',
-        value: 0,
         currency: acct?.default_currency ?? 'USD',
-        status: 'open',
       })
+      if (!created) throw new Error('move_deal_stage: failed to create deal')
+      if (!created.created) {
+        // Another path created one between our lookup and now — move it.
+        const { error: moveErr } = await db
+          .from('deals')
+          .update({ pipeline_id: cfg.pipeline_id, stage_id: cfg.stage_id })
+          .eq('id', created.dealId)
+        if (moveErr) throw new Error(`move_deal_stage: update failed: ${moveErr.message}`)
+        return `deal moved to stage ${cfg.stage_id}`
+      }
       return 'no open deal found; created one in target stage'
     }
 
@@ -965,4 +1003,10 @@ async function markPending(id: string, status: 'done' | 'failed') {
     .from('automation_pending_executions')
     .update({ status })
     .eq('id', id)
+}
+
+/** The triggering conversation, when the dispatcher passed one. */
+function conversationIdFromContext(context: unknown): string | null {
+  const id = (context as { conversation_id?: unknown } | null)?.conversation_id
+  return typeof id === 'string' && id ? id : null
 }

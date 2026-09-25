@@ -11,7 +11,8 @@ import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
 import { classifyLeadIfNeeded } from '@/lib/ai/lead-classify'
-import { keepOnlyOldestOpenDeal } from '@/lib/deals/dedupe-open-deal'
+import { ensureOpenDeal } from '@/lib/deals/dedupe-open-deal'
+import { resolveProfileId } from '@/lib/ai/profile-id'
 import { observeConversationIfNeeded } from '@/lib/ai/observer'
 import { pauseAiForAgentReply } from '@/lib/ai/thread-control'
 import { pickRoundRobinAgent } from '@/lib/assignment/round-robin'
@@ -620,21 +621,29 @@ export async function ensureLeadDeal(
   conversationId: string,
 ) {
   try {
-    const { data: openDeal, error: openDealErr } = await supabaseAdmin()
+    const db = supabaseAdmin()
+
+    // Grace period after a close: a "gracias 👍" or a reaction right
+    // after a won/lost deal is the tail of that sale, not a new lead —
+    // without this it spawned a fresh card (and a "New lead"
+    // notification) in the first stage.
+    const graceSince = new Date(Date.now() - CLOSED_DEAL_GRACE_MS).toISOString()
+    const { data: recentlyClosed, error: closedErr } = await db
       .from('deals')
       .select('id')
       .eq('contact_id', contact.id)
       .eq('account_id', accountId)
-      .eq('status', 'open')
+      .in('status', ['won', 'lost'])
+      .gte('closed_at', graceSince)
       .limit(1)
       .maybeSingle()
-    if (openDealErr) {
-      console.error('[webhook] ensureLeadDeal: open-deal lookup failed:', openDealErr.message)
+    if (closedErr) {
+      console.error('[webhook] ensureLeadDeal: closed-deal lookup failed:', closedErr.message)
+    } else if (recentlyClosed) {
       return
     }
-    if (openDeal) return // already has a live card — don't touch it
 
-    const { data: pipeline, error: pipelineErr } = await supabaseAdmin()
+    const { data: pipeline, error: pipelineErr } = await db
       .from('pipelines')
       .select('id')
       .eq('account_id', accountId)
@@ -650,7 +659,7 @@ export async function ensureLeadDeal(
       return
     }
 
-    const { data: stage, error: stageErr } = await supabaseAdmin()
+    const { data: stage, error: stageErr } = await db
       .from('pipeline_stages')
       .select('id')
       .eq('pipeline_id', pipeline.id)
@@ -666,49 +675,37 @@ export async function ensureLeadDeal(
       return
     }
 
-    // Match the account's configured default currency, same rule the
-    // automation engine's create_deal step follows (issue #218) —
-    // keeps every auto-created deal consistent with the
-    // one-currency-per-account convention rather than the static
-    // deals.currency DB default.
-    const { data: acct } = await supabaseAdmin()
-      .from('accounts')
-      .select('default_currency')
-      .eq('id', accountId)
-      .maybeSingle()
+    // Match the account's configured default currency (issue #218), and
+    // carry over the thread's owner: the conversation is often created
+    // already round-robin-assigned, but sync_deal_owner_from_conversation
+    // (migration 069) only fires on conversation writes, so a deal
+    // inserted afterwards stayed unowned on the board.
+    const [{ data: acct }, { data: conv }] = await Promise.all([
+      db.from('accounts').select('default_currency').eq('id', accountId).maybeSingle(),
+      db.from('conversations').select('assigned_agent_id').eq('id', conversationId).maybeSingle(),
+    ])
+    const assignedTo = await resolveProfileId(db, conv?.assigned_agent_id ?? null)
 
-    const { data: inserted, error: insertErr } = await supabaseAdmin()
-      .from('deals')
-      .insert({
-        account_id: accountId,
-        user_id: configOwnerUserId,
-        pipeline_id: pipeline.id,
-        stage_id: stage.id,
-        contact_id: contact.id,
-        conversation_id: conversationId,
-        title: contact.name || contact.phone,
-        value: 0,
-        currency: acct?.default_currency ?? 'USD',
-        status: 'open',
-      })
-      .select('id')
-      .single()
-    if (insertErr || !inserted) {
-      console.error('[webhook] ensureLeadDeal: insert failed:', insertErr?.message)
-      return
-    }
-    // Concurrent deliveries can both pass the open-deal lookup above
-    // (this runs before the message insert's unique-index dedupe) —
-    // keep only one card per contact. See keepOnlyOldestOpenDeal.
-    await keepOnlyOldestOpenDeal(supabaseAdmin(), {
+    // Atomic per contact (migration 110) — concurrent deliveries can't
+    // both create a card. See ensureOpenDeal.
+    await ensureOpenDeal(db, {
       accountId,
       contactId: contact.id,
-      insertedDealId: inserted.id,
+      userId: configOwnerUserId,
+      pipelineId: pipeline.id,
+      stageId: stage.id,
+      conversationId,
+      title: contact.name || contact.phone,
+      currency: acct?.default_currency ?? 'USD',
+      assignedTo,
     })
   } catch (err) {
     console.error('ensureLeadDeal failed:', err)
   }
 }
+
+/** See ensureLeadDeal's grace-period comment. */
+const CLOSED_DEAL_GRACE_MS = 3 * 24 * 60 * 60 * 1000
 
 /**
  * Resolve a Meta-side message_id into the matching internal UUID, scoped

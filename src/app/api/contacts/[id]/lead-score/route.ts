@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { applyLeadScore } from '@/lib/ai/lead-scoring';
 import type { LeadScore } from '@/lib/ai/types';
+import { supabaseAdmin } from '@/lib/ai/admin-client';
 
 const VALID_SCORES: readonly LeadScore[] = ['hot', 'warm', 'cold'];
 
@@ -96,6 +97,19 @@ export async function POST(
     const reason =
       typeof body?.reason === 'string' && body.reason.trim() ? body.reason.trim() : null;
 
+    // The deal side runs on the service-role client (see applyLeadScore's
+    // dealDb), so confirm through RLS first that this contact really is
+    // in the caller's account.
+    const { data: owned } = await ctx.supabase
+      .from('contacts')
+      .select('id')
+      .eq('id', contactId)
+      .eq('account_id', ctx.accountId)
+      .maybeSingle();
+    if (!owned) {
+      return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
+    }
+
     await applyLeadScore(ctx.supabase, {
       accountId: ctx.accountId,
       contactId,
@@ -103,6 +117,7 @@ export async function POST(
       score: body.score,
       reason,
       source: 'manual',
+      dealDb: supabaseAdmin(),
     });
 
     return NextResponse.json({ ok: true });
