@@ -639,13 +639,38 @@ export function MessageThread({
       });
   }, [conversationId, hasUnread]);
 
-  // Auto-scroll to bottom on new messages
+  // Auto-scroll to bottom — only when the thread changes, or when a new
+  // message is appended while the agent is already near the bottom. It
+  // used to run on every `messages` change (status ticks included),
+  // pulling an agent reading older history back down on each one.
+  const nearBottomRef = useRef(true);
+  const lastScrollStateRef = useRef<{ conversationId: string | undefined; count: number }>({
+    conversationId: undefined,
+    count: 0,
+  });
   useEffect(() => {
-    if (scrollRef.current) {
-      const el = scrollRef.current;
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      nearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 160;
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+    // Re-attach per thread: the scroll container isn't mounted while no
+    // conversation is selected (early return below).
+  }, [conversation?.id]);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const prev = lastScrollStateRef.current;
+    const switchedThread = prev.conversationId !== conversation?.id;
+    const appended = messages.length > prev.count;
+    lastScrollStateRef.current = { conversationId: conversation?.id, count: messages.length };
+    if (switchedThread || (appended && nearBottomRef.current)) {
       el.scrollTop = el.scrollHeight;
+      nearBottomRef.current = true;
     }
-  }, [messages]);
+  }, [messages, conversation?.id]);
 
   const handleSend = useCallback(
     async (text: string, replyToId?: string) => {

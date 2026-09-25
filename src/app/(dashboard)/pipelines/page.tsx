@@ -35,6 +35,7 @@ import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
 import { GatedButton } from "@/components/ui/gated-button";
 import { useTranslations } from "next-intl";
 import { defaultStageRows, ensureDefaultPipeline } from "@/lib/pipelines/default-stages";
+import { selectAll } from "@/lib/supabase/fetch-all";
 
 // Pipeline creation is admin-class (settings-tier write under
 // the new RLS); deal creation is operational and only requires
@@ -163,12 +164,21 @@ export default function PipelinesPage() {
 
   const loadDeals = useCallback(
     async (pipelineId: string) => {
-      const { data } = await supabase
-        .from("deals")
-        .select("*, contact:contacts(*), assignee:profiles!deals_assigned_to_fkey(*)")
-        .eq("pipeline_id", pipelineId)
-        .order("created_at", { ascending: false });
-      return (data ?? []) as Deal[];
+      // Paged: one deal is auto-created per inbound contact, so a busy
+      // pipeline passes Supabase's 1000-row cap and the board silently
+      // dropped the oldest cards.
+      const { data } = await selectAll<Deal>(() =>
+        supabase
+          .from("deals")
+          .select("*, contact:contacts(*), assignee:profiles!deals_assigned_to_fkey(*)")
+          .eq("pipeline_id", pipelineId)
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false }),
+      ).catch((err) => {
+        console.error("Failed to load deals:", err);
+        return { data: [] as Deal[] };
+      });
+      return data;
     },
     [supabase],
   );
@@ -259,17 +269,24 @@ export default function PipelinesPage() {
     }
     let cancelled = false;
     (async () => {
-      const { data, error } = await supabase
-        .from("conversations")
-        .select("contact_id, last_message_at, last_message_sender_type")
-        .in("contact_id", openContactIds);
-      if (cancelled) return;
-      if (error) {
-        console.error("Failed to load conversation staleness:", error.message);
-        return;
+      // Chunked: a few hundred UUIDs in one `.in()` exceeds proxy URL
+      // limits (414) and every staleness badge disappeared.
+      const CHUNK = 150;
+      const rows: { contact_id: string | null; last_message_at: string | null; last_message_sender_type: string | null }[] = [];
+      for (let i = 0; i < openContactIds.length; i += CHUNK) {
+        const { data, error } = await supabase
+          .from("conversations")
+          .select("contact_id, last_message_at, last_message_sender_type")
+          .in("contact_id", openContactIds.slice(i, i + CHUNK));
+        if (cancelled) return;
+        if (error) {
+          console.error("Failed to load conversation staleness:", error.message);
+          return;
+        }
+        rows.push(...(data ?? []));
       }
       const map = new Map<string, ConversationStaleness>();
-      for (const row of data ?? []) {
+      for (const row of rows) {
         if (row.contact_id) {
           map.set(row.contact_id, {
             last_message_at: row.last_message_at,

@@ -361,10 +361,21 @@ function InboxPageInner() {
       }
 
       if (event.eventType === "UPDATE") {
-        // Update message status
-        setMessages((prev) =>
-          prev.map((m) => (m.id === newMsg.id ? { ...m, ...newMsg } : m))
-        );
+        // Status ticks (sent/delivered/read) arrive for EVERY thread in
+        // the account. Ignore the ones for other threads, and keep the
+        // same array when nothing changed — a fresh array on every tick
+        // re-rendered the whole open thread and yanked it to the bottom
+        // while the agent was reading older messages.
+        if (newMsg.conversation_id !== activeConversation?.id) return;
+        setMessages((prev) => {
+          let changed = false;
+          const next = prev.map((m) => {
+            if (m.id !== newMsg.id) return m;
+            changed = true;
+            return { ...m, ...newMsg };
+          });
+          return changed ? next : prev;
+        });
       }
     },
     [activeConversation, hydrateConversation]

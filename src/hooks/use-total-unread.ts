@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { selectAll } from "@/lib/supabase/fetch-all";
 import type { Conversation } from "@/types";
 
 /**
@@ -25,11 +26,20 @@ export function useTotalUnread(): number {
 
     // Initial load. RLS scopes this to the signed-in user automatically —
     // no explicit user_id filter needed here.
+    // Only threads that actually have unread messages — the map treats
+    // an unknown id as 0, and realtime fills in the rest. This used to
+    // pull EVERY conversation on every page load (and stopped at 1000
+    // rows, so the count could be wrong).
     (async () => {
-      const { data, error } = await supabase
-        .from("conversations")
-        .select("id, unread_count");
-      if (cancelled || error || !data) return;
+      const result = await selectAll<{ id: string; unread_count: number }>(() =>
+        supabase
+          .from("conversations")
+          .select("id, unread_count")
+          .gt("unread_count", 0)
+          .order("id"),
+      ).catch(() => null);
+      const data = result?.data;
+      if (cancelled || !data) return;
 
       const map = new Map<string, number>();
       let sum = 0;

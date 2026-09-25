@@ -17,6 +17,7 @@ import type {
   SalesVsGoalPoint,
   TopSeller,
 } from './ceo-types'
+import { fetchAllRows, selectAll } from '@/lib/supabase/fetch-all'
 
 // ------------------------------------------------------------
 // Client-side aggregation, same posture as ./queries.ts — RLS scopes
@@ -75,12 +76,15 @@ export async function loadSalesVsGoal(db: DB, range: DateRange): Promise<SalesVs
   const buckets = rangeBuckets(range)
 
   const [dealsRes, goalRow] = await Promise.all([
-    db
-      .from('deals')
-      .select('value, closed_at')
-      .eq('status', 'won')
-      .gte('closed_at', range.start.toISOString())
-      .lt('closed_at', range.end.toISOString()),
+    selectAll(() =>
+      db
+        .from('deals')
+        .select('value, closed_at')
+        .eq('status', 'won')
+        .gte('closed_at', range.start.toISOString())
+        .lt('closed_at', range.end.toISOString())
+        .order('id'),
+    ),
     db
       .from('sales_goals')
       .select('target_value')
@@ -162,73 +166,90 @@ export async function loadCeoMetrics(db: DB, range: DateRange, accountId?: strin
   }
   type ContactRow = { contact_id: string | null }
 
-  let wonCurrentQ = db.from('deals').select('value').eq('status', 'won').gte('closed_at', currentStart).lt('closed_at', currentEnd)
-  let wonPreviousQ = db
-    .from('deals')
-    .select('value')
-    .eq('status', 'won')
-    .gte('closed_at', previousStart)
-    .lt('closed_at', currentStart)
+  // Every list below is read in full (fetchAllRows) — these feed sums
+  // and distinct counts, and a plain select stops at 1000 rows, so the
+  // KPIs silently understated any account past that. The open-deal scan
+  // also used to be capped at MAX_OPEN_DEALS_SCANNED, truncating the
+  // pipeline total and forecast.
+  // Service-role callers (the risk-engine cron) pass accountId; RLS
+  // scopes everyone else.
+  const acct = accountId ?? null
+
   let goalRowQ = db.from('sales_goals').select('target_value').is('user_id', null).eq('period_month', thisMonthKey)
-  let openDealsQ = db
-    .from('deals')
-    .select('value, stage:pipeline_stages(win_probability)')
-    .eq('status', 'open')
-    .limit(MAX_OPEN_DEALS_SCANNED)
-  let contactsAllQ = db.from('deals').select('contact_id').not('contact_id', 'is', null)
-  let contactsCurrentQ = db
-    .from('deals')
-    .select('contact_id')
-    .not('contact_id', 'is', null)
-    .gte('created_at', currentStart)
-    .lt('created_at', currentEnd)
-  let contactsPreviousQ = db
-    .from('deals')
-    .select('contact_id')
-    .not('contact_id', 'is', null)
-    .gte('created_at', previousStart)
-    .lt('created_at', currentStart)
+  if (accountId) goalRowQ = goalRowQ.eq('account_id', accountId)
 
-  if (accountId) {
-    wonCurrentQ = wonCurrentQ.eq('account_id', accountId)
-    wonPreviousQ = wonPreviousQ.eq('account_id', accountId)
-    goalRowQ = goalRowQ.eq('account_id', accountId)
-    openDealsQ = openDealsQ.eq('account_id', accountId)
-    contactsAllQ = contactsAllQ.eq('account_id', accountId)
-    contactsCurrentQ = contactsCurrentQ.eq('account_id', accountId)
-    contactsPreviousQ = contactsPreviousQ.eq('account_id', accountId)
-  }
-
-  const [
-    wonCurrent,
-    wonPrevious,
-    goalRow,
-    openDeals,
-    contactsAll,
-    contactsCurrent,
-    contactsPrevious,
-  ] = await Promise.all([
-    wonCurrentQ,
-    wonPreviousQ,
-    goalRowQ.maybeSingle(),
-    openDealsQ,
-    contactsAllQ,
-    contactsCurrentQ,
-    contactsPreviousQ,
-  ])
-
-  for (const r of [wonCurrent, wonPrevious, goalRow, openDeals, contactsAll, contactsCurrent, contactsPrevious]) {
-    if (r.error) throw r.error
-  }
+  const [wonCurrent, wonPrevious, goalRow, openDeals, contactsAll, contactsCurrent, contactsPrevious] =
+    await Promise.all([
+      fetchAllRows<{ value: number | null }>((from, to) => {
+        let q = db
+          .from('deals')
+          .select('id, value')
+          .eq('status', 'won')
+          .gte('closed_at', currentStart)
+          .lt('closed_at', currentEnd)
+        if (acct) q = q.eq('account_id', acct)
+        return q.order('id').range(from, to)
+      }),
+      // closed_at on both bounds — the upper bound used created_at, so
+      // "previous period sales" mixed in deals by their creation date.
+      fetchAllRows<{ value: number | null }>((from, to) => {
+        let q = db
+          .from('deals')
+          .select('id, value')
+          .eq('status', 'won')
+          .gte('closed_at', previousStart)
+          .lt('closed_at', currentStart)
+        if (acct) q = q.eq('account_id', acct)
+        return q.order('id').range(from, to)
+      }),
+      goalRowQ.maybeSingle(),
+      fetchAllRows<OpenDealRow>((from, to) => {
+        let q = db
+          .from('deals')
+          .select('id, value, stage:pipeline_stages(win_probability)')
+          .eq('status', 'open')
+        if (acct) q = q.eq('account_id', acct)
+        return q.order('id').range(from, to)
+      }),
+      fetchAllRows<ContactRow>((from, to) => {
+        let q = db
+          .from('deals')
+          .select('id, contact_id')
+          .not('contact_id', 'is', null)
+        if (acct) q = q.eq('account_id', acct)
+        return q.order('id').range(from, to)
+      }),
+      fetchAllRows<ContactRow>((from, to) => {
+        let q = db
+          .from('deals')
+          .select('id, contact_id')
+          .not('contact_id', 'is', null)
+          .gte('created_at', currentStart)
+          .lt('created_at', currentEnd)
+        if (acct) q = q.eq('account_id', acct)
+        return q.order('id').range(from, to)
+      }),
+      fetchAllRows<ContactRow>((from, to) => {
+        let q = db
+          .from('deals')
+          .select('id, contact_id')
+          .not('contact_id', 'is', null)
+          .gte('created_at', previousStart)
+          .lt('created_at', currentStart)
+        if (acct) q = q.eq('account_id', acct)
+        return q.order('id').range(from, to)
+      }),
+    ])
+  if (goalRow.error) throw goalRow.error
 
   const sum = (rows: { value: number | null }[]) =>
     rows.reduce((s, r) => s + (r.value ?? 0), 0)
-  const salesCurrentValue = sum((wonCurrent.data ?? []) as { value: number | null }[])
-  const salesPreviousValue = sum((wonPrevious.data ?? []) as { value: number | null }[])
+  const salesCurrentValue = sum(wonCurrent)
+  const salesPreviousValue = sum(wonPrevious)
 
   let pipelineTotal = 0
   let forecast = 0
-  for (const d of (openDeals.data ?? []) as unknown as OpenDealRow[]) {
+  for (const d of openDeals) {
     const value = d.value ?? 0
     pipelineTotal += value
     const stage = Array.isArray(d.stage) ? d.stage[0] : d.stage
@@ -238,9 +259,9 @@ export async function loadCeoMetrics(db: DB, range: DateRange, accountId?: strin
 
   const distinctContacts = (rows: ContactRow[]) =>
     new Set(rows.map((r) => r.contact_id).filter((id): id is string => !!id)).size
-  const totalClients = distinctContacts((contactsAll.data ?? []) as ContactRow[])
-  const newClientsCurrent = distinctContacts((contactsCurrent.data ?? []) as ContactRow[])
-  const newClientsPrevious = distinctContacts((contactsPrevious.data ?? []) as ContactRow[])
+  const totalClients = distinctContacts(contactsAll)
+  const newClientsCurrent = distinctContacts(contactsCurrent)
+  const newClientsPrevious = distinctContacts(contactsPrevious)
 
   const monthlyGoal = (goalRow.data as { target_value: number } | null)?.target_value ?? null
   const rangeDays = Math.max(1, Math.round((range.end.getTime() - range.start.getTime()) / 86_400_000))
@@ -264,11 +285,14 @@ export async function loadCeoMetrics(db: DB, range: DateRange, accountId?: strin
 
 export async function loadCommercialMetrics(db: DB, windowDays = 90): Promise<CommercialMetrics> {
   const start = daysAgoStart(windowDays).toISOString()
-  const { data, error } = await db
-    .from('deals')
-    .select('value, status, created_at, closed_at')
-    .in('status', ['won', 'lost'])
-    .gte('closed_at', start)
+  const { data, error } = await selectAll(() =>
+    db
+      .from('deals')
+      .select('value, status, created_at, closed_at')
+      .in('status', ['won', 'lost'])
+      .gte('closed_at', start)
+      .order('id'),
+  )
   if (error) throw error
 
   const rows = (data ?? []) as { value: number | null; status: string; created_at: string; closed_at: string | null }[]
@@ -322,19 +346,23 @@ export async function loadPeriodCommercialTrend(
   const currentEnd = range.end.toISOString()
   const previousStart = previousRange(range).start.toISOString()
 
-  let closedQ = db
-    .from('deals')
-    .select('value, status, closed_at')
-    .in('status', ['won', 'lost'])
-    .gte('closed_at', previousStart)
-    .lt('closed_at', currentEnd)
-  let createdQ = db.from('deals').select('id, created_at').gte('created_at', previousStart).lt('created_at', currentEnd)
-  if (accountId) {
-    closedQ = closedQ.eq('account_id', accountId)
-    createdQ = createdQ.eq('account_id', accountId)
+  const closedQ = () => {
+    let q = db
+      .from('deals')
+      .select('value, status, closed_at')
+      .in('status', ['won', 'lost'])
+      .gte('closed_at', previousStart)
+      .lt('closed_at', currentEnd)
+    if (accountId) q = q.eq('account_id', accountId)
+    return q.order('id')
+  }
+  const createdQ = () => {
+    let q = db.from('deals').select('id, created_at').gte('created_at', previousStart).lt('created_at', currentEnd)
+    if (accountId) q = q.eq('account_id', accountId)
+    return q.order('id')
   }
 
-  const [closedRes, createdRes] = await Promise.all([closedQ, createdQ])
+  const [closedRes, createdRes] = await Promise.all([selectAll(closedQ), selectAll(createdQ)])
   if (closedRes.error) throw closedRes.error
   if (createdRes.error) throw createdRes.error
 
@@ -413,13 +441,16 @@ export async function loadSellerPeriodPerformance(
 
   const [membersRes, dealsRes] = await Promise.all([
     db.from('profiles').select('id, full_name, email'),
-    db
-      .from('deals')
-      .select('assigned_to, value, status, closed_at')
-      .in('status', ['won', 'lost'])
-      .not('assigned_to', 'is', null)
-      .gte('closed_at', previousStart)
-      .lt('closed_at', currentEnd),
+    selectAll(() =>
+      db
+        .from('deals')
+        .select('assigned_to, value, status, closed_at')
+        .in('status', ['won', 'lost'])
+        .not('assigned_to', 'is', null)
+        .gte('closed_at', previousStart)
+        .lt('closed_at', currentEnd)
+        .order('id'),
+    ),
   ])
   if (membersRes.error) throw membersRes.error
   if (dealsRes.error) throw dealsRes.error
@@ -487,13 +518,16 @@ export async function loadTopSellers(db: DB, range: DateRange, limit = 5): Promi
     // instead, so soldByUser/goalByUser below never matched any
     // member and this leaderboard silently rendered empty.
     db.from('profiles').select('id, full_name, email'),
-    db
-      .from('deals')
-      .select('assigned_to, value')
-      .eq('status', 'won')
-      .gte('closed_at', currentStart)
-      .lt('closed_at', currentEnd)
-      .not('assigned_to', 'is', null),
+    selectAll(() =>
+      db
+        .from('deals')
+        .select('assigned_to, value')
+        .eq('status', 'won')
+        .gte('closed_at', currentStart)
+        .lt('closed_at', currentEnd)
+        .not('assigned_to', 'is', null)
+        .order('id'),
+    ),
     db
       .from('sales_goals')
       .select('user_id, target_value')
@@ -557,8 +591,17 @@ export async function loadTopSellers(db: DB, range: DateRange, limit = 5): Promi
 export async function loadLeadsByRep(db: DB): Promise<LeadsByRep[]> {
   const [membersRes, convRes, dealsRes] = await Promise.all([
     db.from('profiles').select('id, user_id, full_name, email'),
-    db.from('conversations').select('assigned_agent_id').neq('status', 'closed').not('assigned_agent_id', 'is', null),
-    db.from('deals').select('assigned_to').eq('status', 'open').not('assigned_to', 'is', null),
+    selectAll(() =>
+      db
+        .from('conversations')
+        .select('assigned_agent_id')
+        .neq('status', 'closed')
+        .not('assigned_agent_id', 'is', null)
+        .order('id'),
+    ),
+    selectAll(() =>
+      db.from('deals').select('assigned_to').eq('status', 'open').not('assigned_to', 'is', null).order('id'),
+    ),
   ])
   if (membersRes.error) throw membersRes.error
   if (convRes.error) throw convRes.error
@@ -970,10 +1013,13 @@ export async function loadSalesFunnel(db: DB, days = 90): Promise<SalesFunnelDat
   const [stagesRes, leadsRes, historyRes, dealValuesRes, wonRes, lostRes] = await Promise.all([
     db.from('pipeline_stages').select('id, name, is_won_stage, is_lost_stage').order('position'),
     db.from('contacts').select('id', { count: 'exact', head: true }).gte('created_at', windowStart),
-    db.from('deal_stage_history').select('deal_id, to_stage_id').gte('changed_at', windowStart),
-    db.from('deals').select('id, value'),
-    db.from('deals').select('value').eq('status', 'won').gte('closed_at', windowStart),
-    db.from('deals').select('value').eq('status', 'lost').gte('closed_at', windowStart),
+    // All paged — see fetchAllRows (these feed sums/counts).
+    selectAll(() =>
+      db.from('deal_stage_history').select('deal_id, to_stage_id').gte('changed_at', windowStart).order('id'),
+    ),
+    selectAll(() => db.from('deals').select('id, value').order('id')),
+    selectAll(() => db.from('deals').select('value').eq('status', 'won').gte('closed_at', windowStart).order('id')),
+    selectAll(() => db.from('deals').select('value').eq('status', 'lost').gte('closed_at', windowStart).order('id')),
   ])
   if (stagesRes.error) throw stagesRes.error
   if (leadsRes.error) throw leadsRes.error

@@ -442,6 +442,14 @@ export default function DashboardPage() {
   // open tab.
   const debouncedLoadAll = useDebouncedCallback(reloadAfterRealtimeChange, 500, 2000)
 
+  // Activity (new contacts / new conversations) only feeds the KPI row
+  // and operational cards, none of which need second-level freshness.
+  // Its own, much slower coalescing and NO server-cache bust: it used
+  // to share the sales reload above, so every chat message (each one
+  // updates its conversation row) re-ran the whole dashboard —
+  // including the CEO summary's heavy queries — every ~2s per open tab.
+  const debouncedActivityReload = useDebouncedCallback(loadAll, 15_000, 60_000)
+
   // Re-fetch every time this route becomes the active page — not just
   // on first mount. Next's client router cache can keep this page's
   // component instance alive when the user navigates away and back
@@ -521,21 +529,24 @@ export default function DashboardPage() {
     const supabase = createClient()
     const channel = supabase
       .channel(`dashboard-activity:${accountId}`)
+      // INSERT only: UPDATEs on these rows fire on every message
+      // (last_message_at, unread_count, lead score) — "a new contact /
+      // new thread showed up" is what the cards need.
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'contacts', filter: `account_id=eq.${accountId}` },
-        () => debouncedLoadAll(),
+        { event: 'INSERT', schema: 'public', table: 'contacts', filter: `account_id=eq.${accountId}` },
+        () => debouncedActivityReload(),
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'conversations', filter: `account_id=eq.${accountId}` },
-        () => debouncedLoadAll(),
+        { event: 'INSERT', schema: 'public', table: 'conversations', filter: `account_id=eq.${accountId}` },
+        () => debouncedActivityReload(),
       )
       .subscribe()
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [accountId, debouncedLoadAll])
+  }, [accountId, debouncedActivityReload])
 
   // Range switch handler — kept in an event callback (not an effect)
   // so the setState calls stay out of the react-hooks/set-state-in-effect

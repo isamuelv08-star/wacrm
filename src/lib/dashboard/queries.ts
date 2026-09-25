@@ -7,6 +7,7 @@ import {
   rangeBuckets,
   type DateRange,
 } from './date-utils'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import type {
   ConversationsSeriesPoint,
   FollowupSummary,
@@ -72,11 +73,14 @@ export async function loadMetrics(
     if (seller) q = q.in('whatsapp_config_id', seller.whatsappConfigIds)
     return q
   }
-  const dealBase = () => {
-    let q = db.from('deals').select('value, status').eq('status', 'open')
-    if (seller) q = q.eq('assigned_to', seller.userId)
-    return q
-  }
+  // Paged — a plain select stops at 1000 rows, understating the open
+  // pipeline value for any account past that.
+  const loadOpenDeals = () =>
+    fetchAllRows<{ value: number | null }>((from, to) => {
+      let q = db.from('deals').select('id, value').eq('status', 'open')
+      if (seller) q = q.eq('assigned_to', seller.userId)
+      return q.order('id').range(from, to)
+    }, { label: 'dashboard open deals' })
   const messageBase = () => {
     // Messages don't carry whatsapp_config_id themselves — filter via
     // the parent conversation, same embed-and-filter pattern
@@ -105,12 +109,12 @@ export async function loadMetrics(
     convBase().gte('created_at', previousStart).lt('created_at', currentStart),
     contactBase().gte('created_at', currentStart),
     contactBase().gte('created_at', previousStart).lt('created_at', currentStart),
-    dealBase(),
+    loadOpenDeals(),
     messageBase().gte('created_at', currentStart),
     messageBase().gte('created_at', previousStart).lt('created_at', currentStart),
   ])
 
-  const openDealsRows = (openDeals.data ?? []) as { value: number | null }[]
+  const openDealsRows = openDeals
   const openDealsValue = openDealsRows.reduce((sum, d) => sum + (d.value ?? 0), 0)
 
   return {
@@ -141,18 +145,25 @@ export async function loadConversationsSeries(
   rangeDays: number,
 ): Promise<ConversationsSeriesPoint[]> {
   const start = daysAgoStart(rangeDays - 1).toISOString()
-  const { data, error } = await db
-    .from('messages')
-    .select('created_at, sender_type')
-    .gte('created_at', start)
-    .order('created_at', { ascending: true })
-  if (error) throw error
+  // Paged: ascending + the 1000-row cap kept only the OLDEST 1000
+  // messages, so recent days charted as zero on any busy account.
+  const data = await fetchAllRows<{ created_at: string; sender_type: string }>(
+    (from, to) =>
+      db
+        .from('messages')
+        .select('id, created_at, sender_type')
+        .gte('created_at', start)
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to),
+    { label: 'dashboard conversations series', maxRows: 200_000 },
+  )
 
   const keys = lastNDayKeys(rangeDays)
   const buckets = new Map<string, { incoming: number; outgoing: number }>()
   for (const k of keys) buckets.set(k, { incoming: 0, outgoing: 0 })
 
-  for (const row of (data ?? []) as { created_at: string; sender_type: string }[]) {
+  for (const row of data) {
     const key = localDayKey(row.created_at)
     const bucket = buckets.get(key)
     if (!bucket) continue
@@ -166,14 +177,17 @@ export async function loadConversationsSeries(
 // --- 3. Pipeline donut -------------------------------------------------
 
 export async function loadPipelineDonut(db: DB): Promise<PipelineDonutData> {
-  const [stagesRes, dealsRes] = await Promise.all([
+  const [stagesRes, deals] = await Promise.all([
     db.from('pipeline_stages').select('id, name, color, pipeline_id, position').order('position'),
-    db.from('deals').select('stage_id, value, status').eq('status', 'open'),
+    fetchAllRows<{ stage_id: string; value: number | null }>(
+      (from, to) =>
+        db.from('deals').select('id, stage_id, value').eq('status', 'open').order('id').range(from, to),
+      { label: 'dashboard pipeline donut' },
+    ),
   ])
 
   const stages =
     (stagesRes.data ?? []) as { id: string; name: string; color: string }[]
-  const deals = (dealsRes.data ?? []) as { stage_id: string; value: number | null }[]
 
   const byStage = new Map<string, { count: number; total: number }>()
   for (const d of deals) {
@@ -210,20 +224,23 @@ export async function loadResponseTime(db: DB, range: DateRange): Promise<Respon
   // to find each "first inbound" → "first subsequent outbound" pair.
   const currentStart = range.start
   const previousStart = previousRange(range).start
-  const { data, error } = await db
-    .from('messages')
-    .select('conversation_id, sender_type, created_at')
-    .gte('created_at', previousStart.toISOString())
-    .lt('created_at', range.end.toISOString())
-    .order('conversation_id', { ascending: true })
-    .order('created_at', { ascending: true })
-  if (error) throw error
-
-  const rows = (data ?? []) as {
+  const rows = await fetchAllRows<{
     conversation_id: string
     sender_type: string
     created_at: string
-  }[]
+  }>(
+    (from, to) =>
+      db
+        .from('messages')
+        .select('id, conversation_id, sender_type, created_at')
+        .gte('created_at', previousStart.toISOString())
+        .lt('created_at', range.end.toISOString())
+        .order('conversation_id', { ascending: true })
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to),
+    { label: 'dashboard response time', maxRows: 200_000 },
+  )
 
   // Group per conversation, pair unreplied customer messages with the
   // next outbound message from the agent/bot. A single customer message
@@ -287,8 +304,6 @@ export async function loadResponseTime(db: DB, range: DateRange): Promise<Respon
 
 // --- 5. HOT leads waiting on a reply ------------------------------------
 
-const MAX_HOT_CANDIDATES = 30
-
 /**
  * Open conversations with a HOT-scored contact whose last message is
  * from the customer and still unanswered — the dashboard's "Juana
@@ -299,17 +314,25 @@ const MAX_HOT_CANDIDATES = 30
  * never writes anything.
  */
 export async function loadHotUnanswered(db: DB, limit = 6): Promise<HotUnansweredItem[]> {
+  // Waiting on us = the customer had the last word — read straight off
+  // conversations.last_message_* (migration 050) and sorted by the
+  // longest wait in SQL, instead of one `messages` query per HOT
+  // thread on every dashboard load.
   const { data: candidates, error } = await db
     .from('conversations')
-    .select('id, contacts!inner(name, phone, lead_score)')
+    .select('id, last_message_at, contacts!inner(name, phone, lead_score)')
     .eq('status', 'open')
     .eq('contacts.lead_score', 'hot')
-    .limit(MAX_HOT_CANDIDATES)
+    .eq('last_message_sender_type', 'customer')
+    .not('last_message_at', 'is', null)
+    .order('last_message_at', { ascending: true })
+    .limit(limit)
   if (error) throw error
   if (!candidates || candidates.length === 0) return []
 
   type Candidate = {
     id: string
+    last_message_at: string
     contacts:
       | { name: string | null; phone: string }[]
       | { name: string | null; phone: string }
@@ -317,32 +340,14 @@ export async function loadHotUnanswered(db: DB, limit = 6): Promise<HotUnanswere
   }
 
   const now = Date.now()
-  const results = await Promise.all(
-    (candidates as unknown as Candidate[]).map(async (conv) => {
-      const { data: lastMessage } = await db
-        .from('messages')
-        .select('sender_type, created_at')
-        .eq('conversation_id', conv.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      // No message yet, or we already had the last word — not waiting.
-      if (!lastMessage || lastMessage.sender_type !== 'customer') return null
-
-      const contact = Array.isArray(conv.contacts) ? conv.contacts[0] : conv.contacts
-      const waitingMinutes = Math.round((now - new Date(lastMessage.created_at).getTime()) / 60_000)
-      return {
-        conversationId: conv.id,
-        contactName: contact?.name || contact?.phone || '—',
-        waitingMinutes,
-      } satisfies HotUnansweredItem
-    }),
-  )
-
-  return results
-    .filter((r): r is HotUnansweredItem => r !== null)
-    .sort((a, b) => b.waitingMinutes - a.waitingMinutes)
-    .slice(0, limit)
+  return (candidates as unknown as Candidate[]).map((conv) => {
+    const contact = Array.isArray(conv.contacts) ? conv.contacts[0] : conv.contacts
+    return {
+      conversationId: conv.id,
+      contactName: contact?.name || contact?.phone || '—',
+      waitingMinutes: Math.round((now - new Date(conv.last_message_at).getTime()) / 60_000),
+    } satisfies HotUnansweredItem
+  })
 }
 
 
@@ -385,8 +390,7 @@ export async function loadLeadsQualifiedToday(db: DB): Promise<LeadsQualifiedTod
   }
 }
 
-// Cap on how many "no stage yet" candidate deals get the N+1
-// last-message lookup below, same reasoning as MAX_HOT_CANDIDATES.
+// Cap on how many "no stage yet" candidate deals the dashboard lists.
 const MAX_FOLLOWUP_CANDIDATES = 50
 
 /**
@@ -517,7 +521,7 @@ export async function loadFollowupLeads(db: DB, opts?: { pipelineId?: string }):
   if (candidatePipelineIds.length > 0) {
     const { data: candidates } = await db
       .from('deals')
-      .select('id, contact_id, conversation_id, pipeline_id, stage_id, contacts!inner(name, phone, lead_score), pipeline_stages(name)')
+      .select('id, contact_id, conversation_id, pipeline_id, stage_id, contacts!inner(name, phone, lead_score), pipeline_stages(name), conversation:conversations(last_message_at, last_message_sender_type)')
       .in('pipeline_id', candidatePipelineIds)
       .eq('status', 'open')
       .not('contacts.lead_score', 'is', null)
@@ -533,10 +537,17 @@ export async function loadFollowupLeads(db: DB, opts?: { pipelineId?: string }):
       stage_id: string
       contacts: ContactJoin
       pipeline_stages: StageJoin
+      conversation:
+        | { last_message_at: string | null; last_message_sender_type: string | null }
+        | { last_message_at: string | null; last_message_sender_type: string | null }[]
+        | null
     }
 
+    // Last message read off the embedded conversation (migration 050's
+    // last_message_* columns) — this used to be one `messages` query per
+    // candidate deal on every dashboard load.
     await Promise.all(
-      ((candidates ?? []) as CandidateRow[]).map(async (d) => {
+      ((candidates ?? []) as unknown as CandidateRow[]).map(async (d) => {
         if (!d.conversation_id) return
         const contact = Array.isArray(d.contacts) ? d.contacts[0] : d.contacts
         const score = contact?.lead_score
@@ -544,15 +555,10 @@ export async function loadFollowupLeads(db: DB, opts?: { pipelineId?: string }):
         const thresholdHours = pipelineMeta.get(d.pipeline_id)?.followupAfterHours ?? 0
         if (thresholdHours <= 0) return
 
-        const { data: lastMessage } = await db
-          .from('messages')
-          .select('sender_type, created_at')
-          .eq('conversation_id', d.conversation_id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-        if (!lastMessage || lastMessage.sender_type === 'customer') return
-        const elapsedMs = now - new Date(lastMessage.created_at).getTime()
+        const conv = Array.isArray(d.conversation) ? d.conversation[0] : d.conversation
+        if (!conv?.last_message_at || !conv.last_message_sender_type) return
+        if (conv.last_message_sender_type === 'customer') return
+        const elapsedMs = now - new Date(conv.last_message_at).getTime()
         if (elapsedMs < thresholdHours * 3_600_000) return
 
         const stage = Array.isArray(d.pipeline_stages) ? d.pipeline_stages[0] : d.pipeline_stages

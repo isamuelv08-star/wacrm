@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { memo, useState, useEffect, useCallback, useDeferredValue, useMemo, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   CONVERSATION_SELECT,
@@ -165,11 +165,25 @@ export function ConversationList({
   // expires on its own even with no new realtime events to trigger a
   // re-render — e.g. a turn that never gets a verdict (no criteria hit,
   // rate-limited, model returned null).
+  //
+  // One timer for the NEXT expiry instead of a fixed 3s interval — the
+  // interval re-rendered every row of the list every 3 seconds forever,
+  // even with nothing analyzing (the list isn't virtualized, so with
+  // hundreds of threads typing in the search box stuttered).
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 3000);
-    return () => clearInterval(id);
-  }, []);
+    if (!hasQualificationCriteria) return;
+    const current = Date.now();
+    let nextExpiry = Infinity;
+    for (const c of conversations) {
+      if (!c.last_message_at) continue;
+      const remaining = Date.parse(c.last_message_at) + ANALYZING_WINDOW_MS - current;
+      if (remaining > 0 && remaining < nextExpiry) nextExpiry = remaining;
+    }
+    if (nextExpiry === Infinity) return;
+    const id = setTimeout(() => setNow(Date.now()), nextExpiry + 50);
+    return () => clearTimeout(id);
+  }, [conversations, hasQualificationCriteria, now]);
   // Platform tab (WhatsApp / Instagram / Todas). Session-scoped — restored
   // from sessionStorage after mount (not read in the initializer, so SSR
   // and first client render agree and there's no hydration mismatch).
@@ -313,6 +327,9 @@ export function ConversationList({
   // Everything except the lead-score tab itself — this is what the
   // per-tab counts are computed against, so "HOT (12)" means "12 within
   // your other active filters", not 12 out of the whole inbox.
+  // Filtering reads the deferred value so typing stays responsive —
+  // React re-filters the (unvirtualized) list at lower priority.
+  const deferredSearch = useDeferredValue(search);
   const preLeadScoreFiltered = useMemo(() => {
     let result = conversations;
 
@@ -340,8 +357,8 @@ export function ConversationList({
       );
     }
 
-    if (search.trim()) {
-      const q = search.toLowerCase();
+    if (deferredSearch.trim()) {
+      const q = deferredSearch.toLowerCase();
       result = result.filter((c) => {
         const name = c.contact?.name?.toLowerCase() ?? "";
         const phone = c.contact?.phone?.toLowerCase() ?? "";
@@ -351,7 +368,7 @@ export function ConversationList({
     }
 
     return result;
-  }, [conversations, platformFilter, filter, search, selectedTagIds, selectedCompany, user?.id]);
+  }, [conversations, platformFilter, filter, deferredSearch, selectedTagIds, selectedCompany, user?.id]);
 
   // One conversation per contact's `lead_score` — a contact with several
   // conversations (e.g. WhatsApp + Instagram) always lands in the same
@@ -755,7 +772,9 @@ interface ConversationItemProps {
   analyzing: boolean;
 }
 
-function ConversationItem({
+// Memoized: a realtime event touching one conversation used to
+// re-render every row (each recomputing its relative time and badges).
+const ConversationItem = memo(function ConversationItem({
   conversation,
   isActive,
   onSelect,
@@ -875,4 +894,4 @@ function ConversationItem({
       </div>
     </button>
   );
-}
+});
