@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { verifyPageToken, subscribePageToApp } from '@/lib/messenger/graph-api'
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
+import { requireRole, toErrorResponse, type AccountContext } from '@/lib/auth/account'
 
 // Mirrors src/app/api/whatsapp/config/route.ts almost exactly — see
 // that file's comments for the reasoning behind each shape decision
@@ -123,19 +124,17 @@ export async function GET() {
  */
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Connecting/disconnecting a channel is settings-class — admin+,
+    // with the same 2FA + account-status gate as every other route.
+    let ctx: AccountContext
+    try {
+      ctx = await requireRole('admin')
+    } catch (err) {
+      return toErrorResponse(err)
     }
-
-    const accountId = await resolveAccountId(supabase, user.id)
-    if (!accountId) {
-      return NextResponse.json({ error: 'Your profile is not linked to an account.' }, { status: 403 })
-    }
+    const supabase = ctx.supabase
+    const user = { id: ctx.userId }
+    const accountId = ctx.accountId
 
     const body = await request.json()
     const { page_id, page_access_token, verify_token } = body
@@ -251,19 +250,16 @@ export async function POST(request: Request) {
  */
 export async function DELETE() {
   try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Connecting/disconnecting a channel is settings-class — admin+,
+    // with the same 2FA + account-status gate as every other route.
+    let ctx: AccountContext
+    try {
+      ctx = await requireRole('admin')
+    } catch (err) {
+      return toErrorResponse(err)
     }
-
-    const accountId = await resolveAccountId(supabase, user.id)
-    if (!accountId) {
-      return NextResponse.json({ error: 'Your profile is not linked to an account.' }, { status: 403 })
-    }
+    const supabase = ctx.supabase
+    const accountId = ctx.accountId
 
     const { error: deleteError } = await supabase.from('messenger_config').delete().eq('account_id', accountId)
     if (deleteError) {

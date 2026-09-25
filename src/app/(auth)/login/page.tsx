@@ -66,7 +66,9 @@ function LoginPageInner() {
       setError(
         res.status === 429
           ? tErrors("rateLimited")
-          : translateAuthError(data.error ?? "", tErrors),
+          : data.code === "email_not_confirmed"
+            ? tErrors("emailNotConfirmed")
+            : translateAuthError(data.error ?? "", tErrors),
       );
       setLoading(false);
       return;

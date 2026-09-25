@@ -312,9 +312,59 @@ export async function deleteAgencyAccountMember(
     )
   }
 
+  // Every `user_id → auth.users ON DELETE CASCADE` FK on shared CRM
+  // data would take this member's contacts, conversations, deals,
+  // pipelines... down with them — data that belongs to the ACCOUNT,
+  // not the person. Hand it to the owner first; abort on any failure
+  // rather than delete with data still attached.
+  const { data: account, error: accountErr } = await db
+    .from('accounts')
+    .select('owner_user_id')
+    .eq('id', accountId)
+    .maybeSingle()
+  if (accountErr || !account?.owner_user_id) throw new Error('Failed to look up account owner')
+
+  for (const table of MEMBER_OWNED_SHARED_TABLES) {
+    const { error: reassignErr } = await db
+      .from(table)
+      .update({ user_id: account.owner_user_id })
+      .eq('account_id', accountId)
+      .eq('user_id', userId)
+    if (reassignErr) {
+      console.error(`[agency] reassigning ${table} failed:`, reassignErr.message)
+      throw new Error("Failed to transfer the member's data to the owner — nothing was deleted")
+    }
+  }
+
   const { error } = await db.auth.admin.deleteUser(userId)
   if (error) throw new Error(error.message)
 }
+
+/**
+ * Account-scoped tables whose `user_id` cascades on auth-user delete.
+ * Personal rows (profile, presence, notifications, support requests)
+ * are left to cascade with the user.
+ */
+const MEMBER_OWNED_SHARED_TABLES = [
+  'contacts',
+  'conversations',
+  'deals',
+  'pipelines',
+  'tags',
+  'custom_fields',
+  'contact_notes',
+  'message_templates',
+  'quick_replies',
+  'broadcasts',
+  'automations',
+  'automation_logs',
+  'automation_pending_executions',
+  'flows',
+  'flow_runs',
+  'whatsapp_config',
+  'messenger_config',
+  'team_chat_messages',
+] as const
 
 /**
  * Flips an account's status — the agency owner's "approve" action for

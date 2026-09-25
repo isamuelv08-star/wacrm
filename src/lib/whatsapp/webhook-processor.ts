@@ -204,116 +204,156 @@ export async function handleWebhookVerificationGET(request: Request): Promise<Re
 // own auth (HMAC signature for Meta-direct, URL secret for Dualhook)
 // has accepted the request.
 // ============================================================
-export async function processWebhookPayload(body: { entry?: WhatsAppWebhookEntry[] }) {
+export async function processWebhookPayload(
+  body: { entry?: WhatsAppWebhookEntry[] },
+  options: {
+    /** Dualhook shares one URL secret across every tenant, so it may
+     *  only feed numbers actually connected through Coexistence
+     *  (send_api_base set) — never a Meta-direct number whose events
+     *  are HMAC-verified on the other route. */
+    coexistenceOnly?: boolean
+  } = {},
+) {
   if (!body.entry) return
 
   for (const entry of body.entry) {
-    for (const change of entry.changes) {
-      // Template-lifecycle events (status / quality / components
-      // updates from Meta) come in on a different change.field and
-      // have a different value shape — route them through the
-      // dedicated handler. Skip the messaging branches below so we
-      // don't try to read message-shaped fields off a template event.
-      if (isTemplateWebhookField(change.field)) {
-        await handleTemplateWebhookChange(
-          { field: change.field, value: change.value as unknown },
-          supabaseAdmin(),
-        )
-        continue
+    for (const change of entry.changes ?? []) {
+      // One bad change/message must not drop the rest of the batch:
+      // we've already acked 200, so Meta won't redeliver anything.
+      try {
+        await processWebhookChange(change, options)
+      } catch (err) {
+        console.error('[webhook] failed to process change:', err)
       }
+    }
+  }
+}
 
-      const value = change.value
+async function processWebhookChange(
+  change: WhatsAppWebhookEntry['changes'][number],
+  options: { coexistenceOnly?: boolean },
+) {
+  // Template-lifecycle events (status / quality / components
+  // updates from Meta) come in on a different change.field and
+  // have a different value shape — route them through the
+  // dedicated handler. Skip the messaging branches below so we
+  // don't try to read message-shaped fields off a template event.
+  if (isTemplateWebhookField(change.field)) {
+    await handleTemplateWebhookChange(
+      { field: change.field, value: change.value as unknown },
+      supabaseAdmin(),
+    )
+    return
+  }
 
-      // Handle status updates
-      if (value.statuses) {
-        for (const status of value.statuses) {
-          await handleStatusUpdate(status)
-        }
-      }
+  const value = change.value
 
-      // Handle incoming messages
-      if (!value.messages || !value.contacts) continue
+  // Handle status updates
+  if (value.statuses) {
+    for (const status of value.statuses) {
+      await handleStatusUpdate(status)
+    }
+  }
 
-      const phoneNumberId = value.metadata.phone_number_id
+  // Handle incoming messages
+  if (!value.messages || !value.contacts) return
 
-      // Find user's config by phone_number_id. `.single()` returns
-      // PGRST116 for both 0 rows AND ≥2 rows — distinguish them so
-      // operators see the real cause in logs. ≥2 rows shouldn't happen
-      // post-migration 013 (UNIQUE constraint), but a row created
-      // before the constraint, or a race, would still surface here.
-      const { data: configRows, error: configError } = await supabaseAdmin()
-        .from('whatsapp_config')
-        .select('*')
-        .eq('phone_number_id', phoneNumberId)
+  const phoneNumberId = value.metadata.phone_number_id
 
-      if (configError) {
-        console.error(
-          'Error fetching whatsapp_config for phone_number_id:',
-          phoneNumberId,
-          configError
-        )
-        continue
-      }
+  // Find user's config by phone_number_id. `.single()` returns
+  // PGRST116 for both 0 rows AND ≥2 rows — distinguish them so
+  // operators see the real cause in logs. ≥2 rows shouldn't happen
+  // post-migration 013 (UNIQUE constraint), but a row created
+  // before the constraint, or a race, would still surface here.
+  const { data: configRows, error: configError } = await supabaseAdmin()
+    .from('whatsapp_config')
+    .select('*')
+    .eq('phone_number_id', phoneNumberId)
 
-      if (!configRows || configRows.length === 0) {
-        console.error('No config found for phone_number_id:', phoneNumberId)
-        continue
-      }
+  if (configError) {
+    console.error(
+      'Error fetching whatsapp_config for phone_number_id:',
+      phoneNumberId,
+      configError
+    )
+    return
+  }
 
-      if (configRows.length > 1) {
-        console.error(
-          `Multiple configs (${configRows.length}) found for phone_number_id:`,
-          phoneNumberId,
-          '— inbound message dropped. Resolve duplicates so each number maps to a single account.',
-          'Account owners:',
-          configRows.map((r: { account_id: string; user_id: string }) => `${r.account_id} (admin ${r.user_id})`)
-        )
-        continue
-      }
+  if (!configRows || configRows.length === 0) {
+    console.error('No config found for phone_number_id:', phoneNumberId)
+    return
+  }
 
-      const config = configRows[0]
+  if (configRows.length > 1) {
+    console.error(
+      `Multiple configs (${configRows.length}) found for phone_number_id:`,
+      phoneNumberId,
+      '— inbound message dropped. Resolve duplicates so each number maps to a single account.',
+      'Account owners:',
+      configRows.map((r: { account_id: string; user_id: string }) => `${r.account_id} (admin ${r.user_id})`)
+    )
+    return
+  }
 
-      const decryptedAccessToken = decrypt(config.access_token)
+  const config = configRows[0]
 
-      // Resolved once per payload (not per message) — whether this
-      // account splits conversations by number (086) or keeps every
-      // number's traffic in one thread per contact (085's 'shared'
-      // default, and every account before this phase existed).
-      const { data: accountRow } = await supabaseAdmin()
-        .from('accounts')
-        .select('whatsapp_mode')
-        .eq('id', config.account_id)
-        .maybeSingle()
-      const splitByNumber = accountRow?.whatsapp_mode === 'multiwhatsapp'
+  if (options.coexistenceOnly && !config.send_api_base) {
+    console.warn(
+      '[webhook] dualhook payload for a non-Coexistence number ignored:',
+      phoneNumberId,
+    )
+    return
+  }
 
-      for (let i = 0; i < value.messages.length; i++) {
-        const message = value.messages[i]
-        const contact = value.contacts[i] || value.contacts[0]
+  let decryptedAccessToken: string
+  try {
+    decryptedAccessToken = decrypt(config.access_token)
+  } catch (err) {
+    console.error('[webhook] cannot decrypt access token for config', config.id, err)
+    return
+  }
 
-        await processMessage(
-          message,
-          contact,
-          // Tenancy — drives every contact / conversation lookup
-          // and the engines' active-row dispatch.
-          config.account_id,
-          // Audit / sender-of-record — used as the user_id on row
-          // inserts that need it for NOT NULL FK compliance. Always
-          // the admin who saved the WhatsApp config.
-          config.user_id,
-          decryptedAccessToken,
-          'meta',
-          undefined,
-          // Tags any newly-created contact/conversation with the
-          // specific number this message came in on (multi-number-
-          // per-account phase 2, migration 084).
-          config.id,
-          splitByNumber,
-          // whatsapp_config.owner_user_id (083) — who a brand-new
-          // conversation on this number should be assigned to instead
-          // of round-robinned, when splitByNumber is true (087).
-          config.owner_user_id ?? null,
-        )
-      }
+  // Resolved once per payload (not per message) — whether this
+  // account splits conversations by number (086) or keeps every
+  // number's traffic in one thread per contact (085's 'shared'
+  // default, and every account before this phase existed).
+  const { data: accountRow } = await supabaseAdmin()
+    .from('accounts')
+    .select('whatsapp_mode')
+    .eq('id', config.account_id)
+    .maybeSingle()
+  const splitByNumber = accountRow?.whatsapp_mode === 'multiwhatsapp'
+
+  for (let i = 0; i < value.messages.length; i++) {
+    const message = value.messages[i]
+    const contact = value.contacts[i] || value.contacts[0]
+
+    try {
+      await processMessage(
+        message,
+        contact,
+        // Tenancy — drives every contact / conversation lookup
+        // and the engines' active-row dispatch.
+        config.account_id,
+        // Audit / sender-of-record — used as the user_id on row
+        // inserts that need it for NOT NULL FK compliance. Always
+        // the admin who saved the WhatsApp config.
+        config.user_id,
+        decryptedAccessToken,
+        'meta',
+        undefined,
+        // Tags any newly-created contact/conversation with the
+        // specific number this message came in on (multi-number-
+        // per-account phase 2, migration 084).
+        config.id,
+        splitByNumber,
+        // whatsapp_config.owner_user_id (083) — who a brand-new
+        // conversation on this number should be assigned to instead
+        // of round-robinned, when splitByNumber is true (087).
+        config.owner_user_id ?? null,
+      )
+    } catch (err) {
+      console.error('[webhook] failed to process message', message.id, err)
     }
   }
 }

@@ -105,6 +105,18 @@ export async function requireApiKey(
     throw forbidden(`This API key is missing the '${scope}' scope`);
   }
 
+  // Same gate getCurrentAccount() applies to sessions: a pending or
+  // suspended account's keys stop working (they used to keep full API
+  // access, since /api/v1 runs on the service-role client).
+  const { data: account } = await supabaseAdmin()
+    .from('accounts')
+    .select('status')
+    .eq('id', row.account_id)
+    .maybeSingle();
+  if (account?.status !== 'active') {
+    throw forbidden('This account is not active');
+  }
+
   touchLastUsed(row.id);
 
   return {

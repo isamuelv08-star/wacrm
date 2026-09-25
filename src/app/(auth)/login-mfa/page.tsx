@@ -9,15 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AuthSplitShell, AUTH_ACCENT } from "@/components/auth/auth-split-shell";
 import { Loader2 } from "lucide-react";
+import { safeRedirectPath } from "@/lib/http/safe-redirect";
 
-// Only a same-origin path is a safe redirect target — a `next` value
-// starting with `//` or containing a scheme would send the browser off
-// this origin after MFA succeeds (open-redirect). proxy.ts only ever
-// sets this to one of its own computed destinations, but validate
-// again here since it arrives as an untrusted query string.
+// Only a same-origin path is a safe redirect target (open-redirect
+// guard) — see safeRedirectPath for the backslash case the old
+// startsWith check missed.
 function safeNext(next: string | null): string {
-  if (next && next.startsWith("/") && !next.startsWith("//")) return next;
-  return "/dashboard";
+  return safeRedirectPath(next);
 }
 
 // `useSearchParams` opts this component out of static prerendering

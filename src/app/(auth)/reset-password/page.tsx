@@ -105,6 +105,11 @@ export default function ResetPasswordPage() {
 
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
+      if (res.status === 403 && data?.code === "mfa_required") {
+        // Step up with the TOTP code, then come back here.
+        window.location.href = "/login-mfa?next=/reset-password";
+        return;
+      }
       setError(
         res.status === 429
           ? tErrors("rateLimited")

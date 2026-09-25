@@ -28,6 +28,7 @@ import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { getPublicOrigin } from '@/lib/http/request-origin'
 import { zernioClient } from '@/lib/whatsapp/zernio-client'
 import { zernioApiKey } from '@/lib/whatsapp/zernio-env'
+import { signState } from '@/lib/google-calendar/state'
 
 // 'facebook' is Zernio's own name for a connected Facebook Page
 // (Messenger) — matched verbatim so the `connected={platform}` value
@@ -324,6 +325,11 @@ export async function GET(
     process.env.ZERNIO_REDIRECT_URL || `${origin}/api/zernio/callback`
   const redirectUrl = new URL(callbackBase)
   redirectUrl.searchParams.set('platform', platform)
+  // Signed account id: the callback has no session to trust, so this
+  // is what proves the connection belongs to the account that started
+  // it (otherwise anyone could hit the callback with another tenant's
+  // profileId + an accountId of their choosing).
+  redirectUrl.searchParams.set('state', signState(accountId))
 
   const admin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

@@ -7,6 +7,8 @@ import {
   verifyPhoneNumber,
 } from '@/lib/whatsapp/meta-api'
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
+import { isDeliverableUrl } from '@/lib/webhooks/ssrf'
+import { requireRole, toErrorResponse, type AccountContext } from '@/lib/auth/account'
 
 /**
  * Resolve the caller's account_id from their profile. Inlined here
@@ -174,24 +176,17 @@ export async function GET() {
  */
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient()
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Connecting/disconnecting a channel is settings-class — admin+,
+    // with the same 2FA + account-status gate as every other route.
+    let ctx: AccountContext
+    try {
+      ctx = await requireRole('admin')
+    } catch (err) {
+      return toErrorResponse(err)
     }
-
-    const accountId = await resolveAccountId(supabase, user.id)
-    if (!accountId) {
-      return NextResponse.json(
-        { error: 'Your profile is not linked to an account.' },
-        { status: 403 },
-      )
-    }
+    const supabase = ctx.supabase
+    const user = { id: ctx.userId }
+    const accountId = ctx.accountId
 
     const body = await request.json()
     const {
@@ -252,6 +247,15 @@ export async function POST(request: Request) {
       if (typeof send_api_base !== 'string' || !/^https:\/\/.+/.test(send_api_base)) {
         return NextResponse.json(
           { error: 'send_api_base must be an https:// URL' },
+          { status: 400 }
+        )
+      }
+      // The server POSTs every outbound message here, so refuse hosts
+      // that resolve to private/loopback/link-local ranges (SSRF) — same
+      // guard as outbound webhooks.
+      if (!(await isDeliverableUrl(send_api_base))) {
+        return NextResponse.json(
+          { error: 'send_api_base must point to a public host' },
           { status: 400 }
         )
       }
@@ -538,24 +542,16 @@ export async function POST(request: Request) {
  */
 export async function DELETE() {
   try {
-    const supabase = await createClient()
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Connecting/disconnecting a channel is settings-class — admin+,
+    // with the same 2FA + account-status gate as every other route.
+    let ctx: AccountContext
+    try {
+      ctx = await requireRole('admin')
+    } catch (err) {
+      return toErrorResponse(err)
     }
-
-    const accountId = await resolveAccountId(supabase, user.id)
-    if (!accountId) {
-      return NextResponse.json(
-        { error: 'Your profile is not linked to an account.' },
-        { status: 403 },
-      )
-    }
+    const supabase = ctx.supabase
+    const accountId = ctx.accountId
 
     const { error: deleteError } = await supabase
       .from('whatsapp_config')

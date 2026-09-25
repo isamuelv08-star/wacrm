@@ -63,7 +63,15 @@ export async function POST(request: Request) {
   const supabase = await createClient()
   const { error } = await supabase.auth.signInWithPassword({ email, password })
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 })
+    // Generic on purpose: Supabase's raw message ("Email not confirmed"
+    // vs "Invalid login credentials") tells a prober which emails exist.
+    // An unconfirmed address gets its own code so the UI can still say
+    // "check your inbox" without echoing the upstream text.
+    const unconfirmed = /not confirmed/i.test(error.message)
+    return NextResponse.json(
+      { error: 'Invalid login credentials', ...(unconfirmed ? { code: 'email_not_confirmed' } : {}) },
+      { status: 400 },
+    )
   }
 
   return NextResponse.json({ ok: true })

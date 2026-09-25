@@ -24,11 +24,12 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getPublicOrigin } from '@/lib/http/request-origin'
+import { safeRedirectPath } from '@/lib/http/safe-redirect'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/dashboard'
+  const next = safeRedirectPath(searchParams.get('next'))
   const origin = getPublicOrigin(request)
 
   if (code) {

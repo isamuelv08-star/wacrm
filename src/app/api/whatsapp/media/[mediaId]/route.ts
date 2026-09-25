@@ -85,7 +85,7 @@ export async function GET(
     })
     const headers = new Headers({
       'Content-Type': media.contentType,
-      'Cache-Control': 'public, max-age=86400',
+      'Cache-Control': 'private, max-age=86400', // customer media — never cache in a shared CDN/proxy
       'Accept-Ranges': 'bytes',
     })
     if (media.contentRange) headers.set('Content-Range', media.contentRange)

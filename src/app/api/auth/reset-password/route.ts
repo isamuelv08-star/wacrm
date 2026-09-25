@@ -57,6 +57,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No active recovery session' }, { status: 401 })
   }
 
+  // A user with 2FA must pass it before changing the password — a
+  // recovery link (or a stolen aal1 session) alone must not be enough
+  // to lock the real owner out.
+  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+  if (aal && aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
+    return NextResponse.json(
+      { error: 'Two-factor verification required', code: 'mfa_required' },
+      { status: 403 },
+    )
+  }
+
   const { error } = await supabase.auth.updateUser({ password })
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 })

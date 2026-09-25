@@ -65,7 +65,7 @@ export async function POST(
   // floating promise isn't safe here.
   after(async () => {
     try {
-      await processWebhookPayload(body)
+      await processWebhookPayload(body, { coexistenceOnly: true })
     } catch (error) {
       console.error('Error processing Dualhook webhook:', error)
     }

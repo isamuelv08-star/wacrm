@@ -5,11 +5,22 @@ import type { ApiKeyRow } from "@/lib/api-keys/store";
 import { ApiError } from "@/lib/api/v1/respond";
 import { __resetRateLimitForTests, RATE_LIMITS } from "@/lib/rate-limit";
 
-// Mock the service-role client factory — requireApiKey only stashes
-// the returned client in the context; tests never call through it.
-vi.mock("@/lib/flows/admin-client", () => ({
-  supabaseAdmin: () => ({ __isMockAdminClient: true }),
-}));
+// Mock the service-role client factory. requireApiKey reads the
+// account's status through it; otherwise it only stashes the client.
+let accountStatus: string | null = "active";
+vi.mock("@/lib/flows/admin-client", () => {
+  const chain = {
+    select: () => chain,
+    eq: () => chain,
+    maybeSingle: async () => ({
+      data: accountStatus ? { status: accountStatus } : null,
+      error: null,
+    }),
+  };
+  return {
+    supabaseAdmin: () => ({ __isMockAdminClient: true, from: () => chain }),
+  };
+});
 
 // Mock the store so we control which row a hash resolves to.
 const findActiveKeyByHash = vi.fn<(hash: string) => Promise<ApiKeyRow | null>>();
@@ -44,6 +55,7 @@ function row(overrides: Partial<ApiKeyRow> = {}): ApiKeyRow {
 }
 
 beforeEach(() => {
+  accountStatus = "active";
   __resetRateLimitForTests();
   findActiveKeyByHash.mockReset();
   touchLastUsed.mockReset();
@@ -128,5 +140,13 @@ describe("requireApiKey", () => {
       "rate_limited",
       429,
     );
+  });
+
+  it("403s when the key's account is suspended or pending", async () => {
+    findActiveKeyByHash.mockResolvedValue(row());
+    accountStatus = "suspended";
+    await expectApiError(requireApiKey(reqWith(`Bearer ${KEY}`)), "forbidden", 403);
+    accountStatus = "pending";
+    await expectApiError(requireApiKey(reqWith(`Bearer ${KEY}`)), "forbidden", 403);
   });
 });

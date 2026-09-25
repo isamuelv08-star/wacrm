@@ -18,6 +18,10 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { getPublicOrigin } from '@/lib/http/request-origin'
+import { verifyState } from '@/lib/google-calendar/state'
+
+/** Meta's connect flow (business verification, number setup) can take a while. */
+const ZERNIO_STATE_TTL_MS = 60 * 60 * 1000
 
 const PLATFORMS = ['whatsapp', 'instagram', 'facebook'] as const
 type Platform = (typeof PLATFORMS)[number]
@@ -99,6 +103,16 @@ export async function GET(request: NextRequest) {
     })
   }
 
+  // The signed state from /api/zernio/connect is what ties this
+  // callback to the account that started the flow — see there.
+  const stateAccountId = verifyState(searchParams.get('state') ?? '', ZERNIO_STATE_TTL_MS)
+  if (!stateAccountId) {
+    return settingsRedirect(origin, platform, {
+      connected: false,
+      error: 'The connection link expired or is invalid. Please try again.',
+    })
+  }
+
   const admin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -111,6 +125,23 @@ export async function GET(request: NextRequest) {
         ? 'facebook_account_id'
         : 'instagram_account_id'
 
+  // One social account per tenant: sends and inbound routing both
+  // resolve the tenant by this id, so a second row claiming it would
+  // hijack the first tenant's number.
+  const { data: claimed } = await admin
+    .from('client_zernio_accounts')
+    .select('id')
+    .eq(column, accountId)
+    .neq('account_id', stateAccountId)
+    .limit(1)
+    .maybeSingle()
+  if (claimed) {
+    return settingsRedirect(origin, platform, {
+      connected: false,
+      error: 'This channel is already connected to another account.',
+    })
+  }
+
   const { data, error } = await admin
     .from('client_zernio_accounts')
     .update({
@@ -119,6 +150,7 @@ export async function GET(request: NextRequest) {
       updated_at: new Date().toISOString(),
     })
     .eq('zernio_profile_id', profileId)
+    .eq('account_id', stateAccountId)
     .select('id')
     .maybeSingle()
 

@@ -49,7 +49,7 @@ export function signState(accountId: string): string {
  * failure identically (reject the callback), so there's no need to
  * distinguish the reason beyond what's logged here.
  */
-export function verifyState(state: string): string | null {
+export function verifyState(state: string, ttlMs: number = STATE_TTL_MS): string | null {
   const parts = state.split('.')
   if (parts.length !== 2) return null
   const [encoded, signature] = parts
@@ -71,7 +71,7 @@ export function verifyState(state: string): string | null {
   }
 
   if (typeof payload.accountId !== 'string' || typeof payload.ts !== 'number') return null
-  if (Date.now() - payload.ts > STATE_TTL_MS) {
+  if (Date.now() - payload.ts > ttlMs) {
     console.warn('[google-calendar/state] expired')
     return null
   }
