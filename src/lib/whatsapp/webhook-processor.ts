@@ -754,6 +754,12 @@ export async function ensureLeadDeal(
 /** See ensureLeadDeal's grace-period comment. */
 const CLOSED_DEAL_GRACE_MS = 3 * 24 * 60 * 60 * 1000
 
+/** Unix-seconds string → ISO timestamp, "now" when it isn't a valid number. */
+function safeUnixToIso(unixSeconds: string | undefined): string {
+  const ms = Number.parseInt(unixSeconds ?? '', 10) * 1000
+  return Number.isFinite(ms) && ms > 0 ? new Date(ms).toISOString() : new Date().toISOString()
+}
+
 /**
  * Resolve a Meta-side message_id into the matching internal UUID, scoped
  * to one conversation. Returns null when we never received the parent
@@ -1073,9 +1079,14 @@ export async function processMessage(
       content_type: contentType,
       content_text: contentText,
       media_url: mediaUrl,
-      message_id: message.id,
+      // null, not "": the (conversation_id, message_id) unique index only
+      // skips NULLs, so a second id-less Zernio message in the same thread
+      // collided with the first and was dropped as a "duplicate".
+      message_id: message.id || null,
       status: 'delivered',
-      created_at: new Date(parseInt(message.timestamp) * 1000).toISOString(),
+      // A malformed timestamp (Zernio's sentAt) made toISOString() throw
+      // and the message was lost — fall back to "now".
+      created_at: safeUnixToIso(message.timestamp),
       reply_to_message_id: replyToInternalId,
       // Only populated for content_type='interactive'. Migration 010 added
       // the column; null for every other content_type so existing inserts

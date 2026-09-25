@@ -23,6 +23,7 @@ import {
 } from '@/lib/messenger/graph-api'
 import { resolveZernioFacebookAccountId, sendViaZernioMessenger } from '@/lib/messenger/zernio-send'
 import { supabaseAdmin } from './admin-client'
+import { isUniqueViolation } from '@/lib/contacts/dedupe'
 
 /**
  * Send via the Zernio bridge and persist, for a Zernio-connected
@@ -245,7 +246,12 @@ export async function resolveSendContext(
         .from('whatsapp_config')
         .select('*')
         .eq('account_id', accountId)
-        .single()
+        // No number tagged on the thread: the account's oldest number
+        // (same pick broadcasts use). `.single()` threw once a
+        // multiwhatsapp account had 2+ numbers — "WhatsApp not configured".
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle()
   if (configErr || !config) {
     throw new Error('WhatsApp not configured for this account')
   }
@@ -388,7 +394,7 @@ export async function engineSendText(
     status: 'sent',
     ai_generated: args.aiGenerated ?? false,
   })
-  if (msgErr) {
+  if (msgErr && !(await claimEchoedOutbound(db, msgErr, args.conversationId, waMessageId, args.aiGenerated ?? false))) {
     throw new Error(`sent to Meta but DB insert failed: ${msgErr.message}`)
   }
 
@@ -567,7 +573,7 @@ export async function engineSendMedia(
     status: 'sent',
     ai_generated: args.aiGenerated ?? false,
   })
-  if (msgErr) {
+  if (msgErr && !(await claimEchoedOutbound(db, msgErr, args.conversationId, waMessageId, args.aiGenerated ?? false))) {
     throw new Error(`sent to Meta but DB insert failed: ${msgErr.message}`)
   }
 
@@ -709,7 +715,12 @@ async function sendInteractiveViaMeta(
           .from('whatsapp_config')
           .select('*')
           .eq('account_id', input.accountId)
-          .single()
+          // No number tagged on the thread: the account's oldest number
+          // (same pick broadcasts use). `.single()` threw once a
+          // multiwhatsapp account had 2+ numbers — "WhatsApp not configured".
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle()
     if (configErr || !config) {
       throw new Error('WhatsApp not configured for this account')
     }
@@ -792,7 +803,7 @@ async function sendInteractiveViaMeta(
     message_id: waMessageId,
     status: 'sent',
   })
-  if (msgErr) {
+  if (msgErr && !(await claimEchoedOutbound(db, msgErr, input.conversationId, waMessageId, false))) {
     throw new Error(`sent to Meta but DB insert failed: ${msgErr.message}`)
   }
 
@@ -806,4 +817,32 @@ async function sendInteractiveViaMeta(
     .eq('id', input.conversationId)
 
   return { whatsapp_message_id: waMessageId }
+}
+
+/**
+ * The provider can echo our own send back through the webhook (Zernio's
+ * message.received for the outbound, or a phone-side echo) and that
+ * path may insert the row first — our insert then hits the
+ * (conversation_id, message_id) unique index. The message DID go out,
+ * so instead of throwing (which aborted the remaining parts of a
+ * multi-part AI reply) claim the echoed row as the bot's.
+ */
+async function claimEchoedOutbound(
+  db: ReturnType<typeof supabaseAdmin>,
+  err: unknown,
+  conversationId: string,
+  messageId: string | null | undefined,
+  aiGenerated: boolean,
+): Promise<boolean> {
+  if (!messageId || !isUniqueViolation(err)) return false
+  const { error } = await db
+    .from('messages')
+    .update({ sender_type: 'bot', ai_generated: aiGenerated })
+    .eq('conversation_id', conversationId)
+    .eq('message_id', messageId)
+  if (error) {
+    console.error('[meta-send] claiming echoed outbound row failed:', error.message)
+    return false
+  }
+  return true
 }

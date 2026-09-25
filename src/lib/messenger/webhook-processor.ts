@@ -183,8 +183,25 @@ export async function processMessengerWebhookPayload(body: {
         }
         if (event.message && !event.message.is_echo) {
           await processInboundMessage(event, config.account_id, config.user_id, pageAccessToken)
+        } else if (event.postback) {
+          // "Get started" / persistent-menu / button taps. Recorded as
+          // the customer's text (the button title) so the thread opens,
+          // the AI can answer and automations can match — these were
+          // dropped entirely, so a customer's first tap got no reply.
+          const text = event.postback.title || event.postback.payload
+          if (text) {
+            await processInboundMessage(
+              {
+                ...event,
+                message: { mid: `postback:${event.sender.id}:${event.timestamp}`, text },
+              },
+              config.account_id,
+              config.user_id,
+              pageAccessToken,
+            )
+          }
         }
-        // postback / echo events: no-op for this first cut.
+        // echo events: no-op.
       } catch (err) {
         console.error('[messenger webhook] Error processing messaging event:', err)
       }
@@ -393,12 +410,16 @@ export async function ingestMessengerMessage(args: {
   // Idempotency guard against redelivery — same approach as the
   // WhatsApp pipeline (migration 062's unique index also covers this
   // insert, since it's on (conversation_id, message_id) generally).
-  const { data: existingDelivery } = await supabaseAdmin()
-    .from('messages')
-    .select('id')
-    .eq('conversation_id', conversation.id)
-    .eq('message_id', mid)
-    .maybeSingle()
+  // Only dedupe on a real id — an empty mid used to match every earlier
+  // id-less message in the thread and drop this one as a "duplicate".
+  const { data: existingDelivery } = mid
+    ? await supabaseAdmin()
+        .from('messages')
+        .select('id')
+        .eq('conversation_id', conversation.id)
+        .eq('message_id', mid)
+        .maybeSingle()
+    : { data: null }
   if (existingDelivery) {
     console.warn('[messenger webhook] duplicate delivery ignored:', mid)
     return
@@ -421,7 +442,7 @@ export async function ingestMessengerMessage(args: {
       content_type: contentType,
       content_text: contentText,
       media_url: mediaUrl,
-      message_id: mid,
+      message_id: mid || null,
       status: 'delivered',
       created_at: occurredAt.toISOString(),
     })
@@ -512,8 +533,17 @@ async function processInboundMessage(
 
   // Messenger's webhook payload carries no display name at all —
   // best-effort Graph API lookup, falls back to a PSID placeholder
-  // inside findOrCreateContactByPsid when this comes back null.
-  const displayName = await getUserProfile({ psid, pageAccessToken })
+  // inside findOrCreateContactByPsid when this comes back null. Only
+  // for a contact we don't know yet: it used to run on every message,
+  // adding latency and burning Graph API rate limit.
+  const { data: knownContact } = await supabaseAdmin()
+    .from('contacts')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('messenger_psid', psid)
+    .limit(1)
+    .maybeSingle()
+  const displayName = knownContact ? null : await getUserProfile({ psid, pageAccessToken })
 
   const attachment = message.attachments?.[0]
   const contentType = attachment ? (ATTACHMENT_TO_CONTENT_TYPE[attachment.type] ?? 'text') : 'text'
@@ -551,7 +581,7 @@ async function handleDeliveryReceipt(
     .from('messages')
     .update({ status: 'delivered' })
     .eq('conversation_id', conversationId)
-    .eq('sender_type', 'agent')
+    .in('sender_type', ['agent', 'bot']) // bot/AI sends too — they never got ticks
     .in('status', ['sending', 'sent'])
     .lte('created_at', new Date(delivery.watermark).toISOString())
 
@@ -572,7 +602,7 @@ async function handleReadReceipt(
     .from('messages')
     .update({ status: 'read' })
     .eq('conversation_id', conversationId)
-    .eq('sender_type', 'agent')
+    .in('sender_type', ['agent', 'bot'])
     .in('status', ['sending', 'sent', 'delivered'])
     .lte('created_at', new Date(read.watermark).toISOString())
 

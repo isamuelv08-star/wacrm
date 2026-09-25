@@ -393,7 +393,10 @@ async function processZernioFacebookMessage(
     contentType,
     contentText: message.text ?? null,
     mediaUrl,
-    occurredAt: message.sentAt ? new Date(message.sentAt) : new Date(),
+    occurredAt:
+      message.sentAt && Number.isFinite(new Date(message.sentAt).getTime())
+        ? new Date(message.sentAt)
+        : new Date(),
     zernioConversationId: payload.conversation?.id ?? null,
   })
 }
@@ -465,9 +468,8 @@ function adaptZernioMessage(
   senderPhone: string,
 ): WhatsAppMessage {
   const id = message.platformMessageId || ''
-  const timestamp = message.sentAt
-    ? String(Math.floor(new Date(message.sentAt).getTime() / 1000))
-    : String(Math.floor(Date.now() / 1000))
+  const sentMs = message.sentAt ? new Date(message.sentAt).getTime() : NaN
+  const timestamp = String(Math.floor((Number.isFinite(sentMs) ? sentMs : Date.now()) / 1000))
 
   const base: WhatsAppMessage = {
     id,

@@ -104,7 +104,12 @@ export async function POST(request: Request) {
           .from('whatsapp_config')
           .select('phone_number_id, access_token, send_api_base')
           .eq('account_id', accountId)
-          .single();
+          // No number tagged on the thread: the account's oldest number
+          // (same pick broadcasts use). `.single()` threw once a
+          // multiwhatsapp account had 2+ numbers — "WhatsApp not configured".
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle();
 
     if (configError || !config) {
       return NextResponse.json(

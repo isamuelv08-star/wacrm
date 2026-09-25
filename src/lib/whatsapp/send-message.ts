@@ -385,7 +385,12 @@ export async function sendMessageToConversation(
           .from('whatsapp_config')
           .select('*')
           .eq('account_id', accountId)
-          .single();
+          // No number tagged on the thread: the account's oldest number
+          // (same pick broadcasts use). `.single()` threw once a
+          // multiwhatsapp account had 2+ numbers — "WhatsApp not configured".
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle();
 
     if (configError || !config) {
       throw new SendMessageError(
