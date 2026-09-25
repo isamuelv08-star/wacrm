@@ -3,6 +3,7 @@ import type { LeadScore } from './types'
 import { resolveProfileId } from './profile-id'
 import { pickRoundRobinAgent } from '@/lib/assignment/round-robin'
 import { logAiActivity } from './activity-log'
+import { keepOnlyOldestOpenDeal } from '@/lib/deals/dedupe-open-deal'
 
 // ============================================================
 // Apply a lead score — either the AI emitted via the `[[SCORE:...]]`
@@ -273,20 +274,32 @@ export async function ensureDealInQualifiedStage(
       resolveDealOwnerProfileId(db, { accountId, preferredAgentUserId, leadAutoAssignEnabled }),
     ])
 
-    const { error: insertErr } = await db.from('deals').insert({
-      account_id: accountId,
-      user_id: configOwnerUserId,
-      pipeline_id: pipeline.id,
-      stage_id: qualifiedStageId,
-      contact_id: contactId,
-      title: contact.name || contact.phone,
-      value: 0,
-      currency: acct?.default_currency ?? 'USD',
-      status: 'open',
-      assigned_to: ownerProfileId,
-    })
-    if (insertErr) {
-      console.error('[ai lead-scoring] failed to create deal in qualified stage:', insertErr.message)
+    const { data: inserted, error: insertErr } = await db
+      .from('deals')
+      .insert({
+        account_id: accountId,
+        user_id: configOwnerUserId,
+        pipeline_id: pipeline.id,
+        stage_id: qualifiedStageId,
+        contact_id: contactId,
+        title: contact.name || contact.phone,
+        value: 0,
+        currency: acct?.default_currency ?? 'USD',
+        status: 'open',
+        assigned_to: ownerProfileId,
+      })
+      .select('id')
+      .single()
+    if (insertErr || !inserted) {
+      console.error('[ai lead-scoring] failed to create deal in qualified stage:', insertErr?.message)
+    } else if (
+      !(await keepOnlyOldestOpenDeal(db, { accountId, contactId, insertedDealId: inserted.id }))
+    ) {
+      // Lost a creation race (e.g. to the webhook's ensureLeadDeal) and
+      // our row was dropped — rerun so the surviving deal gets moved to
+      // the qualified stage instead. That pass finds the open deal and
+      // takes the update branch above, so it can't recurse again.
+      await ensureDealInQualifiedStage(db, args)
     } else {
       await logAiActivity(db, {
         accountId,

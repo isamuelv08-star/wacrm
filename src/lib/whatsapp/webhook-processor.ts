@@ -11,6 +11,7 @@ import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
 import { classifyLeadIfNeeded } from '@/lib/ai/lead-classify'
+import { keepOnlyOldestOpenDeal } from '@/lib/deals/dedupe-open-deal'
 import { observeConversationIfNeeded } from '@/lib/ai/observer'
 import { pauseAiForAgentReply } from '@/lib/ai/thread-control'
 import { pickRoundRobinAgent } from '@/lib/assignment/round-robin'
@@ -676,21 +677,34 @@ export async function ensureLeadDeal(
       .eq('id', accountId)
       .maybeSingle()
 
-    const { error: insertErr } = await supabaseAdmin().from('deals').insert({
-      account_id: accountId,
-      user_id: configOwnerUserId,
-      pipeline_id: pipeline.id,
-      stage_id: stage.id,
-      contact_id: contact.id,
-      conversation_id: conversationId,
-      title: contact.name || contact.phone,
-      value: 0,
-      currency: acct?.default_currency ?? 'USD',
-      status: 'open',
-    })
-    if (insertErr) {
-      console.error('[webhook] ensureLeadDeal: insert failed:', insertErr.message)
+    const { data: inserted, error: insertErr } = await supabaseAdmin()
+      .from('deals')
+      .insert({
+        account_id: accountId,
+        user_id: configOwnerUserId,
+        pipeline_id: pipeline.id,
+        stage_id: stage.id,
+        contact_id: contact.id,
+        conversation_id: conversationId,
+        title: contact.name || contact.phone,
+        value: 0,
+        currency: acct?.default_currency ?? 'USD',
+        status: 'open',
+      })
+      .select('id')
+      .single()
+    if (insertErr || !inserted) {
+      console.error('[webhook] ensureLeadDeal: insert failed:', insertErr?.message)
+      return
     }
+    // Concurrent deliveries can both pass the open-deal lookup above
+    // (this runs before the message insert's unique-index dedupe) —
+    // keep only one card per contact. See keepOnlyOldestOpenDeal.
+    await keepOnlyOldestOpenDeal(supabaseAdmin(), {
+      accountId,
+      contactId: contact.id,
+      insertedDealId: inserted.id,
+    })
   } catch (err) {
     console.error('ensureLeadDeal failed:', err)
   }

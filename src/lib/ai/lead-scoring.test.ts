@@ -3,7 +3,7 @@ import { applyLeadScore, ensureDealInQualifiedStage } from './lead-scoring'
 
 interface Op {
   table: string
-  type: 'select' | 'update' | 'insert'
+  type: 'select' | 'update' | 'insert' | 'delete'
   payload?: unknown
   filters: [string, string, unknown][]
 }
@@ -18,10 +18,12 @@ function makeDb(handlers: Record<string, (op: Op) => { data: unknown; error: unk
       select: () => b,
       update: (p: unknown) => ((ops.type = 'update'), (ops.payload = p), b),
       insert: (p: unknown) => ((ops.type = 'insert'), (ops.payload = p), b),
+      delete: () => ((ops.type = 'delete'), b),
       eq: (k: string, v: unknown) => (ops.filters.push(['eq', k, v]), b),
       order: () => b,
       limit: () => b,
       maybeSingle: () => Promise.resolve(resolve()),
+      single: () => Promise.resolve(resolve()),
       then: (onF: (v: unknown) => unknown, onR?: (e: unknown) => unknown) =>
         Promise.resolve(resolve()).then(onF, onR),
     }
@@ -128,6 +130,56 @@ describe('ensureDealInQualifiedStage', () => {
       currency: 'EUR',
       status: 'open',
     })
+  })
+
+  it('keeps the inserted deal when it is the only open one', async () => {
+    const { db, calls } = makeDb({
+      deals: (op) => {
+        if (op.type === 'insert') return { data: { id: 'deal-new' }, error: null }
+        const isDupCheck = op.filters.length === 3
+        return isDupCheck && calls.some((c) => c.type === 'insert')
+          ? { data: [{ id: 'deal-new' }], error: null }
+          : { data: null, error: null }
+      },
+      pipelines: () => ({ data: { id: 'pl-1' }, error: null }),
+      pipeline_stages: () => ({ data: { id: 'stage-qualified' }, error: null }),
+      contacts: () => ({ data: { name: 'Jane Doe', phone: '+15551234' }, error: null }),
+      accounts: () => ({ data: { default_currency: 'EUR' }, error: null }),
+    })
+    await ensureDealInQualifiedStage(db, ARGS)
+    expect(calls.some((c) => c.table === 'deals' && c.type === 'delete')).toBe(false)
+  })
+
+  it('drops its own deal and qualifies the older one after a concurrent-creation race', async () => {
+    let inserted = false
+    const { db, calls } = makeDb({
+      deals: (op) => {
+        if (op.type === 'insert') {
+          inserted = true
+          return { data: { id: 'deal-new' }, error: null }
+        }
+        if (op.type !== 'select') return { data: null, error: null }
+        // Duplicate check (after our insert): an older open deal won.
+        if (inserted && op.filters.length === 3 && !calls.some((c) => c.type === 'delete')) {
+          return { data: [{ id: 'deal-old' }], error: null }
+        }
+        // Rerun's open-deal lookup: finds the surviving older deal.
+        if (inserted) {
+          return { data: { id: 'deal-old', pipeline_id: 'pl-1', stage_id: 'stage-new' }, error: null }
+        }
+        return { data: null, error: null }
+      },
+      pipelines: () => ({ data: { id: 'pl-1' }, error: null }),
+      pipeline_stages: () => ({ data: { id: 'stage-qualified' }, error: null }),
+      contacts: () => ({ data: { name: 'Jane Doe', phone: '+15551234' }, error: null }),
+      accounts: () => ({ data: { default_currency: 'EUR' }, error: null }),
+    })
+    await ensureDealInQualifiedStage(db, ARGS)
+    const del = calls.find((c) => c.table === 'deals' && c.type === 'delete')
+    expect(del?.filters).toContainEqual(['eq', 'id', 'deal-new'])
+    const update = calls.find((c) => c.table === 'deals' && c.type === 'update')
+    expect(update?.payload).toMatchObject({ stage_id: 'stage-qualified' })
+    expect(update?.filters).toContainEqual(['eq', 'id', 'deal-old'])
   })
 
   it('skips deal creation when the account has no pipeline yet', async () => {
