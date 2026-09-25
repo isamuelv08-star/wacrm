@@ -3,23 +3,12 @@ import { createClient } from '@/lib/supabase/server'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 import { sameOriginUrl } from '@/lib/http/safe-redirect'
 import { getPublicOrigin } from '@/lib/http/request-origin'
+import { getClientIp } from '@/lib/http/client-ip'
 
 const MAX_EMAIL_LEN = 254
 const MAX_PASSWORD_LEN = 200
 const MAX_NAME_LEN = 200
 const MIN_PASSWORD_LEN = 8
-
-/**
- * Best-effort client IP. Same helper (and same rationale) as
- * src/app/api/auth/login/route.ts.
- */
-function getClientIp(request: Request): string {
-  const xff = request.headers.get('x-forwarded-for')
-  if (xff) return xff.split(',')[0].trim()
-  const xri = request.headers.get('x-real-ip')
-  if (xri) return xri.trim()
-  return 'unknown'
-}
 
 /**
  * POST /api/auth/signup

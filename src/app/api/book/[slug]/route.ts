@@ -20,14 +20,7 @@ import { sendAppointmentNotification } from '@/lib/booking/notify'
 import { findOrCreateContact, resolveAuditUserId, ContactError } from '@/lib/api/v1/contacts'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 import { dayKeyInTimezone } from '@/lib/ai/timezone'
-
-function getClientIp(request: Request): string {
-  const xff = request.headers.get('x-forwarded-for')
-  if (xff) return xff.split(',')[0].trim()
-  const xri = request.headers.get('x-real-ip')
-  if (xri) return xri.trim()
-  return 'unknown'
-}
+import { getClientIp } from '@/lib/http/client-ip'
 
 export async function GET(
   request: Request,

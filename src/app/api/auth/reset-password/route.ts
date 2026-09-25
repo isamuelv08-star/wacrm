@@ -1,21 +1,10 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/http/client-ip'
 
 const MIN_PASSWORD_LEN = 8
 const MAX_PASSWORD_LEN = 200
-
-/**
- * Best-effort client IP. Same helper (and same rationale) as
- * src/app/api/auth/login/route.ts.
- */
-function getClientIp(request: Request): string {
-  const xff = request.headers.get('x-forwarded-for')
-  if (xff) return xff.split(',')[0].trim()
-  const xri = request.headers.get('x-real-ip')
-  if (xri) return xri.trim()
-  return 'unknown'
-}
 
 /**
  * POST /api/auth/reset-password

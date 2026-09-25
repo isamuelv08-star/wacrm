@@ -115,8 +115,22 @@ $$;
 ALTER FUNCTION public.merge_duplicate_conversations() OWNER TO postgres;
 REVOKE ALL ON FUNCTION public.merge_duplicate_conversations() FROM PUBLIC;
 
--- Collapse whatever duplicates exist right now.
-SELECT public.merge_duplicate_conversations();
+-- Collapse whatever duplicates exist right now — but only on a database
+-- that predates multi-number accounts (085/086). Re-running this file
+-- later would merge conversations that are deliberately split per
+-- WhatsApp number, since this merge only looks at (account, contact).
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'accounts' AND column_name = 'whatsapp_mode'
+  ) THEN
+    PERFORM public.merge_duplicate_conversations();
+  ELSE
+    RAISE NOTICE '036: skipping merge_duplicate_conversations() — multi-number mode (085) is installed';
+  END IF;
+END;
+$$;
 
 -- 2) Authoritative guarantee: one conversation per (account, contact).
 --    Every write path (inbound webhook, public-API resolver) now has a

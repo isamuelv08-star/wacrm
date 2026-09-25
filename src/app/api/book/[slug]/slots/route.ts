@@ -11,16 +11,9 @@ import { supabaseAdmin } from '@/lib/booking/admin-client'
 import { computeAvailableSlots } from '@/lib/booking/availability'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 import { dayKeyInTimezone } from '@/lib/ai/timezone'
+import { getClientIp } from '@/lib/http/client-ip'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
-
-function getClientIp(request: Request): string {
-  const xff = request.headers.get('x-forwarded-for')
-  if (xff) return xff.split(',')[0].trim()
-  const xri = request.headers.get('x-real-ip')
-  if (xri) return xri.trim()
-  return 'unknown'
-}
 
 export async function GET(
   request: Request,

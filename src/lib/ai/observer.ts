@@ -273,15 +273,19 @@ export async function observeConversationIfNeeded(args: ObserveArgs): Promise<vo
     })
     if (!silence) return
 
+    const before = await countCustomerMessages(db, conversationId)
+    await sleep(debounceMs())
+    if ((await countCustomerMessages(db, conversationId)) > before) return
+
+    // Counted only once this turn will really call the provider — it used
+    // to be charged before the debounce, so every quick bubble of a
+    // multi-message turn burned budget even though only the last one
+    // observes, and a busy account ran out for real work.
     const limit = checkRateLimit(`ai-observe:${accountId}`, RATE_LIMITS.aiObserveAccount)
     if (!limit.success) {
       console.warn(`[ai observer] account ${accountId} hit the per-account rate limit — skipping.`)
       return
     }
-
-    const before = await countCustomerMessages(db, conversationId)
-    await sleep(debounceMs())
-    if ((await countCustomerMessages(db, conversationId)) > before) return
 
     const [messages, dealContext, contactRow, accountRow] = await Promise.all([
       buildConversationContext(db, conversationId),

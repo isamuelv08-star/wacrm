@@ -1,25 +1,10 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/http/client-ip'
 
 const MAX_EMAIL_LEN = 254
 const MAX_PASSWORD_LEN = 200
-
-/**
- * Best-effort client IP. Same helper (and same rationale) as
- * src/app/api/invitations/[token]/peek/route.ts — the `x-forwarded-for`
- * header is what every reverse proxy sets when forwarding a request;
- * we take the leftmost entry, the original client. Falls back to a
- * constant when there's no proxy in front (e.g. localhost in dev), so
- * the rate-limit key still exists.
- */
-function getClientIp(request: Request): string {
-  const xff = request.headers.get('x-forwarded-for')
-  if (xff) return xff.split(',')[0].trim()
-  const xri = request.headers.get('x-real-ip')
-  if (xri) return xri.trim()
-  return 'unknown'
-}
 
 /**
  * POST /api/auth/login

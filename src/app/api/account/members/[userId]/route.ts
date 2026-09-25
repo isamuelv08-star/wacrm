@@ -167,6 +167,19 @@ export async function DELETE(
 
     if (error) return rpcErrorToResponse(error);
 
+    // API keys the removed member minted kept working (they're
+    // account-scoped, not user-scoped) — a departing member could still
+    // read and send through the public API. Revoke them.
+    const { error: revokeErr } = await ctx.supabase
+      .from("api_keys")
+      .update({ revoked_at: new Date().toISOString() })
+      .eq("account_id", ctx.accountId)
+      .eq("created_by", userId)
+      .is("revoked_at", null);
+    if (revokeErr) {
+      console.error("[members] revoking the removed member's API keys failed:", revokeErr.message);
+    }
+
     return NextResponse.json({ ok: true, newPersonalAccountId: data });
   } catch (err) {
     return toErrorResponse(err);
