@@ -451,12 +451,26 @@ export function ContactSidebar({
   // without this they only refreshed on a contact switch, so an AI
   // stage move mid-conversation left the picker showing the old stage.
   // The picker is just a manual editor on top of that same value.
+  //
+  // Keyed on the contact id only, with fetchContactData read through a
+  // ref: `contact` is replaced on every contacts UPDATE (lead scoring
+  // rewrites it on each inbound), and re-subscribing each time tore the
+  // channel down and re-created it under the SAME topic — realtime-js
+  // hands back the still-leaving channel for that topic, so the new
+  // binding silently never fired. The random suffix keeps a re-mount
+  // (contact switch and back) from hitting the same leftover channel.
+  // Debounced because the AI writes stage and value in separate updates.
+  const fetchContactDataRef = useRef(fetchContactData);
+  useEffect(() => {
+    fetchContactDataRef.current = fetchContactData;
+  }, [fetchContactData]);
   const contactIdForRealtime = contact?.id;
   useEffect(() => {
     if (!contactIdForRealtime) return;
     const supabase = createClient();
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const channel = supabase
-      .channel(`contact-sidebar-deals:${contactIdForRealtime}`)
+      .channel(`contact-sidebar-deals:${contactIdForRealtime}:${crypto.randomUUID()}`)
       .on(
         "postgres_changes",
         {
@@ -465,13 +479,17 @@ export function ContactSidebar({
           table: "deals",
           filter: `contact_id=eq.${contactIdForRealtime}`,
         },
-        () => void fetchContactData(),
+        () => {
+          clearTimeout(timer);
+          timer = setTimeout(() => void fetchContactDataRef.current(), 300);
+        },
       )
       .subscribe();
     return () => {
+      clearTimeout(timer);
       supabase.removeChannel(channel);
     };
-  }, [contactIdForRealtime, fetchContactData]);
+  }, [contactIdForRealtime]);
 
   const handleCopyPhone = useCallback(async () => {
     if (!contact?.phone) return;
