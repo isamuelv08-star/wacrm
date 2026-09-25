@@ -459,6 +459,7 @@ export default function DashboardPage() {
   // navigation lands back on /dashboard, even if the instance survived.
   const pathname = usePathname()
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- kicks off this screen's data load (sets its loading flag, then fills state from the async result); syncing with an external system is what effects are for
     if (pathname === '/dashboard') loadAll()
   }, [pathname, loadAll])
 

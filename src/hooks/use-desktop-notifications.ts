@@ -21,6 +21,7 @@ export function useDesktopNotificationsSetting() {
 
   useEffect(() => {
     if (!supported) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reading the browser's Notification permission after mount: it doesn't exist during SSR
     setPermission(Notification.permission);
     try {
       // Same rule as isDesktopNotificationsEnabled: granted permission

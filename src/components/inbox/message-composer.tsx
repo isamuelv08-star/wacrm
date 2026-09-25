@@ -183,6 +183,8 @@ export function MessageComposer({
   const recorderRef = useRef<import("opus-recorder").default | null>(null);
   const cancelledRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Set to stopRecording once it's defined; read by the recording timer tick.
+  const stopRecordingRef = useRef<() => void>(() => {});
 
   // Viewers (read-only role) can browse the inbox but never send.
   // For solo users this is always true — single-owner accounts pass
@@ -474,7 +476,15 @@ export function MessageComposer({
       await recorder.start();
       setRecording(true);
       setRecordSeconds(0);
-      timerRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
+      let elapsed = 0;
+      timerRef.current = setInterval(() => {
+        elapsed += 1;
+        setRecordSeconds(elapsed);
+        // Auto-stop at the cap so a forgotten recording can't blow the
+        // upload size limit — checked in the tick itself rather than in
+        // an effect watching the counter.
+        if (elapsed >= MAX_RECORDING_SECONDS) stopRecordingRef.current();
+      }, 1000);
     } catch {
       void recorderRef.current?.stop().catch(() => {});
       recorderRef.current = null;
@@ -495,13 +505,9 @@ export function MessageComposer({
     void recorderRef.current?.stop().catch(() => {});
   }, [clearTimer]);
 
-  // Auto-stop at the cap so a forgotten recording can't blow the
-  // upload size limit.
   useEffect(() => {
-    if (recording && recordSeconds >= MAX_RECORDING_SECONDS) {
-      stopRecording();
-    }
-  }, [recording, recordSeconds, stopRecording]);
+    stopRecordingRef.current = stopRecording;
+  }, [stopRecording]);
 
   // ---- Draft send / discard -----------------------------------------
 

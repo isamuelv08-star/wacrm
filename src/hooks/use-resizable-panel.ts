@@ -61,6 +61,7 @@ export function useResizablePanel({
     try {
       const stored = Number(localStorage.getItem(storageKey));
       if (Number.isFinite(stored) && stored > 0) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- restoring a persisted UI preference after mount: browser storage isn't available during SSR, so reading it in the initializer would cause a hydration mismatch
         setWidth(Math.min(max, Math.max(min, stored)));
       }
     } catch {

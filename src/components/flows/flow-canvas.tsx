@@ -353,10 +353,13 @@ function FlowCanvasInner() {
   }, [builderNodes, entryNodeId, flashKey, autoLayoutPositions]);
 
   const [rfNodes, setRfNodes] = useState<RfNode<NodeData>[]>(derivedRfNodes);
-
-  useEffect(() => {
+  // Re-sync from the builder model during render (not in an effect) —
+  // React Flow keeps its own drag/selection state in rfNodes between.
+  const [syncedFrom, setSyncedFrom] = useState(derivedRfNodes);
+  if (syncedFrom !== derivedRfNodes) {
+    setSyncedFrom(derivedRfNodes);
     setRfNodes(derivedRfNodes);
-  }, [derivedRfNodes]);
+  }
 
   const rfEdges = useMemo(() => {
     const canvasEdges = deriveCanvasEdges(builderNodes);

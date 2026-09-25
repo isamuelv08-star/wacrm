@@ -129,6 +129,7 @@ function InboxPageInner() {
   useEffect(() => {
     try {
       const stored = localStorage.getItem(CONTACT_PANEL_STORAGE_KEY);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- restoring a persisted UI preference after mount: browser storage isn't available during SSR, so reading it in the initializer would cause a hydration mismatch
       if (stored !== null) setContactPanelOpen(stored === "true");
     } catch {
       // localStorage can throw in private-browsing / sandboxed contexts.

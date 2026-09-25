@@ -57,7 +57,12 @@ export function AiThreadBanner({
   // instantly on click; re-seeds whenever the thread (or its server
   // state via realtime) changes.
   const [paused, setPaused] = useState(disabled);
-  useEffect(() => setPaused(disabled), [conversationId, disabled]);
+  const [pausedSource, setPausedSource] = useState({ conversationId, disabled });
+  if (pausedSource.conversationId !== conversationId || pausedSource.disabled !== disabled) {
+    // Re-seed during render (not in an effect) — no stale frame.
+    setPausedSource({ conversationId, disabled });
+    setPaused(disabled);
+  }
 
   useEffect(() => {
     if (!accountId) return;

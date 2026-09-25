@@ -166,20 +166,19 @@ export function TemplateManager() {
     [form.header_format, form.header_content],
   );
 
-  // Resize body_samples so it always has exactly bodyVarCount entries.
-  // (We mutate via setForm in an effect so React owns the state.)
-  useEffect(() => {
-    setForm((prev) => {
-      if (prev.body_samples.length === bodyVarCount) return prev;
-      const next = prev.body_samples.slice(0, bodyVarCount);
-      while (next.length < bodyVarCount) next.push('');
-      return { ...prev, body_samples: next };
-    });
-  }, [bodyVarCount]);
+  // Resize body_samples so it always has exactly bodyVarCount entries —
+  // adjusted during render (converges in one pass: after the update the
+  // lengths match), instead of an effect that painted a mismatched frame.
+  if (form.body_samples.length !== bodyVarCount) {
+    const next = form.body_samples.slice(0, bodyVarCount);
+    while (next.length < bodyVarCount) next.push('');
+    setForm({ ...form, body_samples: next });
+  }
 
   useEffect(() => {
     if (authLoading) return;
     if (!user) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- kicks off this screen's data load (sets its loading flag, then fills state from the async result); syncing with an external system is what effects are for
       setLoading(false);
       return;
     }

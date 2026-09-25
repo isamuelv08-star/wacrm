@@ -36,6 +36,7 @@ export function QuickReplyPicker({
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- kicks off this screen's data load (sets its loading flag, then fills state from the async result); syncing with an external system is what effects are for
     setLoading(true);
     void (async () => {
       try {

@@ -614,9 +614,13 @@ export function MessageThread({
 
   // Clear any in-progress reply draft when the active conversation changes —
   // a quote pulled from conversation A shouldn't bleed into conversation B.
-  useEffect(() => {
+  // Adjusted during render (React's "reset state on prop change" pattern)
+  // rather than in an effect, which rendered once with the stale quote.
+  const [replyToConversationId, setReplyToConversationId] = useState(conversationId);
+  if (replyToConversationId !== conversationId) {
+    setReplyToConversationId(conversationId);
     setReplyTo(null);
-  }, [conversationId]);
+  }
 
   // Reset the server-side unread_count to 0 whenever an unread count
   // surfaces on the active conversation — covers both (a) opening a
@@ -988,9 +992,12 @@ export function MessageThread({
   // The "toggle" semantic (pill click) is computed at the call site where the
   // current reactions for the bubble are already in scope — keeps this
   // function dependency-free w.r.t. the reaction list.
+  // Plain id outside the callback so the manual deps match what the
+  // React Compiler infers (it would otherwise track the whole `user`).
+  const reactingUserId = user?.id;
   const postReaction = useCallback(
     async (messageId: string, emoji: string) => {
-      if (!user?.id || !conversation) {
+      if (!reactingUserId || !conversation) {
         console.warn("[reactions] missing user or conversation");
         return;
       }
@@ -1000,7 +1007,7 @@ export function MessageThread({
       }
 
       const convId = conversation.id;
-      const userId = user.id;
+      const userId = reactingUserId;
       let snapshot: MessageReaction[] = [];
 
       // Functional updater — captures the freshest reactions list, never a
@@ -1045,7 +1052,7 @@ export function MessageThread({
         setReactions(snapshot);
       }
     },
-    [conversation, user?.id],
+    [conversation, reactingUserId],
   );
 
   const handleAssignChange = useCallback(

@@ -197,6 +197,7 @@ export function ConversationList({
         stored === "instagram" ||
         stored === "messenger"
       ) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- restoring a persisted UI preference after mount: browser storage isn't available during SSR, so reading it in the initializer would cause a hydration mismatch
         setPlatformFilter(stored);
       }
     } catch {
@@ -218,6 +219,7 @@ export function ConversationList({
     try {
       const stored = sessionStorage.getItem(LEAD_SCORE_FILTER_STORAGE_KEY);
       if (stored && (LEAD_SCORE_TAB_ORDER as string[]).includes(stored)) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- restoring a persisted UI preference after mount: browser storage isn't available during SSR, so reading it in the initializer would cause a hydration mismatch
         setLeadScoreFilter(stored as LeadScoreFilter);
       }
     } catch {
