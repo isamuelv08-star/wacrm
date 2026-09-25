@@ -375,8 +375,12 @@ export async function ingestMessengerMessage(args: {
    * one.
    */
   zernioConversationId?: string | null
+  /** False for the extra attachments of a multi-attachment message: the
+   *  AI runs once, on the last one, and reads them all. */
+  runAi?: boolean
 }): Promise<void> {
   const {
+    runAi = true,
     accountId,
     configOwnerUserId,
     psid,
@@ -484,7 +488,7 @@ export async function ingestMessengerMessage(args: {
   // the way WhatsApp's hasImageDescription/audio checks do). Both own
   // their full eligibility gates (including the `messenger` channel
   // opt-in, migration 082) and their own try/catch — never throws.
-  if (contentText?.trim() || contentType !== 'text') {
+  if (runAi && (contentText?.trim() || contentType !== 'text')) {
     await dispatchInboundToAiReply({
       accountId,
       conversationId: conversation.id,
@@ -544,21 +548,27 @@ async function processInboundMessage(
     .maybeSingle()
   const displayName = knownContact ? null : await getUserProfile({ psid, pageAccessToken })
 
-  const attachment = message.attachments?.[0]
-  const contentType = attachment ? (ATTACHMENT_TO_CONTENT_TYPE[attachment.type] ?? 'text') : 'text'
-  const mediaUrl = attachment?.payload?.url ?? null
-
-  await ingestMessengerMessage({
-    accountId,
-    configOwnerUserId,
-    psid,
-    displayName,
-    mid: message.mid,
-    contentType,
-    contentText: message.text ?? null,
-    mediaUrl,
-    occurredAt: new Date(event.timestamp),
-  })
+  // One stored message per attachment — an album of several photos used
+  // to keep only the first. The text rides on the first; extras get a
+  // derived mid (stable, so redeliveries still dedupe) and the AI runs
+  // only after the last one.
+  const attachments = message.attachments?.length ? message.attachments : [undefined]
+  for (let i = 0; i < attachments.length; i++) {
+    const attachment = attachments[i]
+    const contentType = attachment ? (ATTACHMENT_TO_CONTENT_TYPE[attachment.type] ?? 'text') : 'text'
+    await ingestMessengerMessage({
+      accountId,
+      configOwnerUserId,
+      psid,
+      displayName,
+      mid: i === 0 ? message.mid : `${message.mid}#${i}`,
+      contentType,
+      contentText: i === 0 ? (message.text ?? null) : null,
+      mediaUrl: attachment?.payload?.url ?? null,
+      occurredAt: new Date(event.timestamp + i),
+      runAi: i === attachments.length - 1,
+    })
+  }
 }
 
 /**

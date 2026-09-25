@@ -110,6 +110,10 @@ export interface WhatsAppWebhookEntry {
         wa_id: string
       }>
       messages?: WhatsAppMessage[]
+      /** Coexistence (`smb_message_echoes` field): messages the business
+       *  sent from the WhatsApp Business APP on the phone. Same shape as
+       *  a message, plus `to` = the customer. */
+      message_echoes?: Array<WhatsAppMessage & { to: string }>
       statuses?: Array<{
         id: string
         status: string
@@ -262,6 +266,12 @@ async function processWebhookChange(
     for (const status of value.statuses) {
       await handleStatusUpdate(status)
     }
+  }
+
+  // Coexistence echoes — replies typed in the WhatsApp Business app.
+  if (value.message_echoes && value.message_echoes.length > 0) {
+    await handleMessageEchoes(value.metadata.phone_number_id, value.message_echoes, options)
+    return
   }
 
   // Handle incoming messages
@@ -757,6 +767,53 @@ export async function ensureLeadDeal(
 
 /** See ensureLeadDeal's grace-period comment. */
 const CLOSED_DEAL_GRACE_MS = 3 * 24 * 60 * 60 * 1000
+
+/**
+ * Coexistence echoes: a reply the business typed in the WhatsApp
+ * Business APP on the phone. They were ignored — the reply never showed
+ * in the inbox and, worse, the AI kept answering on top of the person
+ * who had just taken the conversation. Recorded like Zernio's phone
+ * messages (recordExternalOutboundMessage), which also pauses the AI.
+ * An echo of a message this CRM sent itself is already stored and is
+ * skipped by the (conversation_id, message_id) unique index.
+ */
+async function handleMessageEchoes(
+  phoneNumberId: string,
+  echoes: Array<WhatsAppMessage & { to: string }>,
+  options: { coexistenceOnly?: boolean },
+): Promise<void> {
+  const { data: configs } = await supabaseAdmin()
+    .from('whatsapp_config')
+    .select('id, account_id, user_id, access_token, send_api_base')
+    .eq('phone_number_id', phoneNumberId)
+    .limit(2)
+  if (!configs || configs.length !== 1) return
+  const config = configs[0]
+  if (options.coexistenceOnly && !config.send_api_base) return
+  let accessToken = ''
+  try {
+    accessToken = decrypt(config.access_token)
+  } catch {
+    // media echoes just won't get a verified URL
+  }
+  for (const echo of echoes) {
+    try {
+      if (!echo.to) continue
+      await recordExternalOutboundMessage(
+        echo,
+        normalizePhone(echo.to),
+        '',
+        config.account_id,
+        config.user_id,
+        null,
+        true,
+        { provider: 'meta', accessToken },
+      )
+    } catch (err) {
+      console.error('[webhook] recording a coexistence echo failed:', echo.id, err)
+    }
+  }
+}
 
 /** Unix-seconds string → ISO timestamp, "now" when it isn't a valid number. */
 function safeUnixToIso(unixSeconds: string | undefined): string {
@@ -1595,6 +1652,9 @@ export async function recordExternalOutboundMessage(
    *  the row so the inbox can label it and the team can tell a phone reply
    *  from one sent through the CRM. */
   sentFromPhone = false,
+  /** Media source for this message — Zernio by default; Meta Coexistence
+   *  echoes pass 'meta' + the number's token. */
+  media: { provider: 'meta' | 'zernio'; accessToken: string } = { provider: 'zernio', accessToken: '' },
 ): Promise<void> {
   const contactOutcome = await findOrCreateContact(
     accountId,
@@ -1616,7 +1676,7 @@ export async function recordExternalOutboundMessage(
       .eq('id', conversation.id)
   }
 
-  const parsedContent = await parseMessageContent(message, '', 'zernio')
+  const parsedContent = await parseMessageContent(message, media.accessToken, media.provider)
   const ALLOWED_CONTENT_TYPES = new Set([
     'text', 'image', 'document', 'audio', 'video',
     'location', 'template', 'interactive',
@@ -1652,6 +1712,8 @@ export async function recordExternalOutboundMessage(
     ;({ error: insertError } = await supabaseAdmin().from('messages').insert(row))
   }
   if (insertError) {
+    // Already stored — an echo of a message this CRM sent itself.
+    if (isUniqueViolation(insertError)) return
     console.error('[webhook-processor] failed to record external outbound message:', insertError.message)
     return
   }

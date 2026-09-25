@@ -310,33 +310,40 @@ async function processZernioFacebookMessage(
     return
   }
 
-  const attachment = message.attachments?.[0]
-  const contentType = attachment ? (ZERNIO_ATTACHMENT_TO_CONTENT_TYPE[attachment.type] ?? 'document') : 'text'
+  // One stored message per attachment (an album used to keep only the
+  // first); the text rides on the first, the AI runs after the last.
   // Same proxy-token trick as WhatsApp's Zernio bridge below
   // (adaptZernioMessage) — Zernio's attachment URL needs the Zernio
   // API key attached server-side, so it's never handed to the browser
   // directly. /api/whatsapp/media/zernio/[token]/route.ts is generic
   // despite its path (decodes + fetches + streams), so it's reused
   // as-is here.
-  const mediaUrl = attachment
-    ? `/api/whatsapp/media/zernio/${Buffer.from(attachment.url, 'utf8').toString('base64url')}`
-    : null
-
-  await ingestMessengerMessage({
-    accountId: zernioAccount.account_id,
-    configOwnerUserId: zernioAccount.connected_by_user_id,
-    psid,
-    displayName: message.sender?.name ?? null,
-    mid: message.platformMessageId || '',
-    contentType,
-    contentText: message.text ?? null,
-    mediaUrl,
-    occurredAt:
-      message.sentAt && Number.isFinite(new Date(message.sentAt).getTime())
-        ? new Date(message.sentAt)
-        : new Date(),
-    zernioConversationId: payload.conversation?.id ?? null,
-  })
+  const attachments = message.attachments?.length ? message.attachments : [undefined]
+  const baseMid = message.platformMessageId || ''
+  const sentMs =
+    message.sentAt && Number.isFinite(new Date(message.sentAt).getTime())
+      ? new Date(message.sentAt).getTime()
+      : Date.now()
+  for (let i = 0; i < attachments.length; i++) {
+    const attachment = attachments[i]
+    await ingestMessengerMessage({
+      accountId: zernioAccount.account_id,
+      configOwnerUserId: zernioAccount.connected_by_user_id,
+      psid,
+      displayName: message.sender?.name ?? null,
+      mid: i === 0 || !baseMid ? baseMid : `${baseMid}#${i}`,
+      contentType: attachment
+        ? (ZERNIO_ATTACHMENT_TO_CONTENT_TYPE[attachment.type] ?? 'document')
+        : 'text',
+      contentText: i === 0 ? (message.text ?? null) : null,
+      mediaUrl: attachment
+        ? `/api/whatsapp/media/zernio/${Buffer.from(attachment.url, 'utf8').toString('base64url')}`
+        : null,
+      occurredAt: new Date(sentMs + i),
+      zernioConversationId: payload.conversation?.id ?? null,
+      runAi: i === attachments.length - 1,
+    })
+  }
 }
 
 const ZERNIO_STATUS_EVENT: Record<string, 'delivered' | 'read' | 'failed'> = {
