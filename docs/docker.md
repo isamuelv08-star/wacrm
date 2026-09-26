@@ -148,7 +148,9 @@ step:
   `/api/cron/followup-stage`, `/api/cron/sales-intelligence`,
   `/api/cron/promise-tracker`, `/api/cron/event-reminders`,
   `/api/cron/lead-staleness-alerts`, `/api/cron/archive-media`,
-  `/api/cron/webhook-retry` (this one every 1–2 minutes).
+  `/api/cron/webhook-retry` (this one every 1–2 minutes), and
+  `/api/cron/ai-learning` (once a night — migration 116, mines the
+  advisors' replies into examples the AI learns from).
 - `/api/cron/webhook-retry` (migration 112) re-runs inbound WhatsApp /
   Zernio / Messenger events that a restart or deploy interrupted after
   the provider already got its 200 — without it such an event is lost,
