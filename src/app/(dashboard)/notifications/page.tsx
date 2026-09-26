@@ -14,11 +14,13 @@ import { useNotificationSoundSetting } from "@/hooks/use-notification-sound";
 import { groupNotifications } from "@/lib/notifications/group-notifications";
 import { NotificationRow } from "@/components/notifications/notification-row";
 import { NotificationGroupRow } from "@/components/notifications/notification-group-row";
+import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
 export default function NotificationsPage() {
   const t = useTranslations("NotificationsPage");
   const router = useRouter();
-  const { accountId } = useAuth();
+  const { accountId, user } = useAuth();
+  const userId = user?.id ?? null;
   const [notifications, setNotifications] = useState<Notification[] | null>(
     null,
   );
@@ -51,40 +53,45 @@ export default function NotificationsPage() {
   // Realtime — new assignments appear without a refresh, and a
   // "mark all read" fired from another tab/device stays in sync here.
   useEffect(() => {
+    if (!userId) return;
     const supabase = createClient();
+    const onChange = (payload: RealtimePostgresChangesPayload<Notification>) => {
+      if (payload.eventType === "INSERT") {
+        const row = payload.new as Notification;
+        setNotifications((prev) => {
+          if (!prev) return [row];
+          if (prev.some((n) => n.id === row.id)) return prev;
+          return [row, ...prev];
+        });
+      } else if (payload.eventType === "UPDATE") {
+        const row = payload.new as Notification;
+        setNotifications((prev) =>
+          prev?.map((n) => (n.id === row.id ? { ...n, ...row } : n)) ??
+          prev,
+        );
+      } else if (payload.eventType === "DELETE") {
+        const oldRow = payload.old as Partial<Notification>;
+        setNotifications(
+          (prev) => prev?.filter((n) => n.id !== oldRow.id) ?? prev,
+        );
+      }
+    };
+    // Only this user's rows: unfiltered, Realtime checked every
+    // notification of every account against this subscriber. DELETE
+    // events can't be filtered, hence the separate listener.
     const channel = supabase
-      .channel("notifications-page")
+      .channel(`notifications-page:${userId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "notifications" },
-        (payload) => {
-          if (payload.eventType === "INSERT") {
-            const row = payload.new as Notification;
-            setNotifications((prev) => {
-              if (!prev) return [row];
-              if (prev.some((n) => n.id === row.id)) return prev;
-              return [row, ...prev];
-            });
-          } else if (payload.eventType === "UPDATE") {
-            const row = payload.new as Notification;
-            setNotifications((prev) =>
-              prev?.map((n) => (n.id === row.id ? { ...n, ...row } : n)) ??
-              prev,
-            );
-          } else if (payload.eventType === "DELETE") {
-            const oldRow = payload.old as Partial<Notification>;
-            setNotifications(
-              (prev) => prev?.filter((n) => n.id !== oldRow.id) ?? prev,
-            );
-          }
-        },
+        { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
+        onChange,
       )
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "notifications" }, onChange)
       .subscribe();
-
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [userId]);
 
   const markRead = useCallback(
     async (id: string) => {

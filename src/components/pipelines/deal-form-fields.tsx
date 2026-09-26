@@ -6,7 +6,6 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { CURRENCIES } from "@/lib/currency";
 import type {
-  Contact,
   Conversation,
   Deal,
   PipelineStage,
@@ -32,6 +31,7 @@ import {
   type CustomFieldWithValue,
 } from "@/lib/contacts/custom-fields";
 import { EventFormDialog } from "@/components/calendar/event-form-dialog";
+import { ContactPicker, type PickedContact } from "@/components/contacts/contact-picker";
 
 export interface DealFormFieldsProps {
   /** Whether whatever hosts these fields is currently visible/mounted —
@@ -81,7 +81,7 @@ export function DealFormFields({
   const [expectedCloseDate, setExpectedCloseDate] = useState("");
   const [notes, setNotes] = useState("");
 
-  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [selectedContact, setSelectedContact] = useState<PickedContact | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [linkedConversation, setLinkedConversation] =
     useState<Conversation | null>(null);
@@ -134,12 +134,10 @@ export function DealFormFields({
     if (!open) return;
     let cancelled = false;
     (async () => {
-      const [c, p] = await Promise.all([
-        supabase.from("contacts").select("*").order("name"),
+      const [p] = await Promise.all([
         supabase.from("profiles").select("*").order("full_name"),
       ]);
       if (cancelled) return;
-      setContacts((c.data ?? []) as Contact[]);
       setProfiles((p.data ?? []) as Profile[]);
     })();
     return () => {
@@ -155,11 +153,12 @@ export function DealFormFields({
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setLinkedConversation(null);
       setContactCustomFields([]);
+      setSelectedContact(null);
       return;
     }
     let cancelled = false;
     (async () => {
-      const [{ data: conv }, customFields] = await Promise.all([
+      const [{ data: conv }, customFields, { data: contactRow }] = await Promise.all([
         supabase
           .from("conversations")
           .select("*")
@@ -168,8 +167,10 @@ export function DealFormFields({
           .limit(1)
           .maybeSingle(),
         fetchContactCustomFields(supabase, contactId),
+        supabase.from("contacts").select("id, name, phone, email, company").eq("id", contactId).maybeSingle(),
       ]);
       if (cancelled) return;
+      setSelectedContact((contactRow as PickedContact | null) ?? null);
       setLinkedConversation((conv as Conversation | null) ?? null);
       setContactCustomFields(customFields.filter((cf) => cf.value.trim()));
     })();
@@ -178,7 +179,6 @@ export function DealFormFields({
     };
   }, [open, contactId, supabase]);
 
-  const selectedContact = contacts.find((c) => c.id === contactId) ?? null;
 
   async function handleSave() {
     if (!title.trim() || !contactId || !stageId) {
@@ -270,18 +270,14 @@ export function DealFormFields({
 
         <div className="grid gap-2">
           <Label className="text-muted-foreground">{t("contact")}</Label>
-          <select
+          <ContactPicker
             value={contactId}
-            onChange={(e) => setContactId(e.target.value)}
-            className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-          >
-            <option value="">{t("selectContact")}</option>
-            {contacts.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name || c.phone}
-              </option>
-            ))}
-          </select>
+            onChange={(id, c) => {
+              setContactId(id);
+              setSelectedContact(c);
+            }}
+            placeholder={t("selectContact")}
+          />
 
           {linkedConversation && (
             <Link

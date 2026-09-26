@@ -3,6 +3,7 @@ import { loadCeoMetrics, loadCeoAlerts } from '../dashboard/ceo-queries'
 import { rangeForPresetInTimezone } from '../period'
 import { buildBrokenPromiseSignal, buildSignalsFromAlerts } from './rules'
 import { ALL_SIGNAL_TYPES } from './types'
+import { forEachWithConcurrency } from '@/lib/utils/concurrency'
 
 // ============================================================
 // Risk Engine scan — fase 1 of the Auditoría Saleslid roadmap.
@@ -38,8 +39,36 @@ export interface RiskEngineScanResult {
   signalsResolved: number
 }
 
+/** Each account is re-scanned at most this often… */
+const RESCAN_MINUTES = 55
+/** …and at most this many per run, so a run stays well inside the
+ *  cron's timeout however many accounts there are (each scan is the
+ *  whole CEO dashboard: dozens of queries). With a 5-minute cron that
+ *  is 12 × 40 = 480 accounts an hour. */
+const ACCOUNTS_PER_RUN = 40
+const CONCURRENCY = 4
+
+/**
+ * Accounts due for a scan, least-recently scanned first (migration 117,
+ * `accounts.risk_scanned_at`). Before 117: every active account, as
+ * before.
+ */
+async function dueAccounts(db: SupabaseClient) {
+  const dueBefore = new Date(Date.now() - RESCAN_MINUTES * 60_000).toISOString()
+  const due = await db
+    .from('accounts')
+    .select('id, timezone')
+    .eq('status', 'active')
+    .or(`risk_scanned_at.is.null,risk_scanned_at.lt.${dueBefore}`)
+    .order('risk_scanned_at', { ascending: true, nullsFirst: true })
+    .limit(ACCOUNTS_PER_RUN)
+  if (!due.error) return { ...due, tracked: true }
+  const all = await db.from('accounts').select('id, timezone').eq('status', 'active')
+  return { ...all, tracked: false }
+}
+
 export async function runRiskEngineScan(db: SupabaseClient): Promise<RiskEngineScanResult> {
-  const { data: accounts, error } = await db.from('accounts').select('id, timezone').eq('status', 'active')
+  const { data: accounts, error, tracked } = await dueAccounts(db)
   if (error) {
     console.error('[sales-intelligence] account scan failed:', error.message)
     return { accountsScanned: 0, signalsOpened: 0, signalsUpdated: 0, signalsResolved: 0 }
@@ -49,7 +78,12 @@ export async function runRiskEngineScan(db: SupabaseClient): Promise<RiskEngineS
   let signalsUpdated = 0
   let signalsResolved = 0
 
-  for (const account of (accounts ?? []) as { id: string; timezone: string | null }[]) {
+  await forEachWithConcurrency((accounts ?? []) as { id: string; timezone: string | null }[], CONCURRENCY, async (account) => {
+    if (tracked) {
+      // Claimed up front: a slow or failing account never blocks the
+      // queue — it just waits its next turn.
+      await db.from('accounts').update({ risk_scanned_at: new Date().toISOString() }).eq('id', account.id)
+    }
     try {
       // Each account's own "this month" (the cron runs in UTC).
       const range = rangeForPresetInTimezone('thisMonth', account.timezone || 'UTC')
@@ -81,7 +115,7 @@ export async function runRiskEngineScan(db: SupabaseClient): Promise<RiskEngineS
         .eq('status', 'open')
       if (openErr) {
         console.error('[sales-intelligence] open-signal lookup failed for account', account.id, openErr.message)
-        continue
+        return
       }
       const openByType = new Map<string, { id: string; severity: string; detectedAt: string }>()
       for (const row of (openRows ?? []) as { id: string; signal_type: string; severity: string; detected_at: string }[]) {
@@ -160,7 +194,7 @@ export async function runRiskEngineScan(db: SupabaseClient): Promise<RiskEngineS
     } catch (err) {
       console.error('[sales-intelligence] scan failed for account', account.id, err)
     }
-  }
+  })
 
   return {
     accountsScanned: (accounts ?? []).length,

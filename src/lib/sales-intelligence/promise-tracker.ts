@@ -4,6 +4,7 @@ import { buildPromiseExtractionPrompt } from '../ai/defaults'
 import { generatePromiseExtraction } from '../ai/generate'
 import { logAiUsage } from '../ai/usage'
 import { looksLikePromise } from './promise-detect'
+import { forEachWithConcurrency } from '@/lib/utils/concurrency'
 
 // ============================================================
 // Promise Tracker scan — fase 4 of the Auditoría Saleslid roadmap.
@@ -54,7 +55,13 @@ export async function runPromiseTrackerScan(db: SupabaseClient): Promise<Promise
   let candidatesChecked = 0
   let promisesDetected = 0
 
-  for (const account of (accounts ?? []) as { id: string }[]) {
+  // Only accounts with the AI switched on can detect anything — skip
+  // the rest before paying for their per-account reads.
+  const { data: aiRows } = await db.from('ai_configs').select('account_id').eq('is_active', true)
+  const withAi = new Set((aiRows ?? []).map((r) => r.account_id as string))
+  const eligible = ((accounts ?? []) as { id: string }[]).filter((a) => withAi.has(a.id))
+
+  await forEachWithConcurrency(eligible, 5, async (account) => {
     try {
       const result = await scanAccountForPromises(db, account.id)
       candidatesChecked += result.candidatesChecked
@@ -62,7 +69,7 @@ export async function runPromiseTrackerScan(db: SupabaseClient): Promise<Promise
     } catch (err) {
       console.error('[promise-tracker] scan failed for account', account.id, err)
     }
-  }
+  })
 
   return {
     accountsScanned: (accounts ?? []).length,

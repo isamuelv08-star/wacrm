@@ -36,6 +36,10 @@ const PAGE_SIZE = 500
 const CONTACT_CHUNK = 100
 /** The first staleness tier's threshold — nothing younger can alert. */
 const MIN_STALE_MINUTES = 5
+/** The last tier fires at 60 min; a thread silent for longer than this
+ *  already got every alert it will ever get. Without the bound every
+ *  run re-read every unanswered thread in history — forever growing. */
+const LOOKBACK_HOURS = 48
 
 export interface LeadStalenessScanResult {
   scanned: number
@@ -75,6 +79,7 @@ export async function runLeadStalenessAlertScan(
       )
       .eq('last_message_sender_type', 'customer')
       .lte('last_message_at', cutoff)
+      .gte('last_message_at', new Date(now - LOOKBACK_HOURS * 3_600_000).toISOString())
       .not('contact_id', 'is', null)
       .order('last_message_at', { ascending: true })
       .order('id', { ascending: true })

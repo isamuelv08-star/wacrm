@@ -33,8 +33,10 @@ function makeDb(opts: {
             eq: () => ({
               eq: () => ({
                 eq: () => ({
-                  order: () => ({
-                    limit: () => Promise.resolve({ data: opts.candidates ?? [], error: null }),
+                  gte: () => ({
+                    order: () => ({
+                      limit: () => Promise.resolve({ data: opts.candidates ?? [], error: null }),
+                    }),
                   }),
                 }),
               }),

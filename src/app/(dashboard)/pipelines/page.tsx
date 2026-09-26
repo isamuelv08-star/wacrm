@@ -37,6 +37,9 @@ import { useTranslations } from "next-intl";
 import { defaultStageRows, ensureDefaultPipeline } from "@/lib/pipelines/default-stages";
 import { selectAll } from "@/lib/supabase/fetch-all";
 
+/** Won/lost cards shown on the board: the last N days of closed deals. */
+const CLOSED_DEALS_DAYS = 90;
+
 // Pipeline creation is admin-class (settings-tier write under
 // the new RLS); deal creation is operational and only requires
 // agent+. The two CTAs gate on different `useCan` capabilities,
@@ -167,11 +170,16 @@ export default function PipelinesPage() {
       // Paged: one deal is auto-created per inbound contact, so a busy
       // pipeline passes Supabase's 1000-row cap and the board silently
       // dropped the oldest cards.
+      // Open deals always; closed (won/lost) ones only from the last
+      // CLOSED_DEALS_DAYS — the Won/Lost columns otherwise grow forever
+      // and every board load downloaded the whole sales history.
+      const closedSince = new Date(Date.now() - CLOSED_DEALS_DAYS * 86_400_000).toISOString();
       const { data } = await selectAll<Deal>(() =>
         supabase
           .from("deals")
           .select("*, contact:contacts(*), assignee:profiles!deals_assigned_to_fkey(*)")
           .eq("pipeline_id", pipelineId)
+          .or(`status.eq.open,closed_at.gte.${closedSince},closed_at.is.null`)
           .order("created_at", { ascending: false })
           .order("id", { ascending: false }),
       ).catch((err) => {

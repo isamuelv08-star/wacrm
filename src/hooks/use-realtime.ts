@@ -19,6 +19,13 @@ interface UseRealtimeOptions {
    *  (Inbox's "AI is analyzing" → badge transition). `contacts` is
    *  already in the `supabase_realtime` publication (migration 059). */
   onContactEvent?: (event: RealtimeEvent<Contact>) => void;
+  /** Scopes conversation/contact changes to this account. Nothing is
+   *  subscribed until it's known. */
+  accountId: string | null;
+  /** Message changes are only needed for the open thread — the list's
+   *  previews/unread badges come from the conversation UPDATE that
+   *  every new message triggers. */
+  activeConversationId: string | null;
   enabled?: boolean;
 }
 
@@ -27,6 +34,8 @@ export function useRealtime({
   onMessageEvent,
   onConversationEvent,
   onContactEvent,
+  accountId,
+  activeConversationId,
   enabled = true,
 }: UseRealtimeOptions) {
   const channelRef = useRef<RealtimeChannel | null>(null);
@@ -46,16 +55,23 @@ export function useRealtime({
     onContactRef.current = onContactEvent;
   });
 
+  // Scale: unfiltered subscriptions made Supabase Realtime check EVERY
+  // message / conversation / contact change of EVERY account against
+  // every connected agent's permissions. Filtered, each agent only
+  // receives their own account's rows and their open thread's messages.
   useEffect(() => {
-    if (!enabled) return;
-
+    if (!enabled || !activeConversationId) return;
     const supabase = createClient();
-
     const channel = supabase
-      .channel(channelName)
+      .channel(`${channelName}:messages:${activeConversationId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "messages" },
+        {
+          event: "*",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${activeConversationId}`,
+        },
         (payload) => {
           onMessageRef.current?.({
             eventType: payload.eventType as RealtimeEvent<Message>["eventType"],
@@ -64,9 +80,22 @@ export function useRealtime({
           });
         }
       )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [channelName, enabled, activeConversationId]);
+
+  useEffect(() => {
+    if (!enabled || !accountId) return;
+
+    const supabase = createClient();
+
+    const channel = supabase
+      .channel(`${channelName}:${accountId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "conversations" },
+        { event: "*", schema: "public", table: "conversations", filter: `account_id=eq.${accountId}` },
         (payload) => {
           onConversationRef.current?.({
             eventType: payload.eventType as RealtimeEvent<Conversation>["eventType"],
@@ -77,7 +106,7 @@ export function useRealtime({
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "contacts" },
+        { event: "UPDATE", schema: "public", table: "contacts", filter: `account_id=eq.${accountId}` },
         (payload) => {
           onContactRef.current?.({
             eventType: payload.eventType as RealtimeEvent<Contact>["eventType"],
@@ -97,7 +126,7 @@ export function useRealtime({
       channelRef.current = null;
       setIsConnected(false);
     };
-  }, [channelName, enabled]);
+  }, [channelName, enabled, accountId]);
 
   const unsubscribe = useCallback(() => {
     if (channelRef.current) {

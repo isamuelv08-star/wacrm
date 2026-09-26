@@ -69,6 +69,7 @@ export function NewNotificationToastListener() {
   useEffect(() => installAudioUnlock(), []);
 
   useEffect(() => {
+    if (!userId) return;
     const supabase = createClient();
 
     const targetFor = (row: AppNotification): string | null => {
@@ -153,7 +154,7 @@ export function NewNotificationToastListener() {
       .channel("notifications-toast")
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "notifications" },
+        { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
         (payload) => {
           const row = payload.new as AppNotification;
 
@@ -201,7 +202,7 @@ export function NewNotificationToastListener() {
       // so a toast that never auto-dismisses doesn't outlive the row.
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "notifications" },
+        { event: "UPDATE", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
         (payload) => {
           const row = payload.new as AppNotification;
           if (row.read_at) toast.dismiss(row.id);

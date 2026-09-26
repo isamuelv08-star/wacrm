@@ -18,6 +18,10 @@ import { serverNotificationText } from '@/lib/i18n/server-text'
 // ============================================================
 
 const MAX_CANDIDATES_PER_SCAN = 200
+/** Oldest-first with a LIMIT: without a lookback, threads abandoned
+ *  weeks ago (already alerted) filled every scan's 200 slots and new
+ *  hot leads were never reached once there were enough of them. */
+const LOOKBACK_HOURS = 48
 
 export interface HotLeadAlertScanResult {
   scanned: number
@@ -59,6 +63,7 @@ export async function runHotLeadAlertScan(
     // bare LIMIT with no filter/order kept returning the same rows
     // (mostly already answered) and starved the rest.
     .eq('last_message_sender_type', 'customer')
+    .gte('last_message_at', new Date(Date.now() - LOOKBACK_HOURS * 3_600_000).toISOString())
     .order('last_message_at', { ascending: true })
     .limit(MAX_CANDIDATES_PER_SCAN)
 

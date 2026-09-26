@@ -18,6 +18,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
 const DROPDOWN_LIMIT = 20;
 
@@ -35,7 +36,8 @@ export function NotificationsBell() {
   const t = useTranslations("NotificationsPage");
   const tHeader = useTranslations("Header");
   const router = useRouter();
-  const { accountId } = useAuth();
+  const { accountId, user } = useAuth();
+  const userId = user?.id ?? null;
   const unreadCount = useUnreadNotifications();
 
   const [open, setOpen] = useState(false);
@@ -62,31 +64,37 @@ export function NotificationsBell() {
   // Realtime — a new notification arriving while the tray is closed
   // still needs to appear the moment it's reopened.
   useEffect(() => {
+    if (!userId) return;
     const supabase = createClient();
+    const onChange = (payload: RealtimePostgresChangesPayload<Notification>) => {
+      if (payload.eventType === "INSERT") {
+        const row = payload.new as Notification;
+        setNotifications((prev) => {
+          if (!prev) return prev;
+          if (prev.some((n) => n.id === row.id)) return prev;
+          return [row, ...prev].slice(0, DROPDOWN_LIMIT);
+        });
+      } else if (payload.eventType === "DELETE") {
+        const oldRow = payload.old as Partial<Notification>;
+        setNotifications((prev) => prev?.filter((n) => n.id !== oldRow.id) ?? prev);
+      }
+    };
+    // Only this user's rows: unfiltered, Realtime checked every
+    // notification of every account against this subscriber. DELETE
+    // events can't be filtered, hence the separate listener.
     const channel = supabase
-      .channel("notifications-bell")
+      .channel(`notifications-bell:${userId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "notifications" },
-        (payload) => {
-          if (payload.eventType === "INSERT") {
-            const row = payload.new as Notification;
-            setNotifications((prev) => {
-              if (!prev) return prev;
-              if (prev.some((n) => n.id === row.id)) return prev;
-              return [row, ...prev].slice(0, DROPDOWN_LIMIT);
-            });
-          } else if (payload.eventType === "DELETE") {
-            const oldRow = payload.old as Partial<Notification>;
-            setNotifications((prev) => prev?.filter((n) => n.id !== oldRow.id) ?? prev);
-          }
-        },
+        { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
+        onChange,
       )
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "notifications" }, onChange)
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [userId]);
 
   // Opening a notification here removes it outright (delete, not just
   // mark-read) — the bell tray is meant to empty out as you read it,

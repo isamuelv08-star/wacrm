@@ -8,12 +8,13 @@ import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
 import { useCan } from '@/hooks/use-can'
 import type { CalendarEventInput } from '@/lib/calendar/queries'
-import type { CalendarEvent, CalendarEventType, Contact, Deal, Profile } from '@/types'
+import type { CalendarEvent, CalendarEventType, Deal, Profile } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { ContactPicker } from '@/components/contacts/contact-picker'
 
 const EVENT_TYPES: CalendarEventType[] = ['call', 'meeting', 'follow_up', 'task', 'appointment', 'other']
 const REMINDER_OPTIONS = [15, 30, 60, 1440] as const
@@ -73,7 +74,6 @@ export function EventFormDialog({
   const [assignedTo, setAssignedTo] = useState('')
   const [reminderMinutesBefore, setReminderMinutesBefore] = useState('')
 
-  const [contacts, setContacts] = useState<Contact[]>([])
   const [deals, setDeals] = useState<Deal[]>([])
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [saving, setSaving] = useState(false)
@@ -130,12 +130,10 @@ export function EventFormDialog({
     if (!open) return
     let cancelled = false
     ;(async () => {
-      const [c, p] = await Promise.all([
-        supabase.from('contacts').select('*').order('name'),
+      const [p] = await Promise.all([
         supabase.from('profiles').select('*').order('full_name'),
       ])
       if (cancelled) return
-      setContacts((c.data ?? []) as Contact[])
       setProfiles((p.data ?? []) as Profile[])
     })()
     return () => {
@@ -325,22 +323,15 @@ export function EventFormDialog({
 
           <div className="grid gap-2">
             <Label className="text-muted-foreground">{t('contact')}</Label>
-            <select
+            <ContactPicker
               value={contactId}
-              onChange={(e) => {
-                setContactId(e.target.value)
+              onChange={(id) => {
+                setContactId(id)
                 setDealId('')
               }}
               disabled={!canWrite}
-              className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-60"
-            >
-              <option value="">{t('noContact')}</option>
-              {contacts.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name || c.phone}
-                </option>
-              ))}
-            </select>
+              placeholder={t('noContact')}
+            />
           </div>
 
           {contactId && deals.length > 0 && (

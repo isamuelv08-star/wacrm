@@ -93,7 +93,7 @@ function InboxPageInner() {
   // Last-known conversation list (per user), so coming back to the Inbox
   // paints the list on the first frame instead of a spinner; the normal
   // fetch below still runs and replaces it. See lib/cache/view-cache.ts.
-  const { user } = useAuth();
+  const { user, accountId } = useAuth();
   const conversationsCacheKey = user?.id ? `inbox:conversations:${user.id}` : null;
   const [conversations, setConversations] = useState<Conversation[]>(
     () => readViewCache<Conversation[]>(conversationsCacheKey) ?? [],
@@ -474,6 +474,8 @@ function InboxPageInner() {
     onMessageEvent: handleMessageEvent,
     onConversationEvent: handleConversationEvent,
     onContactEvent: handleContactEvent,
+    accountId,
+    activeConversationId: activeConversation?.id ?? null,
     enabled: true,
   });
 
