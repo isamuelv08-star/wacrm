@@ -2687,6 +2687,34 @@
       "saveFailed": "목표를 저장하지 못했습니다",
       "loadFailed": "목표를 불러오지 못했습니다",
       "currentGoalHint": "현재 계정 목표: {value}"
+    },
+    "aiLearning": {
+      "title": "상담원에게서 학습",
+      "description": "AI가 상담원의 답변 방식(CRM 또는 휴대폰)을 학습합니다. 성사된 판매의 예시는 자동 승인되고, 나머지는 검토를 기다립니다. 고객 개인정보는 제거됩니다.",
+      "unavailable": "학습을 사용하려면 마이그레이션 116을 적용하세요.",
+      "enabled": "매일 밤 상담원에게서 학습",
+      "learnNow": "지금 학습 (최근 30일)",
+      "learned": "새 예시 {count}개 학습",
+      "learnFailed": "지금 학습할 수 없습니다",
+      "loadFailed": "예시를 불러오지 못했습니다",
+      "saveFailed": "저장할 수 없습니다",
+      "approveAll": "대기 중인 항목 모두 승인",
+      "customer": "고객",
+      "advisor": "상담원",
+      "fromWonSale": "성사된 판매에서",
+      "approve": "승인",
+      "reject": "거부",
+      "delete": "삭제",
+      "tab": {
+        "pending": "대기",
+        "approved": "승인됨",
+        "rejected": "거부됨"
+      },
+      "empty": {
+        "pending": "대기 중인 예시가 없습니다.",
+        "approved": "아직 승인된 예시가 없습니다.",
+        "rejected": "거부된 예시가 없습니다."
+      }
     }
   },
   "Leads": {

@@ -34,6 +34,7 @@ const h = vi.hoisted(() => ({
 // The debounce wait would otherwise add a real ~12s to every test.
 process.env.AI_AUTOREPLY_DEBOUNCE_MS = '0'
 
+vi.mock('./learning', () => ({ retrieveLearnedExamples: async () => [] }))
 vi.mock('./config', () => ({ loadAiConfig: h.loadAiConfig }))
 vi.mock('@/lib/automations/responders', () => ({
   hasMatchingAutoResponder: async () => h.state.autoResponders.length > 0,

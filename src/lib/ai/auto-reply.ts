@@ -24,6 +24,7 @@ import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 import { pickRoundRobinAgent } from '@/lib/assignment/round-robin'
 import { signalTyping } from '@/lib/whatsapp/typing-indicator'
 import { hasMatchingAutoResponder } from '@/lib/automations/responders'
+import { retrieveLearnedExamples } from './learning'
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -328,13 +329,14 @@ export async function dispatchInboundToAiReply(
     // rather than one after the other. calendarContext still needs
     // `accountTimezone` from the batch above, which is why it couldn't
     // join that Promise.all too.
-    const [knowledge, calendarContext, customerProfile] = await Promise.all([
+    const [knowledge, calendarContext, customerProfile, advisorExamples] = await Promise.all([
       // Ground the reply in the account's knowledge base (best-effort).
       retrieveKnowledge(db, accountId, config, latestUserMessage(messages)),
       config.aiSchedulingEnabled && config.googleCalendarSyncEnabled
         ? buildCalendarContext(db, accountId, accountTimezone)
         : Promise.resolve([]),
       loadCustomerProfile(db, { contactId, dealSummary: dealContext.summary }),
+      retrieveLearnedExamples(db, accountId, latestUserMessage(messages)),
     ])
 
     // With the turn analysis on (default), it owns the deal's stage,
@@ -354,6 +356,7 @@ export async function dispatchInboundToAiReply(
         : null,
       hasOpenDeal: dealContext.hasOpenDeal && !config.dealProgressEnabled,
       customerProfile,
+      advisorExamples,
       scheduling: config.aiSchedulingEnabled
         ? { enabled: true, nowLabel: describeNowInZone(accountTimezone) }
         : null,

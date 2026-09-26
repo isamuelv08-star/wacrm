@@ -29,6 +29,7 @@ import {
 import { SettingsPanelHead } from './settings-panel-head';
 import { AiKnowledgeCard } from './ai-knowledge';
 import { AiMediaLibraryCard } from './ai-media-library';
+import { AiLearningCard } from './ai-learning';
 import {
   AI_PROVIDER_DEFAULT_MODEL,
   AI_PROVIDER_LABEL,
@@ -1110,6 +1111,8 @@ export function AiConfig() {
 
           <AiMediaLibraryCard accountId={accountId} canEdit={canEdit} />
         </div>
+
+        <AiLearningCard accountId={accountId} canEdit={canEdit} />
 
         <div className="flex items-center justify-between">
           {configured ? (

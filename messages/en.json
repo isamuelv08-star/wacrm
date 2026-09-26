@@ -2687,6 +2687,34 @@
       "saveFailed": "Failed to save goals",
       "loadFailed": "Failed to load goals",
       "currentGoalHint": "Current account goal: {value}"
+    },
+    "aiLearning": {
+      "title": "Learning from advisors",
+      "description": "The AI learns from how your advisors reply (in the CRM or from the phone). Examples from won sales are approved automatically; the rest wait for your review. Customer personal data is removed.",
+      "unavailable": "Apply migration 116 to enable learning.",
+      "enabled": "Learn from advisors every night",
+      "learnNow": "Learn now (last 30 days)",
+      "learned": "{count} new examples learned",
+      "learnFailed": "Could not learn now",
+      "loadFailed": "Failed to load examples",
+      "saveFailed": "Could not save",
+      "approveAll": "Approve all pending",
+      "customer": "Customer",
+      "advisor": "Advisor",
+      "fromWonSale": "From a won sale",
+      "approve": "Approve",
+      "reject": "Reject",
+      "delete": "Delete",
+      "tab": {
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected"
+      },
+      "empty": {
+        "pending": "No pending examples.",
+        "approved": "No approved examples yet.",
+        "rejected": "No rejected examples."
+      }
     }
   },
   "Leads": {

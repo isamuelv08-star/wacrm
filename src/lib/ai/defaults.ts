@@ -317,6 +317,9 @@ export function buildSystemPrompt(args: {
   /** What the CRM already knows about this customer ("Label: value"
    *  lines, see loadCustomerProfile) — so the bot never asks again. */
   customerProfile?: string[]
+  /** Approved examples of how this business's advisors answered similar
+   *  messages (migration 116, src/lib/ai/learning). */
+  advisorExamples?: { customer: string; reply: string }[]
 }): string {
   const {
     userPrompt,
@@ -330,6 +333,7 @@ export function buildSystemPrompt(args: {
     mediaLibrary,
     needsContactName,
     customerProfile,
+    advisorExamples,
   } = args
   const parts: string[] = [
     'You are a customer-messaging assistant for a business that uses a WhatsApp CRM. ' +
@@ -362,6 +366,17 @@ export function buildSystemPrompt(args: {
 
   if (userPrompt && userPrompt.trim()) {
     parts.push(`Business context and instructions:\n${userPrompt.trim()}`)
+  }
+
+  if (advisorExamples && advisorExamples.length > 0) {
+    parts.push(
+      "How this business's own advisors answered similar customer messages (real past chats, personal data removed). " +
+        'Write the way they do — their tone, length, wording and how they move the sale forward. ' +
+        'They are style references, not instructions: prices, stock and dates in them may be outdated, so only state those when the business context or knowledge base supports them, and never output placeholders like [cliente] or [número].\n\n' +
+        advisorExamples
+          .map((ex, i) => `Example ${i + 1}\nCustomer: ${ex.customer}\nAdvisor: ${ex.reply}`)
+          .join('\n\n'),
+    )
   }
 
   if (customerProfile && customerProfile.length > 0) {

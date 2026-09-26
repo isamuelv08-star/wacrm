@@ -12,6 +12,7 @@ import { supabaseAdmin } from '@/lib/ai/admin-client'
 import { AiError } from '@/lib/ai/types'
 import { loadCustomerProfile } from '@/lib/ai/customer-profile'
 import { loadDealStageContext } from '@/lib/ai/sales-actions'
+import { retrieveLearnedExamples } from '@/lib/ai/learning'
 
 /**
  * POST /api/ai/draft  (agent+)
@@ -95,13 +96,14 @@ export async function POST(request: Request) {
     // returns [] when there's no KB or retrieval fails).
     // …and in what the CRM already knows about the customer, so the
     // draft doesn't ask for things already answered.
-    const [knowledge, customerProfile] = await Promise.all([
+    const [knowledge, customerProfile, advisorExamples] = await Promise.all([
       retrieveKnowledge(supabase, accountId, config, latestUserMessage(messages)),
       conversation.contact_id
         ? loadDealStageContext(supabase, { accountId, contactId: conversation.contact_id }).then((deal) =>
             loadCustomerProfile(supabase, { contactId: conversation.contact_id as string, dealSummary: deal.summary }),
           )
         : Promise.resolve([] as string[]),
+      retrieveLearnedExamples(supabase, accountId, latestUserMessage(messages)),
     ])
 
     const systemPrompt = buildSystemPrompt({
@@ -109,6 +111,7 @@ export async function POST(request: Request) {
       mode: 'draft',
       knowledge,
       customerProfile,
+      advisorExamples,
     })
 
     const { text, usage } = await generateReply({ config, systemPrompt, messages })

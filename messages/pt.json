@@ -2687,6 +2687,34 @@
       "saveFailed": "Não foi possível salvar as metas",
       "loadFailed": "Não foi possível carregar as metas",
       "currentGoalHint": "Meta atual da conta: {value}"
+    },
+    "aiLearning": {
+      "title": "Aprendizado com os consultores",
+      "description": "A IA aprende com a forma como seus consultores respondem (no CRM ou pelo celular). Exemplos de vendas ganhas são aprovados automaticamente; o resto aguarda sua revisão. Os dados pessoais do cliente são removidos.",
+      "unavailable": "Aplique a migração 116 para ativar o aprendizado.",
+      "enabled": "Aprender com os consultores toda noite",
+      "learnNow": "Aprender agora (últimos 30 dias)",
+      "learned": "{count} novos exemplos aprendidos",
+      "learnFailed": "Não foi possível aprender agora",
+      "loadFailed": "Erro ao carregar os exemplos",
+      "saveFailed": "Não foi possível salvar",
+      "approveAll": "Aprovar todos os pendentes",
+      "customer": "Cliente",
+      "advisor": "Consultor",
+      "fromWonSale": "De uma venda ganha",
+      "approve": "Aprovar",
+      "reject": "Rejeitar",
+      "delete": "Excluir",
+      "tab": {
+        "pending": "Pendentes",
+        "approved": "Aprovados",
+        "rejected": "Rejeitados"
+      },
+      "empty": {
+        "pending": "Nenhum exemplo pendente.",
+        "approved": "Ainda não há exemplos aprovados.",
+        "rejected": "Nenhum exemplo rejeitado."
+      }
     }
   },
   "Leads": {
