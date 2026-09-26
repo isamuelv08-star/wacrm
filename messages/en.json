@@ -1215,7 +1215,8 @@
         "failed": "Failed"
       },
       "toastFailedDelete": "Failed to delete: {error}",
-      "toastDeleted": "Broadcast deleted"
+      "toastDeleted": "Broadcast deleted",
+      "loadMore": "Load more ({shown} of {total})"
     },
     "new": {
       "title": "New Broadcast",

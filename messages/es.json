@@ -1215,7 +1215,8 @@
         "failed": "Fallidos"
       },
       "toastFailedDelete": "Error al eliminar: {error}",
-      "toastDeleted": "Difusión eliminada"
+      "toastDeleted": "Difusión eliminada",
+      "loadMore": "Cargar más ({shown} de {total})"
     },
     "new": {
       "title": "Nueva difusión",

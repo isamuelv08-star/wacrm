@@ -17,15 +17,131 @@ import type {
   SalesVsGoalPoint,
   TopSeller,
 } from './ceo-types'
-import { fetchAllRows, selectAll } from '@/lib/supabase/fetch-all'
 
 // ------------------------------------------------------------
-// Client-side aggregation, same posture as ./queries.ts — RLS scopes
-// every query to the caller's account automatically (is_account_member),
-// so nothing here passes account_id explicitly.
+// Aggregation happens IN THE DATABASE (migration 118, ceo_* functions):
+// these used to download every deal a KPI needed and sum it in Node,
+// which grew with the account's whole sales history. The functions are
+// SECURITY INVOKER — RLS still scopes them — and take an optional
+// account id: omitted, they use the caller's own account; the
+// service-role risk-engine cron passes it explicitly.
 // ------------------------------------------------------------
 
 type DB = SupabaseClient
+
+/** "No upper bound" for the closed-deal windows. */
+const FAR_FUTURE = '9999-12-31T00:00:00.000Z'
+
+function num(v: unknown): number {
+  const n = Number(v)
+  return Number.isFinite(n) ? n : 0
+}
+
+interface ClosedHalf {
+  won: number
+  lost: number
+  wonValue: number
+  lostValue: number
+  /** Average days from creation to close of the won deals; null when none. */
+  avgCycleDays: number | null
+}
+const EMPTY_HALF: ClosedHalf = { won: 0, lost: 0, wonValue: 0, lostValue: 0, avgCycleDays: null }
+
+/** Won/lost deals closed in [from, to), split at `split` into previous / current. */
+async function closedStats(
+  db: DB,
+  accountId: string | undefined,
+  from: string,
+  split: string,
+  to: string,
+): Promise<{ current: ClosedHalf; previous: ClosedHalf }> {
+  const { data, error } = await db.rpc('ceo_closed_stats', {
+    p_account_id: accountId ?? null,
+    p_from: from,
+    p_split: split,
+    p_to: to,
+  })
+  if (error) throw error
+  const out = { current: { ...EMPTY_HALF }, previous: { ...EMPTY_HALF } }
+  for (const r of (data ?? []) as {
+    half: 'current' | 'previous'
+    won_count: unknown
+    lost_count: unknown
+    won_value: unknown
+    lost_value: unknown
+    avg_cycle_days: unknown
+  }[]) {
+    out[r.half] = {
+      won: num(r.won_count),
+      lost: num(r.lost_count),
+      wonValue: num(r.won_value),
+      lostValue: num(r.lost_value),
+      avgCycleDays: r.avg_cycle_days == null ? null : num(r.avg_cycle_days),
+    }
+  }
+  return out
+}
+
+const winRateOfHalf = (h: ClosedHalf) => (h.won + h.lost > 0 ? (h.won / (h.won + h.lost)) * 100 : null)
+const avgTicketOfHalf = (h: ClosedHalf) => (h.won > 0 ? h.wonValue / h.won : 0)
+
+interface Snapshot {
+  pipeline_total: number
+  forecast: number
+  total_clients: number
+  new_clients_current: number
+  new_clients_previous: number
+  created_current: number
+  created_previous: number
+}
+
+/** Open pipeline / forecast now, plus deal & client counts for two windows. */
+async function snapshot(
+  db: DB,
+  accountId: string | undefined,
+  previousStart: string,
+  currentStart: string,
+  currentEnd: string,
+): Promise<Snapshot> {
+  const { data, error } = await db.rpc('ceo_snapshot', {
+    p_account_id: accountId ?? null,
+    p_prev_start: previousStart,
+    p_cur_start: currentStart,
+    p_cur_end: currentEnd,
+  })
+  if (error) throw error
+  const r = (data ?? {}) as Record<string, unknown>
+  return {
+    pipeline_total: num(r.pipeline_total),
+    forecast: num(r.forecast),
+    total_clients: num(r.total_clients),
+    new_clients_current: num(r.new_clients_current),
+    new_clients_previous: num(r.new_clients_previous),
+    created_current: num(r.created_current),
+    created_previous: num(r.created_previous),
+  }
+}
+
+interface SellerStatsRow {
+  assigned_to: string
+  won_current: unknown
+  lost_current: unknown
+  won_previous: unknown
+  lost_previous: unknown
+  value_won_current: unknown
+  value_won_previous: unknown
+}
+
+async function sellerClosedStats(db: DB, from: string, split: string, to: string): Promise<SellerStatsRow[]> {
+  const { data, error } = await db.rpc('ceo_seller_closed_stats', {
+    p_account_id: null,
+    p_from: from,
+    p_split: split,
+    p_to: to,
+  })
+  if (error) throw error
+  return (data ?? []) as SellerStatsRow[]
+}
 
 const MAX_OPEN_DEALS_SCANNED = 500
 // A trend (win rate, sales cycle) needs enough closed deals in BOTH
@@ -74,17 +190,12 @@ const AT_RISK_CONVERSATION_SILENCE_DAYS = 14
  */
 export async function loadSalesVsGoal(db: DB, range: DateRange): Promise<SalesVsGoalPoint[]> {
   const buckets = rangeBuckets(range)
+  if (buckets.length === 0) return []
+  // Contiguous buckets → n + 1 edges; the database sums won revenue per bucket.
+  const edges = [buckets[0].start, ...buckets.map((b) => b.end)].map((d) => d.toISOString())
 
-  const [dealsRes, goalRow] = await Promise.all([
-    selectAll(() =>
-      db
-        .from('deals')
-        .select('value, closed_at')
-        .eq('status', 'won')
-        .gte('closed_at', range.start.toISOString())
-        .lt('closed_at', range.end.toISOString())
-        .order('id'),
-    ),
+  const [bucketRes, goalRow] = await Promise.all([
+    db.rpc('ceo_won_by_bucket', { p_account_id: null, p_edges: edges }),
     db
       .from('sales_goals')
       .select('target_value')
@@ -92,23 +203,20 @@ export async function loadSalesVsGoal(db: DB, range: DateRange): Promise<SalesVs
       .eq('period_month', monthKey(new Date()))
       .maybeSingle(),
   ])
-  if (dealsRes.error) throw dealsRes.error
+  if (bucketRes.error) throw bucketRes.error
   if (goalRow.error) throw goalRow.error
 
-  const rows = (dealsRes.data ?? []) as { value: number | null; closed_at: string }[]
+  const byBucket = new Map<number, number>()
+  for (const r of (bucketRes.data ?? []) as { bucket: number; total: unknown }[]) {
+    byBucket.set(Number(r.bucket), num(r.total))
+  }
   const monthlyGoal = (goalRow.data as { target_value: number } | null)?.target_value ?? null
   const goalPerDay = monthlyGoal != null ? monthlyGoal / daysInMonthOf(new Date()) : null
 
   let cumulativeActual = 0
   let cumulativeGoal = 0
-  return buckets.map((b) => {
-    const bucketActual = rows
-      .filter((d) => {
-        const t = new Date(d.closed_at).getTime()
-        return t >= b.start.getTime() && t < b.end.getTime()
-      })
-      .reduce((s, d) => s + (d.value ?? 0), 0)
-    cumulativeActual += bucketActual
+  return buckets.map((b, i) => {
+    cumulativeActual += byBucket.get(i + 1) ?? 0
 
     const bucketDays = Math.max(1, Math.round((b.end.getTime() - b.start.getTime()) / 86_400_000))
     if (goalPerDay != null) cumulativeGoal += goalPerDay * bucketDays
@@ -157,111 +265,22 @@ export async function loadCeoMetrics(db: DB, range: DateRange, accountId?: strin
   const currentEnd = range.end.toISOString()
   const previousStart = previousRange(range).start.toISOString()
 
-  type OpenDealRow = {
-    value: number | null
-    stage:
-      | { win_probability: number | null }[]
-      | { win_probability: number | null }
-      | null
-  }
-  type ContactRow = { contact_id: string | null }
-
-  // Every list below is read in full (fetchAllRows) — these feed sums
-  // and distinct counts, and a plain select stops at 1000 rows, so the
-  // KPIs silently understated any account past that. The open-deal scan
-  // also used to be capped at MAX_OPEN_DEALS_SCANNED, truncating the
-  // pipeline total and forecast.
-  // Service-role callers (the risk-engine cron) pass accountId; RLS
-  // scopes everyone else.
-  const acct = accountId ?? null
-
   let goalRowQ = db.from('sales_goals').select('target_value').is('user_id', null).eq('period_month', thisMonthKey)
   if (accountId) goalRowQ = goalRowQ.eq('account_id', accountId)
 
-  const [wonCurrent, wonPrevious, goalRow, openDeals, contactsAll, contactsCurrent, contactsPrevious] =
-    await Promise.all([
-      fetchAllRows<{ value: number | null }>((from, to) => {
-        let q = db
-          .from('deals')
-          .select('id, value')
-          .eq('status', 'won')
-          .gte('closed_at', currentStart)
-          .lt('closed_at', currentEnd)
-        if (acct) q = q.eq('account_id', acct)
-        return q.order('id').range(from, to)
-      }),
-      // closed_at on both bounds — the upper bound used created_at, so
-      // "previous period sales" mixed in deals by their creation date.
-      fetchAllRows<{ value: number | null }>((from, to) => {
-        let q = db
-          .from('deals')
-          .select('id, value')
-          .eq('status', 'won')
-          .gte('closed_at', previousStart)
-          .lt('closed_at', currentStart)
-        if (acct) q = q.eq('account_id', acct)
-        return q.order('id').range(from, to)
-      }),
-      goalRowQ.maybeSingle(),
-      fetchAllRows<OpenDealRow>((from, to) => {
-        let q = db
-          .from('deals')
-          .select('id, value, stage:pipeline_stages(win_probability)')
-          .eq('status', 'open')
-        if (acct) q = q.eq('account_id', acct)
-        return q.order('id').range(from, to)
-      }),
-      fetchAllRows<ContactRow>((from, to) => {
-        let q = db
-          .from('deals')
-          .select('id, contact_id')
-          .not('contact_id', 'is', null)
-        if (acct) q = q.eq('account_id', acct)
-        return q.order('id').range(from, to)
-      }),
-      fetchAllRows<ContactRow>((from, to) => {
-        let q = db
-          .from('deals')
-          .select('id, contact_id')
-          .not('contact_id', 'is', null)
-          .gte('created_at', currentStart)
-          .lt('created_at', currentEnd)
-        if (acct) q = q.eq('account_id', acct)
-        return q.order('id').range(from, to)
-      }),
-      fetchAllRows<ContactRow>((from, to) => {
-        let q = db
-          .from('deals')
-          .select('id, contact_id')
-          .not('contact_id', 'is', null)
-          .gte('created_at', previousStart)
-          .lt('created_at', currentStart)
-        if (acct) q = q.eq('account_id', acct)
-        return q.order('id').range(from, to)
-      }),
-    ])
+  // Won revenue by close date (previous vs current window) and the
+  // open-pipeline / client counts, both summed in the database.
+  const [closed, snap, goalRow] = await Promise.all([
+    closedStats(db, accountId, previousStart, currentStart, currentEnd),
+    snapshot(db, accountId, previousStart, currentStart, currentEnd),
+    goalRowQ.maybeSingle(),
+  ])
   if (goalRow.error) throw goalRow.error
 
-  const sum = (rows: { value: number | null }[]) =>
-    rows.reduce((s, r) => s + (r.value ?? 0), 0)
-  const salesCurrentValue = sum(wonCurrent)
-  const salesPreviousValue = sum(wonPrevious)
-
-  let pipelineTotal = 0
-  let forecast = 0
-  for (const d of openDeals) {
-    const value = d.value ?? 0
-    pipelineTotal += value
-    const stage = Array.isArray(d.stage) ? d.stage[0] : d.stage
-    const prob = stage?.win_probability
-    if (prob != null) forecast += value * (prob / 100)
-  }
-
-  const distinctContacts = (rows: ContactRow[]) =>
-    new Set(rows.map((r) => r.contact_id).filter((id): id is string => !!id)).size
-  const totalClients = distinctContacts(contactsAll)
-  const newClientsCurrent = distinctContacts(contactsCurrent)
-  const newClientsPrevious = distinctContacts(contactsPrevious)
+  const salesCurrentValue = closed.current.wonValue
+  const salesPreviousValue = closed.previous.wonValue
+  const pipelineTotal = snap.pipeline_total
+  const forecast = snap.forecast
 
   const monthlyGoal = (goalRow.data as { target_value: number } | null)?.target_value ?? null
   const rangeDays = Math.max(1, Math.round((range.end.getTime() - range.start.getTime()) / 86_400_000))
@@ -276,8 +295,8 @@ export async function loadCeoMetrics(db: DB, range: DateRange, accountId?: strin
     pipelineCoverage: monthlyGoal ? pipelineTotal / monthlyGoal : null,
     forecast,
     forecastPct: monthlyGoal ? (forecast / monthlyGoal) * 100 : null,
-    newClients: { current: newClientsCurrent, previous: newClientsPrevious },
-    totalClients,
+    newClients: { current: snap.new_clients_current, previous: snap.new_clients_previous },
+    totalClients: snap.total_clients,
   }
 }
 
@@ -285,29 +304,12 @@ export async function loadCeoMetrics(db: DB, range: DateRange, accountId?: strin
 
 export async function loadCommercialMetrics(db: DB, windowDays = 90): Promise<CommercialMetrics> {
   const start = daysAgoStart(windowDays).toISOString()
-  const { data, error } = await selectAll(() =>
-    db
-      .from('deals')
-      .select('value, status, created_at, closed_at')
-      .in('status', ['won', 'lost'])
-      .gte('closed_at', start)
-      .order('id'),
-  )
-  if (error) throw error
-
-  const rows = (data ?? []) as { value: number | null; status: string; created_at: string; closed_at: string | null }[]
-  const won = rows.filter((r) => r.status === 'won')
-
-  const winRatePct = rows.length > 0 ? (won.length / rows.length) * 100 : null
-  const avgTicket = won.length > 0 ? won.reduce((s, d) => s + (d.value ?? 0), 0) / won.length : 0
-
-  const cycles = won
-    .filter((d) => d.closed_at)
-    .map((d) => (new Date(d.closed_at as string).getTime() - new Date(d.created_at).getTime()) / 86_400_000)
-    .filter((n) => Number.isFinite(n) && n >= 0)
-  const avgSalesCycleDays = cycles.length > 0 ? cycles.reduce((s, n) => s + n, 0) / cycles.length : null
-
-  return { winRatePct, avgTicket, avgSalesCycleDays }
+  const { current } = await closedStats(db, undefined, start, start, FAR_FUTURE)
+  return {
+    winRatePct: winRateOfHalf(current),
+    avgTicket: avgTicketOfHalf(current),
+    avgSalesCycleDays: current.avgCycleDays,
+  }
 }
 
 export interface PeriodCommercialTrend {
@@ -346,47 +348,15 @@ export async function loadPeriodCommercialTrend(
   const currentEnd = range.end.toISOString()
   const previousStart = previousRange(range).start.toISOString()
 
-  const closedQ = () => {
-    let q = db
-      .from('deals')
-      .select('value, status, closed_at')
-      .in('status', ['won', 'lost'])
-      .gte('closed_at', previousStart)
-      .lt('closed_at', currentEnd)
-    if (accountId) q = q.eq('account_id', accountId)
-    return q.order('id')
-  }
-  const createdQ = () => {
-    let q = db.from('deals').select('id, created_at').gte('created_at', previousStart).lt('created_at', currentEnd)
-    if (accountId) q = q.eq('account_id', accountId)
-    return q.order('id')
-  }
-
-  const [closedRes, createdRes] = await Promise.all([selectAll(closedQ), selectAll(createdQ)])
-  if (closedRes.error) throw closedRes.error
-  if (createdRes.error) throw createdRes.error
-
-  type ClosedRow = { value: number | null; status: string; closed_at: string | null }
-  const closedRows = (closedRes.data ?? []) as ClosedRow[]
-  const currentClosed = closedRows.filter((r) => r.closed_at && r.closed_at >= currentStart)
-  const previousClosed = closedRows.filter((r) => r.closed_at && r.closed_at < currentStart)
-
-  const winRateOf = (rows: ClosedRow[]) =>
-    rows.length > 0 ? (rows.filter((r) => r.status === 'won').length / rows.length) * 100 : null
-  const avgTicketOf = (rows: ClosedRow[]) => {
-    const won = rows.filter((r) => r.status === 'won')
-    return won.length > 0 ? won.reduce((s, d) => s + (d.value ?? 0), 0) / won.length : 0
-  }
-
-  type CreatedRow = { created_at: string }
-  const createdRows = (createdRes.data ?? []) as CreatedRow[]
-  const currentCreated = createdRows.filter((r) => r.created_at >= currentStart).length
-  const previousCreated = createdRows.filter((r) => r.created_at < currentStart).length
+  const [closed, snap] = await Promise.all([
+    closedStats(db, accountId, previousStart, currentStart, currentEnd),
+    snapshot(db, accountId, previousStart, currentStart, currentEnd),
+  ])
 
   return {
-    winRatePct: { current: winRateOf(currentClosed), previous: winRateOf(previousClosed) },
-    avgTicket: { current: avgTicketOf(currentClosed), previous: avgTicketOf(previousClosed) },
-    opportunitiesCreated: { current: currentCreated, previous: previousCreated },
+    winRatePct: { current: winRateOfHalf(closed.current), previous: winRateOfHalf(closed.previous) },
+    avgTicket: { current: avgTicketOfHalf(closed.current), previous: avgTicketOfHalf(closed.previous) },
+    opportunitiesCreated: { current: snap.created_current, previous: snap.created_previous },
   }
 }
 
@@ -439,60 +409,39 @@ export async function loadSellerPeriodPerformance(
   const currentEnd = range.end.toISOString()
   const previousStart = previousRange(range).start.toISOString()
 
-  const [membersRes, dealsRes] = await Promise.all([
+  const [membersRes, stats] = await Promise.all([
     db.from('profiles').select('id, full_name, email'),
-    selectAll(() =>
-      db
-        .from('deals')
-        .select('assigned_to, value, status, closed_at')
-        .in('status', ['won', 'lost'])
-        .not('assigned_to', 'is', null)
-        .gte('closed_at', previousStart)
-        .lt('closed_at', currentEnd)
-        .order('id'),
-    ),
+    sellerClosedStats(db, previousStart, currentStart, currentEnd),
   ])
   if (membersRes.error) throw membersRes.error
-  if (dealsRes.error) throw dealsRes.error
 
-  type Row = { assigned_to: string; value: number | null; status: string; closed_at: string | null }
-  const rows = (dealsRes.data ?? []) as Row[]
+  const byMember = new Map(stats.map((r) => [r.assigned_to, r]))
   const members = (membersRes.data ?? []) as { id: string; full_name: string | null; email: string | null }[]
+  const rate = (won: number, lost: number) => (won + lost > 0 ? (won / (won + lost)) * 100 : null)
 
-  const byMember = new Map<string, Row[]>()
-  for (const r of rows) {
-    const list = byMember.get(r.assigned_to) ?? []
-    list.push(r)
-    byMember.set(r.assigned_to, list)
-  }
-
-  const wonOf = (list: Row[]) => list.filter((r) => r.status === 'won')
-  const winRateOf = (list: Row[]) => (list.length > 0 ? (wonOf(list).length / list.length) * 100 : null)
-  const avgTicketOf = (list: Row[]) => {
-    const won = wonOf(list)
-    return won.length > 0 ? won.reduce((s, d) => s + (d.value ?? 0), 0) / won.length : 0
-  }
-
-  return members
-    .map((m) => {
-      const all = byMember.get(m.id) ?? []
-      const current = all.filter((r) => r.closed_at && r.closed_at >= currentStart)
-      const previous = all.filter((r) => r.closed_at && r.closed_at < currentStart)
-      return {
-        userId: m.id,
-        name: m.full_name || m.email || '—',
-        dealsWonCurrent: wonOf(current).length,
-        dealsWonPrevious: wonOf(previous).length,
-        dealsLostCurrent: current.length - wonOf(current).length,
-        dealsLostPrevious: previous.length - wonOf(previous).length,
-        winRateCurrent: winRateOf(current),
-        winRatePrevious: winRateOf(previous),
-        valueWonCurrent: wonOf(current).reduce((s, d) => s + (d.value ?? 0), 0),
-        valueWonPrevious: wonOf(previous).reduce((s, d) => s + (d.value ?? 0), 0),
-        avgTicketCurrent: avgTicketOf(current),
-        avgTicketPrevious: avgTicketOf(previous),
-      }
-    })
+  return members.map((m) => {
+    const r = byMember.get(m.id)
+    const wonC = num(r?.won_current)
+    const lostC = num(r?.lost_current)
+    const wonP = num(r?.won_previous)
+    const lostP = num(r?.lost_previous)
+    const valC = num(r?.value_won_current)
+    const valP = num(r?.value_won_previous)
+    return {
+      userId: m.id,
+      name: m.full_name || m.email || '—',
+      dealsWonCurrent: wonC,
+      dealsWonPrevious: wonP,
+      dealsLostCurrent: lostC,
+      dealsLostPrevious: lostP,
+      winRateCurrent: rate(wonC, lostC),
+      winRatePrevious: rate(wonP, lostP),
+      valueWonCurrent: valC,
+      valueWonPrevious: valP,
+      avgTicketCurrent: wonC > 0 ? valC / wonC : 0,
+      avgTicketPrevious: wonP > 0 ? valP / wonP : 0,
+    }
+  })
 }
 
 // --- 4. Top sellers vs their individual goal ------------------------------
@@ -511,23 +460,12 @@ export async function loadTopSellers(db: DB, range: DateRange, limit = 5): Promi
   const daysInMonth = daysInMonthOf(now)
   const rangeDays = Math.max(1, Math.round((range.end.getTime() - range.start.getTime()) / 86_400_000))
 
-  const [membersRes, dealsRes, goalsRes] = await Promise.all([
+  const [membersRes, stats, goalsRes] = await Promise.all([
     // profiles.id (NOT user_id) is what deals.assigned_to and
     // sales_goals.user_id actually reference (see migrations 002 and
-    // 053) — every leaderboard row used to key off profiles.user_id
-    // instead, so soldByUser/goalByUser below never matched any
-    // member and this leaderboard silently rendered empty.
+    // 053).
     db.from('profiles').select('id, full_name, email'),
-    selectAll(() =>
-      db
-        .from('deals')
-        .select('assigned_to, value')
-        .eq('status', 'won')
-        .gte('closed_at', currentStart)
-        .lt('closed_at', currentEnd)
-        .not('assigned_to', 'is', null)
-        .order('id'),
-    ),
+    sellerClosedStats(db, currentStart, currentStart, currentEnd),
     db
       .from('sales_goals')
       .select('user_id, target_value')
@@ -535,12 +473,11 @@ export async function loadTopSellers(db: DB, range: DateRange, limit = 5): Promi
       .not('user_id', 'is', null),
   ])
   if (membersRes.error) throw membersRes.error
-  if (dealsRes.error) throw dealsRes.error
   if (goalsRes.error) throw goalsRes.error
 
   const soldByMember = new Map<string, number>()
-  for (const d of (dealsRes.data ?? []) as { assigned_to: string; value: number | null }[]) {
-    soldByMember.set(d.assigned_to, (soldByMember.get(d.assigned_to) ?? 0) + (d.value ?? 0))
+  for (const r of stats) {
+    if (num(r.won_current) > 0) soldByMember.set(r.assigned_to, num(r.value_won_current))
   }
   const goalByMember = new Map<string, number>()
   for (const g of (goalsRes.data ?? []) as { user_id: string; target_value: number }[]) {
@@ -589,31 +526,19 @@ export async function loadTopSellers(db: DB, range: DateRange, limit = 5): Promi
  * with zero rows" posture as `loadTopSellers`.
  */
 export async function loadLeadsByRep(db: DB): Promise<LeadsByRep[]> {
-  const [membersRes, convRes, dealsRes] = await Promise.all([
+  const [membersRes, countsRes] = await Promise.all([
     db.from('profiles').select('id, user_id, full_name, email'),
-    selectAll(() =>
-      db
-        .from('conversations')
-        .select('assigned_agent_id')
-        .neq('status', 'closed')
-        .not('assigned_agent_id', 'is', null)
-        .order('id'),
-    ),
-    selectAll(() =>
-      db.from('deals').select('assigned_to').eq('status', 'open').not('assigned_to', 'is', null).order('id'),
-    ),
+    db.rpc('ceo_leads_by_rep', { p_account_id: null }),
   ])
   if (membersRes.error) throw membersRes.error
-  if (convRes.error) throw convRes.error
-  if (dealsRes.error) throw dealsRes.error
+  if (countsRes.error) throw countsRes.error
 
+  // Conversations are keyed by the agent's auth user id, deals by profile id.
   const convCountByUser = new Map<string, number>()
-  for (const c of (convRes.data ?? []) as { assigned_agent_id: string }[]) {
-    convCountByUser.set(c.assigned_agent_id, (convCountByUser.get(c.assigned_agent_id) ?? 0) + 1)
-  }
   const dealCountByProfile = new Map<string, number>()
-  for (const d of (dealsRes.data ?? []) as { assigned_to: string }[]) {
-    dealCountByProfile.set(d.assigned_to, (dealCountByProfile.get(d.assigned_to) ?? 0) + 1)
+  for (const r of (countsRes.data ?? []) as { kind: string; member_id: string; n: unknown }[]) {
+    if (r.kind === 'conversation') convCountByUser.set(r.member_id, num(r.n))
+    else dealCountByProfile.set(r.member_id, num(r.n))
   }
 
   const members = (membersRes.data ?? []) as {
@@ -669,59 +594,33 @@ export async function loadCeoAlerts(
   const currentWindowStart = daysAgoStart(trendWindowDays).toISOString()
   const priorWindowStart = daysAgoStart(trendWindowDays * 2).toISOString()
 
-  let trendQ = db
-    .from('deals')
-    .select('value, status, created_at, closed_at')
-    .in('status', ['won', 'lost'])
-    .gte('closed_at', priorWindowStart)
-
-  if (accountId) {
-    trendQ = trendQ.eq('account_id', accountId)
-  }
-
-  const [stalledDeals, trendRes, atRiskDeals] = await Promise.all([
+  const [stalledDeals, trend, atRiskDeals] = await Promise.all([
     findStalledOpenDeals(db, staleDays, accountId),
-    trendQ,
+    // Win rate / sales cycle: current window vs. the one before it.
+    closedStats(db, accountId, priorWindowStart, currentWindowStart, FAR_FUTURE),
     findAtRiskOpenDeals(db, AT_RISK_CONVERSATION_SILENCE_DAYS, accountId),
   ])
-  if (trendRes.error) throw trendRes.error
 
   const stalledCount = stalledDeals.length
   const stalledValue = stalledDeals.reduce((s, d) => s + (d.value ?? 0), 0)
 
-  // --- win rate / sales cycle trend: current 90d vs. the 90d before it ---
-  type TrendRow = { value: number | null; status: string; created_at: string; closed_at: string | null }
-  const trendRows = (trendRes.data ?? []) as TrendRow[]
-  const currentRows = trendRows.filter((r) => r.closed_at && r.closed_at >= currentWindowStart)
-  const priorRows = trendRows.filter((r) => r.closed_at && r.closed_at < currentWindowStart)
-
-  const winRatePctOf = (rows: TrendRow[]) =>
-    rows.length > 0 ? (rows.filter((r) => r.status === 'won').length / rows.length) * 100 : null
-  const avgCycleDaysOf = (rows: TrendRow[]) => {
-    const won = rows.filter((r) => r.status === 'won' && r.closed_at)
-    if (won.length === 0) return null
-    const days = won
-      .map((r) => (new Date(r.closed_at as string).getTime() - new Date(r.created_at).getTime()) / 86_400_000)
-      .filter((n) => Number.isFinite(n) && n >= 0)
-    return days.length > 0 ? days.reduce((s, n) => s + n, 0) / days.length : null
-  }
+  const cur = trend.current
+  const prior = trend.previous
 
   let winRateDeclinePts: number | null = null
-  if (currentRows.length >= MIN_SAMPLES_FOR_TREND && priorRows.length >= MIN_SAMPLES_FOR_TREND) {
-    const cur = winRatePctOf(currentRows)
-    const prior = winRatePctOf(priorRows)
+  if (cur.won + cur.lost >= MIN_SAMPLES_FOR_TREND && prior.won + prior.lost >= MIN_SAMPLES_FOR_TREND) {
+    const curRate = winRateOfHalf(cur)
+    const priorRate = winRateOfHalf(prior)
     // Only a real decline (not noise, not an improvement) counts as an alert.
-    if (cur != null && prior != null && prior - cur >= 3) winRateDeclinePts = prior - cur
+    if (curRate != null && priorRate != null && priorRate - curRate >= 3) winRateDeclinePts = priorRate - curRate
   }
 
   let salesCycleIncreasePct: number | null = null
-  const currentWonCount = currentRows.filter((r) => r.status === 'won').length
-  const priorWonCount = priorRows.filter((r) => r.status === 'won').length
-  if (currentWonCount >= MIN_SAMPLES_FOR_TREND && priorWonCount >= MIN_SAMPLES_FOR_TREND) {
-    const cur = avgCycleDaysOf(currentRows)
-    const prior = avgCycleDaysOf(priorRows)
-    if (cur != null && prior != null && prior > 0 && cur > prior * 1.1) {
-      salesCycleIncreasePct = ((cur - prior) / prior) * 100
+  if (cur.won >= MIN_SAMPLES_FOR_TREND && prior.won >= MIN_SAMPLES_FOR_TREND) {
+    const curCycle = cur.avgCycleDays
+    const priorCycle = prior.avgCycleDays
+    if (curCycle != null && priorCycle != null && priorCycle > 0 && curCycle > priorCycle * 1.1) {
+      salesCycleIncreasePct = ((curCycle - priorCycle) / priorCycle) * 100
     }
   }
 
@@ -941,38 +840,24 @@ export async function countHotLeadsUnanswered(
   const thresholdMinutes = acctRow?.hot_lead_alert_minutes ?? 0
   if (!thresholdMinutes || thresholdMinutes <= 0) return none // alerting disabled for this account
 
+  // Waiting on us past the threshold: the conversation row already
+  // carries who wrote last and when (migration 050's trigger) — this
+  // used to fetch the last message of up to 500 conversations one by one.
+  const cutoffIso = new Date(Date.now() - thresholdMinutes * 60_000).toISOString()
   let candidatesQ = db
     .from('conversations')
     .select('id, contact_id, contacts!inner(lead_score)')
     .eq('status', 'open')
     .eq('contacts.lead_score', 'hot')
+    .eq('last_message_sender_type', 'customer')
+    .lte('last_message_at', cutoffIso)
     .limit(MAX_OPEN_DEALS_SCANNED)
   if (accountId) candidatesQ = candidatesQ.eq('account_id', accountId)
   const { data: candidates, error } = await candidatesQ
   if (error) throw error
   if (!candidates || candidates.length === 0) return none
 
-  type Candidate = { id: string; contact_id: string }
-  const now = Date.now()
-  const cutoffMs = thresholdMinutes * 60_000
-
-  const results = await Promise.all(
-    (candidates as unknown as Candidate[]).map(async (conv) => {
-      const { data: lastMessage } = await db
-        .from('messages')
-        .select('sender_type, created_at')
-        .eq('conversation_id', conv.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      if (!lastMessage || lastMessage.sender_type !== 'customer') return null
-      const waitingMs = now - new Date(lastMessage.created_at).getTime()
-      if (waitingMs < cutoffMs) return null
-      return conv
-    }),
-  )
-
-  const unanswered = results.filter((r): r is Candidate => r !== null)
+  const unanswered = candidates as unknown as { id: string; contact_id: string }[]
   return {
     count: unanswered.length,
     contactIds: unanswered.map((c) => c.contact_id),
@@ -1010,34 +895,20 @@ function computeForecastGap(forecast: number, goal: number | null): number | nul
 export async function loadSalesFunnel(db: DB, days = 90): Promise<SalesFunnelData> {
   const windowStart = daysAgoStart(days).toISOString()
 
-  const [stagesRes, leadsRes, historyRes, dealValuesRes, wonRes, lostRes] = await Promise.all([
+  const [stagesRes, leadsRes, reachedRes, closed] = await Promise.all([
     db.from('pipeline_stages').select('id, name, is_won_stage, is_lost_stage').order('position'),
     db.from('contacts').select('id', { count: 'exact', head: true }).gte('created_at', windowStart),
-    // All paged — see fetchAllRows (these feed sums/counts).
-    selectAll(() =>
-      db.from('deal_stage_history').select('deal_id, to_stage_id').gte('changed_at', windowStart).order('id'),
-    ),
-    selectAll(() => db.from('deals').select('id, value').order('id')),
-    selectAll(() => db.from('deals').select('value').eq('status', 'won').gte('closed_at', windowStart).order('id')),
-    selectAll(() => db.from('deals').select('value').eq('status', 'lost').gte('closed_at', windowStart).order('id')),
+    // Distinct deals that reached each stage in the window + their value.
+    db.rpc('ceo_funnel_stages', { p_account_id: null, p_since: windowStart }),
+    closedStats(db, undefined, windowStart, windowStart, FAR_FUTURE),
   ])
   if (stagesRes.error) throw stagesRes.error
   if (leadsRes.error) throw leadsRes.error
-  if (historyRes.error) throw historyRes.error
-  if (dealValuesRes.error) throw dealValuesRes.error
-  if (wonRes.error) throw wonRes.error
-  if (lostRes.error) throw lostRes.error
+  if (reachedRes.error) throw reachedRes.error
 
-  const valueByDeal = new Map<string, number>()
-  for (const d of (dealValuesRes.data ?? []) as { id: string; value: number | null }[]) {
-    valueByDeal.set(d.id, d.value ?? 0)
-  }
-
-  const dealsByStage = new Map<string, Set<string>>()
-  for (const h of (historyRes.data ?? []) as { deal_id: string; to_stage_id: string }[]) {
-    const set = dealsByStage.get(h.to_stage_id) ?? new Set<string>()
-    set.add(h.deal_id)
-    dealsByStage.set(h.to_stage_id, set)
+  const reachedByStage = new Map<string, { count: number; value: number }>()
+  for (const r of (reachedRes.data ?? []) as { stage_id: string; deal_count: unknown; deal_value: unknown }[]) {
+    reachedByStage.set(r.stage_id, { count: num(r.deal_count), value: num(r.deal_value) })
   }
 
   const stages = (stagesRes.data ?? []) as {
@@ -1048,19 +919,15 @@ export async function loadSalesFunnel(db: DB, days = 90): Promise<SalesFunnelDat
   }[]
   const funnelStages = stages.filter((s) => !s.is_won_stage && !s.is_lost_stage)
   const stageSteps: FunnelStep[] = funnelStages.map((s) => {
-    const dealIds = dealsByStage.get(s.id) ?? new Set<string>()
-    let value = 0
-    for (const id of dealIds) value += valueByDeal.get(id) ?? 0
-    return { key: s.id, label: s.name, count: dealIds.size, value }
+    const reached = reachedByStage.get(s.id)
+    return { key: s.id, label: s.name, count: reached?.count ?? 0, value: reached?.value ?? 0 }
   })
 
-  const wonRows = (wonRes.data ?? []) as { value: number | null }[]
-  const lostRows = (lostRes.data ?? []) as { value: number | null }[]
   const leadsCount = leadsRes.count ?? 0
-  const wonCount = wonRows.length
-  const lostCount = lostRows.length
-  const wonValue = wonRows.reduce((s, r) => s + (r.value ?? 0), 0)
-  const lostValue = lostRows.reduce((s, r) => s + (r.value ?? 0), 0)
+  const wonCount = closed.current.won
+  const lostCount = closed.current.lost
+  const wonValue = closed.current.wonValue
+  const lostValue = closed.current.lostValue
 
   const leadsStep: FunnelStep = { key: 'leads', label: '', count: leadsCount, value: null }
   const wonStep: FunnelStep = { key: 'won', label: '', count: wonCount, value: wonValue }

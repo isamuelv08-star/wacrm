@@ -1215,7 +1215,8 @@
         "failed": "Falhou"
       },
       "toastFailedDelete": "Falha ao excluir: {error}",
-      "toastDeleted": "Transmissão excluída"
+      "toastDeleted": "Transmissão excluída",
+      "loadMore": "Carregar mais ({shown} de {total})"
     },
     "new": {
       "title": "Nova Transmissão",

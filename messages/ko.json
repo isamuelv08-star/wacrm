@@ -1215,7 +1215,8 @@
         "failed": "실패"
       },
       "toastFailedDelete": "삭제하지 못했습니다: {error}",
-      "toastDeleted": "브로드캐스트가 삭제되었습니다"
+      "toastDeleted": "브로드캐스트가 삭제되었습니다",
+      "loadMore": "더 보기 ({shown} / {total})"
     },
     "new": {
       "title": "새 브로드캐스트",
