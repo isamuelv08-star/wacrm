@@ -13,6 +13,7 @@ import { GoogleCalendarConnect } from './google-calendar-connect';
 import { IntegrationCard } from './integration-card';
 import { PlatformLogoMono } from './platform-logo-mono';
 import { useAuth } from '@/hooks/use-auth';
+import { MediaRetentionCard } from './media-retention-card';
 
 /**
  * Integrations tab — an app-store-style grid of connection tiles.
@@ -126,6 +127,10 @@ export function IntegrationsPanel() {
           subtitle={t('googleCalendar.hint')}
           action={<GoogleCalendarConnect />}
         />
+      </div>
+
+      <div className="mt-4">
+        <MediaRetentionCard />
       </div>
     </section>
   );

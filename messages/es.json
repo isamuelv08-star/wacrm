@@ -2716,6 +2716,16 @@
         "approved": "Aún no hay ejemplos aprobados.",
         "rejected": "No hay ejemplos rechazados."
       }
+    },
+    "mediaRetention": {
+      "title": "Tiempo de guardado de archivos",
+      "description": "Fotos, audios, videos y documentos del chat (de clientes y asesores). Pasado este plazo se borran para liberar espacio; los mensajes, textos y transcripciones se conservan.",
+      "forever": "Guardar siempre",
+      "days": "{count} días",
+      "warning": "Los archivos de chat con más de {count} días se borrarán automáticamente y no se pueden recuperar.",
+      "saved": "Guardado",
+      "saveFailed": "No se pudo guardar",
+      "unavailable": "Aplica la migración 119 para activar esta opción."
     }
   },
   "Leads": {

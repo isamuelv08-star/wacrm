@@ -55,6 +55,7 @@ import {
 import { validateInteractivePayload } from "@/lib/whatsapp/interactive";
 import type { InteractiveMessagePayload, QuickReply } from "@/types";
 import { QuickReplyPicker } from "./quick-reply-picker";
+import { compressImageForChat } from "@/lib/media/compress-image";
 
 /** Media content types an agent can send from the composer. */
 export type ComposerMediaKind = "image" | "video" | "document" | "audio";
@@ -385,7 +386,9 @@ export function MessageComposer({
 
   // Upload a captured file to chat-media and stage it as a draft.
   const stageUpload = useCallback(
-    async (kind: ComposerMediaKind, file: File) => {
+    async (kind: ComposerMediaKind, picked: File) => {
+      // Photos are downsized in the browser first (see compressImageForChat).
+      const file = kind === "image" ? await compressImageForChat(picked) : picked;
       // Per-kind ceiling mirrors Meta's caps (image 5 MB, etc.) so we
       // reject before upload rather than orphaning an object that Meta
       // would then refuse at send.

@@ -2716,6 +2716,16 @@
         "approved": "No approved examples yet.",
         "rejected": "No rejected examples."
       }
+    },
+    "mediaRetention": {
+      "title": "File retention",
+      "description": "Chat photos, audio, videos and documents (from customers and advisors). After this period they are deleted to free space; messages, captions and transcripts are kept.",
+      "forever": "Keep forever",
+      "days": "{count} days",
+      "warning": "Chat files older than {count} days will be deleted automatically and cannot be recovered.",
+      "saved": "Saved",
+      "saveFailed": "Could not save",
+      "unavailable": "Apply migration 119 to enable this option."
     }
   },
   "Leads": {
