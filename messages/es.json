@@ -2614,7 +2614,9 @@
       "saveSuccess": "Asistente de IA guardado.",
       "saveFailed": "Error al guardar.",
       "removeSuccess": "Configuración de IA eliminada.",
-      "removeFailed": "Error al eliminar."
+      "removeFailed": "Error al eliminar.",
+      "aiQuotes": "La IA puede enviar cotizaciones",
+      "aiQuotesDesc": "Con el modo de respuesta automática, la IA ve los productos del catálogo que coinciden con lo que pide el cliente (con su precio real) y, cuando ya eligió producto y cantidad, le envía la cotización en PDF. Solo productos y precios del catálogo; máximo 3 por conversación al día."
     },
     "aiKnowledge": {
       "loadFailed": "Error al cargar la base de conocimiento",
@@ -3537,6 +3539,7 @@
     "errors": {
       "noConversation": "Este contacto no tiene una conversación de WhatsApp a la que enviar.",
       "empty": "La cotización no tiene líneas."
-    }
+    },
+    "byAi": "IA"
   }
 }

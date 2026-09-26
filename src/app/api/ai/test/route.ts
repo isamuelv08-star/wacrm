@@ -79,6 +79,7 @@ export async function POST(request: Request) {
         dealProgressEnabled: true,
         dealProgressMinConfidence: 0.75,
         stageHumanHoldHours: 24,
+        aiQuotesEnabled: false,
         salesModeEnabled: false,
         aiSchedulingEnabled: false,
         googleCalendarSyncEnabled: false,

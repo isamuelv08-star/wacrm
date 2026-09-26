@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Sparkles, CheckCircle2, Trash2, Eye, EyeOff, Flame, Handshake, CalendarClock, Users, CalendarCheck2, ImagePlus, MessageSquareText, Target, Clock, UserCheck, PauseCircle, ScanEye } from 'lucide-react';
+import { FileText, Loader2, Sparkles, CheckCircle2, Trash2, Eye, EyeOff, Flame, Handshake, CalendarClock, Users, CalendarCheck2, ImagePlus, MessageSquareText, Target, Clock, UserCheck, PauseCircle, ScanEye } from 'lucide-react';
 import { listTimezones } from '@/lib/timezone-list';
 import { useAuth } from '@/hooks/use-auth';
 import { canEditSettings } from '@/lib/auth/roles';
@@ -109,6 +109,7 @@ export function AiConfig() {
   const [pauseOnAgentReply, setPauseOnAgentReply] = useState(true);
   const [observeHumanThreads, setObserveHumanThreads] = useState(false);
   const [mediaSendingEnabled, setMediaSendingEnabled] = useState(false);
+  const [aiQuotesEnabled, setAiQuotesEnabled] = useState(false);
   // null = "never stop responding" (migration 047).
   const [maxPerConversation, setMaxPerConversation] = useState<number | null>(3);
   // null (default) = auto-resume is off — a handoff stays paused until a
@@ -181,6 +182,7 @@ export function AiConfig() {
         setPauseOnAgentReply(data.ai_pause_on_agent_reply !== false);
         setObserveHumanThreads(data.observe_human_threads === true);
         setMediaSendingEnabled(Boolean(data.media_sending_enabled));
+        setAiQuotesEnabled(data.ai_quotes_enabled === true);
         // The stored value is a number, or null ("never stop") — only an
         // absent key (older/partial payload) should fall back to the
         // column's own default, so this checks for undefined, not ??.
@@ -293,6 +295,7 @@ export function AiConfig() {
     ai_scheduling_enabled: aiSchedulingEnabled,
     google_calendar_sync_enabled: googleCalendarSyncEnabled,
     media_sending_enabled: mediaSendingEnabled,
+    ai_quotes_enabled: aiQuotesEnabled,
     lead_auto_assign_enabled: leadAutoAssignEnabled,
     auto_reply_max_per_conversation: maxPerConversation,
     auto_resume_after_minutes: autoResumeAfterMinutes,
@@ -933,6 +936,23 @@ export function AiConfig() {
               <Switch
                 checked={mediaSendingEnabled}
                 onCheckedChange={setMediaSendingEnabled}
+                disabled={disabled || !autoReplyEnabled}
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-4 rounded-md border border-border p-3">
+              <div>
+                <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                  <FileText className="h-3.5 w-3.5 text-primary" />
+                  {t('aiQuotes')}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t('aiQuotesDesc')}
+                </p>
+              </div>
+              <Switch
+                checked={aiQuotesEnabled}
+                onCheckedChange={setAiQuotesEnabled}
                 disabled={disabled || !autoReplyEnabled}
               />
             </div>

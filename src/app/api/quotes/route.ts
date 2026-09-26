@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     const contactId = new URL(request.url).searchParams.get('contact_id')
     let q = supabase
       .from('quotes')
-      .select('id, number, status, total, currency, created_at, sent_at, valid_until')
+      .select('*')
       .eq('account_id', accountId)
       .order('created_at', { ascending: false })
       .limit(50)

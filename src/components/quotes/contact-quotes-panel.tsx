@@ -15,6 +15,7 @@ interface QuoteRow {
   total: number;
   currency: string;
   created_at: string;
+  created_by_ai?: boolean;
 }
 
 const STATUS_STYLE: Record<QuoteRow["status"], string> = {
@@ -134,6 +135,11 @@ export function ContactQuotesPanel({
                 <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-medium", STATUS_STYLE[q.status])}>
                   {t(`status.${q.status}`)}
                 </span>
+                {q.created_by_ai && (
+                  <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                    {t("byAi")}
+                  </span>
+                )}
                 <span className="ml-auto font-semibold tabular-nums">{money(Number(q.total), q.currency)}</span>
               </div>
               <div className="mt-1.5 flex flex-wrap gap-1">

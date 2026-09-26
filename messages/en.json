@@ -2614,7 +2614,9 @@
       "saveSuccess": "AI assistant saved.",
       "saveFailed": "Failed to save.",
       "removeSuccess": "AI configuration removed.",
-      "removeFailed": "Failed to remove."
+      "removeFailed": "Failed to remove.",
+      "aiQuotes": "The AI can send quotes",
+      "aiQuotesDesc": "With auto-reply on, the AI sees the catalog products that match what the customer asks for (with their real price) and, once they have chosen product and quantity, sends them the quote PDF. Catalog products and prices only; at most 3 per conversation per day."
     },
     "aiKnowledge": {
       "loadFailed": "Failed to load knowledge base",
@@ -3537,6 +3539,7 @@
     "errors": {
       "noConversation": "This contact has no WhatsApp conversation to send to.",
       "empty": "The quote has no lines."
-    }
+    },
+    "byAi": "AI"
   }
 }

@@ -54,6 +54,12 @@ export async function GET() {
       .select('observe_human_threads, ai_reply_when_assigned, ai_pause_on_agent_reply')
       .eq('account_id', accountId)
       .maybeSingle()
+    // Migration 121, read on its own for the same reason.
+    const { data: quoteRow } = await supabase
+      .from('ai_configs')
+      .select('ai_quotes_enabled')
+      .eq('account_id', accountId)
+      .maybeSingle()
     const extra = extraRow as {
       observe_human_threads?: boolean
       ai_reply_when_assigned?: boolean
@@ -66,6 +72,7 @@ export async function GET() {
     return NextResponse.json({
       configured: true,
       observe_human_threads: extra?.observe_human_threads === true,
+      ai_quotes_enabled: (quoteRow as { ai_quotes_enabled?: boolean } | null)?.ai_quotes_enabled === true,
       // Same `!== false` defaulting as loadAiConfig: missing column or
       // null reads as the intended default, not as "off".
       ai_reply_when_assigned: extra?.ai_reply_when_assigned !== false,
@@ -258,6 +265,7 @@ export async function POST(request: Request) {
           dealProgressEnabled: true,
           dealProgressMinConfidence: 0.75,
           stageHumanHoldHours: 24,
+          aiQuotesEnabled: false,
           embeddingsApiKey: null,
           transcriptionApiKey: null,
         })
@@ -336,6 +344,7 @@ export async function POST(request: Request) {
       'observe_human_threads',
       'ai_reply_when_assigned',
       'ai_pause_on_agent_reply',
+      'ai_quotes_enabled',
     ] as const
     const optionalFields: Record<string, boolean> = {}
     for (const field of OPTIONAL_BOOLEANS) {

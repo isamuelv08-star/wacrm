@@ -138,6 +138,7 @@ function aiConfig(overrides: Partial<AiConfig> = {}): AiConfig {
     dealProgressEnabled: true,
     dealProgressMinConfidence: 0.75,
     stageHumanHoldHours: 24,
+    aiQuotesEnabled: false,
     embeddingsApiKey: null,
     transcriptionApiKey: null,
     ...overrides,

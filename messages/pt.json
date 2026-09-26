@@ -2614,7 +2614,9 @@
       "saveSuccess": "Assistente de IA salvo.",
       "saveFailed": "Falha ao salvar.",
       "removeSuccess": "Configuração de IA removida.",
-      "removeFailed": "Falha ao remover."
+      "removeFailed": "Falha ao remover.",
+      "aiQuotes": "A IA pode enviar orçamentos",
+      "aiQuotesDesc": "Com a resposta automática, a IA vê os produtos do catálogo que correspondem ao pedido do cliente (com o preço real) e, quando ele já escolheu produto e quantidade, envia o orçamento em PDF. Somente produtos e preços do catálogo; no máximo 3 por conversa por dia."
     },
     "aiKnowledge": {
       "loadFailed": "Falha ao carregar a base de conhecimento",
@@ -3537,6 +3539,7 @@
     "errors": {
       "noConversation": "Este contato não tem uma conversa de WhatsApp para enviar.",
       "empty": "O orçamento não tem linhas."
-    }
+    },
+    "byAi": "IA"
   }
 }

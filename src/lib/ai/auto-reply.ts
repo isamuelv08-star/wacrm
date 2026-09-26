@@ -25,6 +25,8 @@ import { pickRoundRobinAgent } from '@/lib/assignment/round-robin'
 import { signalTyping } from '@/lib/whatsapp/typing-indicator'
 import { hasMatchingAutoResponder } from '@/lib/automations/responders'
 import { retrieveLearnedExamples } from './learning'
+import { loadCatalogContext } from './catalog'
+import { applyAiQuote } from './quote-actions'
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -329,7 +331,14 @@ export async function dispatchInboundToAiReply(
     // rather than one after the other. calendarContext still needs
     // `accountTimezone` from the batch above, which is why it couldn't
     // join that Promise.all too.
-    const [knowledge, calendarContext, customerProfile, advisorExamples] = await Promise.all([
+    // The customer's last few messages — what they're asking about, for
+    // the catalog lookup ("4 llantas 205/55 R16" often spans messages).
+    const recentCustomerText = messages
+      .filter((m) => m.role === 'user')
+      .slice(-3)
+      .map((m) => m.content)
+      .join(' ')
+    const [knowledge, calendarContext, customerProfile, advisorExamples, catalogContext] = await Promise.all([
       // Ground the reply in the account's knowledge base (best-effort).
       retrieveKnowledge(db, accountId, config, latestUserMessage(messages)),
       config.aiSchedulingEnabled && config.googleCalendarSyncEnabled
@@ -337,6 +346,7 @@ export async function dispatchInboundToAiReply(
         : Promise.resolve([]),
       loadCustomerProfile(db, { contactId, dealSummary: dealContext.summary }),
       retrieveLearnedExamples(db, accountId, latestUserMessage(messages)),
+      loadCatalogContext(db, accountId, recentCustomerText),
     ])
 
     // With the turn analysis on (default), it owns the deal's stage,
@@ -357,6 +367,9 @@ export async function dispatchInboundToAiReply(
       hasOpenDeal: dealContext.hasOpenDeal && !config.dealProgressEnabled,
       customerProfile,
       advisorExamples,
+      catalog: catalogContext
+        ? { ...catalogContext, canSendQuotes: config.aiQuotesEnabled }
+        : null,
       scheduling: config.aiSchedulingEnabled
         ? { enabled: true, nowLabel: describeNowInZone(accountTimezone) }
         : null,
@@ -383,6 +396,7 @@ export async function dispatchInboundToAiReply(
       schedule,
       sendMedia,
       sendBookingLink,
+      sendQuote,
       contactName,
       dealValue,
       usage,
@@ -643,6 +657,20 @@ export async function dispatchInboundToAiReply(
         conversationId,
         contactId,
         configOwnerUserId,
+      })
+    }
+
+    // Quote PDF from the catalog (migration 121) — same follow-up
+    // placement; applyAiQuote owns its own try/catch and never throws.
+    if (config.aiQuotesEnabled && sendQuote && catalogContext) {
+      void signalTyping(db, accountId, conversationId)
+      await applyAiQuote(db, {
+        accountId,
+        conversationId,
+        contactId,
+        configOwnerUserId,
+        request: sendQuote,
+        catalog: catalogContext.items,
       })
     }
   } catch (err) {

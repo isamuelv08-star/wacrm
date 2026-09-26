@@ -164,6 +164,14 @@ export const SEND_BOOKING_LINK_SENTINEL = '[[SEND_BOOKING_LINK]]'
 export const SEND_BOOKING_LINK_SENTINEL_PATTERN = /\[\[\s*SEND_BOOKING_LINK\s*\]\]/i
 
 /**
+ * Send-quote sentinel (migration 121, `ai_configs.ai_quotes_enabled`):
+ * [[SEND_QUOTE: P1 x 4; P2 x 1]] — codes from the catalog block the
+ * prompt lists for this turn. Parsed + stripped like every sentinel;
+ * src/lib/ai/quote-actions.ts builds and sends the PDF.
+ */
+export const SEND_QUOTE_SENTINEL_PATTERN = /\[\[\s*SEND_QUOTE:\s*([^\]]+?)\s*\]\]/i
+
+/**
  * Send-media sentinel (opt-in per account via `ai_configs.media_sending_enabled`,
  * migration 072). Same contract as every other sentinel here: appended
  * to the raw reply, parsed + stripped by `parseGeneration`, never shown
@@ -320,6 +328,15 @@ export function buildSystemPrompt(args: {
   /** Approved examples of how this business's advisors answered similar
    *  messages (migration 116, src/lib/ai/learning). */
   advisorExamples?: { customer: string; reply: string }[]
+  /** Catalog products matching this conversation (src/lib/ai/catalog.ts),
+   *  with the tax note to phrase prices correctly. */
+  catalog?: {
+    items: { code: string; name: string; sku: string | null; unitPrice: number }[]
+    currency: string
+    taxNote: string | null
+    /** Teaches [[SEND_QUOTE: …]] (auto_reply only, ai_quotes_enabled). */
+    canSendQuotes: boolean
+  } | null
 }): string {
   const {
     userPrompt,
@@ -334,6 +351,7 @@ export function buildSystemPrompt(args: {
     needsContactName,
     customerProfile,
     advisorExamples,
+    catalog,
   } = args
   const parts: string[] = [
     'You are a customer-messaging assistant for a business that uses a WhatsApp CRM. ' +
@@ -366,6 +384,28 @@ export function buildSystemPrompt(args: {
 
   if (userPrompt && userPrompt.trim()) {
     parts.push(`Business context and instructions:\n${userPrompt.trim()}`)
+  }
+
+  if (catalog && catalog.items.length > 0) {
+    const fmt = (n: number) => {
+      try {
+        return new Intl.NumberFormat('en', { style: 'currency', currency: catalog.currency }).format(n)
+      } catch {
+        return `${catalog.currency} ${n.toFixed(2)}`
+      }
+    }
+    parts.push(
+      "Products from this business's catalog that match this conversation, with their CURRENT prices" +
+        (catalog.taxNote ? ` (${catalog.taxNote})` : '') +
+        ':\n' +
+        catalog.items.map((p) => `${p.code}: ${p.name}${p.sku ? ` [${p.sku}]` : ''} — ${fmt(p.unitPrice)}`).join('\n') +
+        '\n\nThese prices are authoritative: quote them exactly, never invent a product, price, discount or stock that is not listed here or in the business context.',
+    )
+    if (mode === 'auto_reply' && catalog.canSendQuotes) {
+      parts.push(
+        'You can send the customer a formal quote (PDF) built from the products above. Do it only when the customer has clearly chosen WHICH product(s) (from the list above) and HOW MANY, and wants a price, quote or proforma — then append at the very end of your output: [[SEND_QUOTE: P1 x 4; P2 x 1]] using only the codes listed above with the quantities they asked for. In your reply text, say in one short sentence that you are sending the quote. If the exact product or the quantity is unclear, ask first instead. If what they want is not in the list, do not quote it. Never send the same quote twice: if you already sent one for the same items earlier in this conversation, just refer to it. The tag is stripped before delivery and never shown to the customer.',
+      )
+    }
   }
 
   if (advisorExamples && advisorExamples.length > 0) {

@@ -29,6 +29,7 @@ interface AiConfigRow {
   deal_progress_enabled?: boolean | null
   deal_progress_min_confidence?: number | string | null
   ai_stage_human_hold_hours?: number | null
+  ai_quotes_enabled?: boolean | null
 }
 
 const CORE_CONFIG_COLUMNS =
@@ -47,6 +48,9 @@ const OPTIONAL_CONFIG_COLUMNS =
 const PROGRESS_CONFIG_COLUMNS =
   'deal_progress_enabled, deal_progress_min_confidence, ai_stage_human_hold_hours'
 
+/** Migration 121 (AI quotes). Its own tier, same reasoning. */
+const QUOTE_CONFIG_COLUMNS = 'ai_quotes_enabled'
+
 /**
  * One SELECT with the optional (101/102) columns, retried without them
  * when the database says they don't exist. Deploying the code before
@@ -54,6 +58,13 @@ const PROGRESS_CONFIG_COLUMNS =
  * defaults" instead of taking auto-reply down account-wide.
  */
 async function selectConfigRow(db: SupabaseClient, accountId: string) {
+  const withQuotes = await db
+    .from('ai_configs')
+    .select(`${CORE_CONFIG_COLUMNS}, ${OPTIONAL_CONFIG_COLUMNS}, ${PROGRESS_CONFIG_COLUMNS}, ${QUOTE_CONFIG_COLUMNS}`)
+    .eq('account_id', accountId)
+    .maybeSingle()
+  if (!withQuotes.error || !isMissingColumnError(withQuotes.error)) return withQuotes
+
   const withProgress = await db
     .from('ai_configs')
     .select(`${CORE_CONFIG_COLUMNS}, ${OPTIONAL_CONFIG_COLUMNS}, ${PROGRESS_CONFIG_COLUMNS}`)
@@ -196,6 +207,7 @@ export async function loadAiConfig(
       typeof row.ai_stage_human_hold_hours === 'number' && row.ai_stage_human_hold_hours >= 0
         ? row.ai_stage_human_hold_hours
         : 24,
+    aiQuotesEnabled: row.ai_quotes_enabled === true,
     // An OpenAI chat key can embed too — without this, OpenAI accounts
     // that never filled the separate embeddings field only ever got
     // keyword search over their knowledge base.

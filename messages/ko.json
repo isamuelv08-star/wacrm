@@ -2614,7 +2614,9 @@
       "saveSuccess": "AI 어시스턴트가 저장되었습니다.",
       "saveFailed": "저장하지 못했습니다.",
       "removeSuccess": "AI 설정이 제거되었습니다.",
-      "removeFailed": "제거하지 못했습니다."
+      "removeFailed": "제거하지 못했습니다.",
+      "aiQuotes": "AI가 견적서를 보낼 수 있음",
+      "aiQuotesDesc": "자동 응답이 켜져 있으면 AI가 고객 요청과 일치하는 카탈로그 제품(실제 가격 포함)을 보고, 고객이 제품과 수량을 정하면 견적서 PDF를 보냅니다. 카탈로그의 제품과 가격만 사용하며 대화당 하루 최대 3건입니다."
     },
     "aiKnowledge": {
       "loadFailed": "지식베이스를 불러오지 못했습니다",
@@ -3537,6 +3539,7 @@
     "errors": {
       "noConversation": "이 연락처에는 보낼 WhatsApp 대화가 없습니다.",
       "empty": "견적에 항목이 없습니다."
-    }
+    },
+    "byAi": "AI"
   }
 }

@@ -18,6 +18,7 @@ import {
   SCHEDULE_SENTINEL_PATTERN,
   SEND_MEDIA_SENTINEL_PATTERN,
   SEND_BOOKING_LINK_SENTINEL_PATTERN,
+  SEND_QUOTE_SENTINEL_PATTERN,
   CONTACT_NAME_SENTINEL_PATTERN,
   DEAL_VALUE_SENTINEL_PATTERN,
   aiRequestTimeoutMs,
@@ -386,6 +387,9 @@ export function parseGeneration(
 
   const sendBookingLink = SEND_BOOKING_LINK_SENTINEL_PATTERN.test(raw)
 
+  const sendQuoteMatch = raw.match(SEND_QUOTE_SENTINEL_PATTERN)
+  const sendQuote = sendQuoteMatch ? sendQuoteMatch[1].trim() || null : null
+
   const contactNameMatch = raw.match(CONTACT_NAME_SENTINEL_PATTERN)
   const contactName = contactNameMatch ? contactNameMatch[1].trim() || null : null
 
@@ -404,6 +408,7 @@ export function parseGeneration(
     .replace(SCHEDULE_SENTINEL_PATTERN, '')
     .replace(SEND_MEDIA_SENTINEL_PATTERN, '')
     .replace(SEND_BOOKING_LINK_SENTINEL_PATTERN, '')
+    .replace(SEND_QUOTE_SENTINEL_PATTERN, '')
     .replace(CONTACT_NAME_SENTINEL_PATTERN, '')
     .replace(DEAL_VALUE_SENTINEL_PATTERN, '')
     // Belt-and-braces: the patterns above are non-global (first match
@@ -428,6 +433,7 @@ export function parseGeneration(
     schedule,
     sendMedia,
     sendBookingLink,
+    sendQuote,
     contactName,
     dealValue,
     usage,

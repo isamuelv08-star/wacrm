@@ -13,6 +13,7 @@ import { AiError } from '@/lib/ai/types'
 import { loadCustomerProfile } from '@/lib/ai/customer-profile'
 import { loadDealStageContext } from '@/lib/ai/sales-actions'
 import { retrieveLearnedExamples } from '@/lib/ai/learning'
+import { loadCatalogContext } from '@/lib/ai/catalog'
 
 /**
  * POST /api/ai/draft  (agent+)
@@ -96,7 +97,7 @@ export async function POST(request: Request) {
     // returns [] when there's no KB or retrieval fails).
     // …and in what the CRM already knows about the customer, so the
     // draft doesn't ask for things already answered.
-    const [knowledge, customerProfile, advisorExamples] = await Promise.all([
+    const [knowledge, customerProfile, advisorExamples, catalogContext] = await Promise.all([
       retrieveKnowledge(supabase, accountId, config, latestUserMessage(messages)),
       conversation.contact_id
         ? loadDealStageContext(supabase, { accountId, contactId: conversation.contact_id }).then((deal) =>
@@ -104,6 +105,7 @@ export async function POST(request: Request) {
           )
         : Promise.resolve([] as string[]),
       retrieveLearnedExamples(supabase, accountId, latestUserMessage(messages)),
+      loadCatalogContext(supabase, accountId, latestUserMessage(messages)),
     ])
 
     const systemPrompt = buildSystemPrompt({
@@ -112,6 +114,7 @@ export async function POST(request: Request) {
       knowledge,
       customerProfile,
       advisorExamples,
+      catalog: catalogContext ? { ...catalogContext, canSendQuotes: false } : null,
     })
 
     const { text, usage } = await generateReply({ config, systemPrompt, messages })

@@ -3,6 +3,7 @@ import { computeQuoteTotals, round2, type QuoteLineInput } from './totals'
 import { renderQuotePdf, type QuotePdfLabels } from './pdf'
 import { quotePdfText } from '@/lib/i18n/server-text'
 import { sendMessageToConversation } from '@/lib/whatsapp/send-message'
+import { engineSendMedia } from '@/lib/flows/meta-send'
 
 /**
  * Quotes (migration 120). Numbering and PDF upload use the service-role
@@ -67,11 +68,13 @@ export async function createQuote(
   admin: SupabaseClient,
   args: {
     accountId: string
-    userId: string
+    /** Null when the AI made it. */
+    userId: string | null
     contactId: string
     conversationId?: string | null
     lines: QuoteLineInput[]
     notes?: string | null
+    createdByAi?: boolean
   },
 ): Promise<{ id: string; number: string }> {
   const settings = await loadQuoteSettings(db, args.accountId)
@@ -108,6 +111,7 @@ export async function createQuote(
       terms: settings.terms,
       valid_until: validUntil,
       created_by: args.userId,
+      ...(args.createdByAi ? { created_by_ai: true } : {}),
       ...patch,
     })
     .select('id, number')
@@ -236,6 +240,72 @@ export async function renderQuote(db: SupabaseClient, quote: LoadedQuote): Promi
  * to the customer on WhatsApp with a short caption, mark the quote sent
  * and set the open deal's value to the quote total.
  */
+async function resolveConversation(db: SupabaseClient, quote: LoadedQuote): Promise<string> {
+  if (quote.conversation_id) return quote.conversation_id
+  if (quote.contact_id) {
+    const { data: conv } = await db
+      .from('conversations')
+      .select('id')
+      .eq('contact_id', quote.contact_id)
+      .order('last_message_at', { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle()
+    if (conv?.id) return conv.id as string
+  }
+  throw new QuoteError('no_conversation', 400)
+}
+
+/** Render the PDF and put it next to the chat's other attachments. */
+async function publishQuotePdf(
+  db: SupabaseClient,
+  admin: SupabaseClient,
+  accountId: string,
+  quote: LoadedQuote,
+): Promise<{ url: string; caption: string; filename: string }> {
+  const bytes = await renderQuote(db, quote)
+  const path = `account-${accountId}/quotes/${quote.number}-${quote.id.slice(0, 8)}.pdf`
+  const { error: upErr } = await admin.storage
+    .from('chat-media')
+    .upload(path, bytes, { contentType: 'application/pdf', upsert: true })
+  if (upErr) throw upErr
+  const { data: pub } = admin.storage.from('chat-media').getPublicUrl(path)
+  const totalLabel = new Intl.NumberFormat('es', { style: 'currency', currency: quote.currency }).format(
+    Number(quote.total),
+  )
+  return {
+    url: pub.publicUrl,
+    caption: quotePdfText()('caption', { number: quote.number, total: totalLabel }),
+    filename: `${quote.number}.pdf`,
+  }
+}
+
+/** Mark sent and make the open deal worth what was quoted (the AI turn
+ *  analysis then sees the quote in the chat and moves the stage). */
+async function markQuoteSent(db: SupabaseClient, quote: LoadedQuote, pdfUrl: string, conversationId: string) {
+  const now = new Date().toISOString()
+  await db
+    .from('quotes')
+    .update({
+      status: quote.status === 'draft' ? 'sent' : quote.status,
+      sent_at: now,
+      pdf_url: pdfUrl,
+      conversation_id: conversationId,
+      updated_at: now,
+    })
+    .eq('id', quote.id)
+  if (quote.deal_id) {
+    await db
+      .from('deals')
+      .update({ value: round2(Number(quote.total)), currency: quote.currency, updated_at: now })
+      .eq('id', quote.deal_id)
+      .eq('status', 'open')
+  }
+}
+
+/**
+ * An advisor sends the quote: PDF to the customer on WhatsApp with a
+ * short caption, as their own message.
+ */
 export async function sendQuote(
   db: SupabaseClient,
   admin: SupabaseClient,
@@ -244,64 +314,46 @@ export async function sendQuote(
   const quote = await loadQuote(db, args.quoteId)
   if (!quote) throw new QuoteError('not_found', 404)
   if (!quote.items.length) throw new QuoteError('empty', 400)
-
-  let conversationId = quote.conversation_id
-  if (!conversationId && quote.contact_id) {
-    const { data: conv } = await db
-      .from('conversations')
-      .select('id')
-      .eq('contact_id', quote.contact_id)
-      .order('last_message_at', { ascending: false, nullsFirst: false })
-      .limit(1)
-      .maybeSingle()
-    conversationId = (conv?.id as string | undefined) ?? null
-  }
-  if (!conversationId) throw new QuoteError('no_conversation', 400)
-
-  const bytes = await renderQuote(db, quote)
-  const path = `account-${args.accountId}/quotes/${quote.number}-${quote.id.slice(0, 8)}.pdf`
-  const { error: upErr } = await admin.storage
-    .from('chat-media')
-    .upload(path, bytes, { contentType: 'application/pdf', upsert: true })
-  if (upErr) throw upErr
-  const { data: pub } = admin.storage.from('chat-media').getPublicUrl(path)
-
-  const t = quotePdfText()
-  const totalLabel = new Intl.NumberFormat('es', { style: 'currency', currency: quote.currency }).format(
-    Number(quote.total),
-  )
-  const caption = t('caption', { number: quote.number, total: totalLabel })
+  const conversationId = await resolveConversation(db, quote)
+  const pdf = await publishQuotePdf(db, admin, args.accountId, quote)
   const result = await sendMessageToConversation(db, args.accountId, {
     conversationId,
     messageType: 'document',
-    mediaUrl: pub.publicUrl,
-    filename: `${quote.number}.pdf`,
-    contentText: caption,
+    mediaUrl: pdf.url,
+    filename: pdf.filename,
+    contentText: pdf.caption,
     claimForUserId: args.userId,
   })
-
-  const now = new Date().toISOString()
-  await db
-    .from('quotes')
-    .update({
-      status: quote.status === 'draft' ? 'sent' : quote.status,
-      sent_at: now,
-      pdf_url: pub.publicUrl,
-      conversation_id: conversationId,
-      updated_at: now,
-    })
-    .eq('id', quote.id)
-
-  // The deal is worth what was quoted (the AI turn analysis then sees
-  // the quote in the chat and moves the stage).
-  if (quote.deal_id) {
-    await db
-      .from('deals')
-      .update({ value: round2(Number(quote.total)), currency: quote.currency, updated_at: now })
-      .eq('id', quote.deal_id)
-      .eq('status', 'open')
-  }
+  await markQuoteSent(db, quote, pdf.url, conversationId)
   return { messageId: result.messageId }
+}
+
+/**
+ * The AI sends the quote (src/lib/ai/quote-actions.ts): same PDF, sent
+ * as a bot message (ai_generated) on whichever channel the conversation
+ * uses, so it's never mistaken for an advisor reply. `db` is the
+ * service-role client.
+ */
+export async function sendQuoteAsBot(
+  db: SupabaseClient,
+  args: { accountId: string; quoteId: string; contactId: string; configOwnerUserId: string },
+): Promise<void> {
+  const quote = await loadQuote(db, args.quoteId)
+  if (!quote) throw new QuoteError('not_found', 404)
+  const conversationId = await resolveConversation(db, quote)
+  const pdf = await publishQuotePdf(db, db, args.accountId, quote)
+  await engineSendMedia({
+    accountId: args.accountId,
+    userId: args.configOwnerUserId,
+    conversationId,
+    contactId: args.contactId,
+    kind: 'document',
+    link: pdf.url,
+    caption: pdf.caption,
+    filename: pdf.filename,
+    aiGenerated: true,
+  })
+  await markQuoteSent(db, quote, pdf.url, conversationId)
 }
 
 export class QuoteError extends Error {

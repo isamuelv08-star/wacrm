@@ -134,6 +134,8 @@ export interface AiConfig {
   dealProgressMinConfidence: number
   /** Hours a human's stage move is protected from the AI. */
   stageHumanHoldHours: number
+  /** Migration 121 — the AI may send quotes from the catalog. Off by default. */
+  aiQuotesEnabled: boolean
   /** Optional OpenAI-compatible key for embeddings. When set, the
    *  knowledge base is embedded and semantic retrieval turns on; when
    *  null, retrieval falls back to lexical full-text search. */
@@ -240,6 +242,8 @@ export interface GenerateResult {
    * booking-page URL and sends that as a separate message.
    */
   sendBookingLink: boolean
+  /** Inside of [[SEND_QUOTE: P1 x 4; …]] (migration 121), or null. */
+  sendQuote?: string | null
   /**
    * The customer's own name, from [[CONTACT_NAME: <name>]] — emitted
    * whenever they state it and the contact has none on file yet (see
