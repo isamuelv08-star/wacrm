@@ -25,6 +25,7 @@ import {
   resolveSection,
   type SettingsSection,
 } from '@/components/settings/settings-sections';
+import { ProductsQuotesSettings } from '@/components/settings/products-quotes-settings';
 
 // `useSearchParams` opts this page out of static prerendering unless it
 // sits under a Suspense boundary. Without one, the production build hits
@@ -96,6 +97,7 @@ function SettingsPageInner() {
     'quick-replies': <QuickRepliesManager />,
     fields: <FieldsAndTagsPanel />,
     deals: <DealsSettings />,
+    products: <ProductsQuotesSettings />,
     goals: <GoalsSettings />,
     booking: <BookingSettings />,
     members: <MembersTab />,

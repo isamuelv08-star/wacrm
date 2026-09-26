@@ -47,6 +47,7 @@ import {
   type CustomFieldWithValue,
 } from "@/lib/contacts/custom-fields";
 import { LeadScoreBadge } from "@/components/leads/lead-score-badge";
+import { ContactQuotesPanel } from "@/components/quotes/contact-quotes-panel";
 
 interface ContactSidebarProps {
   contact: Contact | null;
@@ -892,6 +893,14 @@ export function ContactSidebar({
 
           {/* Divider */}
           <div className="my-4 border-t border-border" />
+
+          {/* Quotes (migration 120) */}
+          {contact && (
+            <>
+              <ContactQuotesPanel contactId={contact.id} conversationId={conversationId ?? null} />
+              <div className="my-4 border-t border-border" />
+            </>
+          )}
 
           {/* Tags */}
           <div>

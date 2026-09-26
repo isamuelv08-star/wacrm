@@ -25,3 +25,11 @@ export function serverNotificationText() {
     namespace: 'ServerNotifications',
   })
 }
+
+/** Same deployment-locale translator, for the quote PDF and its caption. */
+export function quotePdfText() {
+  const configured = process.env.NEXT_PUBLIC_APP_LOCALE
+  const locale: DictionaryLocale =
+    configured && configured in DICTIONARIES ? (configured as DictionaryLocale) : 'en'
+  return createTranslator({ locale, messages: DICTIONARIES[locale], namespace: 'QuotePdf' })
+}
