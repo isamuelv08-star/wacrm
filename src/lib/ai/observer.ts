@@ -298,15 +298,19 @@ export async function observeConversationIfNeeded(args: ObserveArgs): Promise<vo
     if (messages.length === 0) return
 
     const needsContactName = isPlaceholderName(contactRow.data?.name)
+    // With the turn analysis on it owns the deal (stage, won/lost,
+    // value, summary); the observer keeps name + appointments.
+    const dealManaged = config.dealProgressEnabled
     const salesMode =
-      config.salesModeEnabled && dealContext.hasOpenDeal && dealContext.stages.length > 0
+      !dealManaged && config.salesModeEnabled && dealContext.hasOpenDeal && dealContext.stages.length > 0
         ? { stages: dealContext.stages, currency: dealContext.currency }
         : null
     const accountTimezone = accountRow.data?.timezone ?? 'UTC'
     const nowLabel = config.aiSchedulingEnabled ? describeNowInZone(accountTimezone) : null
 
     // Nothing to fill in → no reason to pay for a provider call.
-    if (!needsContactName && !dealContext.hasOpenDeal && !nowLabel) return
+    const observeDeal = dealContext.hasOpenDeal && !dealManaged
+    if (!needsContactName && !observeDeal && !nowLabel) return
 
     const { text, usage } = await (async () => {
       try {
@@ -315,7 +319,7 @@ export async function observeConversationIfNeeded(args: ObserveArgs): Promise<vo
           systemPrompt: buildObserverPrompt({
             userPrompt: config.systemPrompt,
             salesMode,
-            hasOpenDeal: dealContext.hasOpenDeal,
+            hasOpenDeal: observeDeal,
             needsContactName,
             nowLabel,
           }),
@@ -345,7 +349,7 @@ export async function observeConversationIfNeeded(args: ObserveArgs): Promise<vo
       await applyContactName(db, { contactId, name: seen.contactName })
     }
 
-    if (dealContext.hasOpenDeal) {
+    if (observeDeal) {
       await applySalesActions(db, {
         accountId,
         contactId,

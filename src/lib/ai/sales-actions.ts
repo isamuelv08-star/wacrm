@@ -179,12 +179,14 @@ export async function loadDealStageContext(
    *  open deal — fed into `buildSystemPrompt`'s `salesMode.currency` so
    *  the [[DEAL_VALUE:...]] instruction names the right unit. */
   currency: string | null
+  /** The open deal's running AI summary, for the reply's customer profile. */
+  summary?: string | null
 }> {
   const { accountId, contactId } = args
   try {
     const { data: openDeal, error: dealErr } = await db
       .from('deals')
-      .select('pipeline_id, stage_id, currency')
+      .select('pipeline_id, stage_id, currency, ai_summary')
       .eq('contact_id', contactId)
       .eq('account_id', accountId)
       .eq('status', 'open')
@@ -199,7 +201,7 @@ export async function loadDealStageContext(
       .eq('pipeline_id', openDeal.pipeline_id)
       .order('position', { ascending: true })
     if (stagesErr || !stages) {
-      return { hasOpenDeal: true, stages: [], currency: openDeal.currency ?? null }
+      return { hasOpenDeal: true, stages: [], currency: openDeal.currency ?? null, summary: openDeal.ai_summary ?? null }
     }
 
     return {
@@ -209,6 +211,7 @@ export async function loadDealStageContext(
         current: s.id === openDeal.stage_id,
       })),
       currency: openDeal.currency ?? null,
+      summary: openDeal.ai_summary ?? null,
     }
   } catch (err) {
     console.error('[ai sales-actions] loadDealStageContext failed:', err)

@@ -25,7 +25,7 @@ describe('splitReplyIntoMessages', () => {
   it('caps at MAX_REPLY_PARTS, folding overflow into the last part', () => {
     const result = splitReplyIntoMessages('One.\n\nTwo.\n\nThree.\n\nFour.\n\nFive.')
     expect(result).toHaveLength(MAX_REPLY_PARTS)
-    expect(result).toEqual(['One.', 'Two.', 'Three.\n\nFour.\n\nFive.'])
+    expect(result).toEqual(['One.', 'Two.\n\nThree.\n\nFour.\n\nFive.'])
   })
 
   it('returns an empty array for empty/whitespace-only input', () => {

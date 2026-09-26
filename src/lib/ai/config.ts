@@ -196,7 +196,10 @@ export async function loadAiConfig(
       typeof row.ai_stage_human_hold_hours === 'number' && row.ai_stage_human_hold_hours >= 0
         ? row.ai_stage_human_hold_hours
         : 24,
-    embeddingsApiKey,
+    // An OpenAI chat key can embed too — without this, OpenAI accounts
+    // that never filled the separate embeddings field only ever got
+    // keyword search over their knowledge base.
+    embeddingsApiKey: embeddingsApiKey ?? (row.provider === 'openai' ? apiKey : null),
     transcriptionApiKey,
   }
 }

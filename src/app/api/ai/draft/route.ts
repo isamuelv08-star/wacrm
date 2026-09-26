@@ -10,6 +10,8 @@ import { latestUserMessage } from '@/lib/ai/query'
 import { logAiUsage } from '@/lib/ai/usage'
 import { supabaseAdmin } from '@/lib/ai/admin-client'
 import { AiError } from '@/lib/ai/types'
+import { loadCustomerProfile } from '@/lib/ai/customer-profile'
+import { loadDealStageContext } from '@/lib/ai/sales-actions'
 
 /**
  * POST /api/ai/draft  (agent+)
@@ -47,7 +49,7 @@ export async function POST(request: Request) {
     // row means "not yours / not found" either way.
     const { data: conversation, error: convErr } = await supabase
       .from('conversations')
-      .select('id')
+      .select('id, contact_id')
       .eq('id', conversationId)
       .maybeSingle()
     if (convErr) {
@@ -91,17 +93,22 @@ export async function POST(request: Request) {
 
     // Ground the draft in the account's knowledge base (best-effort —
     // returns [] when there's no KB or retrieval fails).
-    const knowledge = await retrieveKnowledge(
-      supabase,
-      accountId,
-      config,
-      latestUserMessage(messages),
-    )
+    // …and in what the CRM already knows about the customer, so the
+    // draft doesn't ask for things already answered.
+    const [knowledge, customerProfile] = await Promise.all([
+      retrieveKnowledge(supabase, accountId, config, latestUserMessage(messages)),
+      conversation.contact_id
+        ? loadDealStageContext(supabase, { accountId, contactId: conversation.contact_id }).then((deal) =>
+            loadCustomerProfile(supabase, { contactId: conversation.contact_id as string, dealSummary: deal.summary }),
+          )
+        : Promise.resolve([] as string[]),
+    ])
 
     const systemPrompt = buildSystemPrompt({
       userPrompt: config.systemPrompt,
       mode: 'draft',
       knowledge,
+      customerProfile,
     })
 
     const { text, usage } = await generateReply({ config, systemPrompt, messages })

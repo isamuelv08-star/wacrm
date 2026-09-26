@@ -5,6 +5,7 @@ import { buildConversationContext } from './context'
 import { retrieveKnowledge } from './knowledge'
 import { generateReply } from './generate'
 import { buildSystemPrompt, splitReplyIntoMessages } from './defaults'
+import { loadCustomerProfile } from './customer-profile'
 import { buildHandoffSummary } from './handoff'
 import { ensureDealInQualifiedStage } from './lead-scoring'
 import { applySalesActions, loadDealStageContext } from './sales-actions'
@@ -327,22 +328,32 @@ export async function dispatchInboundToAiReply(
     // rather than one after the other. calendarContext still needs
     // `accountTimezone` from the batch above, which is why it couldn't
     // join that Promise.all too.
-    const [knowledge, calendarContext] = await Promise.all([
+    const [knowledge, calendarContext, customerProfile] = await Promise.all([
       // Ground the reply in the account's knowledge base (best-effort).
       retrieveKnowledge(db, accountId, config, latestUserMessage(messages)),
       config.aiSchedulingEnabled && config.googleCalendarSyncEnabled
         ? buildCalendarContext(db, accountId, accountTimezone)
         : Promise.resolve([]),
+      loadCustomerProfile(db, { contactId, dealSummary: dealContext.summary }),
     ])
+
+    // With the turn analysis on (default), it owns the deal's stage,
+    // won/lost, value and summary — the reply stays a reply.
 
     const systemPrompt = buildSystemPrompt({
       userPrompt: config.systemPrompt,
       mode: 'auto_reply',
       knowledge,
       salesMode: config.salesModeEnabled
-        ? { enabled: true, stages: dealContext.stages, currency: dealContext.currency }
+        ? {
+            enabled: true,
+            stages: dealContext.stages,
+            currency: dealContext.currency,
+            pipelineManaged: config.dealProgressEnabled,
+          }
         : null,
-      hasOpenDeal: dealContext.hasOpenDeal,
+      hasOpenDeal: dealContext.hasOpenDeal && !config.dealProgressEnabled,
+      customerProfile,
       scheduling: config.aiSchedulingEnabled
         ? { enabled: true, nowLabel: describeNowInZone(accountTimezone) }
         : null,
@@ -449,7 +460,7 @@ export async function dispatchInboundToAiReply(
       // in the same turn ("customer confirmed the order AND wants a
       // human for delivery details"). applySalesActions owns its own
       // try/catch and never throws.
-      if (stageMove || dealWon || dealLost || summary || dealValue != null) {
+      if (!config.dealProgressEnabled && (stageMove || dealWon || dealLost || summary || dealValue != null)) {
         await applySalesActions(db, {
           accountId,
           contactId,
