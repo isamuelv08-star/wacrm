@@ -10,7 +10,6 @@ import { reopenClosedConversation } from '@/lib/conversations/reopen'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
-import { classifyLeadIfNeeded } from '@/lib/ai/lead-classify'
 import { ensureOpenDeal } from '@/lib/deals/dedupe-open-deal'
 import { resolveProfileId } from '@/lib/ai/profile-id'
 import { observeConversationIfNeeded } from '@/lib/ai/observer'
@@ -27,6 +26,8 @@ import {
 import { isMissingColumnError, isNewestMessage, sentAtIso } from './external-outbound'
 import { bumpConversationOnInbound } from '@/lib/conversations/bump-inbound'
 import { archiveMessageMedia } from '@/lib/media/archive'
+import { restoreDealFromFollowup } from '@/lib/deals/stage-write'
+import { analyzeAfterAdvisorMessage, analyzeTurnIfNeeded } from '@/lib/ai/turn-analysis'
 
 // ============================================================
 // Shared inbound-webhook processing pipeline.
@@ -1105,6 +1106,9 @@ export async function processMessage(
   // inbound contact touch counts as a lead. No-ops if the contact
   // already has an open deal. See ensureLeadDeal's doc comment.
   await ensureLeadDeal(accountId, configOwnerUserId, contactRecord, conversation.id)
+  // The customer is back — a deal parked in Seguimiento returns to the
+  // stage it had reached (migration 114).
+  await restoreDealFromFollowup(supabaseAdmin(), { accountId, contactId: contactRecord.id })
 
   // Auto-tag "Lead Source" when Meta hands us Click-to-WhatsApp
   // referral data. Best-effort, never overwrites a value already set
@@ -1456,11 +1460,15 @@ export async function processMessage(
     // silently inert there. No-ops internally when auto-reply already
     // scored this same turn above; owns its own eligibility gates +
     // try/catch and never throws.
-    await classifyLeadIfNeeded({
+    // Turn analysis: score, facts, custom fields, tags and the deal's
+    // stage / won / lost — whether or not the AI replied (it replaces
+    // the old classify-only call; see src/lib/ai/turn-analysis).
+    await analyzeTurnIfNeeded({
       accountId,
       conversationId: conversation.id,
       contactId: contactRecord.id,
       configOwnerUserId,
+      trigger: 'customer',
       messageId: insertedMessage.id,
     })
 
@@ -1821,6 +1829,9 @@ export async function recordExternalOutboundMessage(
   // it answered.
   if (sentFromPhone) {
     await pauseAiForAgentReply({ accountId, conversationId: conversation.id })
+    // …and let the AI read what the advisor wrote (a sale is often
+    // confirmed in their own message).
+    await analyzeAfterAdvisorMessage({ accountId, conversationId: conversation.id, actorUserId: null })
   }
 }
 
@@ -1862,8 +1873,15 @@ async function findOrCreateContact(
   )
 
   if (existingContact) {
-    // Update name if it changed
-    if (name && name !== existingContact.name) {
+    // Only fill a MISSING name from the WhatsApp profile. This used to
+    // overwrite the name on every inbound whenever they differed —
+    // wiping names a rep corrected or the AI captured ("🔥Juan🔥" came
+    // back each message). A name that's just the phone number counts as
+    // missing.
+    const current = (existingContact.name ?? '').trim()
+    const currentIsPlaceholder =
+      !current || normalizePhone(current) === normalizePhone(phone) || /^\+?\d[\d\s-]+$/.test(current)
+    if (name && currentIsPlaceholder && name !== existingContact.name) {
       await supabaseAdmin()
         .from('contacts')
         .update({ name, updated_at: new Date().toISOString() })

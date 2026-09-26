@@ -28,7 +28,7 @@ interface OpenRouterResponse {
  * call.
  */
 export async function generateOpenRouter(args: ProviderArgs): Promise<ProviderResult> {
-  const { apiKey, model, systemPrompt, messages, timeoutMs } = args
+  const { apiKey, model, systemPrompt, messages, timeoutMs, temperature, frequencyPenalty } = args
 
   let res: Response
   try {
@@ -49,6 +49,8 @@ export async function generateOpenRouter(args: ProviderArgs): Promise<ProviderRe
           ...mergeConsecutive(messages),
         ],
         max_tokens: MAX_OUTPUT_TOKENS,
+        ...(temperature != null ? { temperature } : {}),
+        ...(frequencyPenalty != null ? { frequency_penalty: frequencyPenalty } : {}),
       }),
       signal: AbortSignal.timeout(timeoutMs),
     })

@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 import { decrypt } from '@/lib/whatsapp/encryption'
@@ -9,6 +9,7 @@ import {
   ZernioMessengerSendError,
 } from '@/lib/messenger/zernio-send'
 import { pauseAiForAgentReply } from '@/lib/ai/thread-control'
+import { analyzeAfterAdvisorMessage } from '@/lib/ai/turn-analysis'
 
 // The Messenger counterpart to /api/whatsapp/send — same auth
 // (agent-role gate + per-user rate limit) and the same request shape
@@ -171,6 +172,8 @@ export async function POST(request: Request) {
     // A person typed this, so the bot yields the thread (migration 102)
     // — same rule as the WhatsApp send path. Best-effort, never throws.
     await pauseAiForAgentReply({ accountId, conversationId: conversation_id })
+    // The AI reads the advisor's message too (stage / sale detection).
+    after(() => analyzeAfterAdvisorMessage({ accountId, conversationId: conversation_id, actorUserId: userId }))
 
     return NextResponse.json({ success: true, message: insertedMessage })
   } catch (err) {

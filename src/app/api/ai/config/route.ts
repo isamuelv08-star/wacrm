@@ -255,6 +255,9 @@ export async function POST(request: Request) {
           replyWhenAssigned: true,
           pauseOnAgentReply: true,
           observeHumanThreads: false,
+          dealProgressEnabled: true,
+          dealProgressMinConfidence: 0.75,
+          stageHumanHoldHours: 24,
           embeddingsApiKey: null,
           transcriptionApiKey: null,
         })

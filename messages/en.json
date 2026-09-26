@@ -654,7 +654,10 @@
     "aiActivity": {
       "leadScored": "The AI scored this lead as {score}",
       "leadQualified": "The AI moved this lead to Qualified",
-      "stageChanged": "{actor} moved this lead to {stage}"
+      "stageChanged": "{actor} moved this lead to {stage}",
+      "aiStageChanged": "AI moved this lead to {stage}",
+      "aiDealWon": "AI marked this sale as won",
+      "aiDealLost": "AI marked this deal as lost"
     }
   },
   "Contacts": {

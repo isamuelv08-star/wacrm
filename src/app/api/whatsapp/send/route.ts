@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import {
@@ -11,6 +11,7 @@ import {
   validateSendMessageParams,
   SendMessageError,
 } from '@/lib/whatsapp/send-message'
+import { analyzeAfterAdvisorMessage } from '@/lib/ai/turn-analysis'
 
 // The dashboard's outbound-send endpoint. It owns auth, per-user rate
 // limiting, and the two ways the UI targets a thread — an existing
@@ -170,6 +171,10 @@ export async function POST(request: Request) {
         // The public /api/v1/messages route intentionally omits this.
         claimForUserId: userId,
       })
+
+      // The AI reads what the advisor just sent (a quote → Proposal, an
+      // order confirmation → Won) — see src/lib/ai/turn-analysis.
+      after(() => analyzeAfterAdvisorMessage({ accountId, conversationId, actorUserId: userId }))
 
       return NextResponse.json({
         success: true,

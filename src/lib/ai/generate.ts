@@ -27,6 +27,12 @@ import { generateOpenAi } from './providers/openai'
 import { generateAnthropic } from './providers/anthropic'
 import { generateOpenRouter } from './providers/openrouter'
 
+/** Customer-facing replies: natural but consistent (providers default to 1.0). */
+const REPLY_TEMPERATURE = 0.5
+const REPLY_FREQUENCY_PENALTY = 0.3
+/** JSON extraction / classification: as deterministic as practical. */
+const EXTRACTION_TEMPERATURE = 0.2
+
 /** Any leftover `[[TAG]]` / `[[TAG:...]]` control sentinel. */
 const LEFTOVER_SENTINEL_PATTERN = /\[\[[A-Z_]+(?::[^\]]*)?\]\]/g
 
@@ -52,6 +58,9 @@ export async function generateReply(args: GenerateArgs): Promise<GenerateResult>
     systemPrompt,
     messages,
     timeoutMs,
+    // Natural but consistent customer-facing replies.
+    temperature: REPLY_TEMPERATURE,
+    frequencyPenalty: REPLY_FREQUENCY_PENALTY,
   }
 
   let result: { text: string; usage: AiUsage | null }
@@ -138,6 +147,7 @@ export async function generateClassification(
     systemPrompt,
     messages,
     timeoutMs,
+    temperature: EXTRACTION_TEMPERATURE,
   }
 
   let result: { text: string; usage: AiUsage | null }
@@ -225,7 +235,7 @@ function parseClassification(raw: string): Omit<ClassificationResult, 'usage'> {
  * minus their response parsing.
  */
 export async function runProvider(
-  args: GenerateArgs,
+  args: GenerateArgs & { temperature?: number },
 ): Promise<{ text: string; usage: AiUsage | null }> {
   const { config, systemPrompt, messages } = args
   const providerArgs = {
@@ -234,6 +244,9 @@ export async function runProvider(
     systemPrompt,
     messages,
     timeoutMs: aiRequestTimeoutMs(),
+    // Most runProvider callers want structured output (observer, turn
+    // analysis, extraction) — low temperature unless asked otherwise.
+    temperature: args.temperature ?? EXTRACTION_TEMPERATURE,
   }
   switch (config.provider) {
     case 'openai':

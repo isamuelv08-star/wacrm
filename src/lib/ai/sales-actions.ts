@@ -76,10 +76,20 @@ export async function applySalesActions(
     // Won takes priority if the model (incorrectly, per its own
     // instructions) emitted both in the same turn — closing a deal
     // is the more consequential of the two to get right.
-    if (dealWon) {
-      update.status = 'won'
-    } else if (dealLost) {
-      update.status = 'lost'
+    if (dealWon || dealLost) {
+      // Move the card to the pipeline's won/lost stage — setting only
+      // `status` left it sitting in its old column on the board (the
+      // migration 060 trigger syncs stage → status, never the reverse).
+      const { data: outcomeStage } = await db
+        .from('pipeline_stages')
+        .select('id')
+        .eq('pipeline_id', openDeal.pipeline_id)
+        .eq(dealWon ? 'is_won_stage' : 'is_lost_stage', true)
+        .order('position', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+      if (outcomeStage) update.stage_id = outcomeStage.id
+      update.status = dealWon ? 'won' : 'lost'
     }
 
     if (summary) {

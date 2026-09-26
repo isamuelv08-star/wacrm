@@ -8,7 +8,7 @@ import { buildSystemPrompt, splitReplyIntoMessages } from './defaults'
 import { buildHandoffSummary } from './handoff'
 import { ensureDealInQualifiedStage } from './lead-scoring'
 import { applySalesActions, loadDealStageContext } from './sales-actions'
-import { applyContactName } from './contact-actions'
+import { applyContactName, isPlaceholderName } from './contact-actions'
 import { applyScheduledEvent } from './scheduling-actions'
 import { applySentMedia } from './media-actions'
 import { applySentBookingLink } from './booking-link-actions'
@@ -318,7 +318,7 @@ export async function dispatchInboundToAiReply(
 
     const accountTimezone = accountRow.data?.timezone ?? 'UTC'
     const mediaLibrary = mediaItemsRes.data ?? []
-    const needsContactName = !contactRow.data?.name?.trim()
+    const needsContactName = isPlaceholderName(contactRow.data?.name)
     const bookingLinkAvailable = !!bookingPageRow.data
 
     // Knowledge retrieval (its own embeddings API call + one or two DB

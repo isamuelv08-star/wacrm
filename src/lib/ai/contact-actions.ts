@@ -10,6 +10,16 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 const MAX_NAME_LENGTH = 100
 
+/**
+ * True when a contact has no real name yet: empty, a phone number, or a
+ * Messenger PSID placeholder. The AI may capture a name only then —
+ * and must, since a phone-number "name" is exactly what it should fix.
+ */
+export function isPlaceholderName(name: string | null | undefined): boolean {
+  const n = (name ?? '').trim()
+  return !n || /^\+?[\d\s()-]{6,}$/.test(n) || /^Messenger:\d+$/.test(n)
+}
+
 export async function applyContactName(
   db: SupabaseClient,
   args: { contactId: string; name: string },
@@ -35,7 +45,7 @@ export async function applyContactName(
       console.error('[ai contact-actions] contact lookup failed:', fetchErr.message)
       return
     }
-    if (contact?.name && contact.name.trim()) return
+    if (!isPlaceholderName(contact?.name)) return
 
     const { error: updateErr } = await db
       .from('contacts')

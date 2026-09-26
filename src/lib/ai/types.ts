@@ -123,6 +123,17 @@ export interface AiConfig {
    * just never writes to the customer. See `src/lib/ai/observer.ts`.
    */
   observeHumanThreads: boolean
+  /**
+   * Migration 114. The per-turn analysis (src/lib/ai/turn-analysis)
+   * moves the deal through the pipeline, closes it as won/lost, and
+   * fills the contact's facts / custom fields / tags — on customer AND
+   * advisor messages, whether or not the AI replies.
+   */
+  dealProgressEnabled: boolean
+  /** Minimum model confidence (0–1) to move an open stage. */
+  dealProgressMinConfidence: number
+  /** Hours a human's stage move is protected from the AI. */
+  stageHumanHoldHours: number
   /** Optional OpenAI-compatible key for embeddings. When set, the
    *  knowledge base is embedded and semantic retrieval turns on; when
    *  null, retrieval falls back to lexical full-text search. */

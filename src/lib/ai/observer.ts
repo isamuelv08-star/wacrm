@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabaseAdmin } from './admin-client'
 import { loadAiConfig } from './config'
 import { buildConversationContext } from './context'
-import { applyContactName } from './contact-actions'
+import { applyContactName, isPlaceholderName } from './contact-actions'
 import { runProvider, stripCodeFence } from './generate'
 import { aiSilenceReason } from './reply-gate'
 import { isAiError, notifyProviderErrorIfNeeded } from './provider-alert'
@@ -297,7 +297,7 @@ export async function observeConversationIfNeeded(args: ObserveArgs): Promise<vo
     ])
     if (messages.length === 0) return
 
-    const needsContactName = !contactRow.data?.name?.trim()
+    const needsContactName = isPlaceholderName(contactRow.data?.name)
     const salesMode =
       config.salesModeEnabled && dealContext.hasOpenDeal && dealContext.stages.length > 0
         ? { stages: dealContext.stages, currency: dealContext.currency }

@@ -53,7 +53,7 @@ interface OpenAiResponse {
  * in `generateReply`).
  */
 export async function generateOpenAi(args: ProviderArgs): Promise<ProviderResult> {
-  const { apiKey, model, systemPrompt, messages, timeoutMs } = args
+  const { apiKey, model, systemPrompt, messages, timeoutMs, temperature, frequencyPenalty } = args
 
   let res: Response
   try {
@@ -70,7 +70,12 @@ export async function generateOpenAi(args: ProviderArgs): Promise<ProviderResult
           ...mergeConsecutive(messages),
         ],
         max_completion_tokens: MAX_OUTPUT_TOKENS,
-        ...(isReasoningModel(model) ? { reasoning_effort: 'low' } : {}),
+        ...(isReasoningModel(model)
+          ? { reasoning_effort: 'low' }
+          : {
+              ...(temperature != null ? { temperature } : {}),
+              ...(frequencyPenalty != null ? { frequency_penalty: frequencyPenalty } : {}),
+            }),
       }),
       signal: AbortSignal.timeout(timeoutMs),
     })

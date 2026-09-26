@@ -9,10 +9,11 @@ import { dispatchWebhookEvent } from '@/lib/webhooks/deliver'
 import { notifyNewMessage } from '@/lib/notifications/new-message-alert'
 import { ensureLeadDeal } from '@/lib/whatsapp/webhook-processor'
 import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
-import { classifyLeadIfNeeded } from '@/lib/ai/lead-classify'
 import { observeConversationIfNeeded } from '@/lib/ai/observer'
 import { bumpConversationOnInbound } from '@/lib/conversations/bump-inbound'
 import { archiveMessageMedia } from '@/lib/media/archive'
+import { restoreDealFromFollowup } from '@/lib/deals/stage-write'
+import { analyzeTurnIfNeeded } from '@/lib/ai/turn-analysis'
 
 // ============================================================
 // Messenger inbound-webhook processing pipeline — the counterpart to
@@ -439,6 +440,7 @@ export async function ingestMessengerMessage(args: {
   }
 
   await ensureLeadDeal(accountId, configOwnerUserId, contactRecord, conversation.id)
+  await restoreDealFromFollowup(supabaseAdmin(), { accountId, contactId: contactRecord.id })
 
   const { data: insertedMessage, error: msgError } = await supabaseAdmin()
     .from('messages')
@@ -497,11 +499,12 @@ export async function ingestMessengerMessage(args: {
       platform: 'messenger',
     })
 
-    await classifyLeadIfNeeded({
+    await analyzeTurnIfNeeded({
       accountId,
       conversationId: conversation.id,
       contactId: contactRecord.id,
       configOwnerUserId,
+      trigger: 'customer',
       messageId: insertedMessage.id,
     })
 

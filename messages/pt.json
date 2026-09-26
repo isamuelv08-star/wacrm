@@ -654,7 +654,10 @@
     "aiActivity": {
       "leadScored": "A IA classificou este lead como {score}",
       "leadQualified": "A IA moveu este lead para Qualificado",
-      "stageChanged": "{actor} moveu este lead para {stage}"
+      "stageChanged": "{actor} moveu este lead para {stage}",
+      "aiStageChanged": "A IA moveu este lead para {stage}",
+      "aiDealWon": "A IA marcou esta venda como ganha",
+      "aiDealLost": "A IA marcou este negócio como perdido"
     }
   },
   "Contacts": {

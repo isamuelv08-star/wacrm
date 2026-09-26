@@ -10,6 +10,14 @@ export interface ProviderArgs {
   systemPrompt: string
   messages: ChatMessage[]
   timeoutMs: number
+  /** Sampling temperature. Never sent before, so every provider ran at
+   *  its default (1.0 — the most random): replies were inconsistent and
+   *  JSON extraction noisier than it needed to be. Omitted for OpenAI
+   *  reasoning models, which reject it. */
+  temperature?: number
+  /** OpenAI/OpenRouter only — discourages the bot's repeated stock
+   *  phrases ("¿Quieres que te…?"). */
+  frequencyPenalty?: number
 }
 
 /**

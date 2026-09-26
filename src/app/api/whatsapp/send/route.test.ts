@@ -137,6 +137,14 @@ function makeSupabaseMock() {
 
 let supabaseMock = makeSupabaseMock()
 
+// `after()` needs a request scope; the advisor turn analysis it
+// schedules is covered by its own tests.
+vi.mock('next/server', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('next/server')>()
+  return { ...actual, after: () => {} }
+})
+vi.mock('@/lib/ai/turn-analysis', () => ({ analyzeAfterAdvisorMessage: vi.fn() }))
+
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => supabaseMock),
 }))

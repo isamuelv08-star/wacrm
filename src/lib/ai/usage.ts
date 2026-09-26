@@ -15,6 +15,8 @@ export interface LogAiUsageArgs {
     | 'observe'
     | 'decision_center_interpretation'
     | 'decision_center_ask'
+    | 'turn_analysis'
+    | 'learn'
   provider: AiProvider
   model: string
   /** Provider usage; a no-op when null (nothing worth recording). */

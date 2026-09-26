@@ -654,7 +654,10 @@
     "aiActivity": {
       "leadScored": "AI가 이 리드를 {score}(으)로 평가했습니다",
       "leadQualified": "AI가 이 리드를 '검증됨' 단계로 이동했습니다",
-      "stageChanged": "{actor}님이 이 리드를 {stage} 단계로 옮겼습니다"
+      "stageChanged": "{actor}님이 이 리드를 {stage} 단계로 옮겼습니다",
+      "aiStageChanged": "AI가 이 리드를 {stage} 단계로 옮겼습니다",
+      "aiDealWon": "AI가 이 거래를 성사로 표시했습니다",
+      "aiDealLost": "AI가 이 거래를 실패로 표시했습니다"
     }
   },
   "Contacts": {

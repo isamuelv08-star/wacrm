@@ -472,7 +472,14 @@ export interface Message {
  * (service-role client only, see src/app/api/deals/[id]/stage/route.ts)
  * so it shows up inline the same way.
  */
-export type AiActivityEventType = 'lead_scored' | 'lead_qualified' | 'stage_changed';
+export type AiActivityEventType =
+  | 'lead_scored'
+  | 'lead_qualified'
+  | 'stage_changed'
+  // Migration 114 — moves made by the AI's turn analysis.
+  | 'ai_stage_changed'
+  | 'ai_deal_won'
+  | 'ai_deal_lost';
 
 export interface AiActivityEvent {
   id: string;
@@ -484,7 +491,15 @@ export interface AiActivityEvent {
    *  `{ stageName, stageColor, actorName }` on `stage_changed`
    *  (`actorName` is the acting rep's display name — this event type
    *  is always human-triggered, never emitted by AI). */
-  payload: { score?: 'hot' | 'warm' | 'cold'; stageName?: string; stageColor?: string; actorName?: string };
+  payload: {
+    score?: 'hot' | 'warm' | 'cold';
+    stageName?: string;
+    stageColor?: string;
+    actorName?: string;
+    /** ai_* events: the quote from the conversation the AI based it on. */
+    evidence?: string;
+    reason?: string;
+  };
   created_at: string;
 }
 

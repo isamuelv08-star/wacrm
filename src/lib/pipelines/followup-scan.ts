@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { updateDealStage } from '@/lib/deals/stage-write'
 
 // ============================================================
 // Automatic "move to Seguimiento" — the follow-up-stage counterpart to
@@ -43,6 +44,7 @@ interface FollowupStageRow {
 
 interface CandidateDeal {
   id: string
+  stage_id: string
   conversation: { last_message_at: string | null } | null
 }
 
@@ -108,7 +110,7 @@ async function scanStage(
     // 'open'` already excludes won/lost stages (migration 060).
     const { data: page, error } = await db
       .from('deals')
-      .select('id, conversation:conversations!inner(last_message_at)')
+      .select('id, stage_id, conversation:conversations!inner(last_message_at)')
       .eq('pipeline_id', stage.pipeline_id)
       .eq('status', 'open')
       .neq('stage_id', stage.id)
@@ -140,16 +142,21 @@ async function scanStage(
       const changedAt = lastStageChange.get(deal.id)
       if (quietSince && changedAt && Date.parse(changedAt) > Date.parse(quietSince)) continue
 
-      const { error: updateErr } = await db
-        .from('deals')
-        .update({ stage_id: stage.id })
-        .eq('id', deal.id)
-        .eq('status', 'open')
+      // Remember where it was (migration 114): the customer writing
+      // again restores it (restoreDealFromFollowup) instead of the
+      // Proposal/Negotiation progress being erased by this parking move.
+      const { updated, error: updateErr } = await updateDealStage(
+        db,
+        deal.id,
+        { stage_id: stage.id, pre_followup_stage_id: deal.stage_id },
+        'system',
+        { status: 'open', stage_id: deal.stage_id },
+      )
       if (updateErr) {
-        console.error('[followup-stage] move failed:', updateErr.message)
+        console.error('[followup-stage] move failed:', updateErr)
         continue
       }
-      moved++
+      if (updated) moved++
     } catch (err) {
       console.error('[followup-stage] scan failed for deal', deal.id, err)
     }

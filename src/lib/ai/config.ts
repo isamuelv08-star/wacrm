@@ -26,6 +26,9 @@ interface AiConfigRow {
   ai_reply_when_assigned?: boolean | null
   ai_pause_on_agent_reply?: boolean | null
   observe_human_threads?: boolean | null
+  deal_progress_enabled?: boolean | null
+  deal_progress_min_confidence?: number | string | null
+  ai_stage_human_hold_hours?: number | null
 }
 
 const CORE_CONFIG_COLUMNS =
@@ -39,6 +42,11 @@ const CORE_CONFIG_COLUMNS =
 const OPTIONAL_CONFIG_COLUMNS =
   'ai_reply_when_assigned, ai_pause_on_agent_reply, observe_human_threads'
 
+/** Migration 114 (turn analysis / deal progress). Its own tier so a
+ *  database with 101/102 but not 114 keeps those settings. */
+const PROGRESS_CONFIG_COLUMNS =
+  'deal_progress_enabled, deal_progress_min_confidence, ai_stage_human_hold_hours'
+
 /**
  * One SELECT with the optional (101/102) columns, retried without them
  * when the database says they don't exist. Deploying the code before
@@ -46,6 +54,13 @@ const OPTIONAL_CONFIG_COLUMNS =
  * defaults" instead of taking auto-reply down account-wide.
  */
 async function selectConfigRow(db: SupabaseClient, accountId: string) {
+  const withProgress = await db
+    .from('ai_configs')
+    .select(`${CORE_CONFIG_COLUMNS}, ${OPTIONAL_CONFIG_COLUMNS}, ${PROGRESS_CONFIG_COLUMNS}`)
+    .eq('account_id', accountId)
+    .maybeSingle()
+  if (!withProgress.error || !isMissingColumnError(withProgress.error)) return withProgress
+
   const full = await db
     .from('ai_configs')
     .select(`${CORE_CONFIG_COLUMNS}, ${OPTIONAL_CONFIG_COLUMNS}`)
@@ -174,6 +189,13 @@ export async function loadAiConfig(
     replyWhenAssigned: row.ai_reply_when_assigned !== false,
     pauseOnAgentReply: row.ai_pause_on_agent_reply !== false,
     observeHumanThreads: row.observe_human_threads === true,
+    // Migration 114 — on unless explicitly turned off (also before 114).
+    dealProgressEnabled: row.deal_progress_enabled !== false,
+    dealProgressMinConfidence: clampConfidence(row.deal_progress_min_confidence, 0.75),
+    stageHumanHoldHours:
+      typeof row.ai_stage_human_hold_hours === 'number' && row.ai_stage_human_hold_hours >= 0
+        ? row.ai_stage_human_hold_hours
+        : 24,
     embeddingsApiKey,
     transcriptionApiKey,
   }
@@ -208,4 +230,9 @@ export async function loadEmbeddingsKey(
     )
     return { key: null, corrupt: true }
   }
+}
+
+function clampConfidence(v: unknown, fallback: number): number {
+  const n = typeof v === 'string' ? Number(v) : typeof v === 'number' ? v : NaN
+  return Number.isFinite(n) && n > 0 && n <= 1 ? n : fallback
 }

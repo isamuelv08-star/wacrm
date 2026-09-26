@@ -35,6 +35,19 @@ export function AiActivityPill({ event }: { event: AiActivityEvent }) {
       label = t("stageChanged", { actor: event.payload.actorName, stage: event.payload.stageName });
       color = event.payload.stageColor;
       break;
+    case "ai_stage_changed":
+      if (!event.payload.stageName) return null;
+      label = t("aiStageChanged", { stage: event.payload.stageName });
+      color = event.payload.stageColor;
+      break;
+    case "ai_deal_won":
+      label = t("aiDealWon");
+      color = "#16a34a";
+      break;
+    case "ai_deal_lost":
+      label = t("aiDealLost");
+      color = "#dc2626";
+      break;
     default:
       // Unknown/future event type (older client, newer server) —
       // render nothing rather than a confusing raw value.
@@ -49,6 +62,7 @@ export function AiActivityPill({ event }: { event: AiActivityEvent }) {
           !color && "bg-primary/8 text-primary/80",
         )}
         style={color ? { backgroundColor: `${color}15`, color } : undefined}
+        title={event.payload.evidence ? `“${event.payload.evidence}”` : undefined}
       >
         <Sparkles className="h-3 w-3 shrink-0" />
         {label}
